@@ -3,4 +3,5 @@ export { AssetListItem } from './AssetListItem';
 export { BalanceCard } from './BalanceCard';
 export { ChainSelector } from './ChainSelector';
 export { PrimaryButton } from './PrimaryButton';
+export { QrCode } from './QrCode';
 export { ScreenContainer } from './ScreenContainer';

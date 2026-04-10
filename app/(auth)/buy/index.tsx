@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ChainSelector, PrimaryButton, ScreenContainer } from '@/components';
+import { useBuyFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
 import { DfxColors, Typography } from '@/theme';
 
@@ -10,9 +11,17 @@ type BuyStep = 'amount' | 'payment' | 'confirm';
 
 const CURRENCIES = ['CHF', 'EUR', 'USD'] as const;
 
+const CHAIN_ASSET: Record<ChainId, string> = {
+  bitcoin: 'BTC',
+  ethereum: 'ETH',
+  arbitrum: 'ETH',
+  polygon: 'MATIC',
+};
+
 export default function BuyScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { paymentInfo, isLoading, error, createPaymentInfo, confirmPayment, reset } = useBuyFlow();
   const [step, setStep] = useState<BuyStep>('amount');
   const [selectedChain, setSelectedChain] = useState<ChainId>('bitcoin');
   const [amount, setAmount] = useState('');
@@ -63,10 +72,21 @@ export default function BuyScreen() {
 
       <View style={styles.spacer} />
 
+      {error && <Text style={styles.errorText}>{error}</Text>}
+
       <PrimaryButton
         title={t('common.continue')}
-        onPress={() => setStep('payment')}
+        onPress={async () => {
+          const info = await createPaymentInfo({
+            amount: parseFloat(amount),
+            currency: selectedCurrency,
+            asset: CHAIN_ASSET[selectedChain],
+            blockchain: selectedChain.charAt(0).toUpperCase() + selectedChain.slice(1),
+          });
+          if (info) setStep('payment');
+        }}
         disabled={!amount || parseFloat(amount) <= 0}
+        loading={isLoading}
       />
     </View>
   );
@@ -78,27 +98,37 @@ export default function BuyScreen() {
       <View style={styles.paymentInfo}>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>IBAN</Text>
-          <Text style={styles.infoValue}>CH68 0857 3177 9752 0181 4</Text>
+          <Text style={styles.infoValue}>{paymentInfo?.iban ?? '—'}</Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>BIC</Text>
-          <Text style={styles.infoValue}>MAABORBA</Text>
+          <Text style={styles.infoValue}>{paymentInfo?.bic ?? '—'}</Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Recipient</Text>
-          <Text style={styles.infoValue}>DFX AG</Text>
+          <Text style={styles.infoValue}>{paymentInfo?.name ?? 'DFX AG'}</Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Reference</Text>
           <Text style={styles.infoValue} selectable>
-            DFX-XXXX-XXXX
+            {paymentInfo?.remittanceInfo ?? '—'}
           </Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Amount</Text>
           <Text style={styles.infoValue}>
-            {amount} {selectedCurrency}
+            {paymentInfo?.amount ?? amount} {paymentInfo?.currency?.name ?? selectedCurrency}
           </Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>You receive (est.)</Text>
+          <Text style={styles.infoValue}>
+            ~{paymentInfo?.estimatedAmount?.toFixed(6) ?? '—'} {paymentInfo?.asset?.name ?? ''}
+          </Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Fee</Text>
+          <Text style={styles.infoValue}>{paymentInfo?.fees?.total?.toFixed(2) ?? '—'}%</Text>
         </View>
       </View>
 
@@ -109,7 +139,16 @@ export default function BuyScreen() {
 
       <View style={styles.spacer} />
 
-      <PrimaryButton title={t('common.confirm')} onPress={() => setStep('confirm')} />
+      <PrimaryButton
+        title={t('common.confirm')}
+        onPress={async () => {
+          if (paymentInfo) {
+            await confirmPayment(paymentInfo.id);
+          }
+          setStep('confirm');
+        }}
+        loading={isLoading}
+      />
     </View>
   );
 
@@ -273,6 +312,11 @@ const styles = StyleSheet.create({
     color: DfxColors.textSecondary,
     textAlign: 'center',
     paddingHorizontal: 16,
+  },
+  errorText: {
+    ...Typography.bodySmall,
+    color: DfxColors.error,
+    textAlign: 'center',
   },
   spacer: {
     flex: 1,

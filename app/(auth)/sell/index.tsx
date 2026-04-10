@@ -3,14 +3,23 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ChainSelector, PrimaryButton, ScreenContainer } from '@/components';
+import { useSellFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
 import { DfxColors, Typography } from '@/theme';
 
 type SellStep = 'amount' | 'bank' | 'confirm';
 
+const CHAIN_ASSET: Record<ChainId, string> = {
+  bitcoin: 'BTC',
+  ethereum: 'ETH',
+  arbitrum: 'ETH',
+  polygon: 'MATIC',
+};
+
 export default function SellScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { paymentInfo, isLoading, error, createPaymentInfo } = useSellFlow();
   const [step, setStep] = useState<SellStep>('amount');
   const [selectedChain, setSelectedChain] = useState<ChainId>('ethereum');
   const [amount, setAmount] = useState('');
@@ -65,10 +74,22 @@ export default function SellScreen() {
 
       <View style={styles.spacer} />
 
+      {error && <Text style={styles.errorText}>{error}</Text>}
+
       <PrimaryButton
         title={t('common.continue')}
-        onPress={() => setStep('confirm')}
+        onPress={async () => {
+          const info = await createPaymentInfo({
+            amount: parseFloat(amount),
+            asset: CHAIN_ASSET[selectedChain],
+            blockchain: selectedChain.charAt(0).toUpperCase() + selectedChain.slice(1),
+            currency: 'CHF',
+            iban: iban.replace(/\s/g, ''),
+          });
+          if (info) setStep('confirm');
+        }}
         disabled={iban.replace(/\s/g, '').length < 15}
+        loading={isLoading}
       />
     </View>
   );
@@ -81,22 +102,36 @@ export default function SellScreen() {
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>You sell</Text>
           <Text style={styles.summaryValue}>
-            {amount} {selectedChain === 'bitcoin' ? 'BTC' : 'ETH'}
+            {paymentInfo?.amount ?? amount} {paymentInfo?.asset?.name ?? CHAIN_ASSET[selectedChain]}
           </Text>
         </View>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Network</Text>
-          <Text style={styles.summaryValue}>{selectedChain}</Text>
+          <Text style={styles.summaryLabel}>You receive (est.)</Text>
+          <Text style={styles.summaryValue}>
+            ~{paymentInfo?.estimatedAmount?.toFixed(2) ?? '—'} {paymentInfo?.currency?.name ?? 'CHF'}
+          </Text>
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>To IBAN</Text>
-          <Text style={styles.summaryValue}>{iban}</Text>
+          <Text style={styles.summaryValue}>{paymentInfo?.beneficiary?.iban ?? iban}</Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Deposit to</Text>
+          <Text style={styles.summaryValue} numberOfLines={1}>
+            {paymentInfo?.depositAddress
+              ? `${paymentInfo.depositAddress.slice(0, 10)}...${paymentInfo.depositAddress.slice(-6)}`
+              : '—'}
+          </Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Fee</Text>
+          <Text style={styles.summaryValue}>{paymentInfo?.fees?.total?.toFixed(2) ?? '—'}%</Text>
         </View>
       </View>
 
       <Text style={styles.hint}>
-        You will need to send the crypto to a DFX deposit address. The fiat amount will be
-        transferred to your bank account.
+        Send the exact amount to the deposit address above. The fiat amount will be transferred to
+        your bank account after the transaction is confirmed.
       </Text>
 
       <View style={styles.spacer} />
@@ -206,6 +241,11 @@ const styles = StyleSheet.create({
   hint: {
     ...Typography.bodySmall,
     color: DfxColors.textTertiary,
+    textAlign: 'center',
+  },
+  errorText: {
+    ...Typography.bodySmall,
+    color: DfxColors.error,
     textAlign: 'center',
   },
   spacer: {

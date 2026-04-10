@@ -4,22 +4,30 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { ChainSelector, PrimaryButton, ScreenContainer } from '@/components';
+import { useWallet } from '@tetherto/wdk-react-native-provider';
+import { ChainSelector, PrimaryButton, QrCode, ScreenContainer } from '@/components';
 import type { ChainId } from '@/config/chains';
-import { useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
+
+const CHAIN_TO_NETWORK: Record<ChainId, string> = {
+  bitcoin: 'bitcoin',
+  ethereum: 'ethereum',
+  arbitrum: 'arbitrum',
+  polygon: 'polygon',
+};
 
 export default function ReceiveScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { getAccountForChain } = useWalletStore();
+  const { addresses } = useWallet();
   const [selectedChain, setSelectedChain] = useState<ChainId>('bitcoin');
   const [copied, setCopied] = useState(false);
 
-  const account = getAccountForChain(selectedChain);
-  const address = account?.address || '0x0000...0000';
+  const networkKey = CHAIN_TO_NETWORK[selectedChain];
+  const address = (addresses as Record<string, string> | undefined)?.[networkKey] ?? '';
 
   const handleCopy = async () => {
+    if (!address) return;
     await Clipboard.setStringAsync(address);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setCopied(true);
@@ -40,24 +48,33 @@ export default function ReceiveScreen() {
         <ChainSelector selected={selectedChain} onSelect={setSelectedChain} />
 
         <View style={styles.qrContainer}>
-          {/* TODO: Replace with actual QR code component (e.g. react-native-qrcode-svg) */}
-          <View style={styles.qrPlaceholder}>
-            <Text style={styles.qrText}>QR</Text>
-          </View>
+          {address ? (
+            <QrCode value={address} size={220} />
+          ) : (
+            <View style={styles.qrPlaceholder}>
+              <Text style={styles.qrPlaceholderText}>No address</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.addressContainer}>
-          <Text style={styles.addressLabel}>Your {selectedChain} address</Text>
-          <Text style={styles.address} selectable>
-            {address}
+          <Text style={styles.addressLabel}>
+            Your {selectedChain} address
+          </Text>
+          <Text style={styles.address} selectable numberOfLines={2}>
+            {address || 'Wallet not initialized'}
           </Text>
         </View>
 
-        <PrimaryButton title={copied ? 'Copied!' : 'Copy Address'} onPress={handleCopy} />
+        <PrimaryButton
+          title={copied ? 'Copied!' : 'Copy Address'}
+          onPress={handleCopy}
+          disabled={!address}
+        />
 
         <Text style={styles.warning}>
-          Only send {selectedChain === 'bitcoin' ? 'BTC' : 'EVM compatible tokens'} to this
-          address. Sending other assets may result in permanent loss.
+          Only send {selectedChain === 'bitcoin' ? 'BTC' : 'compatible tokens'} on the{' '}
+          {selectedChain} network to this address.
         </Text>
       </View>
     </ScreenContainer>
@@ -86,20 +103,19 @@ const styles = StyleSheet.create({
   },
   qrContainer: {
     alignItems: 'center',
-    paddingVertical: 24,
+    paddingVertical: 16,
   },
   qrPlaceholder: {
-    width: 200,
-    height: 200,
+    width: 220,
+    height: 220,
     borderRadius: 16,
-    backgroundColor: DfxColors.white,
+    backgroundColor: DfxColors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  qrText: {
-    fontSize: 48,
-    fontWeight: '700',
-    color: DfxColors.black,
+  qrPlaceholderText: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textTertiary,
   },
   addressContainer: {
     backgroundColor: DfxColors.surface,
