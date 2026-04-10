@@ -1,174 +1,195 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { PrimaryButton, ScreenContainer } from '@/components';
+import { useKycFlow } from '@/hooks';
+import type { KycStepDto } from '@/services/dfx/dto';
 import { DfxColors, Typography } from '@/theme';
 
-type KycStep = 'email' | 'personal' | 'nationality' | 'financial' | 'ident' | 'complete';
+const STEP_LABELS: Record<string, string> = {
+  ContactData: 'Contact',
+  PersonalData: 'Personal Data',
+  NationalityData: 'Nationality',
+  FinancialData: 'Financial Info',
+  Ident: 'Identity Check',
+};
 
-const STEPS: KycStep[] = ['email', 'personal', 'nationality', 'financial', 'ident', 'complete'];
+const STATUS_COLORS: Record<string, string> = {
+  Completed: DfxColors.success,
+  InProgress: DfxColors.warning,
+  InReview: DfxColors.info,
+  Failed: DfxColors.error,
+  NotStarted: DfxColors.textTertiary,
+};
 
 export default function KycScreen() {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState<KycStep>('email');
+  const {
+    kycLevel,
+    currentSession,
+    isLoading,
+    error,
+    loadKycStatus,
+    continueKyc,
+    submitContactData,
+    submitPersonalData,
+  } = useKycFlow();
+
   const [email, setEmail] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
 
-  const stepIndex = STEPS.indexOf(currentStep);
-  const progress = (stepIndex + 1) / STEPS.length;
+  useEffect(() => {
+    loadKycStatus();
+  }, [loadKycStatus]);
 
-  const goNext = () => {
-    const nextIndex = stepIndex + 1;
-    if (nextIndex < STEPS.length) {
-      setCurrentStep(STEPS[nextIndex]);
+  const handleContinue = async () => {
+    const session = await continueKyc();
+    if (session?.currentStep?.session) {
+      const { type, url } = session.currentStep.session;
+      if (type === 'Browser') {
+        await Linking.openURL(url);
+      }
     }
   };
 
-  const goBack = () => {
-    if (stepIndex === 0) {
-      router.back();
-    } else {
-      setCurrentStep(STEPS[stepIndex - 1]);
+  const handleSubmitStep = async () => {
+    const step = currentSession?.currentStep;
+    if (!step) return;
+
+    let success = false;
+    if (step.name === 'ContactData') {
+      success = await submitContactData(step.sequenceNumber, email);
+    } else if (step.name === 'PersonalData') {
+      success = await submitPersonalData(step.sequenceNumber, { firstName, lastName });
+    }
+
+    if (success) {
+      await continueKyc();
     }
   };
 
-  const renderStep = () => {
-    switch (currentStep) {
-      case 'email':
-        return (
-          <View style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Email Verification</Text>
-            <Text style={styles.stepDescription}>
-              Enter your email address to start the verification process.
-            </Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="email@example.com"
-              placeholderTextColor={DfxColors.textTertiary}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <View style={styles.spacer} />
-            <PrimaryButton
-              title="Continue"
-              onPress={goNext}
-              disabled={!email.includes('@')}
-            />
-          </View>
-        );
+  if (isLoading && !kycLevel) {
+    return (
+      <ScreenContainer>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={DfxColors.primary} />
+        </View>
+      </ScreenContainer>
+    );
+  }
 
-      case 'personal':
-        return (
-          <View style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Personal Data</Text>
-            <TextInput
-              style={styles.input}
-              value={firstName}
-              onChangeText={setFirstName}
-              placeholder="First Name"
-              placeholderTextColor={DfxColors.textTertiary}
-            />
-            <TextInput
-              style={styles.input}
-              value={lastName}
-              onChangeText={setLastName}
-              placeholder="Last Name"
-              placeholderTextColor={DfxColors.textTertiary}
-            />
-            <View style={styles.spacer} />
-            <PrimaryButton
-              title="Continue"
-              onPress={goNext}
-              disabled={!firstName || !lastName}
-            />
-          </View>
-        );
-
-      case 'nationality':
-        return (
-          <View style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Nationality</Text>
-            <Text style={styles.stepDescription}>Select your nationality and country of residence.</Text>
-            {/* TODO: Country picker component */}
-            <View style={styles.placeholder}>
-              <Text style={styles.placeholderText}>Country selector</Text>
-            </View>
-            <View style={styles.spacer} />
-            <PrimaryButton title="Continue" onPress={goNext} />
-          </View>
-        );
-
-      case 'financial':
-        return (
-          <View style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Financial Information</Text>
-            <Text style={styles.stepDescription}>
-              Required for regulatory compliance. Your data is encrypted and secure.
-            </Text>
-            {/* TODO: Financial data form (source of funds, occupation, etc.) */}
-            <View style={styles.placeholder}>
-              <Text style={styles.placeholderText}>Financial data form</Text>
-            </View>
-            <View style={styles.spacer} />
-            <PrimaryButton title="Continue" onPress={goNext} />
-          </View>
-        );
-
-      case 'ident':
-        return (
-          <View style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Identity Verification</Text>
-            <Text style={styles.stepDescription}>
-              Upload a photo of your ID document and take a selfie to verify your identity.
-            </Text>
-            {/* TODO: ID upload + selfie via expo-camera */}
-            <View style={styles.placeholder}>
-              <Text style={styles.placeholderText}>Document upload + selfie</Text>
-            </View>
-            <View style={styles.spacer} />
-            <PrimaryButton title="Submit" onPress={goNext} />
-          </View>
-        );
-
-      case 'complete':
-        return (
-          <View style={styles.stepContent}>
-            <View style={styles.completeContainer}>
-              <Text style={styles.completeIcon}>{'\u2705'}</Text>
-              <Text style={styles.completeTitle}>Verification Submitted</Text>
-              <Text style={styles.completeDescription}>
-                Your identity verification is being reviewed. This usually takes a few minutes.
-              </Text>
-            </View>
-            <View style={styles.spacer} />
-            <PrimaryButton title="Done" onPress={() => router.back()} />
-          </View>
-        );
-    }
-  };
+  const steps = kycLevel?.kycSteps ?? [];
+  const currentStep = currentSession?.currentStep;
 
   return (
     <ScreenContainer scrollable>
       <View style={styles.content}>
         <View style={styles.header}>
-          <Pressable onPress={goBack}>
+          <Pressable onPress={() => router.back()}>
             <Text style={styles.backButton}>{'\u2190'}</Text>
           </Pressable>
-          <Text style={styles.title}>KYC</Text>
-          <Text style={styles.stepIndicator}>
-            {stepIndex + 1}/{STEPS.length}
-          </Text>
+          <Text style={styles.title}>KYC Verification</Text>
+          <View style={styles.backButton} />
         </View>
 
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+        {/* KYC Level */}
+        <View style={styles.levelCard}>
+          <Text style={styles.levelLabel}>Current Level</Text>
+          <Text style={styles.levelValue}>{kycLevel?.kycLevel ?? 0}</Text>
         </View>
 
-        {renderStep()}
+        {/* Steps overview */}
+        <View style={styles.stepsContainer}>
+          {steps.map((step) => (
+            <View key={step.name} style={styles.stepRow}>
+              <View
+                style={[
+                  styles.stepDot,
+                  { backgroundColor: STATUS_COLORS[step.status] ?? DfxColors.textTertiary },
+                ]}
+              />
+              <Text style={styles.stepName}>
+                {STEP_LABELS[step.name] ?? step.name}
+              </Text>
+              <Text style={styles.stepStatus}>{step.status}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Current step form */}
+        {currentStep?.session?.type === 'API' && (
+          <View style={styles.formContainer}>
+            <Text style={styles.formTitle}>
+              {STEP_LABELS[currentStep.name] ?? currentStep.name}
+            </Text>
+
+            {currentStep.name === 'ContactData' && (
+              <TextInput
+                style={styles.input}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="Email address"
+                placeholderTextColor={DfxColors.textTertiary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            )}
+
+            {currentStep.name === 'PersonalData' && (
+              <>
+                <TextInput
+                  style={styles.input}
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  placeholder="First name"
+                  placeholderTextColor={DfxColors.textTertiary}
+                />
+                <TextInput
+                  style={styles.input}
+                  value={lastName}
+                  onChangeText={setLastName}
+                  placeholder="Last name"
+                  placeholderTextColor={DfxColors.textTertiary}
+                />
+              </>
+            )}
+
+            <PrimaryButton title="Submit" onPress={handleSubmitStep} loading={isLoading} />
+          </View>
+        )}
+
+        {currentStep?.session?.type === 'Browser' && (
+          <View style={styles.formContainer}>
+            <Text style={styles.formTitle}>
+              {STEP_LABELS[currentStep.name] ?? currentStep.name}
+            </Text>
+            <Text style={styles.formDescription}>
+              This step requires identity verification in your browser.
+            </Text>
+            <PrimaryButton
+              title="Open Verification"
+              onPress={() => Linking.openURL(currentStep.session!.url)}
+            />
+          </View>
+        )}
+
+        {error && <Text style={styles.errorText}>{error}</Text>}
+
+        {!currentStep && steps.length > 0 && (
+          <PrimaryButton
+            title="Continue Verification"
+            onPress={handleContinue}
+            loading={isLoading}
+          />
+        )}
+
+        {steps.every((s) => s.status === 'Completed') && (
+          <View style={styles.completeContainer}>
+            <Text style={styles.completeIcon}>{'\u2705'}</Text>
+            <Text style={styles.completeText}>KYC verification complete</Text>
+          </View>
+        )}
       </View>
     </ScreenContainer>
   );
@@ -194,71 +215,90 @@ const styles = StyleSheet.create({
     ...Typography.headlineSmall,
     color: DfxColors.text,
   },
-  stepIndicator: {
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  levelCard: {
+    backgroundColor: DfxColors.surface,
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    gap: 4,
+  },
+  levelLabel: {
     ...Typography.bodySmall,
     color: DfxColors.textTertiary,
-    width: 32,
-    textAlign: 'right',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
-  progressBar: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: DfxColors.surfaceLight,
+  levelValue: {
+    ...Typography.headlineLarge,
+    color: DfxColors.primary,
   },
-  progressFill: {
-    height: '100%',
-    borderRadius: 2,
-    backgroundColor: DfxColors.primary,
+  stepsContainer: {
+    backgroundColor: DfxColors.surface,
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
   },
-  stepContent: {
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  stepDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  stepName: {
+    ...Typography.bodyMedium,
+    color: DfxColors.text,
     flex: 1,
+  },
+  stepStatus: {
+    ...Typography.bodySmall,
+    color: DfxColors.textTertiary,
+  },
+  formContainer: {
+    backgroundColor: DfxColors.surface,
+    borderRadius: 16,
+    padding: 20,
     gap: 16,
   },
-  stepTitle: {
+  formTitle: {
     ...Typography.headlineSmall,
     color: DfxColors.text,
   },
-  stepDescription: {
+  formDescription: {
     ...Typography.bodyMedium,
     color: DfxColors.textSecondary,
   },
   input: {
-    backgroundColor: DfxColors.surface,
+    backgroundColor: DfxColors.surfaceLight,
     borderRadius: 12,
     padding: 16,
     color: DfxColors.text,
     ...Typography.bodyLarge,
   },
-  placeholder: {
-    flex: 1,
-    minHeight: 120,
-    borderRadius: 16,
-    backgroundColor: DfxColors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  placeholderText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textTertiary,
+  errorText: {
+    ...Typography.bodySmall,
+    color: DfxColors.error,
+    textAlign: 'center',
   },
   completeContainer: {
     alignItems: 'center',
-    paddingVertical: 48,
-    gap: 16,
+    paddingVertical: 24,
+    gap: 12,
   },
   completeIcon: {
-    fontSize: 64,
+    fontSize: 48,
   },
-  completeTitle: {
-    ...Typography.headlineMedium,
-    color: DfxColors.text,
-  },
-  completeDescription: {
+  completeText: {
     ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-  },
-  spacer: {
-    flex: 1,
+    color: DfxColors.success,
+    fontWeight: '600',
   },
 });

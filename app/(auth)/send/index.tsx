@@ -1,22 +1,50 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import * as Haptics from 'expo-haptics';
+import { useWallet } from '@tetherto/wdk-react-native-provider';
 import { ChainSelector, PrimaryButton, ScreenContainer } from '@/components';
+import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
 import { DfxColors, Typography } from '@/theme';
 
-type SendStep = 'input' | 'confirm';
+type SendStep = 'input' | 'confirm' | 'success';
+
+const CHAIN_TO_NETWORK: Record<ChainId, string> = {
+  bitcoin: 'bitcoin',
+  ethereum: 'ethereum',
+  arbitrum: 'arbitrum',
+  polygon: 'polygon',
+};
+
+const CHAIN_SYMBOL: Record<ChainId, string> = {
+  bitcoin: 'BTC',
+  ethereum: 'ETH',
+  arbitrum: 'ETH',
+  polygon: 'MATIC',
+};
 
 export default function SendScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { balances } = useWallet();
+  const { send, isLoading, txHash, error, reset } = useSendFlow();
   const [step, setStep] = useState<SendStep>('input');
   const [selectedChain, setSelectedChain] = useState<ChainId>('ethereum');
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
 
+  const symbol = CHAIN_SYMBOL[selectedChain];
   const isValidAddress = recipient.length >= 26;
+
+  const handleSend = async () => {
+    const hash = await send({ chain: selectedChain, to: recipient, amount });
+    if (hash) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setStep('success');
+    }
+  };
 
   const renderInputStep = () => (
     <View style={styles.stepContent}>
@@ -40,6 +68,7 @@ export default function SendScreen() {
             style={styles.scanButton}
             onPress={() => {
               // TODO: Open QR scanner via expo-camera
+              Alert.alert('QR Scanner', 'QR scanning coming soon');
             }}
           >
             <Text style={styles.scanText}>Scan</Text>
@@ -48,7 +77,7 @@ export default function SendScreen() {
       </View>
 
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Amount</Text>
+        <Text style={styles.inputLabel}>Amount ({symbol})</Text>
         <TextInput
           style={styles.input}
           value={amount}
@@ -57,10 +86,9 @@ export default function SendScreen() {
           placeholderTextColor={DfxColors.textTertiary}
           keyboardType="decimal-pad"
         />
-        <Pressable onPress={() => setAmount('MAX')}>
-          <Text style={styles.maxButton}>Use max</Text>
-        </Pressable>
       </View>
+
+      {error && <Text style={styles.errorText}>{error}</Text>}
 
       <View style={styles.spacer} />
 
@@ -84,28 +112,55 @@ export default function SendScreen() {
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>To</Text>
           <Text style={styles.summaryValue} numberOfLines={1}>
-            {recipient.slice(0, 8)}...{recipient.slice(-6)}
+            {recipient.slice(0, 10)}...{recipient.slice(-6)}
           </Text>
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Amount</Text>
-          <Text style={styles.summaryValue}>{amount}</Text>
+          <Text style={styles.summaryValue}>
+            {amount} {symbol}
+          </Text>
         </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Network Fee</Text>
-          <Text style={styles.summaryValue}>~0.001 ETH</Text>
-        </View>
+      </View>
+
+      <Text style={styles.warning}>
+        Transactions are irreversible. Please verify the recipient address and amount.
+      </Text>
+
+      {error && <Text style={styles.errorText}>{error}</Text>}
+
+      <View style={styles.spacer} />
+
+      <PrimaryButton title="Confirm & Send" onPress={handleSend} loading={isLoading} />
+      <PrimaryButton
+        title="Cancel"
+        variant="outlined"
+        onPress={() => {
+          reset();
+          setStep('input');
+        }}
+      />
+    </View>
+  );
+
+  const renderSuccessStep = () => (
+    <View style={styles.stepContent}>
+      <View style={styles.successContainer}>
+        <Text style={styles.successIcon}>{'\u2705'}</Text>
+        <Text style={styles.successTitle}>Transaction Sent</Text>
+        <Text style={styles.successDescription}>
+          {amount} {symbol} sent to {recipient.slice(0, 10)}...{recipient.slice(-6)}
+        </Text>
+        {txHash && (
+          <Text style={styles.txHash} selectable>
+            TX: {txHash.slice(0, 12)}...{txHash.slice(-8)}
+          </Text>
+        )}
       </View>
 
       <View style={styles.spacer} />
 
-      <PrimaryButton
-        title="Send"
-        onPress={() => {
-          // TODO: walletService.sendTransaction(...)
-          router.back();
-        }}
-      />
+      <PrimaryButton title="Done" onPress={() => router.back()} />
     </View>
   );
 
@@ -113,7 +168,13 @@ export default function SendScreen() {
     <ScreenContainer scrollable>
       <View style={styles.content}>
         <View style={styles.header}>
-          <Pressable onPress={() => (step === 'input' ? router.back() : setStep('input'))}>
+          <Pressable
+            onPress={() => {
+              if (step === 'input') router.back();
+              else if (step === 'confirm') setStep('input');
+              else router.back();
+            }}
+          >
             <Text style={styles.backButton}>{'\u2190'}</Text>
           </Pressable>
           <Text style={styles.title}>{t('send.title')}</Text>
@@ -122,6 +183,7 @@ export default function SendScreen() {
 
         {step === 'input' && renderInputStep()}
         {step === 'confirm' && renderConfirmStep()}
+        {step === 'success' && renderSuccessStep()}
       </View>
     </ScreenContainer>
   );
@@ -190,11 +252,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: DfxColors.primary,
   },
-  maxButton: {
-    ...Typography.bodySmall,
-    color: DfxColors.primary,
-    alignSelf: 'flex-end',
-  },
   summary: {
     backgroundColor: DfxColors.surface,
     borderRadius: 16,
@@ -214,6 +271,39 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: DfxColors.text,
     maxWidth: '60%',
+  },
+  warning: {
+    ...Typography.bodySmall,
+    color: DfxColors.warning,
+    textAlign: 'center',
+  },
+  errorText: {
+    ...Typography.bodySmall,
+    color: DfxColors.error,
+    textAlign: 'center',
+  },
+  successContainer: {
+    alignItems: 'center',
+    paddingVertical: 48,
+    gap: 12,
+  },
+  successIcon: {
+    fontSize: 64,
+  },
+  successTitle: {
+    ...Typography.headlineMedium,
+    color: DfxColors.text,
+  },
+  successDescription: {
+    ...Typography.bodyLarge,
+    color: DfxColors.textSecondary,
+    textAlign: 'center',
+  },
+  txHash: {
+    ...Typography.bodySmall,
+    color: DfxColors.textTertiary,
+    fontFamily: 'monospace',
+    marginTop: 8,
   },
   spacer: {
     flex: 1,
