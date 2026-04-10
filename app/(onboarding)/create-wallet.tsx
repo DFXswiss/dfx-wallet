@@ -1,15 +1,40 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import { ScreenContainer, PrimaryButton } from '@/components';
+import { generateSeedPhrase, wordsToSeed } from '@/services/wallet';
+import { secureStorage, StorageKeys } from '@/services/storage';
 import { DfxColors, Typography } from '@/theme';
 
 export default function CreateWalletScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const [seedWords] = useState(() => generateSeedPhrase(24));
+  const [revealed, setRevealed] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  // TODO: Generate seed phrase via WDK and display mnemonic words
-  const seedWords: string[] = [];
+  const handleReveal = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setRevealed(true);
+  };
+
+  const handleCopy = async () => {
+    await Clipboard.setStringAsync(wordsToSeed(seedWords));
+    setCopied(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleContinue = async () => {
+    await secureStorage.set(StorageKeys.ENCRYPTED_SEED, wordsToSeed(seedWords));
+    router.push({
+      pathname: '/(onboarding)/verify-seed',
+      params: { seed: wordsToSeed(seedWords) },
+    });
+  };
 
   return (
     <ScreenContainer scrollable>
@@ -20,19 +45,33 @@ export default function CreateWalletScreen() {
           your wallet.
         </Text>
 
-        <View style={styles.seedContainer}>
-          {seedWords.map((word, index) => (
-            <View key={index} style={styles.wordCard}>
-              <Text style={styles.wordIndex}>{index + 1}</Text>
-              <Text style={styles.word}>{word}</Text>
+        {!revealed ? (
+          <Pressable style={styles.revealButton} onPress={handleReveal}>
+            <Text style={styles.revealText}>Tap to reveal seed phrase</Text>
+          </Pressable>
+        ) : (
+          <>
+            <View style={styles.seedContainer}>
+              {seedWords.map((word, index) => (
+                <View key={index} style={styles.wordCard}>
+                  <Text style={styles.wordIndex}>{index + 1}.</Text>
+                  <Text style={styles.word}>{word}</Text>
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
+
+            <Pressable style={styles.copyButton} onPress={handleCopy}>
+              <Text style={styles.copyText}>{copied ? 'Copied!' : 'Copy to clipboard'}</Text>
+            </Pressable>
+          </>
+        )}
+
+        <View style={styles.spacer} />
 
         <PrimaryButton
           title={t('common.continue')}
-          onPress={() => router.push('/(onboarding)/verify-seed')}
-          disabled={seedWords.length === 0}
+          onPress={handleContinue}
+          disabled={!revealed}
         />
       </View>
     </ScreenContainer>
@@ -53,6 +92,21 @@ const styles = StyleSheet.create({
     ...Typography.bodyLarge,
     color: DfxColors.textSecondary,
   },
+  revealButton: {
+    padding: 48,
+    borderRadius: 16,
+    backgroundColor: DfxColors.surface,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  revealText: {
+    ...Typography.bodyLarge,
+    color: DfxColors.primary,
+    fontWeight: '600',
+  },
   seedContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -65,15 +119,28 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    gap: 8,
+    gap: 6,
+    minWidth: '30%',
   },
   wordIndex: {
     ...Typography.bodySmall,
     color: DfxColors.textTertiary,
-    width: 20,
+    width: 24,
   },
   word: {
     ...Typography.bodyMedium,
     color: DfxColors.text,
+  },
+  copyButton: {
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  copyText: {
+    ...Typography.bodySmall,
+    color: DfxColors.primary,
+  },
+  spacer: {
+    flex: 1,
   },
 });

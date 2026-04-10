@@ -1,30 +1,134 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import * as Haptics from 'expo-haptics';
 import { ScreenContainer, PrimaryButton } from '@/components';
+import { seedToWords } from '@/services/wallet';
 import { DfxColors, Typography } from '@/theme';
+
+const VERIFY_COUNT = 4;
+
+function getRandomIndices(total: number, count: number): number[] {
+  const indices: number[] = [];
+  while (indices.length < count) {
+    const idx = Math.floor(Math.random() * total);
+    if (!indices.includes(idx)) indices.push(idx);
+  }
+  return indices.sort((a, b) => a - b);
+}
 
 export default function VerifySeedScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { seed } = useLocalSearchParams<{ seed: string }>();
+  const seedWords = seedToWords(seed ?? '');
 
-  // TODO: Implement seed verification (select words in correct order)
+  const [verifyIndices] = useState(() => getRandomIndices(seedWords.length, VERIFY_COUNT));
+  const [currentStep, setCurrentStep] = useState(0);
+  const [selectedWord, setSelectedWord] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  const currentIndex = verifyIndices[currentStep];
+  const correctWord = seedWords[currentIndex];
+
+  const getOptions = useCallback(() => {
+    const options = [correctWord];
+    while (options.length < 4) {
+      const randomWord = seedWords[Math.floor(Math.random() * seedWords.length)];
+      if (!options.includes(randomWord)) options.push(randomWord);
+    }
+    return options.sort(() => Math.random() - 0.5);
+  }, [correctWord, seedWords]);
+
+  const [options] = useState(getOptions);
+
+  const handleSelect = (word: string) => {
+    setSelectedWord(word);
+    setError(false);
+
+    if (word === correctWord) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (currentStep < VERIFY_COUNT - 1) {
+        setTimeout(() => {
+          setCurrentStep((s) => s + 1);
+          setSelectedWord(null);
+        }, 500);
+      }
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(true);
+      setTimeout(() => {
+        setSelectedWord(null);
+        setError(false);
+      }, 1000);
+    }
+  };
+
+  const isComplete = currentStep === VERIFY_COUNT - 1 && selectedWord === correctWord;
 
   return (
     <ScreenContainer>
       <View style={styles.content}>
         <Text style={styles.title}>{t('onboarding.verifySeed')}</Text>
         <Text style={styles.description}>
-          Tap the words in the correct order to verify your seed phrase.
+          Select word #{currentIndex + 1} from your seed phrase.
         </Text>
 
-        <View style={styles.placeholder}>
-          <Text style={styles.placeholderText}>Seed verification UI</Text>
+        <View style={styles.progress}>
+          {verifyIndices.map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.progressDot,
+                i < currentStep && styles.progressComplete,
+                i === currentStep && styles.progressActive,
+              ]}
+            />
+          ))}
         </View>
+
+        <View style={styles.wordNumber}>
+          <Text style={styles.wordNumberText}>Word #{currentIndex + 1}</Text>
+        </View>
+
+        <View style={styles.options}>
+          {options.map((word) => {
+            const isSelected = selectedWord === word;
+            const isCorrect = isSelected && word === correctWord;
+            const isWrong = isSelected && error;
+
+            return (
+              <Pressable
+                key={word}
+                style={[
+                  styles.option,
+                  isCorrect && styles.optionCorrect,
+                  isWrong && styles.optionError,
+                ]}
+                onPress={() => handleSelect(word)}
+                disabled={selectedWord !== null}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    isCorrect && styles.optionTextCorrect,
+                    isWrong && styles.optionTextError,
+                  ]}
+                >
+                  {word}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={styles.spacer} />
 
         <PrimaryButton
           title={t('common.continue')}
           onPress={() => router.push('/(onboarding)/setup-pin')}
+          disabled={!isComplete}
         />
       </View>
     </ScreenContainer>
@@ -45,13 +149,61 @@ const styles = StyleSheet.create({
     ...Typography.bodyLarge,
     color: DfxColors.textSecondary,
   },
-  placeholder: {
-    flex: 1,
-    alignItems: 'center',
+  progress: {
+    flexDirection: 'row',
+    gap: 8,
     justifyContent: 'center',
   },
-  placeholderText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textTertiary,
+  progressDot: {
+    width: 32,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: DfxColors.surfaceLight,
+  },
+  progressComplete: {
+    backgroundColor: DfxColors.success,
+  },
+  progressActive: {
+    backgroundColor: DfxColors.primary,
+  },
+  wordNumber: {
+    alignSelf: 'center',
+    backgroundColor: DfxColors.surface,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+  },
+  wordNumberText: {
+    ...Typography.headlineSmall,
+    color: DfxColors.text,
+  },
+  options: {
+    gap: 12,
+  },
+  option: {
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: DfxColors.surface,
+    alignItems: 'center',
+  },
+  optionCorrect: {
+    backgroundColor: DfxColors.success,
+  },
+  optionError: {
+    backgroundColor: DfxColors.error,
+  },
+  optionText: {
+    ...Typography.bodyLarge,
+    color: DfxColors.text,
+    fontWeight: '600',
+  },
+  optionTextCorrect: {
+    color: DfxColors.black,
+  },
+  optionTextError: {
+    color: DfxColors.white,
+  },
+  spacer: {
+    flex: 1,
   },
 });
