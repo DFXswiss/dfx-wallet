@@ -1,51 +1,117 @@
+import { BleManager, Device, type Characteristic } from 'react-native-ble-plx';
 import type { BitboxTransport, HardwareWalletDevice } from './types';
+
+/**
+ * BitBox02 Nova BLE service UUIDs.
+ *
+ * TODO: These need to be verified from BitBox02 Nova specs.
+ * The actual UUIDs will be available once the Nova BLE protocol is documented.
+ * For now, using placeholder UUIDs — update when BitBox publishes BLE specs.
+ */
+const BITBOX_NOVA_SERVICE_UUID = '0000bb02-0000-1000-8000-00805f9b34fb';
+const BITBOX_NOVA_WRITE_CHAR_UUID = '0000bb03-0000-1000-8000-00805f9b34fb';
+const BITBOX_NOVA_NOTIFY_CHAR_UUID = '0000bb04-0000-1000-8000-00805f9b34fb';
+
+/** BLE scan timeout in milliseconds */
+const SCAN_TIMEOUT_MS = 10000;
+
+/** Max BLE MTU for data chunks */
+const BLE_CHUNK_SIZE = 128;
+
+let bleManager: BleManager | null = null;
+
+function getManager(): BleManager {
+  if (!bleManager) {
+    bleManager = new BleManager();
+  }
+  return bleManager;
+}
 
 /**
  * BLE transport for BitBox02 Nova (Android + iOS).
  *
- * Implementation strategy:
- * - Uses react-native-ble-plx for BLE communication
- * - BitBox02 Nova advertises a specific BLE service UUID
- * - Communication via BLE GATT characteristics (write + notify)
- *
- * Dependencies needed:
- *   npm install react-native-ble-plx
- *
- * BLE protocol:
- *   1. Scan for devices advertising BitBox02 Nova service UUID
- *   2. Connect to device
- *   3. Discover GATT services and characteristics
- *   4. Use write characteristic for sending data
- *   5. Subscribe to notify characteristic for receiving data
- *   6. On top of raw bytes: Noise XX handshake → encrypted channel → Protobuf messages
- *
- * BitBox02 Nova BLE identifiers:
- *   Service UUID:        TBD (need to verify from BitBox02 Nova specs)
- *   Write Characteristic: TBD
- *   Notify Characteristic: TBD
- *
- * Note: The Noise XX handshake and Protobuf message layer are identical
- * to USB — only the raw byte transport differs.
+ * Communication:
+ * - Write: split data into BLE MTU-sized chunks, send via write characteristic
+ * - Read: subscribe to notify characteristic, buffer incoming data
+ * - Protocol on top of raw bytes is identical to USB (Noise XX → Protobuf)
  */
 export class BleTransport implements BitboxTransport {
-  // private device: Device | null = null;
-  // private writeCharacteristic: Characteristic | null = null;
-  // private readBuffer: Uint8Array[] = [];
+  private device: Device | null = null;
+  private writeChar: Characteristic | null = null;
+  private readBuffer: Uint8Array[] = [];
+  private readResolve: ((data: Uint8Array) => void) | null = null;
 
-  async write(_data: Uint8Array): Promise<number> {
-    // TODO: Split data into BLE MTU-sized chunks
-    // await this.writeCharacteristic.writeWithResponse(base64encode(chunk))
-    throw new Error('BLE transport not yet implemented');
+  async connectToDevice(deviceId: string): Promise<void> {
+    const manager = getManager();
+
+    this.device = await manager.connectToDevice(deviceId, {
+      requestMTU: 185,
+    });
+
+    await this.device.discoverAllServicesAndCharacteristics();
+
+    const services = await this.device.services();
+    const bbService = services.find((s) => s.uuid === BITBOX_NOVA_SERVICE_UUID);
+    if (!bbService) throw new Error('BitBox02 Nova BLE service not found');
+
+    const characteristics = await bbService.characteristics();
+
+    this.writeChar = characteristics.find((c) => c.uuid === BITBOX_NOVA_WRITE_CHAR_UUID) ?? null;
+    if (!this.writeChar) throw new Error('Write characteristic not found');
+
+    const notifyChar = characteristics.find((c) => c.uuid === BITBOX_NOVA_NOTIFY_CHAR_UUID);
+    if (!notifyChar) throw new Error('Notify characteristic not found');
+
+    notifyChar.monitor((error, char) => {
+      if (error || !char?.value) return;
+      const bytes = base64ToBytes(char.value);
+      if (this.readResolve) {
+        const resolve = this.readResolve;
+        this.readResolve = null;
+        resolve(bytes);
+      } else {
+        this.readBuffer.push(bytes);
+      }
+    });
+  }
+
+  async write(data: Uint8Array): Promise<number> {
+    if (!this.writeChar) throw new Error('BLE not connected');
+
+    let offset = 0;
+    while (offset < data.length) {
+      const chunk = data.slice(offset, offset + BLE_CHUNK_SIZE);
+      const b64 = bytesToBase64(chunk);
+      await this.writeChar.writeWithResponse(b64);
+      offset += chunk.length;
+    }
+    return data.length;
   }
 
   async read(): Promise<Uint8Array> {
-    // TODO: Read from notify buffer (populated by BLE subscription)
-    throw new Error('BLE transport not yet implemented');
+    if (this.readBuffer.length > 0) {
+      return this.readBuffer.shift()!;
+    }
+
+    return new Promise<Uint8Array>((resolve, reject) => {
+      this.readResolve = resolve;
+      setTimeout(() => {
+        if (this.readResolve === resolve) {
+          this.readResolve = null;
+          reject(new Error('BLE read timeout'));
+        }
+      }, 10000);
+    });
   }
 
   async close(): Promise<void> {
-    // TODO: await this.device?.cancelConnection()
-    throw new Error('BLE transport not yet implemented');
+    if (this.device) {
+      await this.device.cancelConnection();
+      this.device = null;
+    }
+    this.writeChar = null;
+    this.readBuffer = [];
+    this.readResolve = null;
   }
 }
 
@@ -54,17 +120,49 @@ export class BleTransport implements BitboxTransport {
  * Works on both Android and iOS.
  */
 export async function scanBleDevices(): Promise<HardwareWalletDevice[]> {
-  // TODO:
-  // const manager = new BleManager();
-  // await manager.startDeviceScan([BITBOX_NOVA_SERVICE_UUID], null, (error, device) => {
-  //   if (device?.name?.includes('BitBox')) {
-  //     found.push({
-  //       id: device.id,
-  //       name: device.name ?? 'BitBox02 Nova',
-  //       type: 'bitbox02-nova',
-  //       transport: 'ble',
-  //     });
-  //   }
-  // });
-  return [];
+  const manager = getManager();
+  const found: HardwareWalletDevice[] = [];
+
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      manager.stopDeviceScan();
+      resolve(found);
+    }, SCAN_TIMEOUT_MS);
+
+    manager.startDeviceScan(
+      [BITBOX_NOVA_SERVICE_UUID],
+      { allowDuplicates: false },
+      (error, device) => {
+        if (error || !device) return;
+
+        if (!found.some((d) => d.id === device.id)) {
+          found.push({
+            id: device.id,
+            name: device.name ?? device.localName ?? 'BitBox02 Nova',
+            type: 'bitbox02-nova',
+            transport: 'ble',
+          });
+        }
+      },
+    );
+  });
+}
+
+/** Convert Uint8Array to base64 string */
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
+
+/** Convert base64 string to Uint8Array */
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
 }

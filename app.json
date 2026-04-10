@@ -16,7 +16,11 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "swiss.dfx.wallet",
-      "deploymentTarget": "15.1"
+      "deploymentTarget": "15.1",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "Bluetooth is needed to connect to BitBox02 Nova hardware wallet.",
+        "NSBluetoothPeripheralUsageDescription": "Bluetooth is needed to connect to BitBox02 Nova hardware wallet."
+      }
     },
     "android": {
       "package": "swiss.dfx.wallet",
@@ -25,7 +29,12 @@
         "backgroundColor": "#0A0A0A"
       },
       "edgeToEdgeEnabled": true,
-      "minSdkVersion": 29
+      "minSdkVersion": 29,
+      "permissions": [
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -36,7 +45,8 @@
       }],
       ["expo-camera", {
         "cameraPermission": "Camera access is needed to scan QR codes."
-      }]
+      }],
+      "./modules/bitbox-hid/expo-module.config.json"
     ]
   }
 }
