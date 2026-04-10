@@ -1,0 +1,55 @@
+{
+  "buy": {
+    "title": "Buy"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "continue": "Continue",
+    "copy": "Copy",
+    "done": "Done",
+    "error": "Error",
+    "loading": "Loading...",
+    "next": "Next",
+    "ok": "OK",
+    "retry": "Retry",
+    "save": "Save"
+  },
+  "dashboard": {
+    "portfolio": "Portfolio",
+    "title": "Dashboard",
+    "totalBalance": "Total Balance"
+  },
+  "onboarding": {
+    "createWallet": "Create Wallet",
+    "restoreWallet": "Restore Wallet",
+    "subtitle": "Buy and sell crypto directly with your wallet",
+    "title": "Welcome to DFX",
+    "verifySeed": "Verify Seed"
+  },
+  "receive": {
+    "title": "Receive"
+  },
+  "sell": {
+    "title": "Sell"
+  },
+  "send": {
+    "title": "Send"
+  },
+  "settings": {
+    "contact": "Contact",
+    "currencies": "Currencies",
+    "language": "Language",
+    "legalDocuments": "Legal Documents",
+    "network": "Network",
+    "seed": "Seed Phrase",
+    "taxReport": "Tax Report",
+    "title": "Settings",
+    "userData": "User Data",
+    "walletAddress": "Wallet Address"
+  },
+  "support": {
+    "createTicket": "Create Ticket",
+    "title": "Support"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "DFX Wallet",
+    "slug": "dfx-wallet",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "dfxwallet",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0A"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "swiss.dfx.wallet",
+      "deploymentTarget": "15.1"
+    },
+    "android": {
+      "package": "swiss.dfx.wallet",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0A0A"
+      },
+      "edgeToEdgeEnabled": true,
+      "minSdkVersion": 29
+    },
+    "plugins": [
+      "expo-router",
+      "expo-localization",
+      "expo-secure-store",
+      ["expo-build-properties", {
+        "android": { "minSdkVersion": 29 }
+      }],
+      ["expo-camera", {
+        "cameraPermission": "Camera access is needed to scan QR codes."
+      }]
+    ]
+  }
+}
