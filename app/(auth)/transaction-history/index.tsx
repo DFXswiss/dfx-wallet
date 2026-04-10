@@ -1,49 +1,47 @@
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenContainer } from '@/components';
+import { dfxTransactionService, type TransactionDto } from '@/services/dfx';
 import { DfxColors, Typography } from '@/theme';
 
-type TxStatus = 'completed' | 'pending' | 'failed';
-type TxType = 'buy' | 'sell' | 'send' | 'receive';
+type FilterType = 'all' | 'Buy' | 'Sell' | 'Swap';
 
-type Transaction = {
-  id: string;
-  type: TxType;
-  status: TxStatus;
-  asset: string;
-  chain: string;
-  amount: string;
-  fiatAmount: string;
-  date: string;
+const STATE_COLORS: Record<string, string> = {
+  Completed: DfxColors.success,
+  Processing: DfxColors.warning,
+  AmlCheck: DfxColors.warning,
+  Created: DfxColors.info,
+  Failed: DfxColors.error,
+  Returned: DfxColors.error,
 };
-
-const TX_TYPE_LABELS: Record<TxType, string> = {
-  buy: 'Buy',
-  sell: 'Sell',
-  send: 'Sent',
-  receive: 'Received',
-};
-
-const STATUS_COLORS: Record<TxStatus, string> = {
-  completed: DfxColors.success,
-  pending: DfxColors.warning,
-  failed: DfxColors.error,
-};
-
-type FilterType = 'all' | TxType;
 
 export default function TransactionHistoryScreen() {
   const router = useRouter();
+  const [transactions, setTransactions] = useState<TransactionDto[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('all');
 
-  // TODO: Fetch from DFX API
-  const transactions: Transaction[] = [];
+  const loadTransactions = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await dfxTransactionService.getTransactions();
+      setTransactions(data);
+    } catch {
+      // Silently fail — user may not be authenticated yet
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-  const filters: FilterType[] = ['all', 'buy', 'sell', 'send', 'receive'];
+  useEffect(() => {
+    loadTransactions();
+  }, [loadTransactions]);
 
   const filtered =
     filter === 'all' ? transactions : transactions.filter((tx) => tx.type === filter);
+
+  const filters: FilterType[] = ['all', 'Buy', 'Sell', 'Swap'];
 
   return (
     <ScreenContainer>
@@ -52,11 +50,15 @@ export default function TransactionHistoryScreen() {
           <Pressable onPress={() => router.back()}>
             <Text style={styles.backButton}>{'\u2190'}</Text>
           </Pressable>
-          <Text style={styles.title}>Transaction History</Text>
+          <Text style={styles.title}>Transactions</Text>
           <View style={styles.backButton} />
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filters}
+        >
           {filters.map((f) => (
             <Pressable
               key={f}
@@ -64,31 +66,53 @@ export default function TransactionHistoryScreen() {
               onPress={() => setFilter(f)}
             >
               <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-                {f === 'all' ? 'All' : TX_TYPE_LABELS[f]}
+                {f === 'all' ? 'All' : f}
               </Text>
             </Pressable>
           ))}
         </ScrollView>
 
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator color={DfxColors.primary} />
+          </View>
+        ) : filtered.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No transactions yet</Text>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.txList} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={styles.txList}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isLoading}
+                onRefresh={loadTransactions}
+                tintColor={DfxColors.primary}
+              />
+            }
+          >
             {filtered.map((tx) => (
               <View key={tx.id} style={styles.txItem}>
                 <View style={styles.txLeft}>
-                  <Text style={styles.txType}>{TX_TYPE_LABELS[tx.type]}</Text>
-                  <Text style={styles.txDate}>{tx.date}</Text>
+                  <Text style={styles.txType}>{tx.type}</Text>
+                  <Text style={styles.txDate}>
+                    {new Date(tx.date).toLocaleDateString()}
+                  </Text>
                 </View>
                 <View style={styles.txRight}>
                   <Text style={styles.txAmount}>
-                    {tx.type === 'send' ? '-' : '+'}{tx.amount} {tx.asset}
+                    {tx.type === 'Sell' ? '-' : '+'}
+                    {tx.outputAmount} {tx.outputAsset}
                   </Text>
                   <View style={styles.txStatusRow}>
-                    <View style={[styles.statusDot, { backgroundColor: STATUS_COLORS[tx.status] }]} />
-                    <Text style={styles.txFiat}>{tx.fiatAmount}</Text>
+                    <View
+                      style={[
+                        styles.statusDot,
+                        { backgroundColor: STATE_COLORS[tx.state] ?? DfxColors.textTertiary },
+                      ]}
+                    />
+                    <Text style={styles.txState}>{tx.state}</Text>
                   </View>
                 </View>
               </View>
@@ -142,6 +166,11 @@ const styles = StyleSheet.create({
   filterTextActive: {
     color: DfxColors.white,
   },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   emptyState: {
     flex: 1,
     alignItems: 'center',
@@ -193,7 +222,7 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
   },
-  txFiat: {
+  txState: {
     ...Typography.bodySmall,
     color: DfxColors.textSecondary,
   },

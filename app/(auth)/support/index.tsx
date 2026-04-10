@@ -1,50 +1,113 @@
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import * as Haptics from 'expo-haptics';
 import { PrimaryButton, ScreenContainer } from '@/components';
+import { dfxSupportService, type SupportIssueDto } from '@/services/dfx';
 import { DfxColors, Typography } from '@/theme';
 
-type SupportView = 'list' | 'create';
+type SupportView = 'list' | 'create' | 'chat';
 
-type Ticket = {
-  id: string;
-  subject: string;
-  status: 'open' | 'resolved';
-  date: string;
+const STATE_COLORS: Record<string, string> = {
+  Open: DfxColors.warning,
+  InProgress: DfxColors.info,
+  Resolved: DfxColors.success,
+  Closed: DfxColors.textTertiary,
 };
 
 export default function SupportScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const [view, setView] = useState<SupportView>('list');
+  const [issues, setIssues] = useState<SupportIssueDto[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
+  const [selectedIssue, setSelectedIssue] = useState<SupportIssueDto | null>(null);
+  const [chatMessage, setChatMessage] = useState('');
 
-  // TODO: Fetch from DFX API
-  const tickets: Ticket[] = [];
+  const loadIssues = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await dfxSupportService.getIssues();
+      setIssues(data);
+    } catch {
+      // May not be authenticated
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadIssues();
+  }, [loadIssues]);
+
+  const handleCreate = async () => {
+    if (!subject || !message) return;
+    setIsLoading(true);
+    try {
+      await dfxSupportService.createIssue(subject, message);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setSubject('');
+      setMessage('');
+      setView('list');
+      await loadIssues();
+    } catch {
+      // Handle error
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!selectedIssue || !chatMessage) return;
+    try {
+      await dfxSupportService.sendMessage(selectedIssue.id, chatMessage);
+      setChatMessage('');
+      // Reload to get updated messages
+      const updated = await dfxSupportService.getIssues();
+      setIssues(updated);
+      setSelectedIssue(updated.find((i) => i.id === selectedIssue.id) ?? null);
+    } catch {
+      // Handle error
+    }
+  };
 
   const renderList = () => (
     <View style={styles.stepContent}>
-      {tickets.length === 0 ? (
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={DfxColors.primary} />
+        </View>
+      ) : issues.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>No support tickets</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.ticketList}>
-          {tickets.map((ticket) => (
-            <Pressable key={ticket.id} style={styles.ticketItem}>
+        <ScrollView contentContainerStyle={styles.ticketList} showsVerticalScrollIndicator={false}>
+          {issues.map((issue) => (
+            <Pressable
+              key={issue.id}
+              style={styles.ticketItem}
+              onPress={() => {
+                setSelectedIssue(issue);
+                setView('chat');
+              }}
+            >
               <View style={styles.ticketInfo}>
-                <Text style={styles.ticketSubject}>{ticket.subject}</Text>
-                <Text style={styles.ticketDate}>{ticket.date}</Text>
+                <Text style={styles.ticketSubject}>{issue.reason}</Text>
+                <Text style={styles.ticketDate}>
+                  {new Date(issue.createdDate).toLocaleDateString()}
+                </Text>
               </View>
               <View
                 style={[
                   styles.statusBadge,
-                  ticket.status === 'resolved' && styles.statusResolved,
+                  { backgroundColor: STATE_COLORS[issue.state] ?? DfxColors.textTertiary },
                 ]}
               >
-                <Text style={styles.statusText}>{ticket.status}</Text>
+                <Text style={styles.statusText}>{issue.state}</Text>
               </View>
             </Pressable>
           ))}
@@ -81,14 +144,44 @@ export default function SupportScreen() {
 
       <PrimaryButton
         title="Submit"
-        onPress={() => {
-          // TODO: dfxApi.post('/support/ticket', { subject, message })
-          setView('list');
-          setSubject('');
-          setMessage('');
-        }}
+        onPress={handleCreate}
         disabled={!subject || !message}
+        loading={isLoading}
       />
+    </View>
+  );
+
+  const renderChat = () => (
+    <View style={styles.stepContent}>
+      <Text style={styles.stepTitle}>{selectedIssue?.reason}</Text>
+
+      <ScrollView style={styles.chatMessages} showsVerticalScrollIndicator={false}>
+        {selectedIssue?.messages.map((msg) => (
+          <View
+            key={msg.id}
+            style={[styles.chatBubble, msg.author === 'User' ? styles.userBubble : styles.supportBubble]}
+          >
+            <Text style={styles.chatAuthor}>{msg.author}</Text>
+            <Text style={styles.chatText}>{msg.message}</Text>
+            <Text style={styles.chatDate}>
+              {new Date(msg.createdDate).toLocaleString()}
+            </Text>
+          </View>
+        ))}
+      </ScrollView>
+
+      <View style={styles.chatInputRow}>
+        <TextInput
+          style={[styles.input, styles.chatInput]}
+          value={chatMessage}
+          onChangeText={setChatMessage}
+          placeholder="Type a message..."
+          placeholderTextColor={DfxColors.textTertiary}
+        />
+        <Pressable style={styles.sendButton} onPress={handleSendMessage}>
+          <Text style={styles.sendText}>Send</Text>
+        </Pressable>
+      </View>
     </View>
   );
 
@@ -96,7 +189,13 @@ export default function SupportScreen() {
     <ScreenContainer>
       <View style={styles.content}>
         <View style={styles.header}>
-          <Pressable onPress={() => (view === 'list' ? router.back() : setView('list'))}>
+          <Pressable
+            onPress={() => {
+              if (view === 'list') router.back();
+              else if (view === 'chat') setView('list');
+              else setView('list');
+            }}
+          >
             <Text style={styles.backButton}>{'\u2190'}</Text>
           </Pressable>
           <Text style={styles.title}>{t('support.title')}</Text>
@@ -105,6 +204,7 @@ export default function SupportScreen() {
 
         {view === 'list' && renderList()}
         {view === 'create' && renderCreate()}
+        {view === 'chat' && renderChat()}
       </View>
     </ScreenContainer>
   );
@@ -137,6 +237,11 @@ const styles = StyleSheet.create({
   stepTitle: {
     ...Typography.headlineSmall,
     color: DfxColors.text,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyState: {
     flex: 1,
@@ -175,16 +280,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
-    backgroundColor: DfxColors.warning,
-  },
-  statusResolved: {
-    backgroundColor: DfxColors.success,
   },
   statusText: {
     ...Typography.bodySmall,
     fontWeight: '600',
     color: DfxColors.black,
-    textTransform: 'capitalize',
   },
   input: {
     backgroundColor: DfxColors.surface,
@@ -195,6 +295,56 @@ const styles = StyleSheet.create({
   },
   messageInput: {
     minHeight: 160,
+  },
+  chatMessages: {
+    flex: 1,
+  },
+  chatBubble: {
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    maxWidth: '85%',
+  },
+  userBubble: {
+    backgroundColor: DfxColors.primary,
+    alignSelf: 'flex-end',
+  },
+  supportBubble: {
+    backgroundColor: DfxColors.surface,
+    alignSelf: 'flex-start',
+  },
+  chatAuthor: {
+    ...Typography.bodySmall,
+    fontWeight: '600',
+    color: DfxColors.textSecondary,
+    marginBottom: 4,
+  },
+  chatText: {
+    ...Typography.bodyMedium,
+    color: DfxColors.text,
+  },
+  chatDate: {
+    ...Typography.bodySmall,
+    color: DfxColors.textTertiary,
+    marginTop: 4,
+  },
+  chatInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  chatInput: {
+    flex: 1,
+  },
+  sendButton: {
+    backgroundColor: DfxColors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    justifyContent: 'center',
+  },
+  sendText: {
+    ...Typography.bodyMedium,
+    fontWeight: '600',
+    color: DfxColors.white,
   },
   spacer: {
     flex: 1,
