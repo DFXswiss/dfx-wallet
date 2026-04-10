@@ -1,22 +1,48 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { useWallet } from '@tetherto/wdk-react-native-provider';
 import { ScreenContainer } from '@/components';
+import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
 type SettingsItem = {
   label: string;
   route?: string;
+  onPress?: () => void;
+  destructive?: boolean;
 };
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { reset } = useAuthStore();
+  const { clearWallet } = useWallet();
+
+  const handleDeleteWallet = () => {
+    Alert.alert(
+      'Delete Wallet',
+      'This will permanently remove your wallet from this device. Make sure you have backed up your seed phrase.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await clearWallet();
+            await reset();
+            router.replace('/');
+          },
+        },
+      ],
+    );
+  };
 
   const items: SettingsItem[] = [
-    { label: t('settings.userData') },
+    { label: t('settings.userData'), route: '/(auth)/kyc' },
     { label: t('settings.walletAddress') },
     { label: t('settings.seed') },
+    { label: 'Hardware Wallet', route: '/(auth)/hardware-connect' },
     { label: t('settings.language') },
     { label: t('settings.currencies') },
     { label: t('settings.network') },
@@ -30,16 +56,31 @@ export default function SettingsScreen() {
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>{t('settings.title')}</Text>
+
         {items.map((item) => (
           <Pressable
             key={item.label}
             style={({ pressed }) => [styles.item, pressed && styles.pressed]}
-            onPress={() => item.route && router.push(item.route as never)}
+            onPress={() => {
+              if (item.onPress) item.onPress();
+              else if (item.route) router.push(item.route as never);
+            }}
           >
             <Text style={styles.itemLabel}>{item.label}</Text>
             <Text style={styles.chevron}>{'\u203A'}</Text>
           </Pressable>
         ))}
+
+        <View style={styles.dangerSection}>
+          <Pressable
+            style={({ pressed }) => [styles.item, styles.dangerItem, pressed && styles.pressed]}
+            onPress={handleDeleteWallet}
+          >
+            <Text style={styles.dangerLabel}>Delete Wallet</Text>
+          </Pressable>
+        </View>
+
+        <Text style={styles.version}>DFX Wallet v0.1.0</Text>
       </ScrollView>
     </ScreenContainer>
   );
@@ -74,5 +115,22 @@ const styles = StyleSheet.create({
   chevron: {
     ...Typography.headlineSmall,
     color: DfxColors.textTertiary,
+  },
+  dangerSection: {
+    marginTop: 24,
+  },
+  dangerItem: {
+    justifyContent: 'center',
+  },
+  dangerLabel: {
+    ...Typography.bodyLarge,
+    color: DfxColors.error,
+    fontWeight: '600',
+  },
+  version: {
+    ...Typography.bodySmall,
+    color: DfxColors.textTertiary,
+    textAlign: 'center',
+    marginTop: 24,
   },
 });

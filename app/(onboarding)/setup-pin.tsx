@@ -1,18 +1,21 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { ScreenContainer } from '@/components';
 import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
 export default function SetupPinScreen() {
   const router = useRouter();
-  const { setPin, setOnboarded } = useAuthStore();
+  const { setPin, setOnboarded, setAuthenticated } = useAuthStore();
   const [pin, setPinValue] = useState('');
   const [step, setStep] = useState<'create' | 'confirm'>('create');
   const [firstPin, setFirstPin] = useState('');
+  const [error, setError] = useState(false);
 
   const handleDigit = (digit: string) => {
+    setError(false);
     const newPin = pin + digit;
     if (newPin.length > 6) return;
     setPinValue(newPin);
@@ -23,16 +26,26 @@ export default function SetupPinScreen() {
         setPinValue('');
         setStep('confirm');
       } else if (newPin === firstPin) {
-        setPin(newPin);
-        setOnboarded(true);
-        router.replace('/(auth)/(tabs)/dashboard');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        completeSetup(newPin);
       } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setError(true);
         setPinValue('');
       }
     }
   };
 
+  const completeSetup = async (pinValue: string) => {
+    await setPin(pinValue);
+    setOnboarded(true);
+    setAuthenticated(true);
+    // Navigate to legal disclaimer before dashboard
+    router.replace('/(onboarding)/legal-disclaimer');
+  };
+
   const handleDelete = () => {
+    setError(false);
     setPinValue(pin.slice(0, -1));
   };
 
@@ -47,10 +60,14 @@ export default function SetupPinScreen() {
             ? 'Choose a 6-digit PIN to secure your wallet.'
             : 'Enter your PIN again to confirm.'}
         </Text>
+        {error && <Text style={styles.error}>PINs do not match. Try again.</Text>}
 
         <View style={styles.dots}>
           {Array.from({ length: 6 }).map((_, i) => (
-            <View key={i} style={[styles.dot, i < pin.length && styles.dotFilled]} />
+            <View
+              key={i}
+              style={[styles.dot, i < pin.length && styles.dotFilled, error && styles.dotError]}
+            />
           ))}
         </View>
 
@@ -89,6 +106,10 @@ const styles = StyleSheet.create({
     color: DfxColors.textSecondary,
     textAlign: 'center',
   },
+  error: {
+    ...Typography.bodyMedium,
+    color: DfxColors.error,
+  },
   dots: {
     flexDirection: 'row',
     gap: 16,
@@ -103,6 +124,9 @@ const styles = StyleSheet.create({
   },
   dotFilled: {
     backgroundColor: DfxColors.primary,
+  },
+  dotError: {
+    borderColor: DfxColors.error,
   },
   numpad: {
     flexDirection: 'row',

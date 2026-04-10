@@ -1,8 +1,23 @@
+import { useEffect } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuthStore } from '@/store';
+import { DfxColors } from '@/theme';
 
 export default function Index() {
-  const { isOnboarded, isAuthenticated } = useAuthStore();
+  const { isOnboarded, isAuthenticated, isHydrated, hydrate } = useAuthStore();
+
+  useEffect(() => {
+    hydrate();
+  }, [hydrate]);
+
+  if (!isHydrated) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={DfxColors.primary} />
+      </View>
+    );
+  }
 
   if (!isOnboarded) {
     return <Redirect href="/(onboarding)/welcome" />;
@@ -14,3 +29,12 @@ export default function Index() {
 
   return <Redirect href="/(auth)/(tabs)/dashboard" />;
 }
+
+const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    backgroundColor: DfxColors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

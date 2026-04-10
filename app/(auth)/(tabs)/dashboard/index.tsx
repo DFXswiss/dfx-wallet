@@ -1,9 +1,11 @@
+import { useEffect } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useWallet } from '@tetherto/wdk-react-native-provider';
 import { ActionBar, AssetListItem, BalanceCard, ScreenContainer } from '@/components';
-import { useWalletStore } from '@/store';
+import { useDfxAuth } from '@/hooks';
+import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
 export default function DashboardScreen() {
@@ -11,6 +13,17 @@ export default function DashboardScreen() {
   const { t } = useTranslation();
   const { totalBalanceFiat, selectedCurrency, assets } = useWalletStore();
   const { balances, isLoading: wdkLoading, refreshWalletBalance } = useWallet();
+  const { isDfxAuthenticated } = useAuthStore();
+  const { authenticate, isAuthenticating } = useDfxAuth();
+
+  // Auto-authenticate with DFX API on first dashboard visit
+  useEffect(() => {
+    if (!isDfxAuthenticated && !isAuthenticating) {
+      authenticate().catch(() => {
+        // Auth will be retried when user attempts buy/sell
+      });
+    }
+  }, [isDfxAuthenticated, isAuthenticating, authenticate]);
 
   const actions = [
     {
