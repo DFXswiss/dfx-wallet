@@ -58,16 +58,23 @@ src/
 
 BitBox02 integration is a MUST-HAVE requirement.
 
-**Architecture** (mirrored from RealUnit app):
-- USB connection only (no Bluetooth)
+**Dual-transport architecture:**
+- **USB HID** — Standard BitBox02, **Android only** (Apple blocks USB-HID for 3rd party apps)
+- **BLE** — BitBox02 Nova, **Android + iOS**
 - View-only wallet model: no seed stored locally, signing delegated to hardware
-- Connection flow: Scan USB → Detect → Connect → Init → Channel Verify → Get Address
-- Signing: EVM transactions (EIP1559) + personal messages
-- Note: EIP-712 typed signing is NOT supported on BitBox02
+
+**SDK:** `bitbox-api` (npm, v0.12.0, WASM from BitBoxSwiss/bitbox-api-rs)
+- Protocol stack (Noise XX handshake, Protobuf, signing) is transport-agnostic
+- Only the ReadWrite transport layer needs native implementation
 
 **Implementation**: `src/services/hardware-wallet/`
-- `types.ts` — `HardwareWalletProvider` interface
-- `bitbox.ts` — `BitboxProvider` (TODO: implement via bitbox02-api-js or native module)
+- `types.ts` — `HardwareWalletProvider`, `BitboxTransport` interfaces
+- `bitbox.ts` — `BitboxProvider` (scans USB + BLE, auto-selects transport)
+- `transport-usb.ts` — Android native HID module (pattern: @ledgerhq/react-native-hid)
+- `transport-ble.ts` — BLE via react-native-ble-plx (Android + iOS)
+
+**Connection flow:** Scan (USB+BLE) → Detect → Connect → Noise handshake → Channel Verify → Get Address
+**Signing:** BTC (SegWit, Taproot, PSBT) + ETH (EIP-1559, ERC-20, EIP-712)
 
 **RealUnit reference files**:
 - `lib/screens/hardware_connect_bitbox/` — UI + connection flow

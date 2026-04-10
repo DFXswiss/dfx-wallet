@@ -1,70 +1,83 @@
+import { Platform } from 'react-native';
 import type {
+  BitboxTransport,
   HardwareWalletDevice,
   HardwareWalletProvider,
 } from './types';
+import { scanUsbDevices } from './transport-usb';
+import { scanBleDevices } from './transport-ble';
 
 /**
- * BitBox02 hardware wallet integration.
+ * BitBox02 hardware wallet provider.
  *
- * SDK options (from research):
- * - `bitbox-api` (npm, v0.12.0, WASM, active) — preferred over legacy `bitbox02-api`
- *   GitHub: BitBoxSwiss/bitbox-api-rs
- *   Features: BTC (xPub, SegWit, Taproot, PSBT), ETH (EIP-1559, ERC-20, EIP-712)
+ * Dual-transport architecture:
+ *   - USB HID: Standard BitBox02, Android only
+ *   - BLE: BitBox02 Nova, Android + iOS
  *
- * TRANSPORT PROBLEM: Both official SDKs only support WebHID (browser) or
- * BitBoxBridge (desktop daemon). Neither works in React Native.
+ * Both transports share the same protocol stack:
+ *   Raw bytes (USB/BLE) → Noise XX handshake → Encrypted channel → Protobuf → API
  *
- * Viable approaches for React Native:
- *   A) Native Android HID Module (like @ledgerhq/react-native-hid) — Android only
- *      The Rust library has a clean ReadWrite trait; only transport needs replacing.
- *   B) BLE via react-native-ble-plx — requires BitBox02 Nova (BLE model), Android+iOS
- *   C) WalletConnect — use BitBox desktop app as signer, low effort, both platforms
+ * SDK: `bitbox-api` (npm, v0.12.0, WASM from BitBoxSwiss/bitbox-api-rs)
+ *   - The WASM core handles Noise handshake, Protobuf encoding, signing logic
+ *   - Only the transport layer (ReadWrite trait) needs native implementation
+ *   - Features: BTC (SegWit, Taproot, PSBT), ETH (EIP-1559, ERC-20, EIP-712)
  *
- * iOS LIMITATION: Apple blocks USB-HID access for third-party apps.
- * Direct USB is impossible on iOS. BLE (Nova) or WalletConnect are the only options.
- *
- * Reference implementation: RealUnit app
+ * Reference: RealUnit app
  *   - Connection: lib/screens/hardware_connect_bitbox/bloc/connect_bitbox_cubit.dart
  *   - Credentials: lib/packages/hardware_wallet/bitbox_credentials.dart
  *   - Service: lib/packages/hardware_wallet/bitbox.dart
- *
- * Connection flow (from RealUnit):
- *   1. Poll USB devices every 500ms
- *   2. connect(device)
- *   3. initBitBox()
- *   4. channelHashVerify() — secure channel verification
- *   5. getETHAddress() — retrieve address from device
- *   6. Create view-only wallet (no seed stored locally)
- *
- * Signing flow:
- *   - EVM transactions: signETHRLPTransaction(chainId, path, payload, isEIP1559)
- *   - Messages: signETHMessage(chainId, path, payload)
- *   - Note: EIP-712 typed signing is NOT supported on BitBox02
  */
 export class BitboxProvider implements HardwareWalletProvider {
+  private transport: BitboxTransport | null = null;
+
+  /**
+   * Scan for BitBox02 devices via both USB (Android) and BLE (Android + iOS).
+   * Returns all found devices with their transport type.
+   */
   async scanDevices(): Promise<HardwareWalletDevice[]> {
-    // TODO: Implement USB device scanning
-    throw new Error('BitBox02 integration not yet implemented');
+    const [usbDevices, bleDevices] = await Promise.all([
+      scanUsbDevices(),
+      scanBleDevices(),
+    ]);
+
+    return [...usbDevices, ...bleDevices];
   }
 
-  async connect(_device: HardwareWalletDevice): Promise<void> {
-    // TODO: connect → initBitBox → channelHashVerify
-    throw new Error('BitBox02 integration not yet implemented');
+  /**
+   * Connect to a BitBox02 device.
+   * Automatically selects USB or BLE transport based on the device.
+   */
+  async connect(device: HardwareWalletDevice): Promise<void> {
+    if (device.transport === 'usb' && Platform.OS !== 'android') {
+      throw new Error('USB connection is only available on Android');
+    }
+
+    // TODO:
+    // 1. Create transport (UsbTransport or BleTransport)
+    // 2. Initialize bitbox-api WASM core with transport
+    // 3. Perform Noise XX handshake (channel pairing)
+    // 4. channelHashVerify() — user confirms hash on device
+    // 5. Store transport reference
+    throw new Error('BitBox02 connect not yet implemented');
   }
 
   async disconnect(): Promise<void> {
-    // TODO: Cleanup connection
-    throw new Error('BitBox02 integration not yet implemented');
+    if (this.transport) {
+      await this.transport.close();
+      this.transport = null;
+    }
   }
 
   async getEthAddress(_derivationPath?: string): Promise<string> {
-    // TODO: getETHAddress from BitBox device
-    throw new Error('BitBox02 integration not yet implemented');
+    this.ensureConnected();
+    // TODO: bitboxApi.ethGetAddress(derivationPath)
+    throw new Error('BitBox02 getEthAddress not yet implemented');
   }
 
   async getBtcAddress(_derivationPath?: string): Promise<string> {
-    // TODO: getBTCAddress from BitBox device
-    throw new Error('BitBox02 integration not yet implemented');
+    this.ensureConnected();
+    // TODO: bitboxApi.btcGetAddress(derivationPath)
+    throw new Error('BitBox02 getBtcAddress not yet implemented');
   }
 
   async signEthTransaction(
@@ -73,8 +86,10 @@ export class BitboxProvider implements HardwareWalletProvider {
     _rlpPayload: Uint8Array,
     _isEIP1559: boolean,
   ): Promise<{ r: string; s: string; v: number }> {
-    // TODO: signETHRLPTransaction → extract r,s,v from 65-byte signature
-    throw new Error('BitBox02 integration not yet implemented');
+    this.ensureConnected();
+    // TODO: bitboxApi.ethSignTransaction(chainId, derivationPath, rlpPayload, isEIP1559)
+    // Extract r, s, v from 65-byte signature response
+    throw new Error('BitBox02 signEthTransaction not yet implemented');
   }
 
   async signMessage(
@@ -82,7 +97,14 @@ export class BitboxProvider implements HardwareWalletProvider {
     _derivationPath: string,
     _message: Uint8Array,
   ): Promise<Uint8Array> {
-    // TODO: signETHMessage
-    throw new Error('BitBox02 integration not yet implemented');
+    this.ensureConnected();
+    // TODO: bitboxApi.ethSignMessage(chainId, derivationPath, message)
+    throw new Error('BitBox02 signMessage not yet implemented');
+  }
+
+  private ensureConnected(): void {
+    if (!this.transport) {
+      throw new Error('BitBox02 not connected. Call connect() first.');
+    }
   }
 }
