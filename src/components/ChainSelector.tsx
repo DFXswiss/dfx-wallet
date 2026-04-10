@@ -17,7 +17,7 @@ const CHAIN_INFO: Record<string, { label: string; short: string }> = {
   base: { label: 'Base', short: 'BASE' },
 };
 
-const DEFAULT_CHAINS: ChainId[] = ['bitcoin', 'ethereum', 'arbitrum', 'polygon', 'optimism', 'base'];
+const DEFAULT_CHAINS: ChainId[] = ['bitcoin', 'ethereum', 'arbitrum', 'polygon'];
 
 export function ChainSelector({ selected, onSelect, chains = DEFAULT_CHAINS }: Props) {
   return (

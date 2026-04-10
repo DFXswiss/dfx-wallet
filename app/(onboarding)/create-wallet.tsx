@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import { useWallet } from '@tetherto/wdk-react-native-provider';
 import { ScreenContainer, PrimaryButton } from '@/components';
 import { generateSeedPhrase, wordsToSeed } from '@/services/wallet';
 import { secureStorage, StorageKeys } from '@/services/storage';
@@ -28,11 +29,16 @@ export default function CreateWalletScreen() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const { createWallet } = useWallet();
+
   const handleContinue = async () => {
-    await secureStorage.set(StorageKeys.ENCRYPTED_SEED, wordsToSeed(seedWords));
+    const seed = wordsToSeed(seedWords);
+    await secureStorage.set(StorageKeys.ENCRYPTED_SEED, seed);
+    // Create WDK wallet with the generated mnemonic
+    await createWallet({ name: 'DFX Wallet', mnemonic: seed });
     router.push({
       pathname: '/(onboarding)/verify-seed',
-      params: { seed: wordsToSeed(seedWords) },
+      params: { seed },
     });
   };
 

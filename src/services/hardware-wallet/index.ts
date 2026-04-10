@@ -1,6 +1,9 @@
 export { BitboxProvider } from './bitbox';
+export type { BitboxApi } from './bitbox-protocol';
+export { ethSignatureToHex } from './bitbox-protocol';
 export { BleTransport, scanBleDevices } from './transport-ble';
 export { scanUsbDevices, UsbTransport } from './transport-usb';
+export { WasmBridge } from './wasm-bridge';
 export type {
   BitboxTransport,
   HardwareWalletDevice,

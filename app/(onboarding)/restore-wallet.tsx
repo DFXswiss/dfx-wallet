@@ -3,6 +3,7 @@ import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
+import { useWallet } from '@tetherto/wdk-react-native-provider';
 import { ScreenContainer, PrimaryButton } from '@/components';
 import { validateSeedPhrase, seedToWords, wordsToSeed } from '@/services/wallet';
 import { secureStorage, StorageKeys } from '@/services/storage';
@@ -10,6 +11,7 @@ import { DfxColors, Typography } from '@/theme';
 
 export default function RestoreWalletScreen() {
   const router = useRouter();
+  const { createWallet } = useWallet();
   const { t } = useTranslation();
   const [seedPhrase, setSeedPhrase] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +27,9 @@ export default function RestoreWalletScreen() {
       return;
     }
 
-    await secureStorage.set(StorageKeys.ENCRYPTED_SEED, wordsToSeed(words));
+    const seed = wordsToSeed(words);
+    await secureStorage.set(StorageKeys.ENCRYPTED_SEED, seed);
+    await createWallet({ name: 'DFX Wallet', mnemonic: seed });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.push('/(onboarding)/setup-pin');
   };

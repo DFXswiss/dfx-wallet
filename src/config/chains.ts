@@ -7,27 +7,41 @@ export const CHAINS_CONFIG = {
     chainId: 1,
     blockchain: 'ethereum',
     provider: process.env.EXPO_PUBLIC_ETH_RPC_URL ?? 'https://eth.drpc.org',
+    bundlerUrl: '',
+    paymasterUrl: '',
+    paymasterAddress: '',
+    entrypointAddress: '0x0000000071727De22E5E9d8BAf0edAc6f37da032',
+    transferMaxFee: 5000000,
+    swapMaxFee: 5000000,
+    bridgeMaxFee: 5000000,
+    paymasterToken: { address: '0xdAC17F958D2ee523a2206206994597C13D831ec7' },
   },
   arbitrum: {
     chainId: 42161,
     blockchain: 'arbitrum',
     provider: process.env.EXPO_PUBLIC_ARBITRUM_RPC_URL ?? 'https://arb1.arbitrum.io/rpc',
+    bundlerUrl: '',
+    paymasterUrl: '',
+    paymasterAddress: '',
+    entrypointAddress: '0x0000000071727De22E5E9d8BAf0edAc6f37da032',
+    transferMaxFee: 5000000,
+    swapMaxFee: 5000000,
+    bridgeMaxFee: 5000000,
+    paymasterToken: { address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9' },
   },
   polygon: {
     chainId: 137,
     blockchain: 'polygon',
     provider: process.env.EXPO_PUBLIC_POLYGON_RPC_URL ?? 'https://polygon-rpc.com',
+    bundlerUrl: '',
+    paymasterUrl: '',
+    paymasterAddress: '',
+    entrypointAddress: '0x0000000071727De22E5E9d8BAf0edAc6f37da032',
+    transferMaxFee: 5000000,
+    swapMaxFee: 5000000,
+    bridgeMaxFee: 5000000,
+    paymasterToken: { address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F' },
   },
-  optimism: {
-    chainId: 10,
-    blockchain: 'optimism',
-    provider: process.env.EXPO_PUBLIC_OPTIMISM_RPC_URL ?? 'https://mainnet.optimism.io',
-  },
-  base: {
-    chainId: 8453,
-    blockchain: 'base',
-    provider: process.env.EXPO_PUBLIC_BASE_RPC_URL ?? 'https://mainnet.base.org',
-  },
-} as const;
+};
 
-export type ChainId = keyof typeof CHAINS_CONFIG;
+export type ChainId = 'bitcoin' | 'ethereum' | 'arbitrum' | 'polygon';
