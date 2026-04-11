@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenContainer } from '@/components';
 import { dfxTransactionService, type TransactionDto } from '@/services/dfx';
@@ -96,9 +104,7 @@ export default function TransactionHistoryScreen() {
               <View key={tx.id} style={styles.txItem}>
                 <View style={styles.txLeft}>
                   <Text style={styles.txType}>{tx.type}</Text>
-                  <Text style={styles.txDate}>
-                    {new Date(tx.date).toLocaleDateString()}
-                  </Text>
+                  <Text style={styles.txDate}>{new Date(tx.date).toLocaleDateString()}</Text>
                 </View>
                 <View style={styles.txRight}>
                   <Text style={styles.txAmount}>

@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
@@ -159,13 +167,14 @@ export default function SupportScreen() {
         {selectedIssue?.messages.map((msg) => (
           <View
             key={msg.id}
-            style={[styles.chatBubble, msg.author === 'User' ? styles.userBubble : styles.supportBubble]}
+            style={[
+              styles.chatBubble,
+              msg.author === 'User' ? styles.userBubble : styles.supportBubble,
+            ]}
           >
             <Text style={styles.chatAuthor}>{msg.author}</Text>
             <Text style={styles.chatText}>{msg.message}</Text>
-            <Text style={styles.chatDate}>
-              {new Date(msg.createdDate).toLocaleString()}
-            </Text>
+            <Text style={styles.chatDate}>{new Date(msg.createdDate).toLocaleString()}</Text>
           </View>
         ))}
       </ScrollView>

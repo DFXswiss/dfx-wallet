@@ -25,7 +25,7 @@ console.log(`JS glue size: ${jsGlue.length} chars`);
 // Patch the JS glue to work in a WebView context:
 // 1. Remove import.meta references (not available in inline scripts)
 // 2. Remove any Node.js-specific code
-let patchedGlue = jsGlue
+const patchedGlue = jsGlue // eslint-disable-line no-unused-vars, @typescript-eslint/no-unused-vars -- will be used when WASM bundling is fully wired
   // Remove export statements (we'll access everything via the wasm object)
   .replace(/^export\s+/gm, '')
   // Fix TextEncoder/TextDecoder (available in WebView)

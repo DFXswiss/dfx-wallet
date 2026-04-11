@@ -65,9 +65,7 @@ export class WasmBridge {
         reject,
       });
 
-      this.webViewRef!.postMessage(
-        JSON.stringify({ id, method, params }),
-      );
+      this.webViewRef!.postMessage(JSON.stringify({ id, method, params }));
 
       // Timeout after 30 seconds
       setTimeout(() => {

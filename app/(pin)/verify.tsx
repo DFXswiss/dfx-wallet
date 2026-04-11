@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -15,21 +15,21 @@ export default function VerifyPinScreen() {
   const [error, setError] = useState(false);
   const [attempts, setAttempts] = useState(0);
 
-  // Try biometric on mount
-  useEffect(() => {
-    if (biometricEnabled) {
-      tryBiometric();
-    }
-  }, [biometricEnabled]);
-
-  const tryBiometric = async () => {
+  const tryBiometric = useCallback(async () => {
     const success = await authenticateBiometric();
     if (success) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setAuthenticated(true);
       router.replace('/(auth)/(tabs)/dashboard');
     }
-  };
+  }, [authenticateBiometric, setAuthenticated, router]);
+
+  // Try biometric on mount
+  useEffect(() => {
+    if (biometricEnabled) {
+      tryBiometric();
+    }
+  }, [biometricEnabled, tryBiometric]);
 
   const handleDigit = (digit: string) => {
     setError(false);
@@ -82,11 +82,7 @@ export default function VerifyPinScreen() {
               {Array.from({ length: 6 }).map((_, i) => (
                 <View
                   key={i}
-                  style={[
-                    styles.dot,
-                    i < pin.length && styles.dotFilled,
-                    error && styles.dotError,
-                  ]}
+                  style={[styles.dot, i < pin.length && styles.dotFilled, error && styles.dotError]}
                 />
               ))}
             </View>
