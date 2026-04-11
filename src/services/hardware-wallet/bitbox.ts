@@ -6,51 +6,42 @@ import type {
 } from './types';
 import { scanUsbDevices, UsbTransport } from './transport-usb';
 import { BleTransport, scanBleDevices } from './transport-ble';
+import { WasmBridge } from './wasm-bridge';
+import { ethSignatureToHex } from './bitbox-protocol';
 
 /**
  * BitBox02 hardware wallet provider.
  *
- * Dual-transport architecture:
- *   - USB HID: Standard BitBox02, Android only (native Expo module)
- *   - BLE: BitBox02 Nova, Android + iOS (react-native-ble-plx)
+ * Dual-transport + WASM architecture:
+ *   USB/BLE Transport ←→ WasmBridge (postMessage) ←→ WebView (bitbox-api WASM)
  *
- * Both transports implement BitboxTransport (ReadWrite trait equivalent).
- * The protocol stack on top (Noise XX → Protobuf → API) is shared.
- *
- * SDK: `bitbox-api` (npm, WASM from BitBoxSwiss/bitbox-api-rs)
- *
- * TODO: Once bitbox-api WASM is integrated:
- * 1. Load WASM binary
- * 2. Create PairingBitBox with our transport
- * 3. Perform Noise XX handshake
- * 4. Get PairedBitBox for signing operations
+ * The WasmBridge handles the Noise XX handshake, Protobuf encoding,
+ * and all signing operations inside the WebView's WASM runtime.
+ * Transport read/write calls are bridged back to native USB/BLE.
  */
 export class BitboxProvider implements HardwareWalletProvider {
   private transport: BitboxTransport | null = null;
   private connectedDevice: HardwareWalletDevice | null = null;
+  private bridge: WasmBridge;
 
-  /**
-   * Scan for BitBox02 devices via both USB (Android) and BLE (Android + iOS).
-   */
+  constructor() {
+    this.bridge = new WasmBridge();
+  }
+
+  /** Get the WasmBridge instance (needed by BitboxWasmWebView component) */
+  getBridge(): WasmBridge {
+    return this.bridge;
+  }
+
   async scanDevices(): Promise<HardwareWalletDevice[]> {
-    const results = await Promise.allSettled([
-      scanUsbDevices(),
-      scanBleDevices(),
-    ]);
-
+    const results = await Promise.allSettled([scanUsbDevices(), scanBleDevices()]);
     const devices: HardwareWalletDevice[] = [];
     for (const result of results) {
-      if (result.status === 'fulfilled') {
-        devices.push(...result.value);
-      }
+      if (result.status === 'fulfilled') devices.push(...result.value);
     }
     return devices;
   }
 
-  /**
-   * Connect to a BitBox02 device.
-   * Automatically creates the right transport based on device type.
-   */
   async connect(device: HardwareWalletDevice): Promise<void> {
     if (device.transport === 'usb' && Platform.OS !== 'android') {
       throw new Error('USB connection is only available on Android');
@@ -58,6 +49,7 @@ export class BitboxProvider implements HardwareWalletProvider {
 
     await this.disconnect();
 
+    // 1. Open physical transport
     if (device.transport === 'usb') {
       const usb = new UsbTransport();
       await usb.open(device.id);
@@ -68,55 +60,89 @@ export class BitboxProvider implements HardwareWalletProvider {
       this.transport = ble;
     }
 
-    this.connectedDevice = device;
+    // 2. Wire transport to WASM bridge
+    this.bridge.onTransportWrite = async (data: Uint8Array) => {
+      if (this.transport) await this.transport.write(data);
+    };
+    this.bridge.onTransportRead = async () => {
+      if (this.transport) {
+        const data = await this.transport.read();
+        this.bridge.sendTransportData(data);
+      }
+    };
 
-    // TODO: Initialize bitbox-api WASM with this.transport
-    // 1. const noise = new NoiseConfig();
-    // 2. const pairing = await PairingBitBox.create(this.transport, noise);
-    // 3. Display channel hash for user verification
-    // 4. const paired = await pairing.confirm();
-    // 5. Store paired instance for signing operations
+    // 3. Initiate pairing via WASM
+    await this.bridge.call('pair');
+
+    this.connectedDevice = device;
   }
 
   async disconnect(): Promise<void> {
     if (this.transport) {
+      try {
+        await this.bridge.call('close');
+      } catch {
+        // Ignore close errors
+      }
       await this.transport.close();
       this.transport = null;
     }
     this.connectedDevice = null;
   }
 
-  async getEthAddress(_derivationPath?: string): Promise<string> {
+  async getEthAddress(derivationPath?: string): Promise<string> {
     this.ensureConnected();
-    // TODO: pairedBitBox.ethGetAddress(derivationPath ?? "m/44'/60'/0'/0/0")
-    throw new Error('BitBox02 getEthAddress: awaiting bitbox-api WASM integration');
+    return this.bridge.call<string>('ethAddress', [
+      1, // chainId (mainnet)
+      derivationPath ?? "m/44'/60'/0'/0/0",
+      false, // don't display on device
+    ]);
   }
 
-  async getBtcAddress(_derivationPath?: string): Promise<string> {
+  async getBtcAddress(derivationPath?: string): Promise<string> {
     this.ensureConnected();
-    // TODO: pairedBitBox.btcGetAddress(derivationPath ?? "m/84'/0'/0'/0/0")
-    throw new Error('BitBox02 getBtcAddress: awaiting bitbox-api WASM integration');
+    return this.bridge.call<string>('btcAddress', [
+      'btc',
+      derivationPath ?? "m/84'/0'/0'/0/0",
+      { simpleType: 'p2wpkh' },
+      false,
+    ]);
   }
 
   async signEthTransaction(
-    _chainId: number,
-    _derivationPath: string,
-    _rlpPayload: Uint8Array,
+    chainId: number,
+    derivationPath: string,
+    rlpPayload: Uint8Array,
     _isEIP1559: boolean,
   ): Promise<{ r: string; s: string; v: number }> {
     this.ensureConnected();
-    // TODO: pairedBitBox.ethSignTransaction(chainId, derivationPath, rlpPayload)
-    throw new Error('BitBox02 signEthTransaction: awaiting bitbox-api WASM integration');
+    const sig = await this.bridge.call<{ r: number[]; s: number[]; v: number[] }>(
+      'ethSign1559Transaction',
+      [derivationPath, rlpPayload, undefined],
+    );
+    return ethSignatureToHex({
+      r: new Uint8Array(sig.r),
+      s: new Uint8Array(sig.s),
+      v: new Uint8Array(sig.v),
+    });
   }
 
   async signMessage(
-    _chainId: number,
-    _derivationPath: string,
-    _message: Uint8Array,
+    chainId: number,
+    derivationPath: string,
+    message: Uint8Array,
   ): Promise<Uint8Array> {
     this.ensureConnected();
-    // TODO: pairedBitBox.ethSignMessage(derivationPath, message)
-    throw new Error('BitBox02 signMessage: awaiting bitbox-api WASM integration');
+    const sig = await this.bridge.call<{ r: number[]; s: number[]; v: number[] }>(
+      'ethSignMessage',
+      [chainId, derivationPath, Array.from(message)],
+    );
+    // Combine r + s + v into 65-byte signature
+    const result = new Uint8Array(65);
+    result.set(new Uint8Array(sig.r), 0);
+    result.set(new Uint8Array(sig.s), 32);
+    result.set(new Uint8Array(sig.v), 64);
+    return result;
   }
 
   getConnectedDevice(): HardwareWalletDevice | null {

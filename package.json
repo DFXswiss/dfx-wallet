@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "jest --passWithNoTests",
     "prebuild": "expo prebuild --clean",
+    "bundle:bitbox": "node scripts/bundle-bitbox-wasm.js",
     "check": "npm run typecheck && npm run lint && npm run format"
   },
   "dependencies": {
@@ -66,6 +67,7 @@
     "react-native-svg": "^15.15.4",
     "react-native-tcp-socket": "^6.4.1",
     "react-native-url-polyfill": "^3.0.0",
+    "react-native-webview": "^13.16.1",
     "sodium-javascript": "^0.8.0",
     "stream-browserify": "^3.0.0",
     "stream-http": "^3.2.0",

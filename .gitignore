@@ -40,3 +40,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# generated WASM bundle (regenerate with: npm run bundle:bitbox)
+src/services/hardware-wallet/bitbox-wasm-html.ts

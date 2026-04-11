@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { PrimaryButton, ScreenContainer } from '@/components';
-import { BitboxProvider } from '@/services/hardware-wallet';
+import { BitboxProvider, BitboxWasmWebView } from '@/services/hardware-wallet';
 import type { HardwareWalletDevice, HardwareWalletStatus } from '@/services/hardware-wallet';
 import { useHardwareWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
@@ -50,6 +50,8 @@ export default function HardwareConnectScreen() {
       setError(err instanceof Error ? err.message : 'Connection failed');
     }
   };
+
+  const [wasmReady, setWasmReady] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -166,6 +168,11 @@ export default function HardwareConnectScreen() {
           )}
         </View>
       </View>
+      {/* Hidden WebView for BitBox WASM — mounted when scanning/connecting */}
+      <BitboxWasmWebView
+        bridge={provider.getBridge()}
+        onReady={() => setWasmReady(true)}
+      />
     </ScreenContainer>
   );
 }
