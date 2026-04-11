@@ -56,9 +56,7 @@
       ["expo-camera", {
         "cameraPermission": "Camera access is needed to scan QR codes."
       }],
-      "./modules/bitbox-hid/expo-module.config.json",
-      "expo-local-authentication",
-      "expo-crypto"
+      "expo-local-authentication"
     ]
   }
 }
