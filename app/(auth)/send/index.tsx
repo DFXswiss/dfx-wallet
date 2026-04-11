@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { useWallet } from '@tetherto/wdk-react-native-provider';
 import { ChainSelector, PrimaryButton, ScreenContainer } from '@/components';
 import { QrScanner } from '@/components/QrScanner';
 import { useSendFlow } from '@/hooks';
@@ -11,13 +10,6 @@ import type { ChainId } from '@/config/chains';
 import { DfxColors, Typography } from '@/theme';
 
 type SendStep = 'input' | 'confirm' | 'success';
-
-const CHAIN_TO_NETWORK: Record<ChainId, string> = {
-  bitcoin: 'bitcoin',
-  ethereum: 'ethereum',
-  arbitrum: 'arbitrum',
-  polygon: 'polygon',
-};
 
 const CHAIN_SYMBOL: Record<ChainId, string> = {
   bitcoin: 'BTC',
@@ -29,7 +21,6 @@ const CHAIN_SYMBOL: Record<ChainId, string> = {
 export default function SendScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { balances } = useWallet();
   const { send, isLoading, txHash, error, reset } = useSendFlow();
   const [step, setStep] = useState<SendStep>('input');
   const [selectedChain, setSelectedChain] = useState<ChainId>('ethereum');
@@ -66,10 +57,7 @@ export default function SendScreen() {
             autoCapitalize="none"
             autoCorrect={false}
           />
-          <Pressable
-            style={styles.scanButton}
-            onPress={() => setScannerVisible(true)}
-          >
+          <Pressable style={styles.scanButton} onPress={() => setScannerVisible(true)}>
             <Text style={styles.scanText}>Scan</Text>
           </Pressable>
         </View>

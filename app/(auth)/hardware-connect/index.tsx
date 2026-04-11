@@ -51,7 +51,7 @@ export default function HardwareConnectScreen() {
     }
   };
 
-  const [wasmReady, setWasmReady] = useState(false);
+  const [, setWasmReady] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -122,9 +122,7 @@ export default function HardwareConnectScreen() {
                         dev.transport === 'usb' ? styles.usbBadge : styles.bleBadge,
                       ]}
                     >
-                      <Text style={styles.transportBadgeText}>
-                        {dev.transport.toUpperCase()}
-                      </Text>
+                      <Text style={styles.transportBadgeText}>{dev.transport.toUpperCase()}</Text>
                     </View>
                   </View>
                   <Text style={styles.connectText}>Connect</Text>
@@ -153,9 +151,7 @@ export default function HardwareConnectScreen() {
           {status === 'disconnected' && (
             <PrimaryButton title="Scan for devices" onPress={handleScan} />
           )}
-          {status === 'connected' && (
-            <PrimaryButton title="Done" onPress={() => router.back()} />
-          )}
+          {status === 'connected' && <PrimaryButton title="Done" onPress={() => router.back()} />}
           {(status === 'connecting' || status === 'verifying') && (
             <PrimaryButton
               title="Cancel"
@@ -169,10 +165,7 @@ export default function HardwareConnectScreen() {
         </View>
       </View>
       {/* Hidden WebView for BitBox WASM — mounted when scanning/connecting */}
-      <BitboxWasmWebView
-        bridge={provider.getBridge()}
-        onReady={() => setWasmReady(true)}
-      />
+      <BitboxWasmWebView bridge={provider.getBridge()} onReady={() => setWasmReady(true)} />
     </ScreenContainer>
   );
 }

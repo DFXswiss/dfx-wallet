@@ -1,9 +1,5 @@
 import { Platform } from 'react-native';
-import type {
-  BitboxTransport,
-  HardwareWalletDevice,
-  HardwareWalletProvider,
-} from './types';
+import type { BitboxTransport, HardwareWalletDevice, HardwareWalletProvider } from './types';
 import { scanUsbDevices, UsbTransport } from './transport-usb';
 import { BleTransport, scanBleDevices } from './transport-ble';
 import { WasmBridge } from './wasm-bridge';

@@ -74,11 +74,7 @@ export default function CreateWalletScreen() {
 
         <View style={styles.spacer} />
 
-        <PrimaryButton
-          title={t('common.continue')}
-          onPress={handleContinue}
-          disabled={!revealed}
-        />
+        <PrimaryButton title={t('common.continue')} onPress={handleContinue} disabled={!revealed} />
       </View>
     </ScreenContainer>
   );

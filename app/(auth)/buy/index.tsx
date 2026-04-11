@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ChainSelector, PrimaryButton, ScreenContainer } from '@/components';
@@ -21,7 +21,7 @@ const CHAIN_ASSET: Record<ChainId, string> = {
 export default function BuyScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { paymentInfo, isLoading, error, createPaymentInfo, confirmPayment, reset } = useBuyFlow();
+  const { paymentInfo, isLoading, error, createPaymentInfo, confirmPayment } = useBuyFlow();
   const [step, setStep] = useState<BuyStep>('amount');
   const [selectedChain, setSelectedChain] = useState<ChainId>('bitcoin');
   const [amount, setAmount] = useState('');
@@ -50,10 +50,7 @@ export default function BuyScreen() {
               onPress={() => setSelectedCurrency(cur)}
             >
               <Text
-                style={[
-                  styles.currencyText,
-                  selectedCurrency === cur && styles.currencyTextActive,
-                ]}
+                style={[styles.currencyText, selectedCurrency === cur && styles.currencyTextActive]}
               >
                 {cur}
               </Text>
@@ -158,9 +155,8 @@ export default function BuyScreen() {
         <Text style={styles.successIcon}>{'\u2705'}</Text>
         <Text style={styles.successTitle}>Order placed</Text>
         <Text style={styles.successDescription}>
-          Your purchase of {amount} {selectedCurrency} worth of crypto on{' '}
-          {selectedChain} has been initiated. Make the bank transfer to complete
-          your order.
+          Your purchase of {amount} {selectedCurrency} worth of crypto on {selectedChain} has been
+          initiated. Make the bank transfer to complete your order.
         </Text>
       </View>
 
