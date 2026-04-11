@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ScreenContainer } from '@/components';
@@ -10,10 +10,26 @@ const MAX_ATTEMPTS = 5;
 
 export default function VerifyPinScreen() {
   const router = useRouter();
-  const { verifyPin, setAuthenticated } = useAuthStore();
+  const { verifyPin, setAuthenticated, authenticateBiometric, biometricEnabled } = useAuthStore();
   const [pin, setPinValue] = useState('');
   const [error, setError] = useState(false);
   const [attempts, setAttempts] = useState(0);
+
+  // Try biometric on mount
+  useEffect(() => {
+    if (biometricEnabled) {
+      tryBiometric();
+    }
+  }, [biometricEnabled]);
+
+  const tryBiometric = async () => {
+    const success = await authenticateBiometric();
+    if (success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setAuthenticated(true);
+      router.replace('/(auth)/(tabs)/dashboard');
+    }
+  };
 
   const handleDigit = (digit: string) => {
     setError(false);
@@ -53,9 +69,7 @@ export default function VerifyPinScreen() {
         <Text style={styles.title}>Enter PIN</Text>
 
         {isLocked ? (
-          <Text style={styles.locked}>
-            Too many failed attempts. Please restart the app.
-          </Text>
+          <Text style={styles.locked}>Too many failed attempts. Please restart the app.</Text>
         ) : (
           <>
             {error && (
@@ -93,6 +107,12 @@ export default function VerifyPinScreen() {
                 </View>
               ))}
             </View>
+
+            {biometricEnabled && (
+              <Pressable style={styles.biometricButton} onPress={tryBiometric}>
+                <Text style={styles.biometricText}>Use Biometric</Text>
+              </Pressable>
+            )}
           </>
         )}
       </View>
@@ -158,5 +178,14 @@ const styles = StyleSheet.create({
     ...Typography.headlineSmall,
     color: DfxColors.text,
     fontSize: 28,
+  },
+  biometricButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  biometricText: {
+    ...Typography.bodyMedium,
+    color: DfxColors.primary,
+    fontWeight: '600',
   },
 });

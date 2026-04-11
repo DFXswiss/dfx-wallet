@@ -1,24 +1,66 @@
 {
+  "biometric": {
+    "enable": "Enable Biometric",
+    "usePin": "Use PIN"
+  },
   "buy": {
+    "confirm": "Order placed",
+    "confirmDescription": "Your purchase has been initiated. Transfer the amount with the provided reference code.",
+    "howMuch": "How much do you want to buy?",
+    "paymentInfo": "Payment Information",
     "title": "Buy"
   },
   "common": {
+    "amount": "Amount",
     "cancel": "Cancel",
+    "close": "Close",
     "confirm": "Confirm",
     "continue": "Continue",
     "copy": "Copy",
+    "copied": "Copied!",
     "done": "Done",
     "error": "Error",
     "loading": "Loading...",
     "next": "Next",
+    "noData": "No data",
     "ok": "OK",
     "retry": "Retry",
-    "save": "Save"
+    "save": "Save",
+    "submit": "Submit"
   },
   "dashboard": {
+    "noAssets": "No assets yet",
+    "noAssetsDescription": "Buy your first crypto to get started.",
     "portfolio": "Portfolio",
     "title": "Dashboard",
     "totalBalance": "Total Balance"
+  },
+  "hardware": {
+    "bitbox": "BitBox02",
+    "connect": "Connect Hardware Wallet",
+    "connectDescription": "Connect your BitBox02 via USB or scan for BitBox02 Nova via Bluetooth.",
+    "connectDescriptionIos": "Scan for your BitBox02 Nova via Bluetooth.",
+    "notConnected": "Not connected",
+    "scanning": "Scanning for devices...",
+    "verifyOnDevice": "Please confirm on your device."
+  },
+  "kyc": {
+    "complete": "Verification complete",
+    "completeDescription": "Your identity verification is being reviewed.",
+    "contact": "Contact Data",
+    "currentLevel": "Current Level",
+    "financial": "Financial Information",
+    "ident": "Identity Check",
+    "nationality": "Nationality",
+    "personal": "Personal Data",
+    "title": "KYC Verification"
+  },
+  "legal": {
+    "accept": "I have read and agree to the Terms of Service, Privacy Policy, and Disclaimer.",
+    "disclaimer": "Disclaimer",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service",
+    "title": "Legal Information"
   },
   "onboarding": {
     "createWallet": "Create Wallet",
@@ -27,18 +69,43 @@
     "title": "Welcome to DFX",
     "verifySeed": "Verify Seed"
   },
+  "pin": {
+    "confirm": "Confirm PIN",
+    "create": "Create PIN",
+    "createDescription": "Choose a 6-digit PIN to secure your wallet.",
+    "enter": "Enter PIN",
+    "incorrect": "Incorrect PIN.",
+    "mismatch": "PINs do not match.",
+    "remainingAttempts": "{{count}} attempts remaining.",
+    "tooMany": "Too many failed attempts. Please restart the app."
+  },
   "receive": {
-    "title": "Receive"
+    "onlyCorrectNetwork": "Only send {{asset}} on the {{network}} network to this address.",
+    "title": "Receive",
+    "yourAddress": "Your {{chain}} address"
   },
   "sell": {
+    "bankAccount": "Bank Account",
+    "confirmSale": "Confirm Sale",
+    "depositTo": "Deposit to",
+    "howMuch": "How much do you want to sell?",
     "title": "Sell"
   },
   "send": {
+    "confirmTransaction": "Confirm Transaction",
+    "irreversible": "Transactions are irreversible. Please verify the recipient address and amount.",
+    "recipient": "Recipient",
+    "scan": "Scan",
+    "sent": "Transaction Sent",
     "title": "Send"
   },
   "settings": {
+    "biometric": "Biometric",
     "contact": "Contact",
     "currencies": "Currencies",
+    "deleteWallet": "Delete Wallet",
+    "deleteWalletConfirm": "This will permanently remove your wallet from this device. Make sure you have backed up your seed phrase.",
+    "hardwareWallet": "Hardware Wallet",
     "language": "Language",
     "legalDocuments": "Legal Documents",
     "network": "Network",
@@ -50,6 +117,11 @@
   },
   "support": {
     "createTicket": "Create Ticket",
+    "noTickets": "No support tickets",
     "title": "Support"
+  },
+  "transactions": {
+    "noTransactions": "No transactions yet",
+    "title": "Transactions"
   }
 }

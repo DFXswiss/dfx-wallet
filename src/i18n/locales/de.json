@@ -1,24 +1,66 @@
 {
+  "biometric": {
+    "enable": "Biometrie aktivieren",
+    "usePin": "PIN verwenden"
+  },
   "buy": {
+    "confirm": "Bestellung bestätigt",
+    "confirmDescription": "Dein Kauf wurde initiiert. Überweise den Betrag mit dem angegebenen Verwendungszweck.",
+    "howMuch": "Wie viel möchtest du kaufen?",
+    "paymentInfo": "Zahlungsinformationen",
     "title": "Kaufen"
   },
   "common": {
+    "amount": "Betrag",
     "cancel": "Abbrechen",
+    "close": "Schliessen",
     "confirm": "Bestätigen",
     "continue": "Weiter",
     "copy": "Kopieren",
+    "copied": "Kopiert!",
     "done": "Fertig",
     "error": "Fehler",
     "loading": "Laden...",
     "next": "Weiter",
+    "noData": "Keine Daten",
     "ok": "OK",
     "retry": "Erneut versuchen",
-    "save": "Speichern"
+    "save": "Speichern",
+    "submit": "Absenden"
   },
   "dashboard": {
+    "noAssets": "Noch keine Assets",
+    "noAssetsDescription": "Kaufe dein erstes Krypto um zu starten.",
     "portfolio": "Portfolio",
     "title": "Dashboard",
     "totalBalance": "Gesamtguthaben"
+  },
+  "hardware": {
+    "bitbox": "BitBox02",
+    "connect": "Hardware Wallet verbinden",
+    "connectDescription": "Verbinde deine BitBox02 per USB oder suche nach BitBox02 Nova per Bluetooth.",
+    "connectDescriptionIos": "Suche nach deiner BitBox02 Nova per Bluetooth.",
+    "notConnected": "Nicht verbunden",
+    "scanning": "Suche nach Geräten...",
+    "verifyOnDevice": "Bitte bestätige auf deinem Gerät."
+  },
+  "kyc": {
+    "complete": "Verifizierung abgeschlossen",
+    "completeDescription": "Deine Identitätsverifizierung wird überprüft.",
+    "contact": "Kontaktdaten",
+    "currentLevel": "Aktuelles Level",
+    "financial": "Finanzinformationen",
+    "ident": "Identitätsprüfung",
+    "nationality": "Nationalität",
+    "personal": "Persönliche Daten",
+    "title": "KYC Verifizierung"
+  },
+  "legal": {
+    "accept": "Ich habe die AGB, Datenschutzerklärung und den Haftungsausschluss gelesen und akzeptiere diese.",
+    "disclaimer": "Haftungsausschluss",
+    "privacy": "Datenschutzerklärung",
+    "terms": "Nutzungsbedingungen",
+    "title": "Rechtliche Informationen"
   },
   "onboarding": {
     "createWallet": "Wallet erstellen",
@@ -27,18 +69,43 @@
     "title": "Willkommen bei DFX",
     "verifySeed": "Seed verifizieren"
   },
+  "pin": {
+    "confirm": "PIN bestätigen",
+    "create": "PIN erstellen",
+    "createDescription": "Wähle eine 6-stellige PIN zum Schutz deiner Wallet.",
+    "enter": "PIN eingeben",
+    "incorrect": "Falsche PIN.",
+    "mismatch": "PINs stimmen nicht überein.",
+    "remainingAttempts": "{{count}} Versuche übrig.",
+    "tooMany": "Zu viele Fehlversuche. Bitte starte die App neu."
+  },
   "receive": {
-    "title": "Empfangen"
+    "onlyCorrectNetwork": "Sende nur {{asset}} im {{network}} Netzwerk an diese Adresse.",
+    "title": "Empfangen",
+    "yourAddress": "Deine {{chain}} Adresse"
   },
   "sell": {
+    "bankAccount": "Bankkonto",
+    "confirmSale": "Verkauf bestätigen",
+    "depositTo": "Einzahlung an",
+    "howMuch": "Wie viel möchtest du verkaufen?",
     "title": "Verkaufen"
   },
   "send": {
+    "confirmTransaction": "Transaktion bestätigen",
+    "irreversible": "Transaktionen sind unwiderruflich. Bitte überprüfe Empfängeradresse und Betrag.",
+    "recipient": "Empfänger",
+    "scan": "Scannen",
+    "sent": "Transaktion gesendet",
     "title": "Senden"
   },
   "settings": {
+    "biometric": "Biometrie",
     "contact": "Kontakt",
     "currencies": "Währungen",
+    "deleteWallet": "Wallet löschen",
+    "deleteWalletConfirm": "Deine Wallet wird permanent von diesem Gerät entfernt. Stelle sicher, dass du deine Seed Phrase gesichert hast.",
+    "hardwareWallet": "Hardware Wallet",
     "language": "Sprache",
     "legalDocuments": "Rechtliches",
     "network": "Netzwerk",
@@ -50,6 +117,11 @@
   },
   "support": {
     "createTicket": "Ticket erstellen",
+    "noTickets": "Keine Support-Tickets",
     "title": "Support"
+  },
+  "transactions": {
+    "noTransactions": "Noch keine Transaktionen",
+    "title": "Transaktionen"
   }
 }

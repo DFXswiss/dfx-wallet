@@ -5,4 +5,5 @@ export { ChainSelector } from './ChainSelector';
 export { ErrorBoundary } from './ErrorBoundary';
 export { PrimaryButton } from './PrimaryButton';
 export { QrCode } from './QrCode';
+export { QrScanner } from './QrScanner';
 export { ScreenContainer } from './ScreenContainer';

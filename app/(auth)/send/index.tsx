@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { useWallet } from '@tetherto/wdk-react-native-provider';
 import { ChainSelector, PrimaryButton, ScreenContainer } from '@/components';
+import { QrScanner } from '@/components/QrScanner';
 import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
 import { DfxColors, Typography } from '@/theme';
@@ -34,6 +35,7 @@ export default function SendScreen() {
   const [selectedChain, setSelectedChain] = useState<ChainId>('ethereum');
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
+  const [scannerVisible, setScannerVisible] = useState(false);
 
   const symbol = CHAIN_SYMBOL[selectedChain];
   const isValidAddress = recipient.length >= 26;
@@ -66,10 +68,7 @@ export default function SendScreen() {
           />
           <Pressable
             style={styles.scanButton}
-            onPress={() => {
-              // TODO: Open QR scanner via expo-camera
-              Alert.alert('QR Scanner', 'QR scanning coming soon');
-            }}
+            onPress={() => setScannerVisible(true)}
           >
             <Text style={styles.scanText}>Scan</Text>
           </Pressable>
@@ -184,6 +183,16 @@ export default function SendScreen() {
         {step === 'input' && renderInputStep()}
         {step === 'confirm' && renderConfirmStep()}
         {step === 'success' && renderSuccessStep()}
+
+        <QrScanner
+          visible={scannerVisible}
+          onScan={(data) => {
+            // Handle various QR formats: plain address, ethereum:0x..., bitcoin:bc1...
+            const address = data.replace(/^(ethereum|bitcoin):/, '').split('?')[0];
+            setRecipient(address);
+          }}
+          onClose={() => setScannerVisible(false)}
+        />
       </View>
     </ScreenContainer>
   );

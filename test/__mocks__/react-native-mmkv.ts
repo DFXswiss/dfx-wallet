@@ -1,0 +1,9 @@
+export const useMMKV = jest.fn();
+export const useMMKVString = jest.fn();
+export const useMMKVBoolean = jest.fn();
+export const createMMKV = jest.fn();
+export const existsMMKV = jest.fn();
+export const deleteMMKV = jest.fn();
+export const useMMKVNumber = jest.fn();
+export const useMMKVObject = jest.fn();
+export const useMMKVBuffer = jest.fn();
