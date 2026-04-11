@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useWallet } from '@tetherto/wdk-react-native-provider';
 import { ActionBar, AssetListItem, BalanceCard, ScreenContainer } from '@/components';
 import { useDfxAuth } from '@/hooks';
 import { useAuthStore, useWalletStore } from '@/store';
@@ -12,7 +11,6 @@ export default function DashboardScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { totalBalanceFiat, selectedCurrency, assets } = useWalletStore();
-  const { balances, isLoading: wdkLoading, refreshWalletBalance } = useWallet();
   const { isDfxAuthenticated } = useAuthStore();
   const { authenticate, isAuthenticating } = useDfxAuth();
 
@@ -66,9 +64,7 @@ export default function DashboardScreen() {
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>wallet</Text>
               <Text style={styles.emptyTitle}>No assets yet</Text>
-              <Text style={styles.emptyDescription}>
-                Buy your first crypto to get started.
-              </Text>
+              <Text style={styles.emptyDescription}>Buy your first crypto to get started.</Text>
             </View>
           ) : (
             <View style={styles.assetList}>

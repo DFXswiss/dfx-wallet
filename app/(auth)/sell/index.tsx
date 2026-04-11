@@ -40,9 +40,7 @@ export default function SellScreen() {
           placeholderTextColor={DfxColors.textTertiary}
           keyboardType="decimal-pad"
         />
-        <Text style={styles.amountUnit}>
-          {selectedChain === 'bitcoin' ? 'BTC' : 'ETH'}
-        </Text>
+        <Text style={styles.amountUnit}>{selectedChain === 'bitcoin' ? 'BTC' : 'ETH'}</Text>
       </View>
 
       <View style={styles.spacer} />
@@ -58,9 +56,7 @@ export default function SellScreen() {
   const renderBankStep = () => (
     <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>Bank Account</Text>
-      <Text style={styles.description}>
-        Enter the IBAN where you want to receive your funds.
-      </Text>
+      <Text style={styles.description}>Enter the IBAN where you want to receive your funds.</Text>
 
       <TextInput
         style={styles.ibanInput}
@@ -108,7 +104,8 @@ export default function SellScreen() {
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>You receive (est.)</Text>
           <Text style={styles.summaryValue}>
-            ~{paymentInfo?.estimatedAmount?.toFixed(2) ?? '—'} {paymentInfo?.currency?.name ?? 'CHF'}
+            ~{paymentInfo?.estimatedAmount?.toFixed(2) ?? '—'}{' '}
+            {paymentInfo?.currency?.name ?? 'CHF'}
           </Text>
         </View>
         <View style={styles.summaryRow}>
@@ -144,9 +141,7 @@ export default function SellScreen() {
     <ScreenContainer scrollable>
       <View style={styles.content}>
         <View style={styles.header}>
-          <Pressable
-            onPress={() => (step === 'amount' ? router.back() : setStep('amount'))}
-          >
+          <Pressable onPress={() => (step === 'amount' ? router.back() : setStep('amount'))}>
             <Text style={styles.backButton}>{'\u2190'}</Text>
           </Pressable>
           <Text style={styles.title}>{t('sell.title')}</Text>

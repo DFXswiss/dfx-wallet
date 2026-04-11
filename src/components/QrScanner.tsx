@@ -42,7 +42,9 @@ export function QrScanner({ visible, onScan, onClose }: Props) {
           </CameraView>
         ) : (
           <View style={styles.permissionContainer}>
-            <Text style={styles.permissionText}>Camera permission is required to scan QR codes.</Text>
+            <Text style={styles.permissionText}>
+              Camera permission is required to scan QR codes.
+            </Text>
             <Pressable style={styles.permissionButton} onPress={requestPermission}>
               <Text style={styles.permissionButtonText}>Grant Permission</Text>
             </Pressable>

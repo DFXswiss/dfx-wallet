@@ -52,11 +52,7 @@ export class WalletService {
   /**
    * Send a native transaction on a specific chain.
    */
-  async sendTransaction(params: {
-    chain: ChainId;
-    to: string;
-    amount: string;
-  }): Promise<string> {
+  async sendTransaction(params: { chain: ChainId; to: string; amount: string }): Promise<string> {
     const network = CHAIN_TO_NETWORK[params.chain];
     if (!network) throw new Error(`Unsupported chain: ${params.chain}`);
 

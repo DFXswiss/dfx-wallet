@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { PrimaryButton, ScreenContainer } from '@/components';
 import { useKycFlow } from '@/hooks';
-import type { KycStepDto } from '@/services/dfx/dto';
 import { DfxColors, Typography } from '@/theme';
 
 const STEP_LABELS: Record<string, string> = {
@@ -109,9 +116,7 @@ export default function KycScreen() {
                   { backgroundColor: STATUS_COLORS[step.status] ?? DfxColors.textTertiary },
                 ]}
               />
-              <Text style={styles.stepName}>
-                {STEP_LABELS[step.name] ?? step.name}
-              </Text>
+              <Text style={styles.stepName}>{STEP_LABELS[step.name] ?? step.name}</Text>
               <Text style={styles.stepStatus}>{step.status}</Text>
             </View>
           ))}

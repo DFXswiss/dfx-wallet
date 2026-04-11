@@ -58,9 +58,7 @@ export default function ReceiveScreen() {
         </View>
 
         <View style={styles.addressContainer}>
-          <Text style={styles.addressLabel}>
-            Your {selectedChain} address
-          </Text>
+          <Text style={styles.addressLabel}>Your {selectedChain} address</Text>
           <Text style={styles.address} selectable numberOfLines={2}>
             {address || 'Wallet not initialized'}
           </Text>

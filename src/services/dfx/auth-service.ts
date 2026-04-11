@@ -44,10 +44,7 @@ export class DfxAuthService {
   }
 
   /** Refresh auth token (re-sign challenge) */
-  async refresh(
-    address: string,
-    signFn: (message: string) => Promise<string>,
-  ): Promise<string> {
+  async refresh(address: string, signFn: (message: string) => Promise<string>): Promise<string> {
     return this.login(address, signFn);
   }
 
