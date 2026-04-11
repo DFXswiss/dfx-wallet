@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { WalletProvider } from '@tetherto/wdk-react-native-provider';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { CHAINS_CONFIG } from '@/config/chains';
 import { env } from '@/config/env';
 import '@/i18n';
@@ -23,6 +24,7 @@ export default function RootLayout() {
         }}
       >
         <StatusBar style="light" />
+        <OfflineBanner />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(onboarding)" />
           <Stack.Screen name="(pin)" />

@@ -3,6 +3,7 @@ export { AssetListItem } from './AssetListItem';
 export { BalanceCard } from './BalanceCard';
 export { ChainSelector } from './ChainSelector';
 export { ErrorBoundary } from './ErrorBoundary';
+export { OfflineBanner } from './OfflineBanner';
 export { PrimaryButton } from './PrimaryButton';
 export { QrCode } from './QrCode';
 export { QrScanner } from './QrScanner';

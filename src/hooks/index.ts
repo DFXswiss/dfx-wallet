@@ -1,4 +1,5 @@
 export { useBuyFlow } from './useBuyFlow';
+export { useDeepLink } from './useDeepLink';
 export { useDfxAuth } from './useDfxAuth';
 export { useKycFlow } from './useKycFlow';
 export { useSellFlow } from './useSellFlow';
