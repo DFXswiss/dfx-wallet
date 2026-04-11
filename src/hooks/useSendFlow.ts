@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { useWallet, wdkService } from '@tetherto/wdk-react-native-provider';
+import { useWallet } from '@tetherto/wdk-react-native-provider';
+import { walletService } from '@/services/wallet/wallet-service';
 import type { ChainId } from '@/config/chains';
 
 type SendState = {
@@ -8,18 +9,11 @@ type SendState = {
   error: string | null;
 };
 
-const CHAIN_TO_NETWORK: Record<ChainId, string> = {
-  bitcoin: 'bitcoin',
-  ethereum: 'ethereum',
-  arbitrum: 'arbitrum',
-  polygon: 'polygon',
-};
-
 /**
- * Hook for sending crypto via WDK.
+ * Hook for sending crypto via WDK wallet service.
  */
 export function useSendFlow() {
-  const { addresses, refreshWalletBalance } = useWallet();
+  const { refreshWalletBalance } = useWallet();
   const [state, setState] = useState<SendState>({
     isLoading: false,
     txHash: null,
@@ -28,36 +22,25 @@ export function useSendFlow() {
 
   const send = useCallback(
     async (params: { chain: ChainId; to: string; amount: string }) => {
-      const network = CHAIN_TO_NETWORK[params.chain];
-      const fromAddress = (addresses as Record<string, string> | undefined)?.[network];
-
-      if (!fromAddress) {
-        setState({ isLoading: false, txHash: null, error: 'No wallet address for this chain' });
-        return null;
-      }
-
       setState({ isLoading: true, txHash: null, error: null });
 
       try {
-        // TODO: Use wdkService.sendTransaction() when available
-        // const tx = await wdkService.sendTransaction({
-        //   network,
-        //   from: fromAddress,
-        //   to: params.to,
-        //   amount: params.amount,
-        // });
-        // setState({ isLoading: false, txHash: tx.hash, error: null });
-        // await refreshWalletBalance();
-        // return tx.hash;
+        const txHash = await walletService.sendTransaction({
+          chain: params.chain,
+          to: params.to,
+          amount: params.amount,
+        });
 
-        throw new Error('Send not yet implemented — awaiting WDK sendTransaction API');
+        setState({ isLoading: false, txHash, error: null });
+        await refreshWalletBalance();
+        return txHash;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Transaction failed';
         setState({ isLoading: false, txHash: null, error: msg });
         return null;
       }
     },
-    [addresses, refreshWalletBalance],
+    [refreshWalletBalance],
   );
 
   const reset = useCallback(() => {

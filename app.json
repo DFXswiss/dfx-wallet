@@ -44,7 +44,14 @@
       "expo-localization",
       "expo-secure-store",
       ["expo-build-properties", {
-        "android": { "minSdkVersion": 29 }
+        "android": {
+          "minSdkVersion": 29,
+          "compileSdkVersion": 36,
+          "targetSdkVersion": 35
+        },
+        "ios": {
+          "deploymentTarget": "15.1"
+        }
       }],
       ["expo-camera", {
         "cameraPermission": "Camera access is needed to scan QR codes."

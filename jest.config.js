@@ -10,6 +10,7 @@ module.exports = {
       },
     ],
   },
+  setupFiles: ['<rootDir>/test/setup-globals.ts'],
   testMatch: ['<rootDir>/test/**/*.test.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',

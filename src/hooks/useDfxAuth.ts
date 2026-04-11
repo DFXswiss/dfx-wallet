@@ -1,83 +1,64 @@
 import { useCallback, useState } from 'react';
 import { useWallet } from '@tetherto/wdk-react-native-provider';
 import { dfxAuthService } from '@/services/dfx';
+import { walletService } from '@/services/wallet/wallet-service';
 import { secureStorage, StorageKeys } from '@/services/storage';
+import { useAuthStore } from '@/store';
 
 /**
  * Hook for DFX API authentication via wallet signature.
  *
  * Flow:
- * 1. Get sign message challenge from DFX API
- * 2. Sign with WDK wallet (or BitBox hardware wallet)
- * 3. Exchange signature for JWT
- * 4. Store token for subsequent API calls
+ * 1. Get ETH address from WDK
+ * 2. GET /v1/auth/signMessage?address=... → challenge
+ * 3. Sign challenge with WDK wallet (inside Bare Worklet)
+ * 4. POST /v1/auth → exchange signature for JWT
  */
 export function useDfxAuth() {
   const { addresses } = useWallet();
+  const { setDfxAuthenticated } = useAuthStore();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const authenticate = useCallback(
-    async (signFn?: (message: string) => Promise<string>) => {
-      const ethAddress = addresses?.ethereum;
-      if (!ethAddress) {
-        setError('No Ethereum address available');
-        return null;
-      }
+  const authenticate = useCallback(async () => {
+    const ethAddress = (addresses as Record<string, string> | undefined)?.ethereum;
+    if (!ethAddress) {
+      setError('No Ethereum address available. Create a wallet first.');
+      return null;
+    }
 
-      setIsAuthenticating(true);
-      setError(null);
+    setIsAuthenticating(true);
+    setError(null);
 
-      try {
-        // Use provided signFn or default WDK signing
-        const signer = signFn ?? (async (message: string) => {
-          // TODO: Use WDK wallet signMessage when available
-          // const signature = await wdkService.signMessage('ethereum', message);
-          throw new Error('WDK message signing not yet implemented');
-        });
+    try {
+      const token = await dfxAuthService.login(
+        ethAddress,
+        async (message) => walletService.signMessage('ethereum', message),
+        { wallet: 'DFX Wallet', blockchain: 'Ethereum' },
+      );
 
-        const token = await dfxAuthService.login(ethAddress, signer, {
-          wallet: 'DFX Wallet',
-          blockchain: 'Ethereum',
-        });
-
-        await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
-        setIsAuthenticated(true);
-        return token;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Authentication failed';
-        setError(msg);
-        return null;
-      } finally {
-        setIsAuthenticating(false);
-      }
-    },
-    [addresses],
-  );
+      await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
+      setDfxAuthenticated(true);
+      return token;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Authentication failed';
+      setError(msg);
+      return null;
+    } finally {
+      setIsAuthenticating(false);
+    }
+  }, [addresses, setDfxAuthenticated]);
 
   const logout = useCallback(async () => {
     dfxAuthService.logout();
     await secureStorage.remove(StorageKeys.DFX_AUTH_TOKEN);
-    setIsAuthenticated(false);
-  }, []);
-
-  const restoreSession = useCallback(async () => {
-    const token = await secureStorage.get(StorageKeys.DFX_AUTH_TOKEN);
-    if (token) {
-      dfxAuthService.authenticate({ address: '', signature: '' }).catch(() => {
-        // Token might be expired, will re-auth on next API call
-      });
-      setIsAuthenticated(true);
-    }
-  }, []);
+    setDfxAuthenticated(false);
+  }, [setDfxAuthenticated]);
 
   return {
     authenticate,
     logout,
-    restoreSession,
     isAuthenticating,
-    isAuthenticated,
     error,
   };
 }

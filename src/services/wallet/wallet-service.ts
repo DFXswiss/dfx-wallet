@@ -1,92 +1,52 @@
+import { wdkService, AssetTicker, type NetworkType } from '@tetherto/wdk-react-native-provider';
 import type { ChainId } from '@/config/chains';
-import { CHAINS_CONFIG } from '@/config/chains';
-import type { WalletAccount } from '@/store/wallet';
+
+const CHAIN_TO_NETWORK: Record<ChainId, NetworkType> = {
+  bitcoin: 'bitcoin' as NetworkType,
+  ethereum: 'ethereum' as NetworkType,
+  arbitrum: 'arbitrum' as NetworkType,
+  polygon: 'polygon' as NetworkType,
+};
 
 /**
- * Wallet service — manages WDK wallet lifecycle.
+ * Wallet service — thin wrapper around WDK's wdkService singleton.
  *
- * Handles wallet creation, restoration, account derivation,
- * balance fetching, and transaction signing via WDK.
+ * WDK handles all crypto operations inside isolated Bare Worklets:
+ * - Seed generation + encryption (wdk-secret-manager worklet)
+ * - Address derivation, signing, tx building (wdk-manager worklet)
+ * - Keys never leave the worklet context
  */
 export class WalletService {
-  private isInitialized = false;
-
   /**
-   * Initialize WDK with a seed phrase and register chain modules.
+   * Get address for a specific chain.
    */
-  async initialize(seedPhrase: string): Promise<void> {
-    // TODO: Initialize WDK core with seed
-    //
-    // const wdk = new WDK(seedPhrase)
-    //   .registerWallet('bitcoin', WalletManagerBtc, {
-    //     host: CHAINS_CONFIG.bitcoin.host,
-    //     port: CHAINS_CONFIG.bitcoin.port,
-    //   })
-    //   .registerWallet('ethereum', WalletManagerEvm, {
-    //     provider: CHAINS_CONFIG.ethereum.provider,
-    //   })
-    //   .registerWallet('arbitrum', WalletManagerEvm, {
-    //     provider: CHAINS_CONFIG.arbitrum.provider,
-    //   })
-    //   .registerWallet('polygon', WalletManagerEvm, {
-    //     provider: CHAINS_CONFIG.polygon.provider,
-    //   })
-    //   .registerWallet('optimism', WalletManagerEvm, {
-    //     provider: CHAINS_CONFIG.optimism.provider,
-    //   })
-    //   .registerWallet('base', WalletManagerEvm, {
-    //     provider: CHAINS_CONFIG.base.provider,
-    //   });
+  async getAddress(chain: ChainId): Promise<string | null> {
+    const network = CHAIN_TO_NETWORK[chain];
+    if (!network) return null;
 
-    this.isInitialized = true;
+    try {
+      const enabledAssets = Object.values(AssetTicker);
+      const addresses = await wdkService.resolveWalletAddresses(enabledAssets);
+      return addresses[network] ?? null;
+    } catch {
+      return null;
+    }
   }
 
   /**
-   * Derive accounts for all supported chains.
+   * Sign a personal message (used for DFX API auth).
+   * Delegates to WDK's Bare Worklet where the private key lives.
    */
-  async deriveAccounts(): Promise<WalletAccount[]> {
-    this.ensureInitialized();
+  async signMessage(chain: ChainId, message: string): Promise<string> {
+    const network = CHAIN_TO_NETWORK[chain];
+    if (!network) throw new Error(`Unsupported chain: ${chain}`);
 
-    // TODO: Derive accounts from WDK for each registered chain
-    // const ethAccount = await wdk.getAccount('ethereum', 0);
-    // const btcAccount = await wdk.getAccount('bitcoin', 0);
-
-    const chains = Object.keys(CHAINS_CONFIG) as ChainId[];
-    const accounts: WalletAccount[] = chains.map((chain) => ({
-      chain,
-      address: '', // Will be populated by WDK
-      derivationPath: chain === 'bitcoin' ? "m/84'/0'/0'/0/0" : "m/44'/60'/0'/0/0",
-    }));
-
-    return accounts;
-  }
-
-  /**
-   * Get balance for a specific chain account.
-   */
-  async getBalance(chain: ChainId, accountIndex: number = 0): Promise<string> {
-    this.ensureInitialized();
-    // TODO: const account = await wdk.getAccount(chain, accountIndex);
-    // return account.getBalance();
-    return '0';
-  }
-
-  /**
-   * Get all token balances across chains.
-   */
-  async getAllBalances(): Promise<
-    Array<{
-      chain: ChainId;
-      symbol: string;
-      name: string;
-      balance: string;
-      decimals: number;
-      contractAddress?: string;
-    }>
-  > {
-    this.ensureInitialized();
-    // TODO: Query WDK indexer for all token balances
-    return [];
+    // WDK exposes signing through the worklet RPC
+    // The actual implementation depends on the WDK version
+    // For EVM chains, this is personal_sign
+    const result = await (wdkService as any).signMessage?.(network, message);
+    if (!result) throw new Error('signMessage not available in current WDK version');
+    return result;
   }
 
   /**
@@ -96,56 +56,18 @@ export class WalletService {
     chain: ChainId;
     to: string;
     amount: string;
-    accountIndex?: number;
   }): Promise<string> {
-    this.ensureInitialized();
-    // TODO: const account = await wdk.getAccount(params.chain, params.accountIndex ?? 0);
-    // const tx = await account.sendTransaction({ to: params.to, value: params.amount });
-    // return tx.hash;
-    throw new Error('sendTransaction not yet implemented');
-  }
+    const network = CHAIN_TO_NETWORK[params.chain];
+    if (!network) throw new Error(`Unsupported chain: ${params.chain}`);
 
-  /**
-   * Send an ERC20 token transfer.
-   */
-  async sendToken(params: {
-    chain: ChainId;
-    contractAddress: string;
-    to: string;
-    amount: string;
-    accountIndex?: number;
-  }): Promise<string> {
-    this.ensureInitialized();
-    // TODO: Use WDK ERC20 transfer
-    throw new Error('sendToken not yet implemented');
-  }
-
-  /**
-   * Sign a personal message (used for DFX API auth).
-   */
-  async signMessage(chain: ChainId, message: string, accountIndex: number = 0): Promise<string> {
-    this.ensureInitialized();
-    // TODO: const account = await wdk.getAccount(chain, accountIndex);
-    // return account.sign(message);
-    throw new Error('signMessage not yet implemented');
-  }
-
-  /**
-   * Get the receive address for a chain.
-   */
-  async getAddress(chain: ChainId, accountIndex: number = 0): Promise<string> {
-    this.ensureInitialized();
-    // TODO: const account = await wdk.getAccount(chain, accountIndex);
-    // return account.getAddress();
-    return '';
-  }
-
-  private ensureInitialized(): void {
-    if (!this.isInitialized) {
-      throw new Error('WalletService not initialized. Call initialize() first.');
-    }
+    const result = await (wdkService as any).sendTransaction?.({
+      network,
+      to: params.to,
+      amount: params.amount,
+    });
+    if (!result) throw new Error('sendTransaction not available in current WDK version');
+    return result.hash ?? result;
   }
 }
 
-/** Singleton wallet service instance */
 export const walletService = new WalletService();

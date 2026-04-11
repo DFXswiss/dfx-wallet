@@ -1,31 +1,22 @@
-/**
- * Seed phrase utilities.
- *
- * In production this will delegate to WDK's seed generation.
- * For now, provides the interface that screens depend on.
- */
-
-const WORDLIST_SIZE = 2048;
+import { generateMnemonic, validateMnemonic } from 'bip39';
 
 /**
- * Generate a new BIP-39 seed phrase.
+ * Generate a new BIP-39 seed phrase using real cryptographic randomness.
  * @param wordCount 12 or 24 words
  */
 export function generateSeedPhrase(wordCount: 12 | 24 = 24): string[] {
-  // TODO: Replace with WDK.getRandomSeedPhrase(wordCount)
-  // This is a placeholder — DO NOT use in production
-  const placeholder = Array.from({ length: wordCount }, (_, i) => `word${i + 1}`);
-  return placeholder;
+  const strength = wordCount === 12 ? 128 : 256;
+  const mnemonic = generateMnemonic(strength);
+  return mnemonic.split(' ');
 }
 
 /**
- * Validate a seed phrase.
+ * Validate a seed phrase against the BIP-39 wordlist.
  * @returns true if the seed phrase is valid BIP-39
  */
 export function validateSeedPhrase(words: string[]): boolean {
-  // TODO: Replace with WDK seed validation
   if (words.length !== 12 && words.length !== 24) return false;
-  return words.every((w) => w.trim().length > 0);
+  return validateMnemonic(words.join(' '));
 }
 
 /** Convert a space-separated seed string to word array */

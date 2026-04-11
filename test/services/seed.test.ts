@@ -17,33 +17,36 @@ describe('Seed utilities', () => {
       expect(words).toHaveLength(12);
     });
 
-    it('should return non-empty words', () => {
+    it('should generate valid BIP-39 mnemonics', () => {
       const words = generateSeedPhrase(24);
-      words.forEach((word) => {
-        expect(word.trim().length).toBeGreaterThan(0);
-      });
+      expect(validateSeedPhrase(words)).toBe(true);
+    });
+
+    it('should generate different seeds each time', () => {
+      const seed1 = wordsToSeed(generateSeedPhrase());
+      const seed2 = wordsToSeed(generateSeedPhrase());
+      expect(seed1).not.toBe(seed2);
     });
   });
 
   describe('validateSeedPhrase', () => {
-    it('should accept 12 words', () => {
-      const words = Array.from({ length: 12 }, (_, i) => `word${i}`);
+    it('should accept valid 12-word mnemonic', () => {
+      const words = generateSeedPhrase(12);
       expect(validateSeedPhrase(words)).toBe(true);
     });
 
-    it('should accept 24 words', () => {
-      const words = Array.from({ length: 24 }, (_, i) => `word${i}`);
+    it('should accept valid 24-word mnemonic', () => {
+      const words = generateSeedPhrase(24);
       expect(validateSeedPhrase(words)).toBe(true);
     });
 
-    it('should reject 11 words', () => {
-      const words = Array.from({ length: 11 }, (_, i) => `word${i}`);
-      expect(validateSeedPhrase(words)).toBe(false);
+    it('should reject invalid word count', () => {
+      expect(validateSeedPhrase(['hello', 'world'])).toBe(false);
     });
 
-    it('should reject empty words', () => {
-      const words = Array.from({ length: 12 }, () => '');
-      expect(validateSeedPhrase(words)).toBe(false);
+    it('should reject invalid words', () => {
+      const badWords = Array.from({ length: 12 }, () => 'invalidxyz');
+      expect(validateSeedPhrase(badWords)).toBe(false);
     });
   });
 
