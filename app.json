@@ -56,7 +56,8 @@
       ["expo-camera", {
         "cameraPermission": "Camera access is needed to scan QR codes."
       }],
-      "expo-local-authentication"
+      "expo-local-authentication",
+      "./plugins/withSwiftConcurrency"
     ]
   }
 }
