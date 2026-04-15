@@ -46,7 +46,12 @@ export interface BitboxApi {
   }>;
 
   /** Get product type */
-  product(): 'bitbox02-multi' | 'bitbox02-btconly' | 'bitbox02-nova-multi' | 'bitbox02-nova-btconly' | 'unknown';
+  product():
+    | 'bitbox02-multi'
+    | 'bitbox02-btconly'
+    | 'bitbox02-nova-multi'
+    | 'bitbox02-nova-btconly'
+    | 'unknown';
 
   /** Get ETH address */
   ethAddress(chainId: bigint, keypath: string, display: boolean): Promise<string>;
@@ -100,10 +105,7 @@ export interface BitboxApi {
   ): Promise<string>;
 
   /** Sign a PSBT */
-  btcSignPSBT(
-    coin: 'btc' | 'tbtc',
-    psbt: string,
-  ): Promise<string>;
+  btcSignPSBT(coin: 'btc' | 'tbtc', psbt: string): Promise<string>;
 
   /** Close connection */
   close(): void;

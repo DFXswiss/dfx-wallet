@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import type { ChainId } from '@/config/chains';
 import { DfxColors, Typography } from '@/theme';
 
@@ -21,7 +21,11 @@ const DEFAULT_CHAINS: ChainId[] = ['bitcoin', 'ethereum', 'arbitrum', 'polygon']
 
 export function ChainSelector({ selected, onSelect, chains = DEFAULT_CHAINS }: Props) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.container}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.container}
+    >
       {chains.map((chain) => {
         const info = CHAIN_INFO[chain];
         const isSelected = chain === selected;

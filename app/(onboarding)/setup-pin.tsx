@@ -52,9 +52,7 @@ export default function SetupPinScreen() {
   return (
     <ScreenContainer>
       <View style={styles.content}>
-        <Text style={styles.title}>
-          {step === 'create' ? 'Create PIN' : 'Confirm PIN'}
-        </Text>
+        <Text style={styles.title}>{step === 'create' ? 'Create PIN' : 'Confirm PIN'}</Text>
         <Text style={styles.description}>
           {step === 'create'
             ? 'Choose a 6-digit PIN to secure your wallet.'

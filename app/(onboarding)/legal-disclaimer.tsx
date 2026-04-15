@@ -27,8 +27,8 @@ export default function LegalDisclaimerScreen() {
 
           <Text style={styles.paragraph}>
             DFX Wallet is a non-custodial wallet. You are solely responsible for securing your seed
-            phrase and PIN. DFX AG has no access to your private keys and cannot recover your
-            wallet if you lose your seed phrase.
+            phrase and PIN. DFX AG has no access to your private keys and cannot recover your wallet
+            if you lose your seed phrase.
           </Text>
 
           <Text style={styles.paragraph}>
@@ -51,10 +51,7 @@ export default function LegalDisclaimerScreen() {
           </View>
         </ScrollView>
 
-        <Pressable
-          style={styles.checkboxRow}
-          onPress={() => setAccepted(!accepted)}
-        >
+        <Pressable style={styles.checkboxRow} onPress={() => setAccepted(!accepted)}>
           <View style={[styles.checkbox, accepted && styles.checkboxChecked]}>
             {accepted && <Text style={styles.checkmark}>{'\u2713'}</Text>}
           </View>

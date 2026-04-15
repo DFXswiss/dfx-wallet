@@ -36,10 +36,7 @@ export default function CreateWalletScreen() {
     await secureStorage.set(StorageKeys.ENCRYPTED_SEED, seed);
     // Create WDK wallet with the generated mnemonic
     await createWallet({ name: 'DFX Wallet', mnemonic: seed });
-    router.push({
-      pathname: '/(onboarding)/verify-seed',
-      params: { seed },
-    });
+    router.push('/(onboarding)/setup-pin');
   };
 
   return (
@@ -74,11 +71,7 @@ export default function CreateWalletScreen() {
 
         <View style={styles.spacer} />
 
-        <PrimaryButton
-          title={t('common.continue')}
-          onPress={handleContinue}
-          disabled={!revealed}
-        />
+        <PrimaryButton title={t('common.continue')} onPress={handleContinue} disabled={!revealed} />
       </View>
     </ScreenContainer>
   );

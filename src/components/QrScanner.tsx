@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Clipboard from 'expo-clipboard';
 import { DfxColors, Typography } from '@/theme';
 
 type Props = {
@@ -27,6 +28,14 @@ export function QrScanner({ visible, onScan, onClose }: Props) {
     onClose();
   };
 
+  const handlePasteFromClipboard = async () => {
+    const text = await Clipboard.getStringAsync();
+    if (text) {
+      onScan(text);
+      onClose();
+    }
+  };
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
       <View style={styles.container}>
@@ -42,12 +51,18 @@ export function QrScanner({ visible, onScan, onClose }: Props) {
           </CameraView>
         ) : (
           <View style={styles.permissionContainer}>
-            <Text style={styles.permissionText}>Camera permission is required to scan QR codes.</Text>
+            <Text style={styles.permissionText}>
+              Camera permission is required to scan QR codes.
+            </Text>
             <Pressable style={styles.permissionButton} onPress={requestPermission}>
               <Text style={styles.permissionButtonText}>Grant Permission</Text>
             </Pressable>
           </View>
         )}
+
+        <Pressable style={styles.pasteButton} onPress={handlePasteFromClipboard}>
+          <Text style={styles.pasteText}>Paste from clipboard</Text>
+        </Pressable>
 
         <Pressable style={styles.closeButton} onPress={onClose}>
           <Text style={styles.closeText}>Close</Text>
@@ -101,6 +116,20 @@ const styles = StyleSheet.create({
     ...Typography.bodyMedium,
     fontWeight: '600',
     color: DfxColors.white,
+  },
+  pasteButton: {
+    position: 'absolute',
+    bottom: 100,
+    alignSelf: 'center',
+    backgroundColor: DfxColors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  pasteText: {
+    ...Typography.bodyMedium,
+    color: DfxColors.white,
+    fontWeight: '600',
   },
   closeButton: {
     position: 'absolute',
