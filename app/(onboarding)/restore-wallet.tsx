@@ -23,7 +23,7 @@ export default function RestoreWalletScreen() {
 
   const handleContinue = async () => {
     if (!isValid) {
-      setError('Invalid seed phrase. Must be 12 or 24 words.');
+      setError(t('onboarding.invalidSeed'));
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
@@ -36,7 +36,8 @@ export default function RestoreWalletScreen() {
       await createWallet({ name: 'DFX Wallet', mnemonic: seed });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.push('/(onboarding)/setup-pin');
-    } catch {
+    } catch (err) {
+      console.warn('restore-wallet: failed to restore', err);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(t('onboarding.restoreError'));
     } finally {
