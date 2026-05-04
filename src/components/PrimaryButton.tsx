@@ -25,6 +25,7 @@ export function PrimaryButton({
       onPress={onPress}
       disabled={disabled || loading}
       testID={testID}
+      accessibilityLabel={title}
       style={({ pressed }) => [
         styles.button,
         isFilled ? styles.filled : styles.outlined,

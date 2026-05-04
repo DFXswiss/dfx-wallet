@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
-import { useWallet } from '@tetherto/wdk-react-native-provider';
-import { walletService } from '@/services/wallet/wallet-service';
+import { useRefreshBalance, useWallet, useWalletManager } from '@tetherto/wdk-react-native-core';
 import type { ChainId } from '@/config/chains';
 
 type SendState = {
@@ -9,11 +8,21 @@ type SendState = {
   error: string | null;
 };
 
+type TransferResult = string | { hash?: string; transactionHash?: string };
+
+const extractHash = (result: TransferResult): string => {
+  if (typeof result === 'string') return result;
+  return result.hash ?? result.transactionHash ?? '';
+};
+
 /**
- * Hook for sending crypto via WDK wallet service.
+ * Hook for sending crypto via the WDK worklet.
  */
 export function useSendFlow() {
-  const { refreshWalletBalance } = useWallet();
+  const { wallets, activeWalletId } = useWalletManager();
+  const currentWalletId = activeWalletId || wallets[0]?.identifier || 'default';
+  const { callAccountMethod } = useWallet({ walletId: currentWalletId });
+  const { mutate: refreshBalance } = useRefreshBalance();
   const [state, setState] = useState<SendState>({
     isLoading: false,
     txHash: null,
@@ -25,14 +34,14 @@ export function useSendFlow() {
       setState({ isLoading: true, txHash: null, error: null });
 
       try {
-        const txHash = await walletService.sendTransaction({
-          chain: params.chain,
+        const result = await callAccountMethod<TransferResult>(params.chain, 0, 'transfer', {
           to: params.to,
           amount: params.amount,
         });
 
+        const txHash = extractHash(result);
         setState({ isLoading: false, txHash, error: null });
-        await refreshWalletBalance();
+        refreshBalance({ accountIndex: 0, type: 'wallet' });
         return txHash;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Transaction failed';
@@ -40,7 +49,7 @@ export function useSendFlow() {
         return null;
       }
     },
-    [refreshWalletBalance],
+    [callAccountMethod, refreshBalance],
   );
 
   const reset = useCallback(() => {

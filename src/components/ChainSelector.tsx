@@ -9,15 +9,13 @@ type Props = {
 };
 
 const CHAIN_INFO: Record<string, { label: string; short: string }> = {
-  bitcoin: { label: 'Bitcoin', short: 'BTC' },
   ethereum: { label: 'Ethereum', short: 'ETH' },
   arbitrum: { label: 'Arbitrum', short: 'ARB' },
   polygon: { label: 'Polygon', short: 'POL' },
-  optimism: { label: 'Optimism', short: 'OP' },
-  base: { label: 'Base', short: 'BASE' },
+  spark: { label: 'Spark BTC', short: 'BTC' },
 };
 
-const DEFAULT_CHAINS: ChainId[] = ['bitcoin', 'ethereum', 'arbitrum', 'polygon'];
+const DEFAULT_CHAINS: ChainId[] = ['ethereum', 'arbitrum', 'polygon', 'spark'];
 
 export function ChainSelector({ selected, onSelect, chains = DEFAULT_CHAINS }: Props) {
   return (

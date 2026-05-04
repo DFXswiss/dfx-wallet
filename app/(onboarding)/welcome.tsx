@@ -13,8 +13,8 @@ export default function WelcomeScreen() {
   const passkeySupported = isPasskeySupported();
 
   return (
-    <ScreenContainer testID="welcome-screen">
-      <View style={styles.content}>
+    <ScreenContainer>
+      <View style={styles.content} testID="welcome-screen">
         <View style={styles.header}>
           <Image source={require('../../assets/icon.png')} style={styles.logo} />
           <Text style={styles.title}>{t('onboarding.title')}</Text>
@@ -30,13 +30,13 @@ export default function WelcomeScreen() {
             />
           )}
           <PrimaryButton
+            testID="welcome-create-wallet-button"
             title={t('onboarding.createWallet')}
             onPress={() => router.push('/(onboarding)/create-wallet')}
-            testID="welcome-create-wallet-button"
             {...(passkeySupported ? { variant: 'outlined' as const } : {})}
           />
 
-          <Pressable onPress={() => setShowRestore(!showRestore)} testID="welcome-restore-toggle">
+          <Pressable testID="welcome-restore-toggle" onPress={() => setShowRestore(!showRestore)}>
             <Text style={styles.restoreToggle}>{t('onboarding.restoreWallet')}</Text>
           </Pressable>
 
@@ -44,17 +44,17 @@ export default function WelcomeScreen() {
             <View style={styles.restoreOptions}>
               {passkeySupported && (
                 <Pressable
+                  testID="welcome-restore-passkey-button"
                   style={({ pressed }) => [styles.restoreOption, pressed && styles.pressed]}
                   onPress={() => router.push('/(onboarding)/restore-passkey')}
-                  testID="welcome-restore-passkey-button"
                 >
                   <Text style={styles.restoreOptionText}>{t('onboarding.restorePasskey')}</Text>
                 </Pressable>
               )}
               <Pressable
+                testID="welcome-restore-seed-button"
                 style={({ pressed }) => [styles.restoreOption, pressed && styles.pressed]}
                 onPress={() => router.push('/(onboarding)/restore-wallet')}
-                testID="welcome-restore-seed-button"
               >
                 <Text style={styles.restoreOptionText}>{t('onboarding.restoreSeed')}</Text>
               </Pressable>

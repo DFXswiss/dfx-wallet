@@ -12,10 +12,12 @@ type BuyStep = 'amount' | 'payment' | 'confirm';
 const CURRENCIES = ['CHF', 'EUR', 'USD'] as const;
 
 const CHAIN_ASSET: Record<ChainId, string> = {
-  bitcoin: 'BTC',
   ethereum: 'ETH',
   arbitrum: 'ETH',
   polygon: 'MATIC',
+  spark: 'BTC',
+  plasma: 'ETH',
+  sepolia: 'ETH',
 };
 
 export default function BuyScreen() {
@@ -23,7 +25,7 @@ export default function BuyScreen() {
   const { t } = useTranslation();
   const { paymentInfo, isLoading, error, createPaymentInfo, confirmPayment } = useBuyFlow();
   const [step, setStep] = useState<BuyStep>('amount');
-  const [selectedChain, setSelectedChain] = useState<ChainId>('bitcoin');
+  const [selectedChain, setSelectedChain] = useState<ChainId>('ethereum');
   const [amount, setAmount] = useState('');
   const [selectedCurrency, setSelectedCurrency] = useState<(typeof CURRENCIES)[number]>('CHF');
 

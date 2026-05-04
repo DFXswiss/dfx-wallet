@@ -12,10 +12,12 @@ import { DfxColors, Typography } from '@/theme';
 type SendStep = 'input' | 'confirm' | 'success';
 
 const CHAIN_SYMBOL: Record<ChainId, string> = {
-  bitcoin: 'BTC',
   ethereum: 'ETH',
   arbitrum: 'ETH',
   polygon: 'MATIC',
+  spark: 'BTC',
+  plasma: 'ETH',
+  sepolia: 'ETH',
 };
 
 export default function SendScreen() {
