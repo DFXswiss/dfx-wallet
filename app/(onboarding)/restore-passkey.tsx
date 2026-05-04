@@ -7,11 +7,9 @@ import { useWallet } from '@tetherto/wdk-react-native-provider';
 import { ScreenContainer, PrimaryButton } from '@/components';
 import {
   authenticatePasskey,
-  deriveMnemonicFromPrf,
-  DERIVATION_VERSION,
+  setupPasskeyWallet,
   PasskeyPrfUnsupportedError,
 } from '@/services/passkey';
-import { secureStorage, StorageKeys } from '@/services/storage';
 import { DfxColors, Typography } from '@/theme';
 
 export default function RestorePasskeyScreen() {
@@ -24,12 +22,7 @@ export default function RestorePasskeyScreen() {
     setIsRestoring(true);
     try {
       const { prfOutput, credentialId } = await authenticatePasskey();
-      const mnemonic = deriveMnemonicFromPrf(prfOutput);
-
-      await secureStorage.set(StorageKeys.WALLET_ORIGIN, 'passkey');
-      await secureStorage.set(StorageKeys.PASSKEY_CREDENTIAL_ID, credentialId);
-      await secureStorage.set(StorageKeys.PASSKEY_DERIVATION_VERSION, String(DERIVATION_VERSION));
-      await createWallet({ name: 'DFX Wallet', mnemonic });
+      await setupPasskeyWallet(prfOutput, credentialId, createWallet);
 
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.push('/(onboarding)/setup-pin');
