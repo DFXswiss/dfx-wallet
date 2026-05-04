@@ -18,7 +18,7 @@ export default function VerifyPinScreen() {
   const tryBiometric = useCallback(async () => {
     const success = await authenticateBiometric();
     if (success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setAuthenticated(true);
       router.replace('/(auth)/(tabs)/dashboard');
     }
@@ -27,7 +27,7 @@ export default function VerifyPinScreen() {
   // Try biometric on mount
   useEffect(() => {
     if (biometricEnabled) {
-      tryBiometric();
+      void tryBiometric();
     }
   }, [biometricEnabled, tryBiometric]);
 
@@ -38,22 +38,27 @@ export default function VerifyPinScreen() {
     setPinValue(newPin);
 
     if (newPin.length === 6) {
-      checkPin(newPin);
+      void checkPin(newPin);
     }
   };
 
   const checkPin = async (pinValue: string) => {
-    const isValid = await verifyPin(pinValue);
-    if (isValid) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setAuthenticated(true);
-      router.replace('/(auth)/(tabs)/dashboard');
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError(true);
-      setAttempts((a) => a + 1);
-      setPinValue('');
+    try {
+      const isValid = await verifyPin(pinValue);
+      if (isValid) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setAuthenticated(true);
+        router.replace('/(auth)/(tabs)/dashboard');
+        return;
+      }
+    } catch {
+      // Fall through to the error path so the user sees the same UI feedback
+      // as a wrong PIN; the alternative would be a silent crash.
     }
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    setError(true);
+    setAttempts((a) => a + 1);
+    setPinValue('');
   };
 
   const handleDelete = () => {

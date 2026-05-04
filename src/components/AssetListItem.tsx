@@ -32,6 +32,7 @@ export function AssetListItem({ symbol, name, chain, balance, balanceFiat, onPre
 
       <View style={styles.info}>
         <Text style={styles.name}>{name}</Text>
+        {/* eslint-disable-next-line security/detect-object-injection -- CHAIN_LABELS is a Record<string, string>, lookup yields a label string only */}
         <Text style={styles.chain}>{CHAIN_LABELS[chain] ?? chain}</Text>
       </View>
 

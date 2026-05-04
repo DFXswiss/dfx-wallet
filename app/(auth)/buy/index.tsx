@@ -77,6 +77,7 @@ export default function BuyScreen() {
           const info = await createPaymentInfo({
             amount: parseFloat(amount),
             currency: selectedCurrency,
+            // eslint-disable-next-line security/detect-object-injection -- selectedChain is a ChainId literal union
             asset: CHAIN_ASSET[selectedChain],
             blockchain: selectedChain.charAt(0).toUpperCase() + selectedChain.slice(1),
           });

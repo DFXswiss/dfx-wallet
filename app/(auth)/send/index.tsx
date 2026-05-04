@@ -28,13 +28,14 @@ export default function SendScreen() {
   const [amount, setAmount] = useState('');
   const [scannerVisible, setScannerVisible] = useState(false);
 
+  // eslint-disable-next-line security/detect-object-injection -- selectedChain is a ChainId literal union
   const symbol = CHAIN_SYMBOL[selectedChain];
   const isValidAddress = recipient.length >= 26;
 
   const handleSend = async () => {
     const hash = await send({ chain: selectedChain, to: recipient, amount });
     if (hash) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStep('success');
     }
   };

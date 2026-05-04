@@ -126,11 +126,11 @@ export async function scanBleDevices(): Promise<HardwareWalletDevice[]> {
   return new Promise((resolve) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _timeout = setTimeout(() => {
-      manager.stopDeviceScan();
+      void manager.stopDeviceScan();
       resolve(found);
     }, SCAN_TIMEOUT_MS);
 
-    manager.startDeviceScan(
+    void manager.startDeviceScan(
       [BITBOX_NOVA_SERVICE_UUID],
       { allowDuplicates: false },
       (error, device) => {
@@ -163,6 +163,7 @@ function base64ToBytes(base64: string): Uint8Array {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
+    // eslint-disable-next-line security/detect-object-injection -- i is bounded by binary.length above
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;

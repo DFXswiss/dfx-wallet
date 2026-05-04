@@ -12,6 +12,7 @@ module.exports = function withSwiftConcurrency(config) {
     'ios',
     (config) => {
       const podfilePath = path.join(config.modRequest.platformProjectRoot, 'Podfile');
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- podfilePath comes from Expo's modRequest, not user input
       let podfile = fs.readFileSync(podfilePath, 'utf-8');
 
       const patch = `
@@ -37,6 +38,7 @@ end`;
 
       podfile = podfile.replace(/    \)\n  end\nend\n?$/, '    )\n' + patch + '\n');
 
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- podfilePath comes from Expo's modRequest, not user input
       fs.writeFileSync(podfilePath, podfile);
       return config;
     },

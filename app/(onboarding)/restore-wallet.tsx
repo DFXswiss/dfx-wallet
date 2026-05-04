@@ -23,14 +23,14 @@ export default function RestoreWalletScreen() {
   const handleContinue = async () => {
     if (!isValid) {
       setError('Invalid seed phrase. Must be 12 or 24 words.');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
 
     const seed = wordsToSeed(words);
     await secureStorage.set(StorageKeys.ENCRYPTED_SEED, seed);
     await createWallet({ name: 'DFX Wallet', mnemonic: seed });
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.push('/(onboarding)/setup-pin');
   };
 

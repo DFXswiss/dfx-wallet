@@ -77,6 +77,7 @@
     "incorrect": "Falsche PIN.",
     "mismatch": "PINs stimmen nicht überein.",
     "remainingAttempts": "{{count}} Versuche übrig.",
+    "saveError": "PIN konnte nicht gespeichert werden. Bitte erneut versuchen.",
     "tooMany": "Zu viele Fehlversuche. Bitte starte die App neu."
   },
   "receive": {

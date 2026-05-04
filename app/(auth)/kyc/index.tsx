@@ -47,7 +47,7 @@ export default function KycScreen() {
   const [lastName, setLastName] = useState('');
 
   useEffect(() => {
-    loadKycStatus();
+    void loadKycStatus();
   }, [loadKycStatus]);
 
   const handleContinue = async () => {

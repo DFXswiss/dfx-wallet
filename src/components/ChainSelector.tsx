@@ -27,6 +27,7 @@ export function ChainSelector({ selected, onSelect, chains = DEFAULT_CHAINS }: P
       contentContainerStyle={styles.container}
     >
       {chains.map((chain) => {
+        // eslint-disable-next-line security/detect-object-injection -- chain is a ChainId literal union
         const info = CHAIN_INFO[chain];
         const isSelected = chain === selected;
 

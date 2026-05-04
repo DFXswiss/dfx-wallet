@@ -1,21 +1,25 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { ScreenContainer } from '@/components';
 import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
+type SetupError = 'mismatch' | 'save';
+
 export default function SetupPinScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { setPin, setOnboarded, setAuthenticated } = useAuthStore();
   const [pin, setPinValue] = useState('');
   const [step, setStep] = useState<'create' | 'confirm'>('create');
   const [firstPin, setFirstPin] = useState('');
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<SetupError | null>(null);
 
   const handleDigit = (digit: string) => {
-    setError(false);
+    setError(null);
     const newPin = pin + digit;
     if (newPin.length > 6) return;
     setPinValue(newPin);
@@ -26,26 +30,33 @@ export default function SetupPinScreen() {
         setPinValue('');
         setStep('confirm');
       } else if (newPin === firstPin) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        completeSetup(newPin);
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        void completeSetup(newPin);
       } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        setError(true);
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setError('mismatch');
         setPinValue('');
       }
     }
   };
 
   const completeSetup = async (pinValue: string) => {
-    await setPin(pinValue);
-    setOnboarded(true);
-    setAuthenticated(true);
-    // Navigate to legal disclaimer before dashboard
-    router.replace('/(onboarding)/legal-disclaimer');
+    try {
+      await setPin(pinValue);
+      await setOnboarded(true);
+      setAuthenticated(true);
+      router.replace('/(onboarding)/legal-disclaimer');
+    } catch {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError('save');
+      setPinValue('');
+      setFirstPin('');
+      setStep('create');
+    }
   };
 
   const handleDelete = () => {
-    setError(false);
+    setError(null);
     setPinValue(pin.slice(0, -1));
   };
 
@@ -58,7 +69,11 @@ export default function SetupPinScreen() {
             ? 'Choose a 6-digit PIN to secure your wallet.'
             : 'Enter your PIN again to confirm.'}
         </Text>
-        {error && <Text style={styles.error}>PINs do not match. Try again.</Text>}
+        {error && (
+          <Text style={styles.error}>
+            {error === 'save' ? t('pin.saveError') : t('pin.mismatch')}
+          </Text>
+        )}
 
         <View style={styles.dots}>
           {Array.from({ length: 6 }).map((_, i) => (
