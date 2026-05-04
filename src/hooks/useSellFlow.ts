@@ -25,12 +25,7 @@ export function useSellFlow() {
   });
 
   const getQuote = useCallback(
-    async (params: {
-      amount: number;
-      asset: string;
-      blockchain: string;
-      currency: string;
-    }) => {
+    async (params: { amount: number; asset: string; blockchain: string; currency: string }) => {
       setState((s) => ({ ...s, isLoading: true, error: null }));
       try {
         const info = await dfxPaymentService.getSellQuote(params);

@@ -13,7 +13,7 @@ import { DfxColors, Typography } from '@/theme';
 export default function CreateWalletScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const [seedWords] = useState(() => generateSeedPhrase(24));
+  const [seedWords] = useState(() => generateSeedPhrase(12));
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -36,10 +36,7 @@ export default function CreateWalletScreen() {
     await secureStorage.set(StorageKeys.ENCRYPTED_SEED, seed);
     // Create WDK wallet with the generated mnemonic
     await createWallet({ name: 'DFX Wallet', mnemonic: seed });
-    router.push({
-      pathname: '/(onboarding)/verify-seed',
-      params: { seed },
-    });
+    router.push('/(onboarding)/setup-pin');
   };
 
   return (
@@ -74,11 +71,7 @@ export default function CreateWalletScreen() {
 
         <View style={styles.spacer} />
 
-        <PrimaryButton
-          title={t('common.continue')}
-          onPress={handleContinue}
-          disabled={!revealed}
-        />
+        <PrimaryButton title={t('common.continue')} onPress={handleContinue} disabled={!revealed} />
       </View>
     </ScreenContainer>
   );

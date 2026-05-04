@@ -36,7 +36,9 @@ export function AssetListItem({ symbol, name, chain, balance, balanceFiat, onPre
       </View>
 
       <View style={styles.balanceContainer}>
-        <Text style={styles.balance}>{balance} {symbol}</Text>
+        <Text style={styles.balance}>
+          {balance} {symbol}
+        </Text>
         <Text style={styles.balanceFiat}>{balanceFiat}</Text>
       </View>
     </Pressable>

@@ -66,11 +66,7 @@ export default function RestoreWalletScreen() {
 
         <View style={styles.spacer} />
 
-        <PrimaryButton
-          title={t('common.continue')}
-          onPress={handleContinue}
-          disabled={!isValid}
-        />
+        <PrimaryButton title={t('common.continue')} onPress={handleContinue} disabled={!isValid} />
       </View>
     </ScreenContainer>
   );

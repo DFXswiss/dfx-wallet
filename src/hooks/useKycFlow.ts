@@ -102,21 +102,18 @@ export function useKycFlow() {
     [],
   );
 
-  const submitFinancialData = useCallback(
-    async (stepId: number, data: Record<string, unknown>) => {
-      setState((s) => ({ ...s, isLoading: true, error: null }));
-      try {
-        await dfxKycService.submitFinancialData(stepId, data);
-        setState((s) => ({ ...s, isLoading: false }));
-        return true;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Failed to submit financial data';
-        setState((s) => ({ ...s, isLoading: false, error: msg }));
-        return false;
-      }
-    },
-    [],
-  );
+  const submitFinancialData = useCallback(async (stepId: number, data: Record<string, unknown>) => {
+    setState((s) => ({ ...s, isLoading: true, error: null }));
+    try {
+      await dfxKycService.submitFinancialData(stepId, data);
+      setState((s) => ({ ...s, isLoading: false }));
+      return true;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to submit financial data';
+      setState((s) => ({ ...s, isLoading: false, error: msg }));
+      return false;
+    }
+  }, []);
 
   const request2fa = useCallback(async () => {
     try {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ScreenContainer } from '@/components';
@@ -52,9 +52,7 @@ export default function SetupPinScreen() {
   return (
     <ScreenContainer>
       <View style={styles.content}>
-        <Text style={styles.title}>
-          {step === 'create' ? 'Create PIN' : 'Confirm PIN'}
-        </Text>
+        <Text style={styles.title}>{step === 'create' ? 'Create PIN' : 'Confirm PIN'}</Text>
         <Text style={styles.description}>
           {step === 'create'
             ? 'Choose a 6-digit PIN to secure your wallet.'
@@ -72,18 +70,23 @@ export default function SetupPinScreen() {
         </View>
 
         <View style={styles.numpad}>
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((key) => (
-            <View key={key} style={styles.numpadKey}>
-              {key !== '' && (
-                <Text
-                  style={styles.numpadText}
-                  onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
-                >
-                  {key === 'del' ? '\u232B' : key}
-                </Text>
-              )}
-            </View>
-          ))}
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((key) => {
+            if (key === '') {
+              return <View key={key} style={styles.numpadKey} />;
+            }
+            return (
+              <Pressable
+                key={key}
+                style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
+                onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
+                android_ripple={{ color: DfxColors.surfaceLight, borderless: false, radius: 36 }}
+                accessibilityRole="button"
+                accessibilityLabel={key === 'del' ? 'Delete' : key}
+              >
+                <Text style={styles.numpadText}>{key === 'del' ? '\u232B' : key}</Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
     </ScreenContainer>
@@ -136,14 +139,22 @@ const styles = StyleSheet.create({
     marginTop: 'auto',
   },
   numpadKey: {
-    width: 80,
+    width: 72,
     height: 72,
+    borderRadius: 36,
+    margin: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  numpadKeyPressed: {
+    backgroundColor: DfxColors.surfaceLight,
+  },
   numpadText: {
-    ...Typography.headlineSmall,
     color: DfxColors.text,
     fontSize: 28,
+    fontWeight: '600',
+    lineHeight: 32,
+    textAlign: 'center',
+    includeFontPadding: false,
   },
 });

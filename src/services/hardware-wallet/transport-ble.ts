@@ -124,7 +124,8 @@ export async function scanBleDevices(): Promise<HardwareWalletDevice[]> {
   const found: HardwareWalletDevice[] = [];
 
   return new Promise((resolve) => {
-    const timeout = setTimeout(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _timeout = setTimeout(() => {
       manager.stopDeviceScan();
       resolve(found);
     }, SCAN_TIMEOUT_MS);

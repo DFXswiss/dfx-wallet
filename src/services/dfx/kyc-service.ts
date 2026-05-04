@@ -1,4 +1,3 @@
-import { dfxApi } from './api';
 import type { KycLevelDto, KycSessionDto } from './dto';
 
 export class DfxKycService {
@@ -16,10 +15,7 @@ export class DfxKycService {
     return this.kycPut<KycSessionDto>('/v2/kyc', {});
   }
 
-  async submitContactData(
-    id: number,
-    data: { mail: string },
-  ): Promise<void> {
+  async submitContactData(id: number, data: { mail: string }): Promise<void> {
     await this.kycPut(`/v2/kyc/data/contact/${id}`, data);
   }
 
@@ -37,10 +33,7 @@ export class DfxKycService {
     await this.kycPut(`/v2/kyc/data/nationality/${id}`, data);
   }
 
-  async submitFinancialData(
-    id: number,
-    data: Record<string, unknown>,
-  ): Promise<void> {
+  async submitFinancialData(id: number, data: Record<string, unknown>): Promise<void> {
     await this.kycPut(`/v2/kyc/data/financial/${id}`, data);
   }
 

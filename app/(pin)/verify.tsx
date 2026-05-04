@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -15,21 +15,21 @@ export default function VerifyPinScreen() {
   const [error, setError] = useState(false);
   const [attempts, setAttempts] = useState(0);
 
-  // Try biometric on mount
-  useEffect(() => {
-    if (biometricEnabled) {
-      tryBiometric();
-    }
-  }, [biometricEnabled]);
-
-  const tryBiometric = async () => {
+  const tryBiometric = useCallback(async () => {
     const success = await authenticateBiometric();
     if (success) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setAuthenticated(true);
       router.replace('/(auth)/(tabs)/dashboard');
     }
-  };
+  }, [authenticateBiometric, setAuthenticated, router]);
+
+  // Try biometric on mount
+  useEffect(() => {
+    if (biometricEnabled) {
+      tryBiometric();
+    }
+  }, [biometricEnabled, tryBiometric]);
 
   const handleDigit = (digit: string) => {
     setError(false);
@@ -82,30 +82,34 @@ export default function VerifyPinScreen() {
               {Array.from({ length: 6 }).map((_, i) => (
                 <View
                   key={i}
-                  style={[
-                    styles.dot,
-                    i < pin.length && styles.dotFilled,
-                    error && styles.dotError,
-                  ]}
+                  style={[styles.dot, i < pin.length && styles.dotFilled, error && styles.dotError]}
                 />
               ))}
             </View>
 
             <View style={styles.numpad}>
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((key) => (
-                <View key={key} style={styles.numpadKey}>
-                  {key !== '' && (
-                    <Text
-                      style={styles.numpadText}
-                      onPress={() =>
-                        !isLocked && (key === 'del' ? handleDelete() : handleDigit(key))
-                      }
-                    >
-                      {key === 'del' ? '\u232B' : key}
-                    </Text>
-                  )}
-                </View>
-              ))}
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((key) => {
+                if (key === '') {
+                  return <View key={key} style={styles.numpadKey} />;
+                }
+                return (
+                  <Pressable
+                    key={key}
+                    style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
+                    disabled={isLocked}
+                    onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
+                    android_ripple={{
+                      color: DfxColors.surfaceLight,
+                      borderless: false,
+                      radius: 36,
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={key === 'del' ? 'Delete' : key}
+                  >
+                    <Text style={styles.numpadText}>{key === 'del' ? '\u232B' : key}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
             {biometricEnabled && (
@@ -169,15 +173,23 @@ const styles = StyleSheet.create({
     marginTop: 'auto',
   },
   numpadKey: {
-    width: 80,
+    width: 72,
     height: 72,
+    borderRadius: 36,
+    margin: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  numpadKeyPressed: {
+    backgroundColor: DfxColors.surfaceLight,
+  },
   numpadText: {
-    ...Typography.headlineSmall,
     color: DfxColors.text,
     fontSize: 28,
+    fontWeight: '600',
+    lineHeight: 32,
+    textAlign: 'center',
+    includeFontPadding: false,
   },
   biometricButton: {
     paddingVertical: 12,

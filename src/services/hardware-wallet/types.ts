@@ -42,11 +42,7 @@ export interface HardwareWalletProvider {
   ): Promise<{ r: string; s: string; v: number }>;
 
   /** Sign a personal message */
-  signMessage(
-    chainId: number,
-    derivationPath: string,
-    message: Uint8Array,
-  ): Promise<Uint8Array>;
+  signMessage(chainId: number, derivationPath: string, message: Uint8Array): Promise<Uint8Array>;
 }
 
 /**
