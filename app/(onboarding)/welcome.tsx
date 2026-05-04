@@ -31,7 +31,7 @@ export default function WelcomeScreen() {
           <PrimaryButton
             title={t('onboarding.createWallet')}
             onPress={() => router.push('/(onboarding)/create-wallet')}
-            variant={passkeySupported ? 'outlined' : undefined}
+            {...(passkeySupported ? { variant: 'outlined' as const } : {})}
           />
 
           <Pressable onPress={() => setShowRestore(!showRestore)}>

@@ -122,7 +122,8 @@ export function ethSignatureToHex(sig: { r: Uint8Array; s: Uint8Array; v: Uint8A
   return {
     r: '0x' + bytesToHex(sig.r),
     s: '0x' + bytesToHex(sig.s),
-    v: sig.v[0],
+    // v is the 1-byte recovery id (0x1b/0x1c); always exactly one element.
+    v: sig.v[0]!,
   };
 }
 

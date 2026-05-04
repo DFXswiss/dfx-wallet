@@ -177,7 +177,8 @@ export default function SendScreen() {
           visible={scannerVisible}
           onScan={(data) => {
             // Handle various QR formats: plain address, ethereum:0x..., bitcoin:bc1...
-            const address = data.replace(/^(ethereum|bitcoin):/, '').split('?')[0];
+            // String.prototype.split always yields at least one element, so [0] is defined.
+            const address = data.replace(/^(ethereum|bitcoin):/, '').split('?')[0]!;
             setRecipient(address);
           }}
           onClose={() => setScannerVisible(false)}
