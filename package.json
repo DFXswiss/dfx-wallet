@@ -107,6 +107,8 @@
     "typescript": "~5.9.2"
   },
   "overrides": {
-    "sodium-native": "$sodium-native"
+    "sodium-native": "$sodium-native",
+    "@xmldom/xmldom": "^0.8.13",
+    "uuid": "^14.0.0"
   }
 }
