@@ -13,7 +13,7 @@ export default function WelcomeScreen() {
   const passkeySupported = isPasskeySupported();
 
   return (
-    <ScreenContainer>
+    <ScreenContainer testID="welcome-screen">
       <View style={styles.content}>
         <View style={styles.header}>
           <Image source={require('../../assets/icon.png')} style={styles.logo} />
@@ -26,15 +26,17 @@ export default function WelcomeScreen() {
             <PrimaryButton
               title={t('onboarding.createPasskey')}
               onPress={() => router.push('/(onboarding)/create-passkey')}
+              testID="welcome-create-passkey-button"
             />
           )}
           <PrimaryButton
             title={t('onboarding.createWallet')}
             onPress={() => router.push('/(onboarding)/create-wallet')}
+            testID="welcome-create-wallet-button"
             {...(passkeySupported ? { variant: 'outlined' as const } : {})}
           />
 
-          <Pressable onPress={() => setShowRestore(!showRestore)}>
+          <Pressable onPress={() => setShowRestore(!showRestore)} testID="welcome-restore-toggle">
             <Text style={styles.restoreToggle}>{t('onboarding.restoreWallet')}</Text>
           </Pressable>
 
@@ -44,6 +46,7 @@ export default function WelcomeScreen() {
                 <Pressable
                   style={({ pressed }) => [styles.restoreOption, pressed && styles.pressed]}
                   onPress={() => router.push('/(onboarding)/restore-passkey')}
+                  testID="welcome-restore-passkey-button"
                 >
                   <Text style={styles.restoreOptionText}>{t('onboarding.restorePasskey')}</Text>
                 </Pressable>
@@ -51,6 +54,7 @@ export default function WelcomeScreen() {
               <Pressable
                 style={({ pressed }) => [styles.restoreOption, pressed && styles.pressed]}
                 onPress={() => router.push('/(onboarding)/restore-wallet')}
+                testID="welcome-restore-seed-button"
               >
                 <Text style={styles.restoreOptionText}>{t('onboarding.restoreSeed')}</Text>
               </Pressable>

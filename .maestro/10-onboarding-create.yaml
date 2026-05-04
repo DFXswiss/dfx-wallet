@@ -1,0 +1,62 @@
+appId: swiss.dfx.wallet
+name: 10-onboarding-create
+tags:
+  - onboarding
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+
+# Welcome -> Create Wallet
+- assertVisible:
+    id: "welcome-screen"
+- tapOn:
+    id: "welcome-create-wallet-button"
+
+# Create Wallet -> reveal seed -> continue
+- assertVisible:
+    id: "create-wallet-screen"
+- tapOn:
+    id: "create-wallet-reveal-button"
+- assertVisible:
+    id: "create-wallet-seed-container"
+- tapOn:
+    id: "create-wallet-continue-button"
+
+# Setup PIN (create step) -> tap "1" six times
+- assertVisible:
+    id: "setup-pin-screen"
+- repeat:
+    times: 6
+    commands:
+      - tapOn:
+          id: "pin-key-1"
+
+# Setup PIN (confirm step) -> tap "1" six times
+- assertVisible:
+    id: "setup-pin-confirm-screen"
+- repeat:
+    times: 6
+    commands:
+      - tapOn:
+          id: "pin-key-1"
+
+# Legal disclaimer -> accept -> continue
+- assertVisible:
+    id: "legal-disclaimer-screen"
+- tapOn:
+    id: "legal-accept-checkbox"
+- tapOn:
+    id: "legal-continue-button"
+
+# Dashboard reached
+- assertVisible:
+    id: "dashboard-screen"
+- assertVisible:
+    id: "dashboard-action-buy"
+- assertVisible:
+    id: "dashboard-action-sell"
+- assertVisible:
+    id: "dashboard-action-send"
+- assertVisible:
+    id: "dashboard-action-receive"

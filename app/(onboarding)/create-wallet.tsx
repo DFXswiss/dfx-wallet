@@ -51,7 +51,7 @@ export default function CreateWalletScreen() {
   };
 
   return (
-    <ScreenContainer scrollable>
+    <ScreenContainer scrollable testID="create-wallet-screen">
       <View style={styles.content}>
         <Text style={styles.title}>{t('onboarding.createWallet')}</Text>
         <Text style={styles.description}>
@@ -60,12 +60,16 @@ export default function CreateWalletScreen() {
         </Text>
 
         {!revealed ? (
-          <Pressable style={styles.revealButton} onPress={handleReveal}>
+          <Pressable
+            style={styles.revealButton}
+            onPress={handleReveal}
+            testID="create-wallet-reveal-button"
+          >
             <Text style={styles.revealText}>Tap to reveal seed phrase</Text>
           </Pressable>
         ) : (
           <>
-            <View style={styles.seedContainer}>
+            <View style={styles.seedContainer} testID="create-wallet-seed-container">
               {seedWords.map((word, index) => (
                 <View key={index} style={styles.wordCard}>
                   <Text style={styles.wordIndex}>{index + 1}.</Text>
@@ -74,7 +78,11 @@ export default function CreateWalletScreen() {
               ))}
             </View>
 
-            <Pressable style={styles.copyButton} onPress={handleCopy}>
+            <Pressable
+              style={styles.copyButton}
+              onPress={handleCopy}
+              testID="create-wallet-copy-button"
+            >
               <Text style={styles.copyText}>{copied ? 'Copied!' : 'Copy to clipboard'}</Text>
             </Pressable>
           </>
@@ -89,6 +97,7 @@ export default function CreateWalletScreen() {
           onPress={handleContinue}
           disabled={!revealed}
           loading={isCreating}
+          testID="create-wallet-continue-button"
         />
       </View>
     </ScreenContainer>

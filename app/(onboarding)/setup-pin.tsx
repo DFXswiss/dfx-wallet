@@ -62,7 +62,7 @@ export default function SetupPinScreen() {
   };
 
   return (
-    <ScreenContainer>
+    <ScreenContainer testID={step === 'create' ? 'setup-pin-screen' : 'setup-pin-confirm-screen'}>
       <View style={styles.content}>
         <Text style={styles.title}>{step === 'create' ? 'Create PIN' : 'Confirm PIN'}</Text>
         <Text style={styles.description}>
@@ -98,6 +98,7 @@ export default function SetupPinScreen() {
                 android_ripple={{ color: DfxColors.surfaceLight, borderless: false, radius: 36 }}
                 accessibilityRole="button"
                 accessibilityLabel={key === 'del' ? 'Delete' : key}
+                testID={`pin-key-${key}`}
               >
                 <Text style={styles.numpadText}>{key === 'del' ? '\u232B' : key}</Text>
               </Pressable>

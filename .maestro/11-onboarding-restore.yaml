@@ -1,0 +1,60 @@
+appId: swiss.dfx.wallet
+name: 11-onboarding-restore
+tags:
+  - onboarding
+env:
+  # Standard 12-word BIP39 test mnemonic. Override via:
+  #   maestro test --env "TEST_MNEMONIC=word1 word2 ..." .maestro/11-onboarding-restore.yaml
+  TEST_MNEMONIC: "test test test test test test test test test test test junk"
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+
+# Welcome -> Restore Wallet (toggle reveals options)
+- assertVisible:
+    id: "welcome-screen"
+- tapOn:
+    id: "welcome-restore-toggle"
+- tapOn:
+    id: "welcome-restore-seed-button"
+
+# Restore Wallet -> enter seed -> continue
+- assertVisible:
+    id: "restore-wallet-screen"
+- tapOn:
+    id: "restore-wallet-seed-input"
+- inputText: ${TEST_MNEMONIC}
+- hideKeyboard
+- tapOn:
+    id: "restore-wallet-continue-button"
+
+# Setup PIN (create step)
+- assertVisible:
+    id: "setup-pin-screen"
+- repeat:
+    times: 6
+    commands:
+      - tapOn:
+          id: "pin-key-1"
+
+# Setup PIN (confirm step)
+- assertVisible:
+    id: "setup-pin-confirm-screen"
+- repeat:
+    times: 6
+    commands:
+      - tapOn:
+          id: "pin-key-1"
+
+# Legal disclaimer
+- assertVisible:
+    id: "legal-disclaimer-screen"
+- tapOn:
+    id: "legal-accept-checkbox"
+- tapOn:
+    id: "legal-continue-button"
+
+# Dashboard reached
+- assertVisible:
+    id: "dashboard-screen"

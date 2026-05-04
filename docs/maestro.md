@@ -14,11 +14,13 @@ End-to-end UI tests for DFX Wallet using [Maestro](https://maestro.mobile.dev/).
 The wallet ships native modules that are not Expo Go compatible (`react-native-ble-plx`, `react-native-mmkv`, `react-native-nitro-modules`, `bitbox-api`, `@tetherto/wdk-react-native-provider`). Maestro therefore requires an installed dev-client or release build, never Expo Go.
 
 - Maestro CLI: `brew tap mobile-dev-inc/tap && brew install maestro` (or `curl -Ls https://get.maestro.mobile.dev | bash`)
-- iOS: Xcode 16+, an iOS Simulator (run `xcrun simctl list devices`)
+- iOS: Xcode 16+, an iOS Simulator (run `xcrun simctl list devices`), and Facebook IDB (`brew tap facebook/fb && brew install idb-companion`) — required by Maestro to drive the simulator
 - Android: Android SDK with an emulator image (API 34+, x86_64)
 - Built and installed app:
   - iOS: `npx expo run:ios --configuration Release`
   - Android: `npx expo run:android --variant release`
+
+Disable Face ID / Touch ID enrollment in the iOS Simulator (`Features > Face ID > Enrolled` off) before running flows — biometric prompts will otherwise intercept the PIN screen during onboarding.
 
 ## Running Locally
 
@@ -35,7 +37,7 @@ npm run e2e:maestro:android
 Both scripts run every flow under `.maestro/`. To run a single flow:
 
 ```bash
-maestro test .maestro/01-app-launch.yaml
+maestro test .maestro/01-welcome.yaml
 ```
 
 To debug interactively:
@@ -59,21 +61,24 @@ Set these before `npx expo run:ios` / `npx expo run:android` so the resulting bi
 
 ## testID Convention
 
-Flows prefer text/accessibility selectors first (resilient across themes) and fall back to `testID` for ambiguous elements. Convention:
+Flows use stable `testID` selectors (`id:` in YAML) — text-based selectors are avoided so flows are i18n-proof. Convention:
 
 ```
-<screen>.<element>
+<screen>-<element>
 ```
 
 Examples:
 
-- `welcome.create-button`
-- `welcome.restore-toggle`
-- `pin.digit-1`
-- `verify-seed.word-3`
-- `dashboard.action-send`
+- `welcome-screen` (container of the welcome screen)
+- `welcome-create-wallet-button`
+- `welcome-restore-toggle`
+- `welcome-restore-seed-button`
+- `pin-key-1` … `pin-key-9`, `pin-key-0`, `pin-key-del`
+- `setup-pin-screen` / `setup-pin-confirm-screen` (same screen, two states)
+- `dashboard-screen`
+- `dashboard-action-send`
 
-Add `testID` props only when text selectors are ambiguous (e.g. multiple buttons with the same label, generated content, icons without text).
+Container elements (the screen root) carry the `<screen>-screen` ID; interactive elements append a verb-noun (`-button`, `-toggle`, `-input`, `-checkbox`, `-key-N`).
 
 ## Flow Naming
 
@@ -85,7 +90,11 @@ Add `testID` props only when text selectors are ambiguous (e.g. multiple buttons
 - `area` = onboarding, pin, send, receive, dashboard, kyc, hardware
 - `scenario` = short kebab-case description
 
-Examples: `01-app-launch.yaml`, `10-onboarding-create.yaml`, `20-send-btc.yaml`.
+Current flows:
+
+- `01-welcome.yaml` — smoke: app launches, welcome screen renders
+- `10-onboarding-create.yaml` — full create-wallet onboarding through to dashboard
+- `11-onboarding-restore.yaml` — restore-from-seed onboarding through to dashboard (uses `${TEST_MNEMONIC}` env var, default is the standard `test test … junk` BIP39 mnemonic)
 
 ## Limitations
 
