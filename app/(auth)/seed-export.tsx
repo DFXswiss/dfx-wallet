@@ -51,6 +51,8 @@ export default function SeedExportScreen() {
       if (seed) {
         setSeedWords(seedToWords(seed));
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      } else {
+        Alert.alert(t('common.error'), t('seedExport.deriveFailed'));
       }
     }
   };
