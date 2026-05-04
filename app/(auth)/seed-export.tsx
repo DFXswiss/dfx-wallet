@@ -21,7 +21,7 @@ export default function SeedExportScreen() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    secureStorage.get(StorageKeys.WALLET_ORIGIN).then(setWalletOrigin);
+    void secureStorage.get(StorageKeys.WALLET_ORIGIN).then(setWalletOrigin);
   }, []);
 
   const isPasskey = walletOrigin === 'passkey';
@@ -35,9 +35,9 @@ export default function SeedExportScreen() {
         const { prfOutput } = await authenticatePasskey();
         const mnemonic = deriveMnemonicFromPrf(prfOutput, version);
         setSeedWords(seedToWords(mnemonic));
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       } catch (error) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         if (error instanceof PasskeyPrfUnsupportedError) {
           Alert.alert(t('common.error'), t('passkey.prfUnsupported'));
         } else {
@@ -50,7 +50,7 @@ export default function SeedExportScreen() {
       const seed = await secureStorage.get(StorageKeys.ENCRYPTED_SEED);
       if (seed) {
         setSeedWords(seedToWords(seed));
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
     }
   };
@@ -59,7 +59,7 @@ export default function SeedExportScreen() {
     if (!seedWords) return;
     await Clipboard.setStringAsync(seedWords.join(' '));
     setCopied(true);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTimeout(() => setCopied(false), 2000);
   };
 

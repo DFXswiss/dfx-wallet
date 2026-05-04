@@ -10,12 +10,15 @@ type DerivationParams = {
   info: Uint8Array;
 };
 
-const PARAMS_BY_VERSION: Record<number, DerivationParams> = {
-  1: {
-    salt: new TextEncoder().encode('dfx-wallet-seed-derivation'),
-    info: new TextEncoder().encode('mnemonic-v1'),
-  },
-};
+const PARAMS_BY_VERSION = new Map<number, DerivationParams>([
+  [
+    1,
+    {
+      salt: new TextEncoder().encode('dfx-wallet-seed-derivation'),
+      info: new TextEncoder().encode('mnemonic-v1'),
+    },
+  ],
+]);
 
 /**
  * Derive a 12-word BIP-39 mnemonic from a passkey PRF output.
@@ -30,7 +33,7 @@ export function deriveMnemonicFromPrf(prfOutput: Uint8Array, version = DERIVATIO
     throw new Error(`Expected 32-byte PRF output, got ${prfOutput.length}`);
   }
 
-  const params = PARAMS_BY_VERSION[version];
+  const params = PARAMS_BY_VERSION.get(version);
   if (!params) {
     throw new Error(`Unknown derivation version: ${version}`);
   }
