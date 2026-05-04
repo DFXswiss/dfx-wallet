@@ -27,6 +27,7 @@ export default function RestorePasskeyScreen() {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.push('/(onboarding)/setup-pin');
     } catch (error) {
+      console.warn('restore-passkey: restore failed', error);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       if (error instanceof PasskeyPrfUnsupportedError) {
         Alert.alert(t('common.error'), t('passkey.prfUnsupported'));

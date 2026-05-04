@@ -41,7 +41,8 @@ export default function CreateWalletScreen() {
       await secureStorage.set(StorageKeys.ENCRYPTED_SEED, seed);
       await createWallet({ name: 'DFX Wallet', mnemonic: seed });
       router.push('/(onboarding)/setup-pin');
-    } catch {
+    } catch (err) {
+      console.warn('create-wallet: failed to create wallet', err);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(t('onboarding.createError'));
     } finally {

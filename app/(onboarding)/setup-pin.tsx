@@ -46,7 +46,8 @@ export default function SetupPinScreen() {
       await setOnboarded(true);
       setAuthenticated(true);
       router.replace('/(onboarding)/legal-disclaimer');
-    } catch {
+    } catch (err) {
+      console.warn('setup-pin: failed to persist PIN', err);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError('save');
       setPinValue('');
