@@ -147,6 +147,12 @@ Issues and pull requests are welcome. Please:
 3. Run `npm run check` and make sure tests pass.
 4. Update `de.json` and `en.json` together when touching i18n.
 
+## Security
+
+Found a vulnerability? Please follow [`SECURITY.md`](./SECURITY.md) — do
+not open a public issue. The threat model and security roadmap live under
+[`docs/security/`](./docs/security/).
+
 ## License
 
 [MIT](./LICENSE)
