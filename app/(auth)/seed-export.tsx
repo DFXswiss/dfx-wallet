@@ -101,9 +101,7 @@ export default function SeedExportScreen() {
             </View>
 
             <Pressable style={styles.copyButton} onPress={handleCopy}>
-              <Text style={styles.copyText}>
-                {copied ? t('common.copied') : t('common.copy')}
-              </Text>
+              <Text style={styles.copyText}>{copied ? t('common.copied') : t('common.copy')}</Text>
             </Pressable>
           </>
         )}
