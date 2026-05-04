@@ -1,0 +1,15 @@
+appId: swiss.dfx.wallet
+name: 01-welcome
+tags:
+  - smoke
+  - onboarding
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- assertVisible:
+    id: "welcome-screen"
+- assertVisible:
+    id: "welcome-create-wallet-button"
+- assertVisible:
+    id: "welcome-restore-toggle"

@@ -6,9 +6,10 @@ import { DfxColors } from '@/theme';
 type Props = {
   children: ReactNode;
   scrollable?: boolean;
+  testID?: string;
 };
 
-export function ScreenContainer({ children, scrollable = false }: Props) {
+export function ScreenContainer({ children, scrollable = false, testID }: Props) {
   const content = scrollable ? (
     <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
       {children}
@@ -17,7 +18,11 @@ export function ScreenContainer({ children, scrollable = false }: Props) {
     <View style={styles.content}>{children}</View>
   );
 
-  return <SafeAreaView style={styles.container}>{content}</SafeAreaView>;
+  return (
+    <SafeAreaView style={styles.container} testID={testID}>
+      {content}
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({

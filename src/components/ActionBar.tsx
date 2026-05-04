@@ -5,6 +5,7 @@ type ActionItem = {
   icon: string;
   label: string;
   onPress: () => void;
+  testID?: string;
 };
 
 type Props = {
@@ -18,6 +19,7 @@ export function ActionBar({ actions }: Props) {
         <Pressable
           key={action.label}
           onPress={action.onPress}
+          testID={action.testID}
           style={({ pressed }) => [styles.action, pressed && styles.pressed]}
         >
           <View style={styles.iconContainer}>

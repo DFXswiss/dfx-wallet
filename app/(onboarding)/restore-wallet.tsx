@@ -46,7 +46,7 @@ export default function RestoreWalletScreen() {
   };
 
   return (
-    <ScreenContainer scrollable>
+    <ScreenContainer scrollable testID="restore-wallet-screen">
       <View style={styles.content}>
         <Text style={styles.title}>{t('onboarding.restoreWallet')}</Text>
         <Text style={styles.description}>
@@ -67,6 +67,7 @@ export default function RestoreWalletScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             autoComplete="off"
+            testID="restore-wallet-seed-input"
           />
           <Text style={styles.wordCount}>
             {wordCount} / {wordCount > 12 ? 24 : 12} words
@@ -82,6 +83,7 @@ export default function RestoreWalletScreen() {
           onPress={handleContinue}
           disabled={!isValid}
           loading={isRestoring}
+          testID="restore-wallet-continue-button"
         />
       </View>
     </ScreenContainer>

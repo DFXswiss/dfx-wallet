@@ -28,26 +28,30 @@ export default function DashboardScreen() {
       icon: '\u2B06',
       label: t('buy.title'),
       onPress: () => router.push('/(auth)/buy'),
+      testID: 'dashboard-action-buy',
     },
     {
       icon: '\u2B07',
       label: t('sell.title'),
       onPress: () => router.push('/(auth)/sell'),
+      testID: 'dashboard-action-sell',
     },
     {
       icon: '\u27A1',
       label: t('send.title'),
       onPress: () => router.push('/(auth)/send'),
+      testID: 'dashboard-action-send',
     },
     {
       icon: '\u2B05',
       label: t('receive.title'),
       onPress: () => router.push('/(auth)/receive'),
+      testID: 'dashboard-action-receive',
     },
   ];
 
   return (
-    <ScreenContainer scrollable>
+    <ScreenContainer scrollable testID="dashboard-screen">
       <View style={styles.content}>
         <BalanceCard totalBalance={totalBalanceFiat} currency={selectedCurrency} />
         <ActionBar actions={actions} />
