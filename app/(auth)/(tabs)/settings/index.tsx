@@ -23,7 +23,7 @@ export default function SettingsScreen() {
   const [walletOrigin, setWalletOrigin] = useState<string | null>(null);
 
   useEffect(() => {
-    secureStorage.get(StorageKeys.WALLET_ORIGIN).then(setWalletOrigin);
+    void secureStorage.get(StorageKeys.WALLET_ORIGIN).then(setWalletOrigin);
   }, []);
 
   const handleDeleteWallet = () => {
