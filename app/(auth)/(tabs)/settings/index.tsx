@@ -49,7 +49,10 @@ export default function SettingsScreen() {
   const items: SettingsItem[] = [
     { label: t('settings.userData'), route: '/(auth)/kyc' },
     { label: t('settings.walletAddress') },
-    { label: t('settings.seed'), route: '/(auth)/seed-export' },
+    {
+      label: t(walletOrigin === 'passkey' ? 'settings.seed' : 'settings.seedPhrase'),
+      route: '/(auth)/seed-export',
+    },
     { label: 'Hardware Wallet', route: '/(auth)/hardware-connect' },
     { label: t('settings.language') },
     { label: t('settings.currencies') },

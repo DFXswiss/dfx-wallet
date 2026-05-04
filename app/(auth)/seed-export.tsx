@@ -68,7 +68,7 @@ export default function SeedExportScreen() {
   return (
     <ScreenContainer scrollable>
       <View style={styles.content}>
-        <Text style={styles.title}>{t('settings.seed')}</Text>
+        <Text style={styles.title}>{t(isPasskey ? 'settings.seed' : 'settings.seedPhrase')}</Text>
         <Text style={styles.description}>
           {isPasskey ? t('seedExport.descriptionPasskey') : t('seedExport.descriptionSeed')}
         </Text>

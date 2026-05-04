@@ -142,6 +142,7 @@
     "legalDocuments": "Legal Documents",
     "network": "Network",
     "seed": "Recovery Phrase",
+    "seedPhrase": "Seed Phrase",
     "taxReport": "Tax Report",
     "title": "Settings",
     "userData": "User Data",
