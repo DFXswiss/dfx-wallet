@@ -89,7 +89,7 @@ from `~`/`✗` to `✓`.
 | Signed builds, reproducible builds, SBOM                                         | ✗          |
 | Force-update / kill-switch via API min-version check                             | ✗          |
 | Crash reporting with PII filter (`beforeSend`)                                   | ✗          |
-| `SECURITY.md` + responsible disclosure policy                                    | ✗          |
+| `SECURITY.md` + responsible disclosure policy                                    | ✓ (PR #22) |
 | External security audit                                                          | ✗          |
 | Bug bounty program                                                               | ✗          |
 
