@@ -104,6 +104,14 @@
     "title": "Empfangen",
     "yourAddress": "Deine {{chain}} Adresse"
   },
+  "seedExport": {
+    "deriveFailed": "Recovery Phrase konnte nicht aus Passkey abgeleitet werden. Bitte versuche es erneut.",
+    "descriptionPasskey": "Authentifiziere dich mit deinem Passkey, um deine Recovery Phrase anzuzeigen. Schreibe sie auf und bewahre sie sicher auf.",
+    "descriptionSeed": "Deine Recovery Phrase ist der einzige Weg, deine Wallet wiederherzustellen. Bewahre sie sicher auf und teile sie nie.",
+    "revealPasskey": "Authentifizieren zum Anzeigen",
+    "revealSeed": "Tippen um Recovery Phrase anzuzeigen",
+    "warning": "Teile deine Recovery Phrase niemals. Jeder mit diesen Wörtern kann auf deine Wallet zugreifen."
+  },
   "sell": {
     "bankAccount": "Bankkonto",
     "confirmSale": "Verkauf bestätigen",
