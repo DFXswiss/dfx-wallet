@@ -98,7 +98,11 @@ export default function VerifyPinScreen() {
                     style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
                     disabled={isLocked}
                     onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
-                    android_ripple={{ color: DfxColors.surfaceLight, borderless: false, radius: 36 }}
+                    android_ripple={{
+                      color: DfxColors.surfaceLight,
+                      borderless: false,
+                      radius: 36,
+                    }}
                     accessibilityRole="button"
                     accessibilityLabel={key === 'del' ? 'Delete' : key}
                   >
