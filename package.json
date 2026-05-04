@@ -14,6 +14,9 @@
     "format:fix": "prettier --write \"src/**/*.{ts,tsx}\" \"app/**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
     "test": "jest --passWithNoTests",
+    "e2e:maestro": "maestro test .maestro/",
+    "e2e:maestro:ios": "maestro --platform ios test .maestro/",
+    "e2e:maestro:android": "maestro --platform android test .maestro/",
     "prebuild": "expo prebuild --clean",
     "bundle:bitbox": "node scripts/bundle-bitbox-wasm.js",
     "check": "npm run typecheck && npm run lint && npm run format"
