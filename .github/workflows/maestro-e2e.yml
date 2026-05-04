@@ -28,10 +28,11 @@ env:
 jobs:
   ios:
     name: iOS Simulator
-    # Skip drafts so WIP pushes don't burn ~30 min of macOS minutes per push.
+    # Each job claims one ephemeral macOS VM. Drafts are skipped so WIP
+    # pushes don't tie up the runner pool.
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft != true
-    runs-on: macos-latest
-    timeout-minutes: 60
+    runs-on: [self-hosted, macos, e2e-ios]
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -49,22 +50,8 @@ jobs:
       - name: Provision testnet env
         run: cp .env.testnet .env
 
-      - name: Install Maestro CLI
-        run: |
-          curl -Ls https://get.maestro.mobile.dev | bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
-
-      - name: Boot iOS Simulator
-        run: |
-          DEVICE_ID=$(xcrun simctl list devices available | awk '/iPhone 16 \(/{print $NF; exit}' | tr -d '()')
-          if [ -z "$DEVICE_ID" ]; then
-            DEVICE_ID=$(xcrun simctl create "iPhone 16 E2E" "iPhone 16")
-          fi
-          xcrun simctl boot "$DEVICE_ID" || true
-          echo "SIM_DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
-
       - name: Build & install app on simulator
-        run: npx expo run:ios --configuration Release --device "$SIM_DEVICE_ID" --no-bundler
+        run: npx expo run:ios --configuration Release --device "iPhone 16" --no-bundler
 
       - name: Run Maestro tests
         run: maestro --platform ios test .maestro/
@@ -80,8 +67,8 @@ jobs:
   android:
     name: Android Emulator
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft != true
-    runs-on: macos-latest
-    timeout-minutes: 75
+    runs-on: [self-hosted, macos, e2e-android]
+    timeout-minutes: 45
     strategy:
       fail-fast: false
     steps:
@@ -106,11 +93,6 @@ jobs:
       - name: Provision testnet env
         run: cp .env.testnet .env
 
-      - name: Install Maestro CLI
-        run: |
-          curl -Ls https://get.maestro.mobile.dev | bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
-
       - name: Generate native Android project
         run: npx expo prebuild --platform android --no-install
 
@@ -119,7 +101,7 @@ jobs:
         with:
           api-level: 34
           target: google_apis
-          arch: x86_64
+          arch: arm64-v8a
           profile: pixel_6
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
