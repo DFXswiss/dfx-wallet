@@ -21,10 +21,8 @@ permissions:
 
 env:
   NODE_VERSION: 22
-  # Build-time env vars for the testnet build.
-  # TODO: replace placeholders with real testnet endpoints (or wire up via repository secrets).
-  EXPO_PUBLIC_DFX_API_URL: ${{ vars.E2E_DFX_API_URL }}
-  EXPO_PUBLIC_WDK_INDEXER_URL: ${{ vars.E2E_WDK_INDEXER_URL }}
+  # Public testnet URLs live in the committed `.env.testnet` and are copied
+  # into `.env` during the build step. Only the indexer API key is secret.
   EXPO_PUBLIC_WDK_INDEXER_API_KEY: ${{ secrets.E2E_WDK_INDEXER_API_KEY }}
 
 jobs:
@@ -47,6 +45,9 @@ jobs:
           npm ci --legacy-peer-deps --ignore-scripts
           npx patch-package
           npm run postinstall
+
+      - name: Provision testnet env
+        run: cp .env.testnet .env
 
       - name: Install Maestro CLI
         run: |
@@ -101,6 +102,9 @@ jobs:
           npm ci --legacy-peer-deps --ignore-scripts
           npx patch-package
           npm run postinstall
+
+      - name: Provision testnet env
+        run: cp .env.testnet .env
 
       - name: Install Maestro CLI
         run: |

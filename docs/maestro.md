@@ -114,12 +114,10 @@ Triggers:
 
 Concurrent runs on the same PR cancel each other (`concurrency: cancel-in-progress: true`), so rebases don't pile up macOS minutes.
 
-Required repo configuration before the workflow can produce a meaningful build:
+Build-time configuration:
 
-| Name | Type | Purpose |
-| --- | --- | --- |
-| `E2E_DFX_API_URL` | repo variable | DFX API testnet endpoint |
-| `E2E_WDK_INDEXER_URL` | repo variable | WDK indexer endpoint |
-| `E2E_WDK_INDEXER_API_KEY` | repo secret | WDK indexer API key |
+- Public values (DFX API URL, WDK indexer URL, chain RPCs) live in the committed `.env.testnet` at the repo root. Edit that file when the testnet endpoints land.
+- Only the WDK indexer API key is treated as a secret. Set it as a repo **secret** named `E2E_WDK_INDEXER_API_KEY` — the workflow injects it via `env:` so it overrides whatever's in `.env.testnet`.
+- Both jobs do `cp .env.testnet .env` before the build so Expo's `EXPO_PUBLIC_*` baking sees the right values.
 
-If these aren't set, the build still runs but resolves to whatever defaults `src/config/env.ts` falls back to — flow results are then unreliable.
+For local runs, do the same: `cp .env.testnet .env && npm run ios` (or `android`). Override the API key by adding a single line `EXPO_PUBLIC_WDK_INDEXER_API_KEY=...` to your `.env` after the copy.
