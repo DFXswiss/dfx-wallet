@@ -37,12 +37,14 @@ makes later phases possible. None of it requires design or product input.
 
 ### P0.4 — CI hardening
 
-- [ ] Pin every `uses:` in `.github/workflows/` to a commit SHA, not a
-      floating tag.
-- [ ] Add `permissions: contents: read` at workflow root, escalate
-      per-job only where needed.
-- [ ] Split `check` into parallel `typecheck`, `lint`, `format`, `test`
-      jobs.
+- [x] Every `uses:` in `.github/workflows/` pinned to a commit SHA, with
+      a trailing `# vX.Y.Z` comment for human reading.
+- [x] `permissions: contents: read` at workflow root in every workflow;
+      per-job escalation only where required (CodeQL needs
+      `security-events: write`, auto-release-pr needs
+      `pull-requests: write`).
+- [x] `check` split into parallel `typecheck`, `lint`, `format`, `test`
+      jobs; `audit` retained.
 - **Acceptance**: workflows pass; `permissions` block present in every
   workflow file; no `@v4` / `@main` references.
 
