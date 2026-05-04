@@ -2,21 +2,34 @@ name: Maestro E2E
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
+
+# Cancel superseded runs on the same PR / branch.
+concurrency:
+  group: maestro-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 env:
   NODE_VERSION: 22
-  # Build-time env vars for the testnet build.
-  # TODO: replace placeholders with real testnet endpoints (or wire up via repository secrets).
-  EXPO_PUBLIC_DFX_API_URL: ${{ vars.E2E_DFX_API_URL }}
-  EXPO_PUBLIC_WDK_INDEXER_URL: ${{ vars.E2E_WDK_INDEXER_URL }}
+  # Public testnet URLs live in the committed `.env.testnet` and are copied
+  # into `.env` during the build step. Only the indexer API key is secret.
   EXPO_PUBLIC_WDK_INDEXER_API_KEY: ${{ secrets.E2E_WDK_INDEXER_API_KEY }}
 
 jobs:
   ios:
     name: iOS Simulator
+    # Skip drafts so WIP pushes don't burn ~30 min of macOS minutes per push.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft != true
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
@@ -32,6 +45,9 @@ jobs:
           npm ci --legacy-peer-deps --ignore-scripts
           npx patch-package
           npm run postinstall
+
+      - name: Provision testnet env
+        run: cp .env.testnet .env
 
       - name: Install Maestro CLI
         run: |
@@ -63,6 +79,7 @@ jobs:
 
   android:
     name: Android Emulator
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft != true
     runs-on: macos-latest
     timeout-minutes: 75
     strategy:
@@ -85,6 +102,9 @@ jobs:
           npm ci --legacy-peer-deps --ignore-scripts
           npx patch-package
           npm run postinstall
+
+      - name: Provision testnet env
+        run: cp .env.testnet .env
 
       - name: Install Maestro CLI
         run: |

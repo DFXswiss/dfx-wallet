@@ -105,4 +105,19 @@ Current flows:
 
 ## CI
 
-`.github/workflows/maestro-e2e.yml` runs the full suite on iOS Simulator and Android Emulator. Currently triggered manually via `workflow_dispatch`; auto-trigger on PR is intentionally disabled until the suite covers enough flows to justify the runtime.
+`.github/workflows/maestro-e2e.yml` runs the full suite on iOS Simulator and Android Emulator.
+
+Triggers:
+
+- `pull_request` against `develop` — non-draft PRs only, skipped on doc-only changes (`paths-ignore: '**/*.md', 'docs/**'`). Marking a draft PR as ready-for-review fires the workflow.
+- `workflow_dispatch` — manual run for any branch.
+
+Concurrent runs on the same PR cancel each other (`concurrency: cancel-in-progress: true`), so rebases don't pile up macOS minutes.
+
+Build-time configuration:
+
+- Public values (DFX API URL, WDK indexer URL, chain RPCs) live in the committed `.env.testnet` at the repo root. Edit that file when the testnet endpoints land.
+- Only the WDK indexer API key is treated as a secret. Set it as a repo **secret** named `E2E_WDK_INDEXER_API_KEY` — the workflow injects it via `env:` so it overrides whatever's in `.env.testnet`.
+- Both jobs do `cp .env.testnet .env` before the build so Expo's `EXPO_PUBLIC_*` baking sees the right values.
+
+For local runs, do the same: `cp .env.testnet .env && npm run ios` (or `android`). Override the API key by adding a single line `EXPO_PUBLIC_WDK_INDEXER_API_KEY=...` to your `.env` after the copy.
