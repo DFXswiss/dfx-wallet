@@ -31,12 +31,17 @@ export function isPasskeySupported(): boolean {
   return false;
 }
 
+let cachedPrfSalt: Uint8Array | null = null;
+
 /**
  * Compute the PRF salt as a Uint8Array from the static salt string.
+ * Result is cached since SHA-256 of a constant is deterministic.
  */
 async function getPrfSalt(): Promise<Uint8Array> {
+  if (cachedPrfSalt) return cachedPrfSalt;
   const hashHex = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, PRF_SALT);
-  return new Uint8Array(hashHex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
+  cachedPrfSalt = new Uint8Array(hashHex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
+  return cachedPrfSalt;
 }
 
 /**
@@ -102,11 +107,14 @@ export async function createPasskey(): Promise<{ prfOutput: Uint8Array; credenti
     },
     user: {
       id: userId,
-      name: RP_NAME,
+      name: `wallet-${userId}`,
       displayName: RP_NAME,
     },
     challenge,
-    pubKeyCredParams: [{ alg: -7, type: 'public-key' }],
+    pubKeyCredParams: [
+      { alg: -7, type: 'public-key' },
+      { alg: -257, type: 'public-key' },
+    ],
     authenticatorSelection: {
       residentKey: 'required',
       userVerification: 'required',
