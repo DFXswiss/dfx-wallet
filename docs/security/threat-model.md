@@ -84,7 +84,7 @@ from `~`/`✗` to `✓`.
 | TLS only + certificate pinning for `api.dfx.swiss`                               | ✗          |
 | Pricing: never serve stale/swapped values, fail loud                             | ~          |
 | Jailbreak / root detection (warn, not block)                                     | ✗          |
-| `npm audit` + automated supply-chain scanning in CI                              | ✗          |
+| `npm audit` + automated supply-chain scanning in CI                              | ~          |
 | Pinned GitHub Action SHAs + minimal `permissions:`                               | ✗          |
 | Signed builds, reproducible builds, SBOM                                         | ✗          |
 | Force-update / kill-switch via API min-version check                             | ✗          |
