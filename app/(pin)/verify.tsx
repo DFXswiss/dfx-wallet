@@ -74,7 +74,7 @@ export default function VerifyPinScreen() {
   const isLocked = attempts >= MAX_ATTEMPTS;
 
   return (
-    <ScreenContainer>
+    <ScreenContainer testID="verify-pin-screen">
       <View style={styles.content}>
         <Text style={styles.title}>Enter PIN</Text>
 
@@ -115,6 +115,7 @@ export default function VerifyPinScreen() {
                     }}
                     accessibilityRole="button"
                     accessibilityLabel={key === 'del' ? 'Delete' : key}
+                    testID={`pin-key-${key}`}
                   >
                     <Text style={styles.numpadText}>{key === 'del' ? '\u232B' : key}</Text>
                   </Pressable>
@@ -123,7 +124,11 @@ export default function VerifyPinScreen() {
             </View>
 
             {biometricEnabled && (
-              <Pressable style={styles.biometricButton} onPress={tryBiometric}>
+              <Pressable
+                style={styles.biometricButton}
+                onPress={tryBiometric}
+                testID="verify-pin-biometric-button"
+              >
                 <Text style={styles.biometricText}>Use Biometric</Text>
               </Pressable>
             )}

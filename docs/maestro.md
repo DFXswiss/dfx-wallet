@@ -95,6 +95,7 @@ Current flows:
 - `01-welcome.yaml` — smoke: app launches, welcome screen renders
 - `10-onboarding-create.yaml` — full create-wallet onboarding through to dashboard
 - `11-onboarding-restore.yaml` — restore-from-seed onboarding through to dashboard (uses `${TEST_MNEMONIC}` env var, default is the standard `test test … junk` BIP39 mnemonic)
+- `12-pin-unlock.yaml` — onboard, cold-restart the app, exercise the wrong-PIN error path, then unlock with the correct PIN
 
 ## Limitations
 
