@@ -66,6 +66,7 @@
     "createError": "Wallet konnte nicht erstellt werden. Bitte erneut versuchen.",
     "createPasskey": "Mit Passkey erstellen",
     "createWallet": "Mit Seed Phrase erstellen",
+    "invalidSeed": "Ungültige Seed Phrase. Muss 12 oder 24 Wörter haben.",
     "restoreError": "Wallet konnte nicht wiederhergestellt werden. Bitte erneut versuchen.",
     "restorePasskey": "Mit Passkey",
     "restoreSeed": "Mit Seed Phrase",
