@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@craftzdog/react-native-buffer": "^6.1.1",
+    "@noble/hashes": "^2.2.0",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/netinfo": "^11.4.1",
     "@tetherto/pear-wrk-wdk": "^1.0.0-beta.4",
@@ -64,6 +65,7 @@
     "react-native-keychain": "^10.0.0",
     "react-native-mmkv": "^3.3.3",
     "react-native-nitro-modules": "^0.35.4",
+    "react-native-passkey": "^3.3.3",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-randombytes": "^3.6.2",
     "react-native-reanimated": "~4.1.1",
