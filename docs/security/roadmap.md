@@ -48,12 +48,20 @@ makes later phases possible. None of it requires design or product input.
 
 ### P0.5 — Supply-chain audit gates
 
-- [ ] Add `npm audit --audit-level=high` as a CI step (non-blocking warn
-      first, blocking after one cleanup pass).
-- [ ] Enable Dependabot or Renovate for npm + GitHub Actions, weekly.
-- [ ] Enable GitHub CodeQL for JavaScript/TypeScript.
-- **Acceptance**: scheduled scans visible in the Security tab; first cleanup
-  PR merged.
+- [x] First cleanup PR merged (#20: `uuid` + `@xmldom/xmldom` overrides
+      to clear initial Dependabot alerts).
+- [x] `npm audit --audit-level=high` as a non-blocking CI job (separate
+      `audit` job with `continue-on-error: true` so it surfaces as a
+      yellow status without breaking the gate).
+- [x] Dependabot enabled for `npm` + `github-actions`, weekly Monday,
+      target `develop` (`.github/dependabot.yml`).
+- [x] GitHub CodeQL workflow for `javascript-typescript` with the
+      `security-and-quality` query suite, weekly schedule + on push/PR
+      to `main`/`develop` (`.github/workflows/codeql.yml`).
+- **Next**: flip `audit` to blocking once the existing alerts are
+  cleared and we have a few quiet weeks of Dependabot output.
+- **Acceptance**: scheduled scans visible in the Security tab; first
+  cleanup PR merged.
 
 ### P0.6 — Branch protection
 
