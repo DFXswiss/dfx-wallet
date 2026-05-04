@@ -42,12 +42,14 @@
     },
     "plugins": [
       "expo-router",
+      "expo-dev-client",
       "expo-localization",
       "expo-secure-store",
       ["expo-build-properties", {
         "android": {
           "minSdkVersion": 34,
           "compileSdkVersion": 36,
+          "buildToolsVersion": "36.0.0",
           "targetSdkVersion": 35
         },
         "ios": {
@@ -58,7 +60,8 @@
         "cameraPermission": "Camera access is needed to scan QR codes."
       }],
       "expo-local-authentication",
-      "./plugins/withSwiftConcurrency"
+      "./plugins/withSwiftConcurrency",
+      "./plugins/withAndroidSubprojects.js"
     ]
   }
 }

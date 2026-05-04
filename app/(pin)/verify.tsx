@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { useWalletManager, useWdkApp } from '@tetherto/wdk-react-native-core';
 import { ScreenContainer } from '@/components';
 import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
@@ -11,9 +12,23 @@ const MAX_ATTEMPTS = 5;
 export default function VerifyPinScreen() {
   const router = useRouter();
   const { verifyPin, setAuthenticated, authenticateBiometric, biometricEnabled } = useAuthStore();
+  const { initializeWallet } = useWalletManager();
+  const { isReady } = useWdkApp();
   const [pin, setPinValue] = useState('');
   const [error, setError] = useState(false);
   const [attempts, setAttempts] = useState(0);
+
+  const goToDashboard = useCallback(() => {
+    router.replace('/(auth)/(tabs)/dashboard');
+  }, [router]);
+
+  const unlockWallet = useCallback(async () => {
+    try {
+      await initializeWallet({ walletId: 'default' });
+    } catch {
+      // WdkAppProvider exposes the error; user can retry from settings.
+    }
+  }, [initializeWallet]);
 
   const tryBiometric = useCallback(async () => {
     try {
@@ -21,19 +36,24 @@ export default function VerifyPinScreen() {
       if (success) {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setAuthenticated(true);
-        router.replace('/(auth)/(tabs)/dashboard');
+        await unlockWallet();
       }
     } catch (err) {
       console.warn('verify: biometric authentication failed', err);
     }
-  }, [authenticateBiometric, setAuthenticated, router]);
+  }, [authenticateBiometric, setAuthenticated, unlockWallet]);
 
-  // Try biometric on mount
   useEffect(() => {
     if (biometricEnabled) {
       void tryBiometric();
     }
   }, [biometricEnabled, tryBiometric]);
+
+  useEffect(() => {
+    if (isReady) {
+      goToDashboard();
+    }
+  }, [isReady, goToDashboard]);
 
   const handleDigit = (digit: string) => {
     setError(false);
@@ -52,7 +72,7 @@ export default function VerifyPinScreen() {
       if (isValid) {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setAuthenticated(true);
-        router.replace('/(auth)/(tabs)/dashboard');
+        await unlockWallet();
         return;
       }
     } catch (err) {
@@ -74,21 +94,23 @@ export default function VerifyPinScreen() {
   const isLocked = attempts >= MAX_ATTEMPTS;
 
   return (
-    <ScreenContainer testID="verify-pin-screen">
-      <View style={styles.content}>
+    <ScreenContainer>
+      <View style={styles.content} testID="verify-pin-screen">
         <Text style={styles.title}>Enter PIN</Text>
 
         {isLocked ? (
-          <Text style={styles.locked}>Too many failed attempts. Please restart the app.</Text>
+          <Text style={styles.locked} testID="verify-pin-locked">
+            Too many failed attempts. Please restart the app.
+          </Text>
         ) : (
           <>
             {error && (
-              <Text style={styles.error}>
+              <Text style={styles.error} testID="verify-pin-error">
                 Incorrect PIN. {MAX_ATTEMPTS - attempts} attempts remaining.
               </Text>
             )}
 
-            <View style={styles.dots}>
+            <View style={styles.dots} testID="verify-pin-dots">
               {Array.from({ length: 6 }).map((_, i) => (
                 <View
                   key={i}
@@ -105,6 +127,7 @@ export default function VerifyPinScreen() {
                 return (
                   <Pressable
                     key={key}
+                    testID={key === 'del' ? 'pin-key-delete' : `pin-key-${key}`}
                     style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
                     disabled={isLocked}
                     onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
@@ -115,7 +138,6 @@ export default function VerifyPinScreen() {
                     }}
                     accessibilityRole="button"
                     accessibilityLabel={key === 'del' ? 'Delete' : key}
-                    testID={`pin-key-${key}`}
                   >
                     <Text style={styles.numpadText}>{key === 'del' ? '\u232B' : key}</Text>
                   </Pressable>
@@ -125,9 +147,9 @@ export default function VerifyPinScreen() {
 
             {biometricEnabled && (
               <Pressable
+                testID="verify-pin-biometric-button"
                 style={styles.biometricButton}
                 onPress={tryBiometric}
-                testID="verify-pin-biometric-button"
               >
                 <Text style={styles.biometricText}>Use Biometric</Text>
               </Pressable>

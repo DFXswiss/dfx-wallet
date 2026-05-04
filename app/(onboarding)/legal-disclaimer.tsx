@@ -15,8 +15,8 @@ export default function LegalDisclaimerScreen() {
   const [accepted, setAccepted] = useState(false);
 
   return (
-    <ScreenContainer testID="legal-disclaimer-screen">
-      <View style={styles.content}>
+    <ScreenContainer>
+      <View style={styles.content} testID="legal-disclaimer-screen">
         <Text style={styles.title}>Legal Information</Text>
 
         <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -52,9 +52,9 @@ export default function LegalDisclaimerScreen() {
         </ScrollView>
 
         <Pressable
+          testID="legal-accept-checkbox"
           style={styles.checkboxRow}
           onPress={() => setAccepted(!accepted)}
-          testID="legal-accept-checkbox"
         >
           <View style={[styles.checkbox, accepted && styles.checkboxChecked]}>
             {accepted && <Text style={styles.checkmark}>{'\u2713'}</Text>}
@@ -65,10 +65,10 @@ export default function LegalDisclaimerScreen() {
         </Pressable>
 
         <PrimaryButton
+          testID="legal-continue-button"
           title="Continue"
           onPress={() => router.replace('/(auth)/(tabs)/dashboard')}
           disabled={!accepted}
-          testID="legal-continue-button"
         />
       </View>
     </ScreenContainer>

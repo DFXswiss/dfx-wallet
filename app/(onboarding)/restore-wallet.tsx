@@ -3,15 +3,14 @@ import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { useWallet } from '@tetherto/wdk-react-native-provider';
+import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import { ScreenContainer, PrimaryButton } from '@/components';
 import { validateSeedPhrase, seedToWords, wordsToSeed } from '@/services/wallet';
-import { secureStorage, StorageKeys } from '@/services/storage';
 import { DfxColors, Typography } from '@/theme';
 
 export default function RestoreWalletScreen() {
   const router = useRouter();
-  const { createWallet } = useWallet();
+  const { initializeFromMnemonic } = useWalletManager();
   const { t } = useTranslation();
   const [seedPhrase, setSeedPhrase] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -32,8 +31,7 @@ export default function RestoreWalletScreen() {
     setError(null);
     try {
       const seed = wordsToSeed(words);
-      await secureStorage.set(StorageKeys.ENCRYPTED_SEED, seed);
-      await createWallet({ name: 'DFX Wallet', mnemonic: seed });
+      await initializeFromMnemonic(seed, 'default');
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.push('/(onboarding)/setup-pin');
     } catch (err) {
@@ -46,8 +44,8 @@ export default function RestoreWalletScreen() {
   };
 
   return (
-    <ScreenContainer scrollable testID="restore-wallet-screen">
-      <View style={styles.content}>
+    <ScreenContainer scrollable>
+      <View style={styles.content} testID="restore-wallet-screen">
         <Text style={styles.title}>{t('onboarding.restoreWallet')}</Text>
         <Text style={styles.description}>
           Enter your 12 or 24 word seed phrase to restore your wallet.
@@ -55,6 +53,7 @@ export default function RestoreWalletScreen() {
 
         <View style={styles.inputContainer}>
           <TextInput
+            testID="restore-wallet-seed-input"
             style={styles.input}
             value={seedPhrase}
             onChangeText={(text) => {
@@ -67,23 +66,26 @@ export default function RestoreWalletScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             autoComplete="off"
-            testID="restore-wallet-seed-input"
           />
-          <Text style={styles.wordCount}>
+          <Text style={styles.wordCount} testID="restore-wallet-word-count">
             {wordCount} / {wordCount > 12 ? 24 : 12} words
           </Text>
         </View>
 
-        {error && <Text style={styles.error}>{error}</Text>}
+        {error && (
+          <Text style={styles.error} testID="restore-wallet-error">
+            {error}
+          </Text>
+        )}
 
         <View style={styles.spacer} />
 
         <PrimaryButton
+          testID="restore-wallet-continue-button"
           title={t('common.continue')}
           onPress={handleContinue}
           disabled={!isValid}
           loading={isRestoring}
-          testID="restore-wallet-continue-button"
         />
       </View>
     </ScreenContainer>

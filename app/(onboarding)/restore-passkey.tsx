@@ -3,7 +3,7 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { useWallet } from '@tetherto/wdk-react-native-provider';
+import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import { ScreenContainer, PrimaryButton } from '@/components';
 import {
   authenticatePasskey,
@@ -15,14 +15,16 @@ import { DfxColors, Typography } from '@/theme';
 export default function RestorePasskeyScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { createWallet } = useWallet();
+  const { initializeFromMnemonic } = useWalletManager();
   const [isRestoring, setIsRestoring] = useState(false);
 
   const handleRestore = async () => {
     setIsRestoring(true);
     try {
       const { prfOutput, credentialId } = await authenticatePasskey();
-      await setupPasskeyWallet(prfOutput, credentialId, createWallet);
+      await setupPasskeyWallet(prfOutput, credentialId, (mnemonic) =>
+        initializeFromMnemonic(mnemonic, 'default'),
+      );
 
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.push('/(onboarding)/setup-pin');

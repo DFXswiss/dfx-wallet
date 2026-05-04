@@ -62,8 +62,11 @@ export default function SetupPinScreen() {
   };
 
   return (
-    <ScreenContainer testID={step === 'create' ? 'setup-pin-screen' : 'setup-pin-confirm-screen'}>
-      <View style={styles.content}>
+    <ScreenContainer>
+      <View
+        style={styles.content}
+        testID={step === 'create' ? 'setup-pin-screen' : 'setup-pin-confirm-screen'}
+      >
         <Text style={styles.title}>{step === 'create' ? 'Create PIN' : 'Confirm PIN'}</Text>
         <Text style={styles.description}>
           {step === 'create'
@@ -71,12 +74,12 @@ export default function SetupPinScreen() {
             : 'Enter your PIN again to confirm.'}
         </Text>
         {error && (
-          <Text style={styles.error}>
+          <Text style={styles.error} testID="setup-pin-error">
             {error === 'save' ? t('pin.saveError') : t('pin.mismatch')}
           </Text>
         )}
 
-        <View style={styles.dots}>
+        <View style={styles.dots} testID="setup-pin-dots">
           {Array.from({ length: 6 }).map((_, i) => (
             <View
               key={i}
@@ -93,12 +96,12 @@ export default function SetupPinScreen() {
             return (
               <Pressable
                 key={key}
+                testID={key === 'del' ? 'pin-key-delete' : `pin-key-${key}`}
                 style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
                 onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
                 android_ripple={{ color: DfxColors.surfaceLight, borderless: false, radius: 36 }}
                 accessibilityRole="button"
                 accessibilityLabel={key === 'del' ? 'Delete' : key}
-                testID={`pin-key-${key}`}
               >
                 <Text style={styles.numpadText}>{key === 'del' ? '\u232B' : key}</Text>
               </Pressable>

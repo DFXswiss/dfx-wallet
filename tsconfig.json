@@ -7,9 +7,16 @@
     "noImplicitOverride": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@modules/*": ["modules/*"]
+      "@/*": [
+        "src/*"
+      ],
+      "@modules/*": [
+        "modules/*"
+      ]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ]
 }

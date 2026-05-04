@@ -10,10 +10,12 @@ import { DfxColors, Typography } from '@/theme';
 type SellStep = 'amount' | 'bank' | 'confirm';
 
 const CHAIN_ASSET: Record<ChainId, string> = {
-  bitcoin: 'BTC',
   ethereum: 'ETH',
   arbitrum: 'ETH',
   polygon: 'MATIC',
+  spark: 'BTC',
+  plasma: 'ETH',
+  sepolia: 'ETH',
 };
 
 export default function SellScreen() {
@@ -40,7 +42,10 @@ export default function SellScreen() {
           placeholderTextColor={DfxColors.textTertiary}
           keyboardType="decimal-pad"
         />
-        <Text style={styles.amountUnit}>{selectedChain === 'bitcoin' ? 'BTC' : 'ETH'}</Text>
+        <Text style={styles.amountUnit}>
+          {/* eslint-disable-next-line security/detect-object-injection -- selectedChain is a ChainId literal union */}
+          {CHAIN_ASSET[selectedChain]}
+        </Text>
       </View>
 
       <View style={styles.spacer} />

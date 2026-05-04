@@ -20,6 +20,7 @@ export function ActionBar({ actions }: Props) {
           key={action.label}
           onPress={action.onPress}
           testID={action.testID}
+          accessibilityLabel={action.label}
           style={({ pressed }) => [styles.action, pressed && styles.pressed]}
         >
           <View style={styles.iconContainer}>
