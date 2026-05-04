@@ -71,10 +71,28 @@ makes later phases possible. None of it requires design or product input.
 
 ### P0.6 — Branch protection
 
-- [ ] `develop` and `main`: require PR + green CI + ≥1 approval, no force
-      push, signed commits encouraged.
-- **Acceptance**: settings recorded in repo `README.md` or here; tested by
-  attempting a direct push.
+Configured as repository rulesets (the modern UI), not classic branch
+protection — the older API endpoint will report both branches as
+"unprotected" but the rulesets are active.
+
+- [x] **`develop`** ruleset (`refs/heads/develop`):
+  - `pull_request` with `required_approving_review_count: 1`, squash
+    merge only.
+  - `required_status_checks`: `typecheck`, `lint`, `format`, `test`,
+    `Analyze (javascript-typescript)`. `audit` deliberately not
+    required (it's `continue-on-error`).
+  - `non_fast_forward` (no force push).
+  - `deletion` blocked.
+  - `current_user_can_bypass: never` (admins can't bypass).
+- [x] **`main`** ruleset (`refs/heads/main`):
+  - Same as develop, plus `required_approving_review_count: 2` and
+    plain merge commits (no squash) — preserves develop's commit
+    history on release.
+- [ ] Signed commits — roadmap says "encouraged", left as opt-in for
+      now. Flip to required once everyone has GPG / SSH signing
+      configured.
+- **Acceptance**: settings recorded here; tested by attempting a direct
+  push to `develop` (rejected with "protected branch").
 
 ### P0.7 — `SECURITY.md`
 
