@@ -30,10 +30,10 @@ export default function CreatePasskeyScreen() {
       await secureStorage.set(StorageKeys.PASSKEY_CREDENTIAL_ID, credentialId);
       await createWallet({ name: 'DFX Wallet', mnemonic });
 
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.push('/(onboarding)/setup-pin');
     } catch (error) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       if (error instanceof PasskeyPrfUnsupportedError) {
         Alert.alert(t('common.error'), t('passkey.prfUnsupported'), [
           {
