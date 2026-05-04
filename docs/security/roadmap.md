@@ -64,10 +64,9 @@ makes later phases possible. None of it requires design or product input.
 
 ### P0.7 — `SECURITY.md`
 
-- [ ] Add `SECURITY.md` at repo root with disclosure policy, contact
-      address, expected response time, scope.
-- **Acceptance**: file linked from `README.md`; GitHub recognises it (Security
-  tab shows "Reporting").
+- [x] Done in PR #22 — `SECURITY.md` at repo root with disclosure
+      policy, response timeline, scope, safe-harbor; linked from
+      `README.md`.
 
 ---
 
