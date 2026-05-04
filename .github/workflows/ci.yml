@@ -18,7 +18,10 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci --legacy-peer-deps --ignore-scripts
+
+      - name: Apply patches
+        run: npx patch-package
 
       - name: TypeScript check
         run: npm run typecheck
