@@ -8,10 +8,19 @@ const RP_NAME = 'DFX Wallet';
 const PRF_SALT = 'dfx-wallet-v1';
 
 /**
- * Check if passkeys with PRF extension are supported on this device.
- * Requires iOS 18+ or Android 14+ (API 34).
+ * Check if passkeys with PRF extension are likely supported on this device.
+ *
+ * Combines two checks:
+ * 1. Passkey.isSupported() — native library check for platform authenticator capability
+ * 2. OS version gate — PRF requires iOS 18+ or Android 14+ (API 34)
+ *
+ * Note: PRF support cannot be verified without attempting a passkey operation.
+ * If the device passes both checks but PRF is unavailable at runtime,
+ * PasskeyPrfUnsupportedError is thrown and the UI redirects to the seed flow.
  */
 export function isPasskeySupported(): boolean {
+  if (!Passkey.isSupported()) return false;
+
   if (Platform.OS === 'ios') {
     const version = parseInt(Platform.Version as string, 10);
     return version >= 18;
