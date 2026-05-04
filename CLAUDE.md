@@ -1,5 +1,17 @@
 # DFX Wallet — Claude Code Guidelines
 
+## Branch Workflow — CRITICAL
+
+- Every change goes in a **feature-specific branch** with a **pull request against `develop`**. Never push directly to `develop` or `main`.
+- **Always start from the latest `develop`** before creating a new branch:
+  ```bash
+  git checkout develop && git pull origin develop
+  git checkout -b feat/your-feature   # or fix/..., docs/..., chore/...
+  ```
+- `develop` moves quickly — multiple PRs land in parallel. Treat any local `develop` older than a few minutes as stale and pull again before branching.
+- Never reuse an old branch after its PR was merged or closed — cut a fresh branch from current `develop`.
+- Build **on top of** existing changes in `develop`. If your work overlaps with a recent merge, rebase onto the new `develop` rather than working around it.
+
 ## Build & Run
 
 ```bash
