@@ -63,7 +63,9 @@
     "title": "Rechtliche Informationen"
   },
   "onboarding": {
+    "createError": "Wallet konnte nicht erstellt werden. Bitte erneut versuchen.",
     "createWallet": "Wallet erstellen",
+    "restoreError": "Wallet konnte nicht wiederhergestellt werden. Bitte erneut versuchen.",
     "restoreWallet": "Wallet wiederherstellen",
     "subtitle": "Kaufe und verkaufe Krypto direkt mit deiner Wallet",
     "title": "Willkommen bei DFX",

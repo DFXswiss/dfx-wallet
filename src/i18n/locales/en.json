@@ -63,7 +63,9 @@
     "title": "Legal Information"
   },
   "onboarding": {
+    "createError": "Could not create wallet. Please try again.",
     "createWallet": "Create Wallet",
+    "restoreError": "Could not restore wallet. Please try again.",
     "restoreWallet": "Restore Wallet",
     "subtitle": "Buy and sell crypto directly with your wallet",
     "title": "Welcome to DFX",
