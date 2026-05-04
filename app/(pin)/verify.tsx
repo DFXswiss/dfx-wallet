@@ -16,11 +16,15 @@ export default function VerifyPinScreen() {
   const [attempts, setAttempts] = useState(0);
 
   const tryBiometric = useCallback(async () => {
-    const success = await authenticateBiometric();
-    if (success) {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setAuthenticated(true);
-      router.replace('/(auth)/(tabs)/dashboard');
+    try {
+      const success = await authenticateBiometric();
+      if (success) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setAuthenticated(true);
+        router.replace('/(auth)/(tabs)/dashboard');
+      }
+    } catch (err) {
+      console.warn('verify: biometric authentication failed', err);
     }
   }, [authenticateBiometric, setAuthenticated, router]);
 
@@ -51,7 +55,8 @@ export default function VerifyPinScreen() {
         router.replace('/(auth)/(tabs)/dashboard');
         return;
       }
-    } catch {
+    } catch (err) {
+      console.warn('verify: PIN verification threw', err);
       // Fall through to the error path so the user sees the same UI feedback
       // as a wrong PIN; the alternative would be a silent crash.
     }
