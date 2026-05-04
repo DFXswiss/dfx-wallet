@@ -77,6 +77,7 @@
     "incorrect": "Incorrect PIN.",
     "mismatch": "PINs do not match.",
     "remainingAttempts": "{{count}} attempts remaining.",
+    "saveError": "Could not save PIN. Please try again.",
     "tooMany": "Too many failed attempts. Please restart the app."
   },
   "receive": {
