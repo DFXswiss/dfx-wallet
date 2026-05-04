@@ -63,8 +63,10 @@
     "title": "Legal Information"
   },
   "onboarding": {
+    "createError": "Could not create wallet. Please try again.",
     "createPasskey": "Create with Passkey",
     "createWallet": "Create with Seed Phrase",
+    "restoreError": "Could not restore wallet. Please try again.",
     "restorePasskey": "From Passkey",
     "restoreSeed": "From Seed Phrase",
     "restoreWallet": "Restore Wallet",

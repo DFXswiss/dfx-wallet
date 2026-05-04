@@ -63,8 +63,10 @@
     "title": "Rechtliche Informationen"
   },
   "onboarding": {
+    "createError": "Wallet konnte nicht erstellt werden. Bitte erneut versuchen.",
     "createPasskey": "Mit Passkey erstellen",
     "createWallet": "Mit Seed Phrase erstellen",
+    "restoreError": "Wallet konnte nicht wiederhergestellt werden. Bitte erneut versuchen.",
     "restorePasskey": "Mit Passkey",
     "restoreSeed": "Mit Seed Phrase",
     "restoreWallet": "Wallet wiederherstellen",

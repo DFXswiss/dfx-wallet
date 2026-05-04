@@ -16,6 +16,8 @@ export default function CreateWalletScreen() {
   const [seedWords] = useState(() => generateSeedPhrase(12));
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleReveal = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -32,11 +34,19 @@ export default function CreateWalletScreen() {
   const { createWallet } = useWallet();
 
   const handleContinue = async () => {
-    const seed = wordsToSeed(seedWords);
-    await secureStorage.set(StorageKeys.ENCRYPTED_SEED, seed);
-    // Create WDK wallet with the generated mnemonic
-    await createWallet({ name: 'DFX Wallet', mnemonic: seed });
-    router.push('/(onboarding)/setup-pin');
+    setIsCreating(true);
+    setError(null);
+    try {
+      const seed = wordsToSeed(seedWords);
+      await secureStorage.set(StorageKeys.ENCRYPTED_SEED, seed);
+      await createWallet({ name: 'DFX Wallet', mnemonic: seed });
+      router.push('/(onboarding)/setup-pin');
+    } catch {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(t('onboarding.createError'));
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -69,9 +79,16 @@ export default function CreateWalletScreen() {
           </>
         )}
 
+        {error && <Text style={styles.error}>{error}</Text>}
+
         <View style={styles.spacer} />
 
-        <PrimaryButton title={t('common.continue')} onPress={handleContinue} disabled={!revealed} />
+        <PrimaryButton
+          title={t('common.continue')}
+          onPress={handleContinue}
+          disabled={!revealed}
+          loading={isCreating}
+        />
       </View>
     </ScreenContainer>
   );
@@ -138,6 +155,10 @@ const styles = StyleSheet.create({
   copyText: {
     ...Typography.bodySmall,
     color: DfxColors.primary,
+  },
+  error: {
+    ...Typography.bodyMedium,
+    color: DfxColors.error,
   },
   spacer: {
     flex: 1,

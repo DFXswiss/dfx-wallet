@@ -15,6 +15,7 @@ export default function RestoreWalletScreen() {
   const { t } = useTranslation();
   const [seedPhrase, setSeedPhrase] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   const words = seedToWords(seedPhrase);
   const isValid = validateSeedPhrase(words);
@@ -27,11 +28,20 @@ export default function RestoreWalletScreen() {
       return;
     }
 
-    const seed = wordsToSeed(words);
-    await secureStorage.set(StorageKeys.ENCRYPTED_SEED, seed);
-    await createWallet({ name: 'DFX Wallet', mnemonic: seed });
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.push('/(onboarding)/setup-pin');
+    setIsRestoring(true);
+    setError(null);
+    try {
+      const seed = wordsToSeed(words);
+      await secureStorage.set(StorageKeys.ENCRYPTED_SEED, seed);
+      await createWallet({ name: 'DFX Wallet', mnemonic: seed });
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.push('/(onboarding)/setup-pin');
+    } catch {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(t('onboarding.restoreError'));
+    } finally {
+      setIsRestoring(false);
+    }
   };
 
   return (
@@ -66,7 +76,12 @@ export default function RestoreWalletScreen() {
 
         <View style={styles.spacer} />
 
-        <PrimaryButton title={t('common.continue')} onPress={handleContinue} disabled={!isValid} />
+        <PrimaryButton
+          title={t('common.continue')}
+          onPress={handleContinue}
+          disabled={!isValid}
+          loading={isRestoring}
+        />
       </View>
     </ScreenContainer>
   );
