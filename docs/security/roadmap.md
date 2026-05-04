@@ -71,10 +71,39 @@ makes later phases possible. None of it requires design or product input.
 
 ### P0.6 — Branch protection
 
-- [ ] `develop` and `main`: require PR + green CI + ≥1 approval, no force
-      push, signed commits encouraged.
-- **Acceptance**: settings recorded in repo `README.md` or here; tested by
-  attempting a direct push.
+Configured as repository rulesets (the modern UI), not classic branch
+protection — the older API endpoint will report both branches as
+"unprotected" but the rulesets are active.
+
+The asymmetry between `develop` and `main` is deliberate: we want low
+friction merging into develop so PRs do not pile up and spawn merge
+conflicts with each other; the integration testing happens on develop
+itself. The approval gate sits in front of the develop → main release
+PR, where it actually matters.
+
+- [x] **`develop`** ruleset (`refs/heads/develop`):
+  - `pull_request` with `required_approving_review_count: 0` —
+    deliberately no approval needed, optimised for "merge fast, test
+    on develop". Squash-merge only.
+  - `required_status_checks`: `typecheck`, `lint`, `format`, `test`,
+    `Analyze (javascript-typescript)`. `audit` deliberately not
+    required (it's `continue-on-error`).
+  - `non_fast_forward` (no force push).
+  - `deletion` blocked.
+  - `current_user_can_bypass: never` (admins can't bypass).
+- [x] **`main`** ruleset (`refs/heads/main`):
+  - `pull_request` with `required_approving_review_count: 2` — this
+    is where the human review gate sits, before anything reaches
+    release.
+  - Plain merge commits (no squash) — preserves develop's commit
+    history on release.
+  - Same required status checks as develop.
+  - `non_fast_forward`, `deletion` blocked, no admin bypass.
+- [ ] Signed commits — roadmap says "encouraged", left as opt-in for
+      now. Flip to required once everyone has GPG / SSH signing
+      configured.
+- **Acceptance**: settings recorded here; tested by attempting a direct
+  push to `develop` (rejected with "protected branch").
 
 ### P0.7 — `SECURITY.md`
 
