@@ -48,7 +48,7 @@ export default function SupportScreen() {
   }, []);
 
   useEffect(() => {
-    loadIssues();
+    void loadIssues();
   }, [loadIssues]);
 
   const handleCreate = async () => {
@@ -56,7 +56,7 @@ export default function SupportScreen() {
     setIsLoading(true);
     try {
       await dfxSupportService.createIssue(subject, message);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setSubject('');
       setMessage('');
       setView('list');

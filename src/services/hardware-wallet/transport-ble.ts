@@ -126,11 +126,11 @@ export async function scanBleDevices(): Promise<HardwareWalletDevice[]> {
   return new Promise((resolve) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _timeout = setTimeout(() => {
-      manager.stopDeviceScan();
+      void manager.stopDeviceScan();
       resolve(found);
     }, SCAN_TIMEOUT_MS);
 
-    manager.startDeviceScan(
+    void manager.startDeviceScan(
       [BITBOX_NOVA_SERVICE_UUID],
       { allowDuplicates: false },
       (error, device) => {

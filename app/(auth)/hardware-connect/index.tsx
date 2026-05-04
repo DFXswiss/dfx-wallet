@@ -55,7 +55,7 @@ export default function HardwareConnectScreen() {
 
   useEffect(() => {
     return () => {
-      provider.disconnect();
+      void provider.disconnect();
     };
   }, []);
 
@@ -157,7 +157,7 @@ export default function HardwareConnectScreen() {
               title="Cancel"
               variant="outlined"
               onPress={() => {
-                provider.disconnect();
+                void provider.disconnect();
                 reset();
               }}
             />

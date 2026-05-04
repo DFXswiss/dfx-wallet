@@ -50,7 +50,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   setOnboarded: (value) => {
-    secureStorage.set(StorageKeys.IS_ONBOARDED, String(value));
+    void secureStorage.set(StorageKeys.IS_ONBOARDED, String(value));
     set({ isOnboarded: value });
   },
 

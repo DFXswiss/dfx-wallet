@@ -34,7 +34,7 @@ export default function SendScreen() {
   const handleSend = async () => {
     const hash = await send({ chain: selectedChain, to: recipient, amount });
     if (hash) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStep('success');
     }
   };

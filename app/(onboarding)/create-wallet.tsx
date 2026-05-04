@@ -18,14 +18,14 @@ export default function CreateWalletScreen() {
   const [copied, setCopied] = useState(false);
 
   const handleReveal = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setRevealed(true);
   };
 
   const handleCopy = async () => {
     await Clipboard.setStringAsync(wordsToSeed(seedWords));
     setCopied(true);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTimeout(() => setCopied(false), 2000);
   };
 

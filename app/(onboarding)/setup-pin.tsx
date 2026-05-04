@@ -26,10 +26,10 @@ export default function SetupPinScreen() {
         setPinValue('');
         setStep('confirm');
       } else if (newPin === firstPin) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        completeSetup(newPin);
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        void completeSetup(newPin);
       } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         setError(true);
         setPinValue('');
       }

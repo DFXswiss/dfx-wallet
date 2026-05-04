@@ -43,7 +43,7 @@ export default function TransactionHistoryScreen() {
   }, []);
 
   useEffect(() => {
-    loadTransactions();
+    void loadTransactions();
   }, [loadTransactions]);
 
   const filtered =

@@ -48,7 +48,7 @@ export default function VerifySeedScreen() {
     setError(false);
 
     if (word === correctWord) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (currentStep < VERIFY_COUNT - 1) {
         setTimeout(() => {
           setCurrentStep((s) => s + 1);
@@ -56,7 +56,7 @@ export default function VerifySeedScreen() {
         }, 500);
       }
     } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(true);
       setTimeout(() => {
         setSelectedWord(null);

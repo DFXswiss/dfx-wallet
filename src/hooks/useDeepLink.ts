@@ -49,7 +49,7 @@ export function useDeepLink() {
     const subscription = Linking.addEventListener('url', handleUrl);
 
     // Handle initial URL (app opened via deep link)
-    Linking.getInitialURL().then((url) => {
+    void Linking.getInitialURL().then((url) => {
       if (url) handleUrl({ url });
     });
 

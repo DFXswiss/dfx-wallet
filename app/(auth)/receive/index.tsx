@@ -29,7 +29,7 @@ export default function ReceiveScreen() {
   const handleCopy = async () => {
     if (!address) return;
     await Clipboard.setStringAsync(address);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
