@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useWallet } from '@tetherto/wdk-react-native-provider';
 import { ScreenContainer } from '@/components';
+import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
@@ -18,24 +20,30 @@ export default function SettingsScreen() {
   const { t } = useTranslation();
   const { reset } = useAuthStore();
   const { clearWallet } = useWallet();
+  const [walletOrigin, setWalletOrigin] = useState<string | null>(null);
+
+  useEffect(() => {
+    secureStorage.get(StorageKeys.WALLET_ORIGIN).then(setWalletOrigin);
+  }, []);
 
   const handleDeleteWallet = () => {
-    Alert.alert(
-      'Delete Wallet',
-      'This will permanently remove your wallet from this device. Make sure you have backed up your seed phrase.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await clearWallet();
-            await reset();
-            router.replace('/');
-          },
+    const isPasskey = walletOrigin === 'passkey';
+    const message = isPasskey
+      ? t('settings.deleteWalletConfirmPasskey')
+      : t('settings.deleteWalletConfirm');
+
+    Alert.alert(t('settings.deleteWallet'), message, [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('settings.deleteWallet'),
+        style: 'destructive',
+        onPress: async () => {
+          await clearWallet();
+          await reset();
+          router.replace('/');
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const items: SettingsItem[] = [
