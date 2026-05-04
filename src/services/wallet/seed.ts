@@ -4,7 +4,7 @@ import { generateMnemonic, validateMnemonic } from 'bip39';
  * Generate a new BIP-39 seed phrase using real cryptographic randomness.
  * @param wordCount 12 or 24 words
  */
-export function generateSeedPhrase(wordCount: 12 | 24 = 24): string[] {
+export function generateSeedPhrase(wordCount: 12 | 24 = 12): string[] {
   const strength = wordCount === 12 ? 128 : 256;
   const mnemonic = generateMnemonic(strength);
   return mnemonic.split(' ');

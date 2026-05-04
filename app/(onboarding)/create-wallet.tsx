@@ -13,7 +13,7 @@ import { DfxColors, Typography } from '@/theme';
 export default function CreateWalletScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const [seedWords] = useState(() => generateSeedPhrase(24));
+  const [seedWords] = useState(() => generateSeedPhrase(12));
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
 

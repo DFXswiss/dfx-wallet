@@ -7,9 +7,9 @@ import {
 
 describe('Seed utilities', () => {
   describe('generateSeedPhrase', () => {
-    it('should generate 24 words by default', () => {
+    it('should generate 12 words by default', () => {
       const words = generateSeedPhrase();
-      expect(words).toHaveLength(24);
+      expect(words).toHaveLength(12);
     });
 
     it('should generate 12 words when specified', () => {
