@@ -105,4 +105,21 @@ Current flows:
 
 ## CI
 
-`.github/workflows/maestro-e2e.yml` runs the full suite on iOS Simulator and Android Emulator. Currently triggered manually via `workflow_dispatch`; auto-trigger on PR is intentionally disabled until the suite covers enough flows to justify the runtime.
+`.github/workflows/maestro-e2e.yml` runs the full suite on iOS Simulator and Android Emulator.
+
+Triggers:
+
+- `pull_request` against `develop` — non-draft PRs only, skipped on doc-only changes (`paths-ignore: '**/*.md', 'docs/**'`). Marking a draft PR as ready-for-review fires the workflow.
+- `workflow_dispatch` — manual run for any branch.
+
+Concurrent runs on the same PR cancel each other (`concurrency: cancel-in-progress: true`), so rebases don't pile up macOS minutes.
+
+Required repo configuration before the workflow can produce a meaningful build:
+
+| Name | Type | Purpose |
+| --- | --- | --- |
+| `E2E_DFX_API_URL` | repo variable | DFX API testnet endpoint |
+| `E2E_WDK_INDEXER_URL` | repo variable | WDK indexer endpoint |
+| `E2E_WDK_INDEXER_API_KEY` | repo secret | WDK indexer API key |
+
+If these aren't set, the build still runs but resolves to whatever defaults `src/config/env.ts` falls back to — flow results are then unreliable.
