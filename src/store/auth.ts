@@ -94,6 +94,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       secureStorage.remove(StorageKeys.DFX_AUTH_TOKEN),
       secureStorage.remove(StorageKeys.WALLET_ORIGIN),
       secureStorage.remove(StorageKeys.PASSKEY_CREDENTIAL_ID),
+      secureStorage.remove(StorageKeys.PASSKEY_DERIVATION_VERSION),
       secureStorage.remove(BIOMETRIC_KEY),
     ]);
     set({

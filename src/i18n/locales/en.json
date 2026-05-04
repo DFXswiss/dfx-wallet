@@ -107,6 +107,14 @@
     "title": "Receive",
     "yourAddress": "Your {{chain}} address"
   },
+  "seedExport": {
+    "deriveFailed": "Failed to derive recovery phrase from passkey. Please try again.",
+    "descriptionPasskey": "Authenticate with your passkey to reveal your recovery phrase. Write it down and store it in a safe place as a backup.",
+    "descriptionSeed": "Your recovery phrase is the only way to recover your wallet. Keep it safe and never share it.",
+    "revealPasskey": "Authenticate to reveal",
+    "revealSeed": "Tap to reveal recovery phrase",
+    "warning": "Never share your recovery phrase. Anyone with these words can access your wallet."
+  },
   "sell": {
     "bankAccount": "Bank Account",
     "confirmSale": "Confirm Sale",
