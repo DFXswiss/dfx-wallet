@@ -77,6 +77,7 @@ export default function SellScreen() {
         onPress={async () => {
           const info = await createPaymentInfo({
             amount: parseFloat(amount),
+            // eslint-disable-next-line security/detect-object-injection -- selectedChain is a ChainId literal union
             asset: CHAIN_ASSET[selectedChain],
             blockchain: selectedChain.charAt(0).toUpperCase() + selectedChain.slice(1),
             currency: 'CHF',
@@ -98,7 +99,10 @@ export default function SellScreen() {
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>You sell</Text>
           <Text style={styles.summaryValue}>
-            {paymentInfo?.amount ?? amount} {paymentInfo?.asset?.name ?? CHAIN_ASSET[selectedChain]}
+            {paymentInfo?.amount ?? amount}{' '}
+            {paymentInfo?.asset?.name ??
+              // eslint-disable-next-line security/detect-object-injection -- selectedChain is a ChainId literal union
+              CHAIN_ASSET[selectedChain]}
           </Text>
         </View>
         <View style={styles.summaryRow}>

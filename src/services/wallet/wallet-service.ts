@@ -21,12 +21,14 @@ export class WalletService {
    * Get address for a specific chain.
    */
   async getAddress(chain: ChainId): Promise<string | null> {
+    // eslint-disable-next-line security/detect-object-injection -- chain is a ChainId literal union
     const network = CHAIN_TO_NETWORK[chain];
     if (!network) return null;
 
     try {
       const enabledAssets = Object.values(AssetTicker);
       const addresses = await wdkService.resolveWalletAddresses(enabledAssets);
+      // eslint-disable-next-line security/detect-object-injection -- network is a NetworkType literal from the static map above
       return addresses[network] ?? null;
     } catch {
       return null;
@@ -38,6 +40,7 @@ export class WalletService {
    * Delegates to WDK's Bare Worklet where the private key lives.
    */
   async signMessage(chain: ChainId, message: string): Promise<string> {
+    // eslint-disable-next-line security/detect-object-injection -- chain is a ChainId literal union
     const network = CHAIN_TO_NETWORK[chain];
     if (!network) throw new Error(`Unsupported chain: ${chain}`);
 

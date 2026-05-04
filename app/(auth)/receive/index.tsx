@@ -23,7 +23,9 @@ export default function ReceiveScreen() {
   const [selectedChain, setSelectedChain] = useState<ChainId>('bitcoin');
   const [copied, setCopied] = useState(false);
 
+  // eslint-disable-next-line security/detect-object-injection -- selectedChain is a ChainId literal union
   const networkKey = CHAIN_TO_NETWORK[selectedChain];
+  // eslint-disable-next-line security/detect-object-injection -- networkKey is constrained by the static map above
   const address = (addresses as Record<string, string> | undefined)?.[networkKey] ?? '';
 
   const handleCopy = async () => {

@@ -28,6 +28,7 @@ export default function SendScreen() {
   const [amount, setAmount] = useState('');
   const [scannerVisible, setScannerVisible] = useState(false);
 
+  // eslint-disable-next-line security/detect-object-injection -- selectedChain is a ChainId literal union
   const symbol = CHAIN_SYMBOL[selectedChain];
   const isValidAddress = recipient.length >= 26;
 
