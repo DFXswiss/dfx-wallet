@@ -8,10 +8,19 @@ const RP_NAME = 'DFX Wallet';
 const PRF_SALT = 'dfx-wallet-v1';
 
 /**
- * Check if passkeys with PRF extension are supported on this device.
- * Requires iOS 18+ or Android 14+ (API 34).
+ * Check if passkeys with PRF extension are likely supported on this device.
+ *
+ * Combines two checks:
+ * 1. Passkey.isSupported() — native library check for platform authenticator capability
+ * 2. OS version gate — PRF requires iOS 18+ or Android 14+ (API 34)
+ *
+ * Note: PRF support cannot be verified without attempting a passkey operation.
+ * If the device passes both checks but PRF is unavailable at runtime,
+ * PasskeyPrfUnsupportedError is thrown and the UI redirects to the seed flow.
  */
 export function isPasskeySupported(): boolean {
+  if (!Passkey.isSupported()) return false;
+
   if (Platform.OS === 'ios') {
     const version = parseInt(Platform.Version as string, 10);
     return version >= 18;
@@ -22,12 +31,17 @@ export function isPasskeySupported(): boolean {
   return false;
 }
 
+let cachedPrfSalt: Uint8Array | null = null;
+
 /**
  * Compute the PRF salt as a Uint8Array from the static salt string.
+ * Result is cached since SHA-256 of a constant is deterministic.
  */
 async function getPrfSalt(): Promise<Uint8Array> {
+  if (cachedPrfSalt) return cachedPrfSalt;
   const hashHex = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, PRF_SALT);
-  return new Uint8Array(hashHex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
+  cachedPrfSalt = new Uint8Array(hashHex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
+  return cachedPrfSalt;
 }
 
 /**
@@ -93,11 +107,14 @@ export async function createPasskey(): Promise<{ prfOutput: Uint8Array; credenti
     },
     user: {
       id: userId,
-      name: RP_NAME,
+      name: `wallet-${userId}`,
       displayName: RP_NAME,
     },
     challenge,
-    pubKeyCredParams: [{ alg: -7, type: 'public-key' }],
+    pubKeyCredParams: [
+      { alg: -7, type: 'public-key' },
+      { alg: -257, type: 'public-key' },
+    ],
     authenticatorSelection: {
       residentKey: 'required',
       userVerification: 'required',
