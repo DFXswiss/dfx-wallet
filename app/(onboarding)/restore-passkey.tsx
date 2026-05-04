@@ -8,6 +8,7 @@ import { ScreenContainer, PrimaryButton } from '@/components';
 import {
   authenticatePasskey,
   deriveMnemonicFromPrf,
+  DERIVATION_VERSION,
   PasskeyPrfUnsupportedError,
 } from '@/services/passkey';
 import { secureStorage, StorageKeys } from '@/services/storage';
@@ -25,9 +26,9 @@ export default function RestorePasskeyScreen() {
       const { prfOutput, credentialId } = await authenticatePasskey();
       const mnemonic = deriveMnemonicFromPrf(prfOutput);
 
-      await secureStorage.set(StorageKeys.ENCRYPTED_SEED, mnemonic);
       await secureStorage.set(StorageKeys.WALLET_ORIGIN, 'passkey');
       await secureStorage.set(StorageKeys.PASSKEY_CREDENTIAL_ID, credentialId);
+      await secureStorage.set(StorageKeys.PASSKEY_DERIVATION_VERSION, String(DERIVATION_VERSION));
       await createWallet({ name: 'DFX Wallet', mnemonic });
 
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

@@ -34,4 +34,5 @@ export const StorageKeys = {
   DFX_AUTH_TOKEN: 'dfxAuthToken',
   WALLET_ORIGIN: 'walletOrigin',
   PASSKEY_CREDENTIAL_ID: 'passkeyCredentialId',
+  PASSKEY_DERIVATION_VERSION: 'passkeyDerivationVersion',
 } as const;
