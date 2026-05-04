@@ -67,31 +67,31 @@ We design against, in increasing capability:
 `✓` = in place. `~` = partial. `✗` = not yet. See `roadmap.md` for the path
 from `~`/`✗` to `✓`.
 
-| Mitigation                                                                       | Status     |
-| -------------------------------------------------------------------------------- | ---------- |
-| Strict TypeScript                                                                | ✓          |
-| Lint guardrails (`no-floating-promises`, `security`, `no-secrets`, `no-console`) | ✓ (PR #12) |
-| Seed/PIN in `expo-secure-store` only, never MMKV                                 | ✓          |
-| PIN bruteforce backoff + wipe-after-N                                            | ✗          |
-| Biometric re-auth before signing operations                                      | ✗          |
-| Screen-capture / FLAG_SECURE on seed, PIN, balance                               | ✗          |
-| App-backgrounding blur on sensitive screens                                      | ✗          |
-| Clipboard auto-clear after copy of address / mnemonic                            | ✗          |
-| Deep-link strict allowlist + signed Universal Links for KYC                      | ✗          |
-| WebView hardening (originWhitelist, no file access, no injectedJS leakage)       | ✗          |
-| BitBox Noise pubkey pinning after first pairing                                  | ✗          |
-| Hardware-display ↔ UI parity check before signing                                | ~          |
-| TLS only + certificate pinning for `api.dfx.swiss`                               | ✗          |
-| Pricing: never serve stale/swapped values, fail loud                             | ~          |
-| Jailbreak / root detection (warn, not block)                                     | ✗          |
-| `npm audit` + automated supply-chain scanning in CI                              | ~          |
-| Pinned GitHub Action SHAs + minimal `permissions:`                               | ✓          |
-| Signed builds, reproducible builds, SBOM                                         | ✗          |
-| Force-update / kill-switch via API min-version check                             | ✗          |
-| Crash reporting with PII filter (`beforeSend`)                                   | ✗          |
-| `SECURITY.md` + responsible disclosure policy                                    | ✓ (PR #22) |
-| External security audit                                                          | ✗          |
-| Bug bounty program                                                               | ✗          |
+| Mitigation                                                                                               | Status     |
+| -------------------------------------------------------------------------------------------------------- | ---------- |
+| Strict TypeScript (incl. `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`) | ✓          |
+| Lint guardrails (`no-floating-promises`, `security`, `no-secrets`, `no-console`)                         | ✓ (PR #12) |
+| Seed/PIN in `expo-secure-store` only, never MMKV                                                         | ✓          |
+| PIN bruteforce backoff + wipe-after-N                                                                    | ✗          |
+| Biometric re-auth before signing operations                                                              | ✗          |
+| Screen-capture / FLAG_SECURE on seed, PIN, balance                                                       | ✗          |
+| App-backgrounding blur on sensitive screens                                                              | ✗          |
+| Clipboard auto-clear after copy of address / mnemonic                                                    | ✗          |
+| Deep-link strict allowlist + signed Universal Links for KYC                                              | ✗          |
+| WebView hardening (originWhitelist, no file access, no injectedJS leakage)                               | ✗          |
+| BitBox Noise pubkey pinning after first pairing                                                          | ✗          |
+| Hardware-display ↔ UI parity check before signing                                                        | ~          |
+| TLS only + certificate pinning for `api.dfx.swiss`                                                       | ✗          |
+| Pricing: never serve stale/swapped values, fail loud                                                     | ~          |
+| Jailbreak / root detection (warn, not block)                                                             | ✗          |
+| `npm audit` + automated supply-chain scanning in CI                                                      | ~          |
+| Pinned GitHub Action SHAs + minimal `permissions:`                                                       | ✓          |
+| Signed builds, reproducible builds, SBOM                                                                 | ✗          |
+| Force-update / kill-switch via API min-version check                                                     | ✗          |
+| Crash reporting with PII filter (`beforeSend`)                                                           | ✗          |
+| `SECURITY.md` + responsible disclosure policy                                                            | ✓ (PR #22) |
+| External security audit                                                                                  | ✗          |
+| Bug bounty program                                                                                       | ✗          |
 
 ## 5. Trust boundaries
 

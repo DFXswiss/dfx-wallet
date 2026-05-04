@@ -61,7 +61,7 @@ class DfxApi {
     return fetch(url, {
       method,
       headers: this.getHeaders(),
-      body: body ? JSON.stringify(body) : undefined,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
   }
 

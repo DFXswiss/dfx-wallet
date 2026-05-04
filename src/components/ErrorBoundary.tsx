@@ -6,13 +6,13 @@ type Props = { children: ReactNode };
 type State = { hasError: boolean; error: Error | null };
 
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false, error: null };
+  override state: State = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
-  componentDidCatch(_error: Error, _info: ErrorInfo) {
+  override componentDidCatch(_error: Error, _info: ErrorInfo) {
     // TODO: Report to crash analytics
   }
 
@@ -20,7 +20,7 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({ hasError: false, error: null });
   };
 
-  render() {
+  override render() {
     if (this.state.hasError) {
       return (
         <View style={styles.container}>
