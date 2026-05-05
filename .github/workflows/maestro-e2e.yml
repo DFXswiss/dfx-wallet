@@ -90,17 +90,36 @@ jobs:
 
       - name: Run flows on Maestro Cloud (iOS + Android in parallel)
         env:
-          MAESTRO_CLOUD_API_KEY: ${{ secrets.MAESTRO_CLOUD_API_KEY }}
-          MAESTRO_CLOUD_PROJECT_ID: ${{ vars.MAESTRO_CLOUD_PROJECT_ID }}
+          API_KEY: ${{ secrets.MAESTRO_CLOUD_API_KEY }}
+          PROJECT_ID: ${{ vars.MAESTRO_CLOUD_PROJECT_ID }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          COMMIT_SHA: ${{ github.sha }}
+          PR: ${{ github.event.pull_request.number || 'manual' }}
         run: |
-          set -euo pipefail
-          maestro cloud --api-key "$MAESTRO_CLOUD_API_KEY" --project-id "$MAESTRO_CLOUD_PROJECT_ID" --async artifacts/ios-app.tar.gz .maestro/ > ios-cloud.txt &
+          maestro cloud \
+            --api-key "$API_KEY" --project-id "$PROJECT_ID" \
+            --app-file artifacts/ios-app.tar.gz --flows .maestro/ \
+            --branch "$BRANCH" --commit-sha "$COMMIT_SHA" \
+            --name "iOS PR-$PR" > ios-cloud.txt 2>&1 &
           IOS_PID=$!
-          maestro cloud --api-key "$MAESTRO_CLOUD_API_KEY" --project-id "$MAESTRO_CLOUD_PROJECT_ID" --async artifacts/android-app.apk .maestro/ > android-cloud.txt &
+          maestro cloud \
+            --api-key "$API_KEY" --project-id "$PROJECT_ID" \
+            --app-file artifacts/android-app.apk --flows .maestro/ \
+            --branch "$BRANCH" --commit-sha "$COMMIT_SHA" \
+            --name "Android PR-$PR" > android-cloud.txt 2>&1 &
           ANDROID_PID=$!
-          wait $IOS_PID
-          wait $ANDROID_PID
-          cat ios-cloud.txt android-cloud.txt
+          ios_status=0
+          android_status=0
+          wait $IOS_PID || ios_status=$?
+          wait $ANDROID_PID || android_status=$?
+          echo "===== iOS ====="
+          cat ios-cloud.txt
+          echo "===== Android ====="
+          cat android-cloud.txt
+          if [ $ios_status -ne 0 ] || [ $android_status -ne 0 ]; then
+            echo "Maestro Cloud failed — iOS=$ios_status Android=$android_status"
+            exit 1
+          fi
 
       - name: Upload build & Maestro logs
         if: always()
