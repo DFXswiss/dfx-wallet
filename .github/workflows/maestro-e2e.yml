@@ -91,11 +91,12 @@ jobs:
       - name: Run flows on Maestro Cloud (iOS + Android in parallel)
         env:
           MAESTRO_CLOUD_API_KEY: ${{ secrets.MAESTRO_CLOUD_API_KEY }}
+          MAESTRO_CLOUD_PROJECT_ID: ${{ vars.MAESTRO_CLOUD_PROJECT_ID }}
         run: |
           set -euo pipefail
-          maestro cloud --api-key "$MAESTRO_CLOUD_API_KEY" --async artifacts/ios-app.tar.gz .maestro/ > ios-cloud.txt &
+          maestro cloud --api-key "$MAESTRO_CLOUD_API_KEY" --project-id "$MAESTRO_CLOUD_PROJECT_ID" --async artifacts/ios-app.tar.gz .maestro/ > ios-cloud.txt &
           IOS_PID=$!
-          maestro cloud --api-key "$MAESTRO_CLOUD_API_KEY" --async artifacts/android-app.apk .maestro/ > android-cloud.txt &
+          maestro cloud --api-key "$MAESTRO_CLOUD_API_KEY" --project-id "$MAESTRO_CLOUD_PROJECT_ID" --async artifacts/android-app.apk .maestro/ > android-cloud.txt &
           ANDROID_PID=$!
           wait $IOS_PID
           wait $ANDROID_PID
