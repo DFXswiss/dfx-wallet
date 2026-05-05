@@ -51,9 +51,10 @@ maestro studio
 Flows target a Testnet build of the app. The relevant environment variables are read by `src/config/env.ts` and `src/config/chains.ts` and must be set at **build time** (not at Maestro runtime — they are baked into the JS bundle):
 
 ```bash
-EXPO_PUBLIC_DFX_API_URL=...        # DFX API testnet endpoint
-EXPO_PUBLIC_WDK_INDEXER_URL=...    # WDK indexer endpoint
-EXPO_PUBLIC_ETH_RPC_URL=...        # ETH testnet RPC
+EXPO_PUBLIC_DFX_API_URL=...                # DFX API testnet endpoint
+EXPO_PUBLIC_WDK_INDEXER_BASE_URL=...       # WDK indexer base URL
+EXPO_PUBLIC_WDK_INDEXER_API_KEY=...        # WDK indexer API key (CI secret)
+EXPO_PUBLIC_ETH_RPC_URL=...                # ETH testnet RPC
 # ... see src/config/chains.ts for the full list
 ```
 

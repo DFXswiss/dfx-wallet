@@ -16,7 +16,7 @@ plan a WDK upgrade.
 | 3. Replace manual signing with `useAccount().send()` | ✅ done | `useSendFlow` now uses `useAccount` per chain |
 | 4. Migrate `useWalletManager` / `useWdkApp` callers | ✅ done | `restoreWallet`, `unlock`, `state.status` machine |
 | 5. Drop `bare-pack@1` preinstall workaround | ✅ done | `pear-wrk-wdk@1.0.0-beta.8` ships its bundle pre-built |
-| 6. Add indexer env vars (or document skip) | ⏳ pending | `EXPO_PUBLIC_WDK_INDEXER_*` still unset |
+| 6. Add indexer env vars (or document skip) | ✅ done | Canonical names (`EXPO_PUBLIC_WDK_INDEXER_BASE_URL` / `EXPO_PUBLIC_WDK_INDEXER_API_KEY`) wired through `src/config/env.ts`; thin REST client at `src/services/wdk-indexer/`. **Not** wired into `WdkAppProvider` — the new `wdk-react-native-core` does not accept indexer config in the provider (see [Note: indexer is not a provider concern](#note-indexer-is-not-a-provider-concern)). |
 
 ## TL;DR
 
@@ -137,19 +137,47 @@ Usage in `src/services/pricing-service.ts` is consistent with the
 
 `34` in `app.json`, well above the docs' required `29`.
 
-### 8. Indexer API env vars — missing
+### 8. Indexer API env vars — wired
 
 The [React Native Quickstart](https://docs.wdk.tether.io/start-building/react-native-quickstart)
-requires:
+documents:
 
 ```
 EXPO_PUBLIC_WDK_INDEXER_BASE_URL=https://wdk-api.tether.io
 EXPO_PUBLIC_WDK_INDEXER_API_KEY=<key>
 ```
 
-These are **not set** anywhere in the repo. Balance reads currently work
-because `useBalancesForWallet` uses RPC directly — but transaction history
-and indexed balance features are unavailable until we configure these.
+These names now flow through `src/config/env.ts` and are consumed by a
+typed REST client at `src/services/wdk-indexer/` (see the section below).
+Balance reads still go via RPC by default; the indexer is opt-in.
+
+#### Note: indexer is not a provider concern
+
+The new `@tetherto/wdk-react-native-core@^1.0.0-beta.9` API surface
+(`WdkAppProvider`, `useAccount`, `useBalancesForWallet`, …) does not
+accept an indexer configuration — that was a feature of the **legacy**
+`@tetherto/wdk-react-native-provider`'s `WalletProvider.config.indexer`
+slot, which is what the public `wdk-starter-react-native` repo still
+uses. Greping `node_modules/@tetherto` after the migration shows no
+package consuming `WDK_INDEXER` env vars; the published
+`@tetherto/wdk-indexer-http` SDK is GitHub-only.
+
+The pragmatic shape is therefore:
+
+- `src/config/env.ts` — exposes `wdkIndexerBaseUrl` / `wdkIndexerApiKey`
+  with a default for the URL and an empty default for the key
+- `src/services/wdk-indexer/config.ts` — `getIndexerConfig()` returns
+  `{ baseUrl, apiKey } | null` (null when the API key is empty), so
+  callers must treat the indexer as optional infra, not required
+- `src/services/wdk-indexer/client.ts` — `WdkIndexerClient` covers the
+  two endpoints we'd need first (`/api/v1/{chain}/{token}/{address}/{token-balances|token-transfers}`)
+- `src/services/wdk-indexer/network-mapping.ts` — `ChainId` ↔ indexer
+  blockchain slug
+
+Nothing in the app currently calls the client. When/if we add an
+on-chain transfer history screen (today's transaction history reads
+from the DFX API, not the chain), the consumer plugs into this module
+instead of writing it from scratch.
 
 ### 9. `bare-pack@1` workaround
 
@@ -181,7 +209,9 @@ In commit-sized chunks, ordered for minimum risk:
 5. Remove the `bare-pack@1` preinstall workaround once the bundler
    replaces `pear-wrk-wdk`'s postinstall.
 6. Add the indexer env vars (or document that we intentionally skip
-   indexer features for now).
+   indexer features for now). **Done** — wired the env-var contract
+   and a typed REST client; left unconsumed because no UI needs it
+   yet.
 
 Each step is independently shippable and worth its own ticket.
 
