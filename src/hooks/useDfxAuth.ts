@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { useWallet, useWalletManager } from '@tetherto/wdk-react-native-core';
+import { useAccount } from '@tetherto/wdk-react-native-core';
 import { dfxAuthService } from '@/services/dfx';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
@@ -14,16 +14,13 @@ import { useAuthStore } from '@/store';
  * 4. POST /v1/auth -> exchange signature for JWT
  */
 export function useDfxAuth() {
-  const { wallets, activeWalletId } = useWalletManager();
-  const currentWalletId = activeWalletId || wallets[0]?.identifier || 'default';
-  const { addresses, callAccountMethod } = useWallet({ walletId: currentWalletId });
+  const { address, sign } = useAccount({ network: 'ethereum', accountIndex: 0 });
   const { setDfxAuthenticated } = useAuthStore();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const authenticate = useCallback(async () => {
-    const ethAddress = addresses['ethereum']?.[0];
-    if (!ethAddress) {
+    if (!address) {
       setError('No Ethereum address available. Create a wallet first.');
       return null;
     }
@@ -33,8 +30,14 @@ export function useDfxAuth() {
 
     try {
       const token = await dfxAuthService.login(
-        ethAddress,
-        async (message) => callAccountMethod<string>('ethereum', 0, 'sign', message),
+        address,
+        async (message) => {
+          const result = await sign(message);
+          if (!result.success) {
+            throw new Error(result.error ?? 'Failed to sign message');
+          }
+          return result.signature;
+        },
         { wallet: 'DFX Wallet', blockchain: 'Ethereum' },
       );
 
@@ -48,7 +51,7 @@ export function useDfxAuth() {
     } finally {
       setIsAuthenticating(false);
     }
-  }, [addresses, callAccountMethod, setDfxAuthenticated]);
+  }, [address, sign, setDfxAuthenticated]);
 
   const logout = useCallback(async () => {
     dfxAuthService.logout();

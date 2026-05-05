@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useBalancesForWallet, useWalletManager } from '@tetherto/wdk-react-native-core';
+import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { ActionBar, AssetListItem, BalanceCard, ScreenContainer } from '@/components';
-import { getTokenConfigs } from '@/config/tokens';
+import { getAssets } from '@/config/tokens';
 import { useDfxAuth } from '@/hooks';
 import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
@@ -39,12 +39,8 @@ export default function DashboardScreen() {
   const { isDfxAuthenticated } = useAuthStore();
   const { authenticate, isAuthenticating } = useDfxAuth();
 
-  const { wallets, activeWalletId } = useWalletManager();
-  const currentWalletId = activeWalletId || wallets[0]?.identifier || 'default';
-  const tokenConfigs = useMemo(() => getTokenConfigs(), []);
-  const { data: balanceResults } = useBalancesForWallet(0, tokenConfigs, {
-    walletId: currentWalletId,
-  });
+  const assetConfigs = useMemo(() => getAssets(), []);
+  const { data: balanceResults } = useBalancesForWallet(0, assetConfigs);
 
   const assets = useMemo<AggregatedAsset[]>(() => {
     if (!balanceResults) return [];
@@ -52,27 +48,19 @@ export default function DashboardScreen() {
     return balanceResults
       .filter((r) => r.success && r.balance && r.balance !== '0')
       .map((result) => {
-        const networkTokens = tokenConfigs[result.network];
-        if (!networkTokens) return null;
-
-        const tokenInfo =
-          result.tokenAddress === null
-            ? networkTokens.native
-            : networkTokens.tokens.find(
-                (token) => token.address?.toLowerCase() === result.tokenAddress?.toLowerCase(),
-              );
-        if (!tokenInfo) return null;
+        const asset = assetConfigs.find((a) => a.getId() === result.assetId);
+        if (!asset) return null;
 
         return {
-          symbol: tokenInfo.symbol,
-          name: tokenInfo.name,
-          chain: result.network,
-          balance: formatBalance(result.balance ?? '0', tokenInfo.decimals),
+          symbol: asset.getSymbol(),
+          name: asset.getName(),
+          chain: asset.getNetwork(),
+          balance: formatBalance(result.balance ?? '0', asset.getDecimals()),
           balanceFiat: '',
         } satisfies AggregatedAsset;
       })
       .filter((asset): asset is AggregatedAsset => asset !== null);
-  }, [balanceResults, tokenConfigs]);
+  }, [balanceResults, assetConfigs]);
 
   const hasAttemptedAuthRef = useRef(false);
   useEffect(() => {

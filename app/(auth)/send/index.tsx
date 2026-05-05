@@ -23,19 +23,19 @@ const CHAIN_SYMBOL: Record<ChainId, string> = {
 export default function SendScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { send, isLoading, txHash, error, reset } = useSendFlow();
   const [step, setStep] = useState<SendStep>('input');
   const [selectedChain, setSelectedChain] = useState<ChainId>('ethereum');
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [scannerVisible, setScannerVisible] = useState(false);
+  const { send, isLoading, txHash, error, reset } = useSendFlow(selectedChain);
 
   // eslint-disable-next-line security/detect-object-injection -- selectedChain is a ChainId literal union
   const symbol = CHAIN_SYMBOL[selectedChain];
   const isValidAddress = recipient.length >= 26;
 
   const handleSend = async () => {
-    const hash = await send({ chain: selectedChain, to: recipient, amount });
+    const hash = await send({ to: recipient, amount });
     if (hash) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStep('success');

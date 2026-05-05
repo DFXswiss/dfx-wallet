@@ -10,7 +10,7 @@ import { DfxColors, Typography } from '@/theme';
 
 export default function RestoreWalletScreen() {
   const router = useRouter();
-  const { initializeFromMnemonic } = useWalletManager();
+  const { restoreWallet } = useWalletManager();
   const { t } = useTranslation();
   const [seedPhrase, setSeedPhrase] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +31,7 @@ export default function RestoreWalletScreen() {
     setError(null);
     try {
       const seed = wordsToSeed(words);
-      await initializeFromMnemonic(seed, 'default');
+      await restoreWallet(seed, 'default');
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.push('/(onboarding)/setup-pin');
     } catch (err) {

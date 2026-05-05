@@ -30,14 +30,14 @@ export default function CreateWalletScreen() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const { initializeFromMnemonic } = useWalletManager();
+  const { restoreWallet } = useWalletManager();
 
   const handleContinue = async () => {
     setIsCreating(true);
     setError(null);
     try {
       const seed = wordsToSeed(seedWords);
-      await initializeFromMnemonic(seed, 'default');
+      await restoreWallet(seed, 'default');
       router.push('/(onboarding)/setup-pin');
     } catch (err) {
       console.warn('create-wallet: failed to create wallet', err);
