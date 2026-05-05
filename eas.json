@@ -1,0 +1,26 @@
+{
+  "cli": {
+    "version": ">= 14.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "e2e": {
+      "channel": "e2e",
+      "distribution": "internal",
+      "developmentClient": false,
+      "ios": {
+        "simulator": true,
+        "resourceClass": "m-medium"
+      },
+      "android": {
+        "buildType": "apk",
+        "resourceClass": "medium"
+      },
+      "env": {
+        "EXPO_PUBLIC_DFX_API_URL": "https://api.dfx.swiss/v1",
+        "EXPO_PUBLIC_WDK_INDEXER_URL": "https://wdk-api.tether.io"
+      }
+    }
+  },
+  "submit": {}
+}

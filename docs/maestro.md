@@ -2,62 +2,92 @@
 
 End-to-end UI tests for DFX Wallet using [Maestro](https://maestro.mobile.dev/). Flows live in `.maestro/` as YAML.
 
-## Why Maestro
+## Architecture
 
-- Works with Expo dev-client and release builds (no separate test instrumentation needed)
-- YAML flows — low barrier to add coverage
-- Single flow runs against both iOS Simulator and Android Emulator
-- Self-hosted in GitHub Actions, no external service dependency
+| Stage | Service | Purpose |
+| --- | --- | --- |
+| Build | [EAS Build](https://docs.expo.dev/build/introduction/) (Production tier) | Cloud build, signed iOS Simulator `.app` + Android `.apk` |
+| Test  | [Maestro Cloud](https://cloud.mobile.dev/) (Team tier) | Parallel device fleet, runs the flows in `.maestro/` against the artifacts |
+| Glue  | GitHub Actions | Triggers EAS builds, downloads artifacts, ships them to Maestro Cloud |
 
-## Prerequisites
+No self-hosted runners, no Xcode/Android-SDK on developer machines for CI builds, no nested-VM headaches. Both build and test stages cache aggressively at the vendor level.
 
-The wallet ships native modules that are not Expo Go compatible (`react-native-ble-plx`, `react-native-mmkv`, `react-native-nitro-modules`, `bitbox-api`, `@tetherto/wdk-react-native-provider`). Maestro therefore requires an installed dev-client or release build, never Expo Go.
+Local development still uses `npx expo run:ios` / `run:android` and `maestro test .maestro/` against a personal simulator/emulator — see "Running Locally".
 
-- Maestro CLI: `brew tap mobile-dev-inc/tap && brew install maestro` (or `curl -Ls https://get.maestro.mobile.dev | bash`)
-- iOS: Xcode 16+, an iOS Simulator (run `xcrun simctl list devices`), and Facebook IDB (`brew tap facebook/fb && brew install idb-companion`) — required by Maestro to drive the simulator
-- Android: Android SDK with an emulator image (API 34+, x86_64)
-- Built and installed app:
-  - iOS: `npx expo run:ios --configuration Release`
-  - Android: `npx expo run:android --variant release`
+## Why this stack
 
-Disable Face ID / Touch ID enrollment in the iOS Simulator (`Features > Face ID > Enrolled` off) before running flows — biometric prompts will otherwise intercept the PIN screen during onboarding.
+- **EAS Build** is the path Expo officially supports for Expo apps. It understands the entire native module set (`react-native-ble-plx`, `react-native-mmkv`, `react-native-nitro-modules`, `bitbox-api`, `@tetherto/wdk-react-native-provider`) without bespoke patches and survives Expo SDK upgrades cleanly.
+- **Maestro Cloud** parallelises the flows across real Cloud devices and reports cleanly back to the PR.
+- We tried self-hosted Tart VMs on dfx01 (M3 Ultra). Verdict: macOS guests on Apple Silicon don't support nested HVF, so the Android emulator can't run inside. Linux ARM64 has no official `emulator` SDK package either. Net: self-hosted is cheaper but eats engineering hours every Xcode update; not worth it for a small team.
 
-## Running Locally
+## CI Workflow
 
-Boot a simulator/emulator first, then:
+`.github/workflows/maestro-e2e.yml`. Triggers:
 
-```bash
-# iOS Simulator (must be booted)
-npm run e2e:maestro:ios
+- `pull_request` against `develop` — non-draft PRs only, skipped on doc-only changes.
+- `workflow_dispatch` — manual run for any branch.
 
-# Android Emulator (must be booted)
-npm run e2e:maestro:android
+Concurrent runs on the same PR cancel each other.
+
+Pipeline shape:
+
+```
+checkout
+  → npm ci
+  → eas build --profile e2e --platform all (parallel iOS + Android)
+  → wait for builds (typical: 5-10 min)
+  → download .app.tar.gz + .apk
+  → maestro cloud (parallel iOS + Android)
+  → results posted back to the PR
 ```
 
-Both scripts run every flow under `.maestro/`. To run a single flow:
+Expected wall-clock per PR: 8-15 min depending on EAS queue + flow count.
+
+## Required Configuration
+
+### Repo secrets (`Settings → Secrets and variables → Actions`)
+
+| Name | Source | Purpose |
+| --- | --- | --- |
+| `EXPO_TOKEN` | https://expo.dev/settings/access-tokens | Authenticate `eas-cli` against the Expo project |
+| `MAESTRO_CLOUD_API_KEY` | https://cloud.mobile.dev → Profile → API Keys | Authenticate Maestro Cloud uploads |
+
+### Repo variables
+
+| Name | Value | Purpose |
+| --- | --- | --- |
+| `EXPO_OWNER` | Expo account/org slug that owns the project | Used to render dashboard links in the workflow log |
+
+### EAS project setup (one-time)
 
 ```bash
-maestro test .maestro/01-welcome.yaml
+npm install -g eas-cli   # or use npx
+eas login
+eas init                  # links the repo to an Expo project (writes the project ID into app.json)
 ```
 
-To debug interactively:
+After `eas init`, `app.json` gains an `extra.eas.projectId` field — commit that.
+
+### EAS Secrets (the actual WDK indexer key)
+
+EAS Build runs in Expo's cloud, so secrets need to live there too. The WDK indexer key is the only secret value the build needs at compile time:
 
 ```bash
-maestro studio
+eas secret:create \
+  --scope project \
+  --name EXPO_PUBLIC_WDK_INDEXER_API_KEY \
+  --value "<your-key>"
 ```
 
-## Test Configuration
+EAS injects this into the build env automatically, no further wiring in `eas.json`. Public values (DFX API URL, WDK indexer URL) stay in `eas.json`'s `env` block — committed because they're not secrets.
 
-Flows target a Testnet build of the app. The relevant environment variables are read by `src/config/env.ts` and `src/config/chains.ts` and must be set at **build time** (not at Maestro runtime — they are baked into the JS bundle):
+### `eas.json`
 
-```bash
-EXPO_PUBLIC_DFX_API_URL=...        # DFX API testnet endpoint
-EXPO_PUBLIC_WDK_INDEXER_URL=...    # WDK indexer endpoint
-EXPO_PUBLIC_ETH_RPC_URL=...        # ETH testnet RPC
-# ... see src/config/chains.ts for the full list
-```
+The `e2e` profile is configured for:
 
-Set these before `npx expo run:ios` / `npx expo run:android` so the resulting binary points at testnet infrastructure.
+- iOS Simulator builds (`ios.simulator: true` — no signing, no Apple Developer account needed)
+- Android APK with Release Gradle command (`android.buildType: "apk"`)
+- Public testnet env vars inline (`env`)
 
 ## testID Convention
 
@@ -97,27 +127,39 @@ Current flows:
 - `11-onboarding-restore.yaml` — restore-from-seed onboarding through to dashboard (uses `${TEST_MNEMONIC}` env var, default is the standard `test test … junk` BIP39 mnemonic)
 - `12-pin-unlock.yaml` — onboard, cold-restart the app, exercise the wrong-PIN error path, then unlock with the correct PIN
 
+## Running Locally
+
+For day-to-day development, run flows against your own simulator/emulator. Maestro Cloud is for CI only.
+
+Prereqs:
+
+- Maestro CLI: `curl -Ls https://get.maestro.mobile.dev | bash`
+- iOS: Xcode + booted simulator. Disable Face ID enrollment in the sim (`Features > Face ID > Enrolled` off) or biometric prompts will hijack the PIN flow.
+- Android: Android SDK + booted emulator (API 34+).
+- Built and installed app:
+  - iOS: `npx expo run:ios --configuration Release`
+  - Android: `npx expo run:android --variant release`
+
+Run all flows:
+
+```bash
+maestro test .maestro/
+```
+
+Single flow:
+
+```bash
+maestro test .maestro/01-welcome.yaml
+```
+
+Interactive recorder:
+
+```bash
+maestro studio
+```
+
 ## Limitations
 
-- **Hardware Wallet flows**: Maestro cannot drive physical BitBox02 devices or BLE pairing dialogs. Hardware-wallet tests must run against the mock provider in `src/services/hardware-wallet/`.
-- **Biometrics**: Face ID / Fingerprint prompts are scriptable on simulators (`xcrun simctl ... biometric` / `adb emu finger touch`) but require an explicit step in the flow.
-- **Passkeys**: WebAuthn / Passkey ceremonies cannot be fully automated on simulators yet — gate passkey-dependent flows behind a feature flag for E2E builds.
-
-## CI
-
-`.github/workflows/maestro-e2e.yml` runs the full suite on iOS Simulator and Android Emulator.
-
-Triggers:
-
-- `pull_request` against `develop` — non-draft PRs only, skipped on doc-only changes (`paths-ignore: '**/*.md', 'docs/**'`). Marking a draft PR as ready-for-review fires the workflow.
-- `workflow_dispatch` — manual run for any branch.
-
-Concurrent runs on the same PR cancel each other (`concurrency: cancel-in-progress: true`), so rebases don't pile up macOS minutes.
-
-Build-time configuration:
-
-- Public values (DFX API URL, WDK indexer URL, chain RPCs) live in the committed `.env.testnet` at the repo root. Edit that file when the testnet endpoints land.
-- Only the WDK indexer API key is treated as a secret. Set it as a repo **secret** named `E2E_WDK_INDEXER_API_KEY` — the workflow injects it via `env:` so it overrides whatever's in `.env.testnet`.
-- Both jobs do `cp .env.testnet .env` before the build so Expo's `EXPO_PUBLIC_*` baking sees the right values.
-
-For local runs, do the same: `cp .env.testnet .env && npm run ios` (or `android`). Override the API key by adding a single line `EXPO_PUBLIC_WDK_INDEXER_API_KEY=...` to your `.env` after the copy.
+- **Hardware Wallet flows**: Maestro can't drive physical BitBox02 devices or BLE pairing dialogs. Hardware-wallet tests run against the mock provider in `src/services/hardware-wallet/`.
+- **Biometrics**: Face ID / Fingerprint prompts can be scripted on local simulators; on Maestro Cloud devices we keep biometrics disabled in the test scenario.
+- **Passkeys**: WebAuthn / Passkey ceremonies aren't fully automatable on Cloud devices yet — gate passkey-dependent flows behind a feature flag for E2E builds.
