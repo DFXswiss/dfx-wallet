@@ -92,6 +92,6 @@ module.exports = defineConfig([
     },
   },
   {
-    ignores: ['node_modules/', 'android/', 'ios/', '.expo/', 'dist/'],
+    ignores: ['node_modules/', 'android/', 'ios/', '.expo/', 'dist/', '.wdk/', '.wdk-bundle/'],
   },
 ]);

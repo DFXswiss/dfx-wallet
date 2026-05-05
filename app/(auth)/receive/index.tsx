@@ -1,44 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { useWallet, useWalletManager } from '@tetherto/wdk-react-native-core';
+import { useAccount } from '@tetherto/wdk-react-native-core';
 import { ChainSelector, PrimaryButton, QrCode, ScreenContainer } from '@/components';
 import type { ChainId } from '@/config/chains';
 import { DfxColors, Typography } from '@/theme';
 
-const CHAIN_TO_NETWORK: Record<ChainId, string> = {
-  ethereum: 'ethereum',
-  arbitrum: 'arbitrum',
-  polygon: 'polygon',
-  spark: 'spark',
-  plasma: 'plasma',
-  sepolia: 'sepolia',
-};
-
 export default function ReceiveScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { wallets, activeWalletId } = useWalletManager();
-  const currentWalletId = activeWalletId || wallets[0]?.identifier || 'default';
-  const { addresses, getAddress } = useWallet({ walletId: currentWalletId });
   const [selectedChain, setSelectedChain] = useState<ChainId>('ethereum');
   const [copied, setCopied] = useState(false);
 
-  // eslint-disable-next-line security/detect-object-injection -- selectedChain is a ChainId literal union
-  const networkKey = CHAIN_TO_NETWORK[selectedChain];
-  // eslint-disable-next-line security/detect-object-injection -- networkKey is constrained by the static map above
-  const address = addresses[networkKey]?.[0] ?? '';
-
-  useEffect(() => {
-    if (!address) {
-      getAddress(networkKey, 0).catch(() => {
-        // Address derivation failures surface via context state.
-      });
-    }
-  }, [address, networkKey, getAddress]);
+  const { address: derivedAddress } = useAccount({ network: selectedChain, accountIndex: 0 });
+  const address = derivedAddress ?? '';
 
   const handleCopy = async () => {
     if (!address) return;

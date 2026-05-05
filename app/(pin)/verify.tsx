@@ -12,8 +12,8 @@ const MAX_ATTEMPTS = 5;
 export default function VerifyPinScreen() {
   const router = useRouter();
   const { verifyPin, setAuthenticated, authenticateBiometric, biometricEnabled } = useAuthStore();
-  const { initializeWallet } = useWalletManager();
-  const { isReady } = useWdkApp();
+  const { unlock } = useWalletManager();
+  const { state } = useWdkApp();
   const [pin, setPinValue] = useState('');
   const [error, setError] = useState(false);
   const [attempts, setAttempts] = useState(0);
@@ -24,11 +24,11 @@ export default function VerifyPinScreen() {
 
   const unlockWallet = useCallback(async () => {
     try {
-      await initializeWallet({ walletId: 'default' });
+      await unlock('default');
     } catch {
       // WdkAppProvider exposes the error; user can retry from settings.
     }
-  }, [initializeWallet]);
+  }, [unlock]);
 
   const tryBiometric = useCallback(async () => {
     try {
@@ -50,10 +50,10 @@ export default function VerifyPinScreen() {
   }, [biometricEnabled, tryBiometric]);
 
   useEffect(() => {
-    if (isReady) {
+    if (state.status === 'READY') {
       goToDashboard();
     }
-  }, [isReady, goToDashboard]);
+  }, [state.status, goToDashboard]);
 
   const handleDigit = (digit: string) => {
     setError(false);

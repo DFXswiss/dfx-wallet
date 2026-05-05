@@ -4,8 +4,7 @@
   "main": "expo-router/entry",
   "private": true,
   "scripts": {
-    "preinstall": "node scripts/ensure-bare-pack.js",
-    "postinstall": "patch-package && node node_modules/react-native-bare-kit/ios/link.mjs",
+    "postinstall": "patch-package && node node_modules/react-native-bare-kit/ios/link.mjs && cd node_modules/@tetherto/wdk-react-native-core && npm run build && cd ../../.. && npm run bundle:wdk",
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -20,6 +19,7 @@
     "e2e:maestro:android": "maestro --platform android test .maestro/",
     "prebuild": "expo prebuild --clean",
     "bundle:bitbox": "node scripts/bundle-bitbox-wasm.js",
+    "bundle:wdk": "wdk-worklet-bundler generate --keep-artifacts",
     "check": "npm run typecheck && npm run lint && npm run format"
   },
   "dependencies": {
@@ -28,10 +28,13 @@
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/netinfo": "^11.4.1",
     "@tanstack/react-query": "^5.0.0",
-    "@tetherto/pear-wrk-wdk": "github:tetherto/pear-wrk-wdk#a800d4a0b841e7716a916e8573ccf8ca58f795a8",
+    "@tetherto/pear-wrk-wdk": "^1.0.0-beta.8",
+    "@tetherto/wdk": "^1.0.0-beta.9",
     "@tetherto/wdk-pricing-bitfinex-http": "^1.0.0-beta.1",
     "@tetherto/wdk-pricing-provider": "^1.0.0-beta.1",
-    "@tetherto/wdk-react-native-core": "github:tetherto/wdk-react-native-core#0b2be6eb5eed5b039cb1083441c3ae0e653fd02d",
+    "@tetherto/wdk-react-native-core": "^1.0.0-beta.9",
+    "@tetherto/wdk-wallet-evm-erc-4337": "^1.0.0-beta.6",
+    "@tetherto/wdk-wallet-spark": "^1.0.0-beta.18",
     "b4a": "1.7.3",
     "bare-crypto": "1.13.0",
     "bare-dns": "2.1.4",
@@ -75,7 +78,7 @@
     "react-i18next": "^17.0.2",
     "react-native": "0.81.5",
     "react-native-b4a": "0.0.4",
-    "react-native-bare-kit": "^0.11.5",
+    "react-native-bare-kit": "^0.12.3",
     "react-native-ble-plx": "^3.5.1",
     "react-native-crypto": "^2.2.1",
     "react-native-device-info": "^14.1.1",
@@ -101,6 +104,7 @@
     "sodium-native": "^5.0.9",
     "stream-browserify": "^3.0.0",
     "stream-http": "^3.2.0",
+    "utf-8-validate": "^6.0.6",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
@@ -109,6 +113,7 @@
     "@eslint/compat": "^2.0.5",
     "@testing-library/jest-native": "^5.4.3",
     "@testing-library/react-native": "^13.3.3",
+    "@tetherto/wdk-worklet-bundler": "^1.0.0-beta.3",
     "@types/jest": "^29.5.14",
     "@types/react": "^19.2.14",
     "@typescript-eslint/eslint-plugin": "^8.58.1",

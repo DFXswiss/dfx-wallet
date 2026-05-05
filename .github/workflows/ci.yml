@@ -18,14 +18,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # @tetherto/pear-wrk-wdk's git-dep prepare runs `npx bare-pack --target ...`
-      # without pinning a version. bare-pack@2 removed `--target`, so npm
-      # aborts with `Bail: UNKNOWN_FLAG: target` before our project's
-      # `preinstall` hook even runs (npm prepares git-deps first). Pin v1
-      # globally here so npx finds it on PATH.
-      - run: npm install -g bare-pack@^1
-      # Scripts must run so the @tetherto/wdk-react-native-core git-dep's
-      # `prepare` builds `dist/` (required by typecheck).
+      # `postinstall` builds @tetherto/wdk-react-native-core's dist/, which
+      # ships only `src/` on npm. Typecheck reads its `dist/index.d.ts`.
       - run: npm ci --legacy-peer-deps
       - run: npm run typecheck
 
@@ -37,12 +31,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # See the note in the typecheck job: bare-pack@1 must be on PATH
-      # before `npm ci` so the @tetherto/pear-wrk-wdk git-dep prepare
-      # doesn't fall back to bare-pack@2 from the registry.
-      - run: npm install -g bare-pack@^1
-      # Scripts must run so wdk-react-native-core's dist/ exists for
-      # ESLint's import/no-unresolved resolver.
+      # `postinstall` builds @tetherto/wdk-react-native-core's dist/, which
+      # ESLint's `import/no-unresolved` resolver depends on.
       - run: npm ci --legacy-peer-deps
       - run: npm run lint
 

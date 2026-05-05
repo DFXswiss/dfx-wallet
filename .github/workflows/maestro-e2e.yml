@@ -56,7 +56,10 @@ jobs:
 
       - name: Boot iOS Simulator
         run: |
-          DEVICE_ID=$(xcrun simctl list devices available | awk '/iPhone 16 \(/{print $NF; exit}' | tr -d '()')
+          # Lines look like `    iPhone 16 (UUID) (Shutdown)`; split on parens
+          # and take the UUID column (field 2). $NF used to work but newer
+          # Xcode appends the device state, so $NF was returning "(Shutdown)".
+          DEVICE_ID=$(xcrun simctl list devices available | awk -F'[()]' '/iPhone 16 \(/{print $2; exit}')
           if [ -z "$DEVICE_ID" ]; then
             DEVICE_ID=$(xcrun simctl create "iPhone 16 E2E" "iPhone 16")
           fi

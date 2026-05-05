@@ -15,16 +15,16 @@ import { DfxColors, Typography } from '@/theme';
 export default function RestorePasskeyScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { initializeFromMnemonic } = useWalletManager();
+  const { restoreWallet } = useWalletManager();
   const [isRestoring, setIsRestoring] = useState(false);
 
   const handleRestore = async () => {
     setIsRestoring(true);
     try {
       const { prfOutput, credentialId } = await authenticatePasskey();
-      await setupPasskeyWallet(prfOutput, credentialId, (mnemonic) =>
-        initializeFromMnemonic(mnemonic, 'default'),
-      );
+      await setupPasskeyWallet(prfOutput, credentialId, async (mnemonic) => {
+        await restoreWallet(mnemonic, 'default');
+      });
 
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.push('/(onboarding)/setup-pin');
