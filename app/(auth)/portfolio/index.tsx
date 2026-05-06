@@ -7,11 +7,11 @@ import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { Icon } from '@/components';
 import { getAssetMeta, getAssets, type TokenCategory } from '@/config/tokens';
 import {
+  computeFiatValue,
   formatBalance,
   formatNumber,
   SYMBOL_COLORS,
   SYMBOL_GLYPH,
-  SYMBOL_TO_TICKER,
   toNumeric,
 } from '@/config/portfolio-presentation';
 import { useEnabledChains } from '@/hooks';
@@ -63,12 +63,12 @@ export default function PortfolioScreen() {
       const balance = formatBalance(rawBalance, asset.getDecimals());
       const balanceNum = toNumeric(balance);
 
-      const ticker = SYMBOL_TO_TICKER.get(meta.canonicalSymbol);
-      const rate =
-        ticker && pricingReady ? pricingService.getExchangeRate(ticker, fiatCurrency) : undefined;
-      const stablecoinValue =
-        meta.canonicalSymbol === 'USDC' || meta.canonicalSymbol === 'USDT' ? balanceNum : 0;
-      const fiatValue = rate ? balanceNum * rate : stablecoinValue;
+      const fiatValue = computeFiatValue(
+        balanceNum,
+        meta.canonicalSymbol,
+        fiatCurrency,
+        pricingReady,
+      );
 
       const existing = byCanonical.get(meta.canonicalSymbol);
       if (existing) {

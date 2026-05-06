@@ -20,14 +20,16 @@ const CHAIN_LABEL = new Map<ChainId, string>([
   ['ethereum', 'Ethereum'],
   ['arbitrum', 'Arbitrum'],
   ['polygon', 'Polygon'],
+  ['base', 'Base'],
   ['spark', 'Lightning (Spark)'],
   ['plasma', 'Plasma'],
   ['sepolia', 'Sepolia'],
 ]);
 
 const CHAIN_DESCRIPTION = new Map<ChainId, string>([
-  ['arbitrum', 'L2 — ETH, USDT'],
-  ['polygon', 'POS chain — MATIC, USDT'],
+  ['arbitrum', 'L2 — ETH, USD, EUR'],
+  ['polygon', 'POS chain — MATIC, USD, EUR'],
+  ['base', 'L2 — ETH, USD, EUR'],
 ]);
 
 export default function ManageChainsScreen() {

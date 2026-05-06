@@ -8,11 +8,11 @@ import { Icon } from '@/components';
 import { getAssetsForCanonicalSymbol, getAssets, getCanonicalNameForSymbol } from '@/config/tokens';
 import {
   CHAIN_LABELS,
+  computeFiatValue,
   formatBalance,
   formatNumber,
   SYMBOL_COLORS,
   SYMBOL_GLYPH,
-  SYMBOL_TO_TICKER,
   toNumeric,
 } from '@/config/portfolio-presentation';
 import { useEnabledChains } from '@/hooks';
@@ -70,12 +70,7 @@ export default function AssetDetailScreen() {
       const balanceFormatted = formatBalance(rawBalance, meta.decimals);
       const balanceNum = toNumeric(balanceFormatted);
 
-      const ticker = SYMBOL_TO_TICKER.get(canonicalSymbol);
-      const rate =
-        ticker && pricingReady ? pricingService.getExchangeRate(ticker, fiatCurrency) : undefined;
-      const stablecoinValue =
-        canonicalSymbol === 'USDC' || canonicalSymbol === 'USDT' ? balanceNum : 0;
-      const fiatValue = rate ? balanceNum * rate : stablecoinValue;
+      const fiatValue = computeFiatValue(balanceNum, canonicalSymbol, fiatCurrency, pricingReady);
 
       return {
         id: meta.id,

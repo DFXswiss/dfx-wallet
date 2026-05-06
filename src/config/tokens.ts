@@ -16,8 +16,13 @@ type AssetSpec = {
   defaultEnabled?: boolean;
 };
 
+// dEURO (Decentralized Euro) addresses — TODO: replace placeholder zero
+// addresses with the real ERC-20 contracts once they are confirmed for
+// each L2 deployment.
+const DEURO_ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
 const ASSET_SPECS: AssetSpec[] = [
-  // Bitcoin variants — all canonical 'BTC'
+  // Bitcoin variants — canonical 'BTC'
   {
     network: 'spark',
     symbol: 'BTC',
@@ -42,7 +47,7 @@ const ASSET_SPECS: AssetSpec[] = [
     defaultEnabled: true,
   },
 
-  // Ethereum native + stablecoins (default enabled)
+  // Ethereum native (used for gas)
   {
     network: 'ethereum',
     symbol: 'ETH',
@@ -54,11 +59,13 @@ const ASSET_SPECS: AssetSpec[] = [
     category: 'native',
     defaultEnabled: true,
   },
+
+  // Dollar (USD) — USDT + USDC across EVMs
   {
     network: 'ethereum',
     symbol: 'USDT',
-    canonicalSymbol: 'USDT',
-    canonicalName: 'Tether USD',
+    canonicalSymbol: 'USD',
+    canonicalName: 'Dollar',
     name: 'Tether USD',
     decimals: 6,
     isNative: false,
@@ -69,8 +76,8 @@ const ASSET_SPECS: AssetSpec[] = [
   {
     network: 'ethereum',
     symbol: 'USDC',
-    canonicalSymbol: 'USDC',
-    canonicalName: 'USD Coin',
+    canonicalSymbol: 'USD',
+    canonicalName: 'Dollar',
     name: 'USD Coin',
     decimals: 6,
     isNative: false,
@@ -79,9 +86,77 @@ const ASSET_SPECS: AssetSpec[] = [
     defaultEnabled: true,
   },
   {
+    network: 'arbitrum',
+    symbol: 'USDT',
+    canonicalSymbol: 'USD',
+    canonicalName: 'Dollar',
+    name: 'Tether USD',
+    decimals: 6,
+    isNative: false,
+    category: 'stablecoin',
+    address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
+  },
+  {
+    network: 'arbitrum',
+    symbol: 'USDC',
+    canonicalSymbol: 'USD',
+    canonicalName: 'Dollar',
+    name: 'USD Coin',
+    decimals: 6,
+    isNative: false,
+    category: 'stablecoin',
+    address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+  },
+  {
+    network: 'polygon',
+    symbol: 'USDT',
+    canonicalSymbol: 'USD',
+    canonicalName: 'Dollar',
+    name: 'Tether USD',
+    decimals: 6,
+    isNative: false,
+    category: 'stablecoin',
+    address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
+  },
+  {
+    network: 'polygon',
+    symbol: 'USDC',
+    canonicalSymbol: 'USD',
+    canonicalName: 'Dollar',
+    name: 'USD Coin',
+    decimals: 6,
+    isNative: false,
+    category: 'stablecoin',
+    address: '0x3c499c542cEF5E3811e1192cE70d8cC03d5c3359',
+  },
+  {
+    network: 'base',
+    symbol: 'USDT',
+    canonicalSymbol: 'USD',
+    canonicalName: 'Dollar',
+    name: 'Tether USD',
+    decimals: 6,
+    isNative: false,
+    category: 'stablecoin',
+    address: '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2',
+  },
+  {
+    network: 'base',
+    symbol: 'USDC',
+    canonicalSymbol: 'USD',
+    canonicalName: 'Dollar',
+    name: 'USD Coin',
+    decimals: 6,
+    isNative: false,
+    category: 'stablecoin',
+    address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  },
+
+  // Frankencoin (CHF)
+  {
     network: 'ethereum',
     symbol: 'ZCHF',
-    canonicalSymbol: 'ZCHF',
+    canonicalSymbol: 'CHF',
     canonicalName: 'Frankencoin',
     name: 'Frankencoin',
     decimals: 18,
@@ -91,7 +166,54 @@ const ASSET_SPECS: AssetSpec[] = [
     defaultEnabled: true,
   },
 
-  // Arbitrum (opt-in)
+  // dEURO (EUR) — addresses are placeholders pending confirmation
+  {
+    network: 'ethereum',
+    symbol: 'dEURO',
+    canonicalSymbol: 'EUR',
+    canonicalName: 'Euro',
+    name: 'dEURO',
+    decimals: 18,
+    isNative: false,
+    category: 'stablecoin',
+    address: DEURO_ZERO_ADDRESS,
+    defaultEnabled: true,
+  },
+  {
+    network: 'arbitrum',
+    symbol: 'dEURO',
+    canonicalSymbol: 'EUR',
+    canonicalName: 'Euro',
+    name: 'dEURO',
+    decimals: 18,
+    isNative: false,
+    category: 'stablecoin',
+    address: DEURO_ZERO_ADDRESS,
+  },
+  {
+    network: 'polygon',
+    symbol: 'dEURO',
+    canonicalSymbol: 'EUR',
+    canonicalName: 'Euro',
+    name: 'dEURO',
+    decimals: 18,
+    isNative: false,
+    category: 'stablecoin',
+    address: DEURO_ZERO_ADDRESS,
+  },
+  {
+    network: 'base',
+    symbol: 'dEURO',
+    canonicalSymbol: 'EUR',
+    canonicalName: 'Euro',
+    name: 'dEURO',
+    decimals: 18,
+    isNative: false,
+    category: 'stablecoin',
+    address: DEURO_ZERO_ADDRESS,
+  },
+
+  // Arbitrum / Polygon / Base native (for gas display)
   {
     network: 'arbitrum',
     symbol: 'ETH',
@@ -103,19 +225,6 @@ const ASSET_SPECS: AssetSpec[] = [
     category: 'native',
   },
   {
-    network: 'arbitrum',
-    symbol: 'USDT',
-    canonicalSymbol: 'USDT',
-    canonicalName: 'Tether USD',
-    name: 'Tether USD',
-    decimals: 6,
-    isNative: false,
-    category: 'stablecoin',
-    address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
-  },
-
-  // Polygon (opt-in)
-  {
     network: 'polygon',
     symbol: 'MATIC',
     canonicalSymbol: 'MATIC',
@@ -126,15 +235,14 @@ const ASSET_SPECS: AssetSpec[] = [
     category: 'native',
   },
   {
-    network: 'polygon',
-    symbol: 'USDT',
-    canonicalSymbol: 'USDT',
-    canonicalName: 'Tether USD',
-    name: 'Tether USD',
-    decimals: 6,
-    isNative: false,
-    category: 'stablecoin',
-    address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
+    network: 'base',
+    symbol: 'ETH',
+    canonicalSymbol: 'ETH',
+    canonicalName: 'Ethereum',
+    name: 'Ethereum (Base)',
+    decimals: 18,
+    isNative: true,
+    category: 'native',
   },
 
   // Test / experimental networks
@@ -161,8 +269,8 @@ const ASSET_SPECS: AssetSpec[] = [
   {
     network: 'sepolia',
     symbol: 'USDT',
-    canonicalSymbol: 'USDT',
-    canonicalName: 'Tether USD',
+    canonicalSymbol: 'USD',
+    canonicalName: 'Dollar',
     name: 'Tether USD',
     decimals: 6,
     isNative: false,
@@ -178,7 +286,7 @@ export const DEFAULT_ENABLED_CHAINS: ChainId[] = Array.from(
   new Set(ASSET_SPECS.filter((spec) => spec.defaultEnabled).map((spec) => spec.network)),
 );
 
-export const SELECTABLE_CHAINS: ChainId[] = ['arbitrum', 'polygon'];
+export const SELECTABLE_CHAINS: ChainId[] = ['arbitrum', 'polygon', 'base'];
 
 export type AssetMeta = {
   id: string;
