@@ -1,8 +1,9 @@
-export { ActionBar } from './ActionBar';
 export { AssetListItem } from './AssetListItem';
-export { BalanceCard } from './BalanceCard';
 export { ChainSelector } from './ChainSelector';
+export { DashboardHeader } from './DashboardHeader';
 export { ErrorBoundary } from './ErrorBoundary';
+export { Icon } from './Icon';
+export { MenuModal } from './MenuModal';
 export { OfflineBanner } from './OfflineBanner';
 export { PrimaryButton } from './PrimaryButton';
 export { QrCode } from './QrCode';

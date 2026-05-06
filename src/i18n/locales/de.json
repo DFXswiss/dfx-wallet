@@ -29,11 +29,12 @@
     "submit": "Absenden"
   },
   "dashboard": {
-    "noAssets": "Noch keine Assets",
-    "noAssetsDescription": "Kaufe dein erstes Krypto um zu starten.",
+    "pay": "Pay",
     "portfolio": "Portfolio",
     "title": "Dashboard",
-    "totalBalance": "Gesamtguthaben"
+    "toggleBalance": "Guthaben ein-/ausblenden",
+    "totalBalance": "Gesamtguthaben",
+    "transactions": "Transaktionen"
   },
   "hardware": {
     "bitbox": "BitBox02",
@@ -92,6 +93,10 @@
     "step3": "Keine Seed Phrase zum Aufschreiben — dein Passkey ist dein Schlüssel.",
     "useSeedInstead": "Seed Phrase verwenden"
   },
+  "pay": {
+    "comingSoonMessage": "Zahlungen sind noch nicht verfügbar. Gescannt: {{data}}",
+    "comingSoonTitle": "Coming soon"
+  },
   "pin": {
     "confirm": "PIN bestätigen",
     "create": "PIN erstellen",
@@ -102,6 +107,10 @@
     "remainingAttempts": "{{count}} Versuche übrig.",
     "saveError": "PIN konnte nicht gespeichert werden. Bitte erneut versuchen.",
     "tooMany": "Zu viele Fehlversuche. Bitte starte die App neu."
+  },
+  "portfolio": {
+    "empty": "Noch keine Assets",
+    "emptyDescription": "Kaufe dein erstes Krypto um zu starten."
   },
   "receive": {
     "onlyCorrectNetwork": "Sende nur {{asset}} im {{network}} Netzwerk an diese Adresse.",

@@ -29,11 +29,12 @@
     "submit": "Submit"
   },
   "dashboard": {
-    "noAssets": "No assets yet",
-    "noAssetsDescription": "Buy your first crypto to get started.",
+    "pay": "Pay",
     "portfolio": "Portfolio",
     "title": "Dashboard",
-    "totalBalance": "Total Balance"
+    "toggleBalance": "Toggle balance visibility",
+    "totalBalance": "Total Wallet Balance",
+    "transactions": "Transactions"
   },
   "hardware": {
     "bitbox": "BitBox02",
@@ -92,6 +93,10 @@
     "step3": "No seed phrase to write down — your passkey is your key.",
     "useSeedInstead": "Use Seed Phrase"
   },
+  "pay": {
+    "comingSoonMessage": "Payments are not yet available. Scanned: {{data}}",
+    "comingSoonTitle": "Coming soon"
+  },
   "pin": {
     "confirm": "Confirm PIN",
     "create": "Create PIN",
@@ -102,6 +107,10 @@
     "remainingAttempts": "{{count}} attempts remaining.",
     "saveError": "Could not save PIN. Please try again.",
     "tooMany": "Too many failed attempts. Please restart the app."
+  },
+  "portfolio": {
+    "empty": "No assets yet",
+    "emptyDescription": "Buy your first crypto to get started."
   },
   "receive": {
     "onlyCorrectNetwork": "Only send {{asset}} on the {{network}} network to this address.",

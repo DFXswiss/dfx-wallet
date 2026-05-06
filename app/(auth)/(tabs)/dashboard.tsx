@@ -1,35 +1,27 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import { ActionBar, AssetListItem, BalanceCard, ScreenContainer } from '@/components';
-import { getAssets } from '@/config/tokens';
+import { DashboardHeader, Icon, MenuModal, QrScanner } from '@/components';
 import { useDfxAuth } from '@/hooks';
 import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
-type AggregatedAsset = {
-  symbol: string;
-  name: string;
-  chain: string;
-  balance: string;
-  balanceFiat: string;
-};
+const CURRENCY_SYMBOLS = new Map<string, string>([
+  ['USD', '$'],
+  ['EUR', '€'],
+  ['CHF', 'CHF'],
+]);
 
-const formatBalance = (rawBalance: string, decimals: number): string => {
-  if (!rawBalance) return '0';
-  try {
-    const value = BigInt(rawBalance);
-    const divisor = BigInt(10) ** BigInt(decimals);
-    const whole = value / divisor;
-    const fractional = value % divisor;
-    if (fractional === 0n) return whole.toString();
-    const fractionalStr = fractional.toString().padStart(decimals, '0').replace(/0+$/, '');
-    return fractionalStr ? `${whole}.${fractionalStr}` : whole.toString();
-  } catch {
-    return rawBalance;
-  }
+const splitBalance = (value: string): { whole: string; fraction: string } => {
+  const cleaned = value.replace(/[^0-9.,-]/g, '').replace(',', '.');
+  if (!cleaned) return { whole: '0', fraction: '00' };
+  const [whole, fraction = ''] = cleaned.split('.');
+  return {
+    whole: whole || '0',
+    fraction: fraction.padEnd(2, '0').slice(0, 2),
+  };
 };
 
 export default function DashboardScreen() {
@@ -39,151 +31,292 @@ export default function DashboardScreen() {
   const { isDfxAuthenticated } = useAuthStore();
   const { authenticate, isAuthenticating } = useDfxAuth();
 
-  const assetConfigs = useMemo(() => getAssets(), []);
-  const { data: balanceResults } = useBalancesForWallet(0, assetConfigs);
+  const [balanceVisible, setBalanceVisible] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
-  const assets = useMemo<AggregatedAsset[]>(() => {
-    if (!balanceResults) return [];
-
-    return balanceResults
-      .filter((r) => r.success && r.balance && r.balance !== '0')
-      .map((result) => {
-        const asset = assetConfigs.find((a) => a.getId() === result.assetId);
-        if (!asset) return null;
-
-        return {
-          symbol: asset.getSymbol(),
-          name: asset.getName(),
-          chain: asset.getNetwork(),
-          balance: formatBalance(result.balance ?? '0', asset.getDecimals()),
-          balanceFiat: '',
-        } satisfies AggregatedAsset;
-      })
-      .filter((asset): asset is AggregatedAsset => asset !== null);
-  }, [balanceResults, assetConfigs]);
+  const handleScan = (data: string) => {
+    Alert.alert(t('pay.comingSoonTitle'), t('pay.comingSoonMessage', { data }));
+  };
 
   const hasAttemptedAuthRef = useRef(false);
   useEffect(() => {
     if (isDfxAuthenticated || isAuthenticating || hasAttemptedAuthRef.current) return;
     hasAttemptedAuthRef.current = true;
     authenticate().catch(() => {
-      // Auth will be retried when user attempts buy/sell
+      // Auth retried on demand from buy/sell flows.
     });
   }, [isDfxAuthenticated, isAuthenticating, authenticate]);
 
-  const actions = [
-    {
-      icon: '\u2B06',
-      label: t('buy.title'),
-      testID: 'dashboard-action-buy',
-      onPress: () => router.push('/(auth)/buy'),
-    },
-    {
-      icon: '\u2B07',
-      label: t('sell.title'),
-      testID: 'dashboard-action-sell',
-      onPress: () => router.push('/(auth)/sell'),
-    },
-    {
-      icon: '\u27A1',
-      label: t('send.title'),
-      testID: 'dashboard-action-send',
-      onPress: () => router.push('/(auth)/send'),
-    },
-    {
-      icon: '\u2B05',
-      label: t('receive.title'),
-      testID: 'dashboard-action-receive',
-      onPress: () => router.push('/(auth)/receive'),
-    },
-  ];
+  const symbol = CURRENCY_SYMBOLS.get(selectedCurrency) ?? selectedCurrency;
+  const { whole, fraction } = splitBalance(totalBalanceFiat);
 
   return (
-    <ScreenContainer scrollable>
-      <View style={styles.content} testID="dashboard-screen">
-        <BalanceCard totalBalance={totalBalanceFiat} currency={selectedCurrency} />
-        <ActionBar actions={actions} />
+    <ImageBackground
+      source={require('../../../assets/dashboard-bg.png')}
+      style={styles.bg}
+      resizeMode="cover"
+    >
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <View style={styles.content} testID="dashboard-screen">
+          <DashboardHeader onMenuPress={() => setMenuOpen(true)} />
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{t('dashboard.portfolio')}</Text>
+          <View style={styles.balanceSection}>
             <Pressable
-              testID="dashboard-history-button"
-              onPress={() => router.push('/(auth)/transaction-history')}
+              style={styles.balanceLabelRow}
+              onPress={() => setBalanceVisible((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel={t('dashboard.toggleBalance')}
+              testID="dashboard-balance-toggle"
+              hitSlop={8}
             >
-              <Text style={styles.seeAll}>History</Text>
+              <Text style={styles.balanceLabel}>{t('dashboard.totalBalance')}</Text>
+              <Icon name={balanceVisible ? 'eye' : 'eye-off'} size={18} color={DfxColors.primary} />
             </Pressable>
+
+            <View style={styles.balanceValueRow}>
+              <Text style={styles.balanceSymbol}>{symbol}</Text>
+              {balanceVisible ? (
+                <>
+                  <Text style={styles.balanceWhole}>{whole}</Text>
+                  <Text style={styles.balanceFraction}>.{fraction}</Text>
+                </>
+              ) : (
+                <Text style={styles.balanceHidden}>••••</Text>
+              )}
+            </View>
           </View>
 
-          {assets.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>wallet</Text>
-              <Text style={styles.emptyTitle}>No assets yet</Text>
-              <Text style={styles.emptyDescription}>Buy your first crypto to get started.</Text>
+          <View style={styles.actions}>
+            <PillAction
+              icon="wallet"
+              label={t('dashboard.portfolio')}
+              testID="dashboard-action-portfolio"
+              onPress={() => router.push('/(auth)/portfolio')}
+            />
+            <PillAction
+              icon="grid"
+              label={t('dashboard.pay')}
+              testID="dashboard-action-pay"
+              onPress={() => setScannerOpen(true)}
+            />
+          </View>
+
+          <Pressable
+            style={styles.transactions}
+            onPress={() => router.push('/(auth)/transaction-history')}
+            testID="dashboard-action-transactions"
+            accessibilityRole="button"
+          >
+            <Icon name="swap" size={18} color={DfxColors.primary} />
+            <Text style={styles.transactionsLabel}>{t('dashboard.transactions')}</Text>
+          </Pressable>
+
+          <View style={styles.footer}>
+            <View style={styles.bottomPill}>
+              <Pressable
+                style={styles.bottomPillItem}
+                onPress={() => router.push('/(auth)/receive')}
+                testID="dashboard-action-receive"
+                accessibilityRole="button"
+                accessibilityLabel={t('receive.title')}
+              >
+                <Icon name="receive" size={22} color={DfxColors.primary} />
+                <Text style={styles.bottomPillLabel}>{t('receive.title')}</Text>
+              </Pressable>
+              <View style={styles.bottomPillSeparator} />
+              <Pressable
+                style={styles.bottomPillItem}
+                onPress={() => router.push('/(auth)/send')}
+                testID="dashboard-action-send"
+                accessibilityRole="button"
+                accessibilityLabel={t('send.title')}
+              >
+                <Icon name="send" size={22} color={DfxColors.primary} />
+                <Text style={styles.bottomPillLabel}>{t('send.title')}</Text>
+              </Pressable>
             </View>
-          ) : (
-            <View style={styles.assetList}>
-              {assets.map((asset, i) => (
-                <AssetListItem
-                  key={`${asset.chain}-${asset.symbol}-${i}`}
-                  symbol={asset.symbol}
-                  name={asset.name}
-                  chain={asset.chain}
-                  balance={asset.balance}
-                  balanceFiat={asset.balanceFiat}
-                />
-              ))}
-            </View>
-          )}
+          </View>
         </View>
+
+        <MenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
+        <QrScanner
+          visible={scannerOpen}
+          onScan={handleScan}
+          onClose={() => setScannerOpen(false)}
+        />
+      </SafeAreaView>
+    </ImageBackground>
+  );
+}
+
+type PillActionProps = {
+  icon: 'wallet' | 'grid';
+  label: string;
+  testID: string;
+  onPress: () => void;
+};
+
+function PillAction({ icon, label, testID, onPress }: PillActionProps) {
+  return (
+    <Pressable
+      style={styles.pill}
+      onPress={onPress}
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <View style={styles.pillIconBubble}>
+        <Icon name={icon} size={18} color={DfxColors.white} strokeWidth={2.2} />
       </View>
-    </ScreenContainer>
+      <Text style={styles.pillLabel}>{label}</Text>
+      <Icon name="chevron-right" size={18} color={DfxColors.primary} />
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  bg: {
+    flex: 1,
+    backgroundColor: DfxColors.background,
+  },
+  safeArea: {
+    flex: 1,
+  },
   content: {
-    paddingVertical: 16,
-    gap: 16,
+    flex: 1,
+    paddingHorizontal: 20,
   },
-  section: {
-    gap: 12,
+  balanceSection: {
+    marginTop: 'auto',
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingBottom: 24,
   },
-  sectionHeader: {
+  balanceLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
+    paddingVertical: 4,
   },
-  sectionTitle: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-  },
-  seeAll: {
+  balanceLabel: {
     ...Typography.bodyMedium,
-    color: DfxColors.primary,
+    color: DfxColors.textSecondary,
+    fontWeight: '500',
   },
-  assetList: {
-    gap: 8,
+  balanceValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginTop: 4,
   },
-  emptyState: {
-    padding: 40,
-    borderRadius: 16,
-    backgroundColor: DfxColors.surface,
-    alignItems: 'center',
-    gap: 8,
+  balanceSymbol: {
+    fontSize: 36,
+    lineHeight: 56,
+    fontWeight: '300',
+    color: DfxColors.textTertiary,
+    marginRight: 4,
   },
-  emptyIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  emptyTitle: {
-    ...Typography.bodyLarge,
+  balanceWhole: {
+    fontSize: 80,
+    lineHeight: 84,
     fontWeight: '600',
     color: DfxColors.text,
+    letterSpacing: -2,
   },
-  emptyDescription: {
+  balanceFraction: {
+    fontSize: 36,
+    lineHeight: 56,
+    fontWeight: '500',
+    color: DfxColors.text,
+  },
+  balanceHidden: {
+    fontSize: 64,
+    lineHeight: 84,
+    fontWeight: '600',
+    color: DfxColors.text,
+    letterSpacing: 4,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  pill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: DfxColors.surface,
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingLeft: 8,
+    paddingRight: 16,
+    gap: 12,
+    shadowColor: '#0B1426',
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  pillIconBubble: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: DfxColors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pillLabel: {
+    flex: 1,
+    ...Typography.bodyLarge,
+    color: DfxColors.primary,
+    fontWeight: '600',
+  },
+  transactions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 18,
+    marginTop: 8,
+  },
+  transactionsLabel: {
+    ...Typography.bodyLarge,
+    color: DfxColors.primary,
+    fontWeight: '600',
+  },
+  footer: {
+    marginTop: 'auto',
+    alignItems: 'center',
+    paddingBottom: 24,
+  },
+  bottomPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: DfxColors.surface,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    width: '70%',
+    shadowColor: '#0B1426',
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  bottomPillItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 6,
+  },
+  bottomPillSeparator: {
+    width: StyleSheet.hairlineWidth,
+    height: 32,
+    backgroundColor: DfxColors.border,
+  },
+  bottomPillLabel: {
     ...Typography.bodyMedium,
-    color: DfxColors.textTertiary,
-    textAlign: 'center',
+    color: DfxColors.text,
+    fontWeight: '500',
   },
 });
