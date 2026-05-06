@@ -118,6 +118,7 @@
     "alwaysOnHint": "Default network — can't be disabled",
     "empty": "No assets yet",
     "emptyDescription": "Buy your first crypto to get started.",
+    "holdings": "Holdings by network",
     "manage": "Manage",
     "manageChains": "Manage networks",
     "optional": "Optional networks",

@@ -5,82 +5,27 @@ import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { Icon } from '@/components';
-import { getAssets, type TokenCategory, getCategoryForAsset } from '@/config/tokens';
+import { getAssetMeta, getAssets, type TokenCategory } from '@/config/tokens';
+import {
+  formatBalance,
+  formatNumber,
+  SYMBOL_COLORS,
+  SYMBOL_GLYPH,
+  SYMBOL_TO_TICKER,
+  toNumeric,
+} from '@/config/portfolio-presentation';
 import { useEnabledChains } from '@/hooks';
 import { useWalletStore } from '@/store';
-import { FiatCurrency, pricingService, type AssetTicker } from '@/services/pricing-service';
+import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { DfxColors, Typography } from '@/theme';
 
-const SYMBOL_TO_TICKER = new Map<string, AssetTicker>([
-  ['BTC', 'btc'],
-  ['WBTC', 'btc'],
-  ['ETH', 'eth'],
-  ['USDT', 'usdt'],
-  ['USDC', 'usdt'],
-  ['XAUT', 'xaut'],
-  ['MATIC', 'matic'],
-]);
-
-const CHAIN_LABELS = new Map<string, string>([
-  ['ethereum', 'Ethereum'],
-  ['arbitrum', 'Arbitrum'],
-  ['polygon', 'Polygon'],
-  ['spark', 'Lightning'],
-  ['plasma', 'Plasma'],
-  ['sepolia', 'Sepolia'],
-]);
-
-const SYMBOL_COLORS = new Map<string, string>([
-  ['BTC', '#F7931A'],
-  ['WBTC', '#F7931A'],
-  ['ETH', '#627EEA'],
-  ['USDT', '#26A17B'],
-  ['USDC', '#2775CA'],
-  ['ZCHF', '#0E1F3A'],
-  ['XAUT', '#D4A017'],
-  ['MATIC', '#8247E5'],
-]);
-
-const SYMBOL_GLYPH = new Map<string, string>([
-  ['BTC', '₿'],
-  ['WBTC', '₿'],
-  ['ETH', 'Ξ'],
-  ['USDT', '₮'],
-  ['USDC', '$'],
-  ['ZCHF', '₣'],
-  ['XAUT', 'Au'],
-  ['MATIC', '⧫'],
-]);
-
-const formatBalance = (rawBalance: string, decimals: number): string => {
-  if (!rawBalance) return '0';
-  try {
-    const value = BigInt(rawBalance);
-    const divisor = BigInt(10) ** BigInt(decimals);
-    const whole = value / divisor;
-    const fractional = value % divisor;
-    if (fractional === 0n) return whole.toString();
-    const fractionalStr = fractional.toString().padStart(decimals, '0').replace(/0+$/, '');
-    return fractionalStr ? `${whole}.${fractionalStr}` : whole.toString();
-  } catch {
-    return rawBalance;
-  }
-};
-
-const toNumeric = (formatted: string): number => {
-  const n = parseFloat(formatted);
-  return Number.isFinite(n) ? n : 0;
-};
-
-type PortfolioAsset = {
-  id: string;
-  symbol: string;
-  name: string;
-  chain: string;
+type PortfolioGroup = {
+  canonicalSymbol: string;
+  canonicalName: string;
   category: TokenCategory;
-  balance: string;
-  balanceNum: number;
-  fiatValue: number;
+  totalBalanceNum: number;
+  totalFiat: number;
+  chainCount: number;
 };
 
 export default function PortfolioScreen() {
@@ -105,55 +50,61 @@ export default function PortfolioScreen() {
   }, []);
 
   const fiatCurrency = selectedCurrency === 'CHF' ? FiatCurrency.CHF : FiatCurrency.USD;
+  const currencySymbol = fiatCurrency === FiatCurrency.CHF ? 'CHF' : '$';
 
-  const assets = useMemo<PortfolioAsset[]>(() => {
-    return assetConfigs.map((asset) => {
+  const groups = useMemo<PortfolioGroup[]>(() => {
+    const byCanonical = new Map<string, PortfolioGroup>();
+
+    for (const asset of assetConfigs) {
+      const meta = getAssetMeta(asset.getId());
+      if (!meta) continue;
       const result = balanceResults?.find((r) => r.assetId === asset.getId());
       const rawBalance = result?.success ? (result.balance ?? '0') : '0';
       const balance = formatBalance(rawBalance, asset.getDecimals());
       const balanceNum = toNumeric(balance);
 
-      const ticker = SYMBOL_TO_TICKER.get(asset.getSymbol());
+      const ticker = SYMBOL_TO_TICKER.get(meta.canonicalSymbol);
       const rate =
         ticker && pricingReady ? pricingService.getExchangeRate(ticker, fiatCurrency) : undefined;
       const stablecoinValue =
-        asset.getSymbol() === 'USDC' || asset.getSymbol() === 'USDT' ? balanceNum : 0;
+        meta.canonicalSymbol === 'USDC' || meta.canonicalSymbol === 'USDT' ? balanceNum : 0;
       const fiatValue = rate ? balanceNum * rate : stablecoinValue;
 
-      return {
-        id: asset.getId(),
-        symbol: asset.getSymbol(),
-        name: asset.getName(),
-        chain: asset.getNetwork(),
-        category: getCategoryForAsset(asset.getId()),
-        balance,
-        balanceNum,
-        fiatValue,
-      };
-    });
-  }, [assetConfigs, balanceResults, fiatCurrency, pricingReady]);
+      const existing = byCanonical.get(meta.canonicalSymbol);
+      if (existing) {
+        existing.totalBalanceNum += balanceNum;
+        existing.totalFiat += fiatValue;
+        existing.chainCount += 1;
+      } else {
+        byCanonical.set(meta.canonicalSymbol, {
+          canonicalSymbol: meta.canonicalSymbol,
+          canonicalName: meta.canonicalName,
+          category: meta.category,
+          totalBalanceNum: balanceNum,
+          totalFiat: fiatValue,
+          chainCount: 1,
+        });
+      }
+    }
 
-  const sortedAssets = useMemo(() => {
     const CATEGORY_ORDER: Record<TokenCategory, number> = {
       btc: 0,
       stablecoin: 1,
       native: 2,
       other: 3,
     };
-    return [...assets].sort((a, b) => {
-      if (a.balanceNum > 0 && b.balanceNum === 0) return -1;
-      if (a.balanceNum === 0 && b.balanceNum > 0) return 1;
-      if (a.balanceNum > 0 && b.balanceNum > 0) return b.fiatValue - a.fiatValue;
-      return CATEGORY_ORDER[a.category] - CATEGORY_ORDER[b.category];
+
+    return Array.from(byCanonical.values()).sort((a, b) => {
+      if (a.totalBalanceNum > 0 && b.totalBalanceNum === 0) return -1;
+      if (a.totalBalanceNum === 0 && b.totalBalanceNum > 0) return 1;
+      if (a.totalBalanceNum > 0 && b.totalBalanceNum > 0) return b.totalFiat - a.totalFiat;
+      const cat = CATEGORY_ORDER[a.category] - CATEGORY_ORDER[b.category];
+      if (cat !== 0) return cat;
+      return a.canonicalSymbol.localeCompare(b.canonicalSymbol);
     });
-  }, [assets]);
+  }, [assetConfigs, balanceResults, fiatCurrency, pricingReady]);
 
-  const totalFiat = useMemo(
-    () => sortedAssets.reduce((sum, a) => sum + a.fiatValue, 0),
-    [sortedAssets],
-  );
-
-  const currencySymbol = fiatCurrency === FiatCurrency.CHF ? 'CHF' : '$';
+  const totalFiat = useMemo(() => groups.reduce((sum, g) => sum + g.totalFiat, 0), [groups]);
 
   return (
     <>
@@ -202,8 +153,18 @@ export default function PortfolioScreen() {
             </View>
 
             <View style={styles.assetList}>
-              {sortedAssets.map((asset) => (
-                <PortfolioAssetCard key={asset.id} asset={asset} currencySymbol={currencySymbol} />
+              {groups.map((group) => (
+                <PortfolioGroupCard
+                  key={group.canonicalSymbol}
+                  group={group}
+                  currencySymbol={currencySymbol}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(auth)/portfolio/[symbol]',
+                      params: { symbol: group.canonicalSymbol },
+                    })
+                  }
+                />
               ))}
             </View>
           </ScrollView>
@@ -213,37 +174,43 @@ export default function PortfolioScreen() {
   );
 }
 
-type CardProps = {
-  asset: PortfolioAsset;
+type GroupCardProps = {
+  group: PortfolioGroup;
   currencySymbol: string;
+  onPress: () => void;
 };
 
-function PortfolioAssetCard({ asset, currencySymbol }: CardProps) {
-  const color = SYMBOL_COLORS.get(asset.symbol) ?? DfxColors.primary;
-  const glyph = SYMBOL_GLYPH.get(asset.symbol) ?? asset.symbol.slice(0, 1);
-  const chainLabel = CHAIN_LABELS.get(asset.chain) ?? asset.chain;
+function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) {
+  const color = SYMBOL_COLORS.get(group.canonicalSymbol) ?? DfxColors.primary;
+  const glyph = SYMBOL_GLYPH.get(group.canonicalSymbol) ?? group.canonicalSymbol.slice(0, 1);
   return (
-    <View style={styles.card}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      testID={`portfolio-asset-${group.canonicalSymbol}`}
+      accessibilityRole="button"
+      accessibilityLabel={group.canonicalName}
+    >
       <View style={[styles.iconBubble, { backgroundColor: color }]}>
         <Text style={styles.iconText}>{glyph}</Text>
       </View>
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>
-          {asset.name}
+          {group.canonicalName}
         </Text>
-        <View style={styles.chainBadge}>
-          <Text style={styles.chainText}>{chainLabel}</Text>
-        </View>
+        <Text style={styles.chainCountText}>
+          {group.chainCount === 1 ? '1 network' : `${group.chainCount} networks`}
+        </Text>
       </View>
       <View style={styles.balanceColumn}>
         <Text style={styles.fiatValue} numberOfLines={1}>
-          {currencySymbol} {asset.fiatValue.toFixed(2)}
+          {currencySymbol} {group.totalFiat.toFixed(2)}
         </Text>
         <Text style={styles.cryptoBalance} numberOfLines={1}>
-          {asset.balance} {asset.symbol}
+          {formatNumber(group.totalBalanceNum)} {group.canonicalSymbol}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -258,7 +225,6 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingTop: 4,
     paddingBottom: 8,
@@ -334,6 +300,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 2,
   },
+  cardPressed: {
+    opacity: 0.7,
+  },
   iconBubble: {
     width: 44,
     height: 44,
@@ -360,17 +329,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: DfxColors.text,
   },
-  chainBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    backgroundColor: DfxColors.surfaceLight,
-    borderRadius: 6,
-  },
-  chainText: {
+  chainCountText: {
     ...Typography.bodySmall,
     color: DfxColors.textSecondary,
-    fontWeight: '500',
   },
   balanceColumn: {
     alignItems: 'flex-end',

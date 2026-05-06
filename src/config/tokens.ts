@@ -6,6 +6,8 @@ export type TokenCategory = 'btc' | 'stablecoin' | 'native' | 'other';
 type AssetSpec = {
   network: ChainId;
   symbol: string;
+  canonicalSymbol: string;
+  canonicalName: string;
   name: string;
   decimals: number;
   isNative: boolean;
@@ -15,11 +17,13 @@ type AssetSpec = {
 };
 
 const ASSET_SPECS: AssetSpec[] = [
-  // Bitcoin variants
+  // Bitcoin variants — all canonical 'BTC'
   {
     network: 'spark',
     symbol: 'BTC',
-    name: 'Bitcoin',
+    canonicalSymbol: 'BTC',
+    canonicalName: 'Bitcoin',
+    name: 'Bitcoin (Lightning)',
     decimals: 8,
     isNative: true,
     category: 'btc',
@@ -28,6 +32,8 @@ const ASSET_SPECS: AssetSpec[] = [
   {
     network: 'ethereum',
     symbol: 'WBTC',
+    canonicalSymbol: 'BTC',
+    canonicalName: 'Bitcoin',
     name: 'Wrapped Bitcoin',
     decimals: 8,
     isNative: false,
@@ -40,6 +46,8 @@ const ASSET_SPECS: AssetSpec[] = [
   {
     network: 'ethereum',
     symbol: 'ETH',
+    canonicalSymbol: 'ETH',
+    canonicalName: 'Ethereum',
     name: 'Ethereum',
     decimals: 18,
     isNative: true,
@@ -49,6 +57,8 @@ const ASSET_SPECS: AssetSpec[] = [
   {
     network: 'ethereum',
     symbol: 'USDT',
+    canonicalSymbol: 'USDT',
+    canonicalName: 'Tether USD',
     name: 'Tether USD',
     decimals: 6,
     isNative: false,
@@ -59,6 +69,8 @@ const ASSET_SPECS: AssetSpec[] = [
   {
     network: 'ethereum',
     symbol: 'USDC',
+    canonicalSymbol: 'USDC',
+    canonicalName: 'USD Coin',
     name: 'USD Coin',
     decimals: 6,
     isNative: false,
@@ -69,6 +81,8 @@ const ASSET_SPECS: AssetSpec[] = [
   {
     network: 'ethereum',
     symbol: 'ZCHF',
+    canonicalSymbol: 'ZCHF',
+    canonicalName: 'Frankencoin',
     name: 'Frankencoin',
     decimals: 18,
     isNative: false,
@@ -76,21 +90,14 @@ const ASSET_SPECS: AssetSpec[] = [
     address: '0xB58E61C3098d85632Df34EecfB899A1Ed80921cB',
     defaultEnabled: true,
   },
-  {
-    network: 'ethereum',
-    symbol: 'XAUT',
-    name: 'Tether Gold',
-    decimals: 6,
-    isNative: false,
-    category: 'other',
-    address: '0x68749665FF8D2d112Fa859AA293F07A622782F38',
-  },
 
   // Arbitrum (opt-in)
   {
     network: 'arbitrum',
     symbol: 'ETH',
-    name: 'Ethereum',
+    canonicalSymbol: 'ETH',
+    canonicalName: 'Ethereum',
+    name: 'Ethereum (Arbitrum)',
     decimals: 18,
     isNative: true,
     category: 'native',
@@ -98,6 +105,8 @@ const ASSET_SPECS: AssetSpec[] = [
   {
     network: 'arbitrum',
     symbol: 'USDT',
+    canonicalSymbol: 'USDT',
+    canonicalName: 'Tether USD',
     name: 'Tether USD',
     decimals: 6,
     isNative: false,
@@ -109,6 +118,8 @@ const ASSET_SPECS: AssetSpec[] = [
   {
     network: 'polygon',
     symbol: 'MATIC',
+    canonicalSymbol: 'MATIC',
+    canonicalName: 'Polygon',
     name: 'Polygon',
     decimals: 18,
     isNative: true,
@@ -117,6 +128,8 @@ const ASSET_SPECS: AssetSpec[] = [
   {
     network: 'polygon',
     symbol: 'USDT',
+    canonicalSymbol: 'USDT',
+    canonicalName: 'Tether USD',
     name: 'Tether USD',
     decimals: 6,
     isNative: false,
@@ -128,7 +141,9 @@ const ASSET_SPECS: AssetSpec[] = [
   {
     network: 'plasma',
     symbol: 'ETH',
-    name: 'Plasma ETH',
+    canonicalSymbol: 'ETH',
+    canonicalName: 'Ethereum',
+    name: 'Ethereum (Plasma)',
     decimals: 18,
     isNative: true,
     category: 'native',
@@ -136,6 +151,8 @@ const ASSET_SPECS: AssetSpec[] = [
   {
     network: 'sepolia',
     symbol: 'ETH',
+    canonicalSymbol: 'ETH',
+    canonicalName: 'Ethereum',
     name: 'Sepolia ETH',
     decimals: 18,
     isNative: true,
@@ -144,6 +161,8 @@ const ASSET_SPECS: AssetSpec[] = [
   {
     network: 'sepolia',
     symbol: 'USDT',
+    canonicalSymbol: 'USDT',
+    canonicalName: 'Tether USD',
     name: 'Tether USD',
     decimals: 6,
     isNative: false,
@@ -161,12 +180,69 @@ export const DEFAULT_ENABLED_CHAINS: ChainId[] = Array.from(
 
 export const SELECTABLE_CHAINS: ChainId[] = ['arbitrum', 'polygon'];
 
-const ASSET_CATEGORY_MAP = new Map<string, TokenCategory>(
-  ASSET_SPECS.map((spec) => [buildId(spec), spec.category]),
+export type AssetMeta = {
+  id: string;
+  network: ChainId;
+  symbol: string;
+  canonicalSymbol: string;
+  canonicalName: string;
+  name: string;
+  decimals: number;
+  isNative: boolean;
+  category: TokenCategory;
+  address?: string | null;
+};
+
+const ASSET_META_BY_ID = new Map<string, AssetMeta>(
+  ASSET_SPECS.map((spec) => [
+    buildId(spec),
+    {
+      id: buildId(spec),
+      network: spec.network,
+      symbol: spec.symbol,
+      canonicalSymbol: spec.canonicalSymbol,
+      canonicalName: spec.canonicalName,
+      name: spec.name,
+      decimals: spec.decimals,
+      isNative: spec.isNative,
+      category: spec.category,
+      address: spec.address ?? null,
+    },
+  ]),
 );
 
+export const getAssetMeta = (assetId: string): AssetMeta | undefined =>
+  ASSET_META_BY_ID.get(assetId);
+
 export const getCategoryForAsset = (assetId: string): TokenCategory =>
-  ASSET_CATEGORY_MAP.get(assetId) ?? 'other';
+  ASSET_META_BY_ID.get(assetId)?.category ?? 'other';
+
+export const getAssetsForCanonicalSymbol = (symbol: string, chains?: ChainId[]): AssetMeta[] => {
+  const filtered = chains
+    ? ASSET_SPECS.filter((spec) => chains.includes(spec.network))
+    : ASSET_SPECS;
+  return filtered
+    .filter((spec) => spec.canonicalSymbol === symbol)
+    .map((spec) => ({
+      id: buildId(spec),
+      network: spec.network,
+      symbol: spec.symbol,
+      canonicalSymbol: spec.canonicalSymbol,
+      canonicalName: spec.canonicalName,
+      name: spec.name,
+      decimals: spec.decimals,
+      isNative: spec.isNative,
+      category: spec.category,
+      address: spec.address ?? null,
+    }));
+};
+
+export const getCanonicalNameForSymbol = (canonicalSymbol: string): string =>
+  ASSET_SPECS.find((spec) => spec.canonicalSymbol === canonicalSymbol)?.canonicalName ??
+  canonicalSymbol;
+
+export const getCategoryForCanonicalSymbol = (canonicalSymbol: string): TokenCategory =>
+  ASSET_SPECS.find((spec) => spec.canonicalSymbol === canonicalSymbol)?.category ?? 'other';
 
 export const getAssets = (chains?: ChainId[]): IAsset[] => {
   const filtered = chains
