@@ -183,7 +183,16 @@
     "title": "Support"
   },
   "transactions": {
+    "date": "Date",
+    "detailTitle": "Transaction",
+    "filterAll": "All",
+    "input": "From",
+    "network": "Network",
     "noTransactions": "No transactions yet",
-    "title": "Transactions"
+    "notFound": "Transaction not found",
+    "output": "To",
+    "title": "Transactions",
+    "txHash": "Tx hash",
+    "viewOnExplorer": "View on block explorer"
   }
 }

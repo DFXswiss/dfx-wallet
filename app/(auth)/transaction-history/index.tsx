@@ -10,9 +10,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader } from '@/components';
+import { AppHeader, Icon } from '@/components';
 import { CHAIN_LABELS } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/services/dfx';
 import { DfxColors, Typography } from '@/theme';
@@ -30,6 +30,7 @@ const STATE_COLORS = new Map<string, string>([
 
 export default function TransactionHistoryScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
   const params = useLocalSearchParams<{ asset?: string; network?: string }>();
   const assetFilter = typeof params.asset === 'string' ? params.asset.toUpperCase() : undefined;
   const networkFilter = typeof params.network === 'string' ? params.network : undefined;
@@ -88,23 +89,25 @@ export default function TransactionHistoryScreen() {
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
           <AppHeader title={headerTitle} testID="transaction-history" />
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filters}
-          >
-            {filters.map((f) => (
-              <Pressable
-                key={f}
-                style={[styles.filterChip, filter === f && styles.filterChipActive]}
-                onPress={() => setFilter(f)}
-              >
-                <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-                  {f === 'all' ? 'All' : f}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+          {!assetFilter && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filters}
+            >
+              {filters.map((f) => (
+                <Pressable
+                  key={f}
+                  style={[styles.filterChip, filter === f && styles.filterChipActive]}
+                  onPress={() => setFilter(f)}
+                >
+                  <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
+                    {f === 'all' ? t('transactions.filterAll') : f}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
 
           {isLoading ? (
             <View style={styles.loadingContainer}>
@@ -128,35 +131,60 @@ export default function TransactionHistoryScreen() {
               }
             >
               {filtered.map((tx) => (
-                <View key={tx.id} style={styles.txItem}>
-                  <View style={styles.txLeft}>
-                    <Text style={styles.txType}>{tx.type}</Text>
-                    <Text style={styles.txDate}>{new Date(tx.date).toLocaleDateString()}</Text>
-                  </View>
-                  <View style={styles.txRight}>
-                    <Text style={styles.txAmount}>
-                      {tx.type === 'Sell' ? '-' : '+'}
-                      {tx.outputAmount} {tx.outputAsset}
-                    </Text>
-                    <View style={styles.txStatusRow}>
-                      <View
-                        style={[
-                          styles.statusDot,
-                          {
-                            backgroundColor: STATE_COLORS.get(tx.state) ?? DfxColors.textTertiary,
-                          },
-                        ]}
-                      />
-                      <Text style={styles.txState}>{tx.state}</Text>
-                    </View>
-                  </View>
-                </View>
+                <TransactionRow
+                  key={tx.id}
+                  tx={tx}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(auth)/transaction-history/[id]',
+                      params: { id: String(tx.id), network: networkFilter ?? '' },
+                    })
+                  }
+                />
               ))}
             </ScrollView>
           )}
         </SafeAreaView>
       </ImageBackground>
     </>
+  );
+}
+
+type RowProps = { tx: TransactionDto; onPress: () => void };
+
+function TransactionRow({ tx, onPress }: RowProps) {
+  const isOutgoing = tx.type === 'Sell';
+  const stateColor = STATE_COLORS.get(tx.state) ?? DfxColors.textTertiary;
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.txItem, pressed && styles.txItemPressed]}
+    >
+      <View style={[styles.txIcon, { backgroundColor: isOutgoing ? '#FEE2E2' : '#DCFCE7' }]}>
+        <Icon
+          name={isOutgoing ? 'send' : 'receive'}
+          size={18}
+          color={isOutgoing ? DfxColors.error : DfxColors.success}
+          strokeWidth={2.2}
+        />
+      </View>
+      <View style={styles.txInfo}>
+        <Text style={styles.txType}>{tx.type}</Text>
+        <Text style={styles.txDate}>{new Date(tx.date).toLocaleDateString()}</Text>
+      </View>
+      <View style={styles.txAmountColumn}>
+        <Text
+          style={[styles.txAmount, { color: isOutgoing ? DfxColors.error : DfxColors.success }]}
+          numberOfLines={1}
+        >
+          {isOutgoing ? '-' : '+'}
+          {tx.outputAmount} {tx.outputAsset}
+        </Text>
+        <Text style={[styles.txState, { color: stateColor }]} numberOfLines={1}>
+          {tx.state}
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -210,23 +238,29 @@ const styles = StyleSheet.create({
   },
   txList: {
     paddingHorizontal: 20,
+    paddingTop: 4,
     paddingBottom: 32,
-    gap: 8,
+    gap: 4,
   },
   txItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: DfxColors.surface,
-    borderRadius: 14,
-    padding: 14,
-    shadowColor: '#0B1426',
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    gap: 12,
   },
-  txLeft: {
+  txItemPressed: {
+    opacity: 0.6,
+  },
+  txIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  txInfo: {
+    flex: 1,
     gap: 2,
   },
   txType: {
@@ -238,27 +272,17 @@ const styles = StyleSheet.create({
     ...Typography.bodySmall,
     color: DfxColors.textTertiary,
   },
-  txRight: {
+  txAmountColumn: {
     alignItems: 'flex-end',
-    gap: 4,
+    gap: 2,
+    minWidth: 110,
   },
   txAmount: {
-    ...Typography.bodyLarge,
+    ...Typography.bodyMedium,
     fontWeight: '600',
-    color: DfxColors.text,
-  },
-  txStatusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
   },
   txState: {
     ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
+    fontWeight: '500',
   },
 });
