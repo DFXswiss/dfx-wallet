@@ -93,38 +93,6 @@ export default function PayScreen() {
           )}
         </View>
 
-        <View
-          pointerEvents="none"
-          style={[styles.corner, styles.cornerTL, { top: cutoutStyle.top, left: cutoutStyle.left }]}
-        />
-        <View
-          pointerEvents="none"
-          style={[
-            styles.corner,
-            styles.cornerTR,
-            { top: cutoutStyle.top, left: cutoutStyle.left + cutoutStyle.width - 72 },
-          ]}
-        />
-        <View
-          pointerEvents="none"
-          style={[
-            styles.corner,
-            styles.cornerBL,
-            { top: cutoutStyle.top + cutoutStyle.height - 72, left: cutoutStyle.left },
-          ]}
-        />
-        <View
-          pointerEvents="none"
-          style={[
-            styles.corner,
-            styles.cornerBR,
-            {
-              top: cutoutStyle.top + cutoutStyle.height - 72,
-              left: cutoutStyle.left + cutoutStyle.width - 72,
-            },
-          ]}
-        />
-
         <MenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
       </ImageBackground>
     </>
@@ -145,36 +113,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 16,
     backgroundColor: 'rgba(11, 20, 38, 0.18)',
-  },
-  corner: {
-    position: 'absolute',
-    width: 72,
-    height: 72,
-    borderColor: '#FFFFFF',
-    shadowColor: '#FFFFFF',
-    shadowOpacity: 0.7,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  cornerTL: {
-    borderTopWidth: 8,
-    borderLeftWidth: 8,
-    borderTopLeftRadius: 22,
-  },
-  cornerTR: {
-    borderTopWidth: 8,
-    borderRightWidth: 8,
-    borderTopRightRadius: 22,
-  },
-  cornerBL: {
-    borderBottomWidth: 8,
-    borderLeftWidth: 8,
-    borderBottomLeftRadius: 22,
-  },
-  cornerBR: {
-    borderBottomWidth: 8,
-    borderRightWidth: 8,
-    borderBottomRightRadius: 22,
   },
   lightningWrapper: {
     alignItems: 'center',

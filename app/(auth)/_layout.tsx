@@ -10,6 +10,8 @@ export default function AuthLayout() {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: DfxColors.background },
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
       }}
     />
   );
