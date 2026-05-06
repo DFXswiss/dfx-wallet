@@ -114,8 +114,14 @@
     "tooMany": "Zu viele Fehlversuche. Bitte starte die App neu."
   },
   "portfolio": {
+    "alwaysOn": "Immer aktiv",
+    "alwaysOnHint": "Standardnetzwerk — kann nicht deaktiviert werden",
     "empty": "Noch keine Assets",
-    "emptyDescription": "Kaufe dein erstes Krypto um zu starten."
+    "emptyDescription": "Kaufe dein erstes Krypto um zu starten.",
+    "manage": "Verwalten",
+    "manageChains": "Netzwerke verwalten",
+    "optional": "Optionale Netzwerke",
+    "totalValue": "Gesamtwert"
   },
   "receive": {
     "buyBtcWithEuro": "BTC mit Euro kaufen",

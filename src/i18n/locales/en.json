@@ -114,8 +114,14 @@
     "tooMany": "Too many failed attempts. Please restart the app."
   },
   "portfolio": {
+    "alwaysOn": "Always on",
+    "alwaysOnHint": "Default network — can't be disabled",
     "empty": "No assets yet",
-    "emptyDescription": "Buy your first crypto to get started."
+    "emptyDescription": "Buy your first crypto to get started.",
+    "manage": "Manage",
+    "manageChains": "Manage networks",
+    "optional": "Optional networks",
+    "totalValue": "Total value"
   },
   "receive": {
     "buyBtcWithEuro": "Buy BTC with Euro",

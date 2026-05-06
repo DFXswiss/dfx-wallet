@@ -1,19 +1,44 @@
-import { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Stack } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import { AssetListItem, ScreenContainer } from '@/components';
-import { getAssets } from '@/config/tokens';
+import { ScreenContainer } from '@/components';
+import { getAssets, type TokenCategory, getCategoryForAsset } from '@/config/tokens';
+import { useEnabledChains } from '@/hooks';
+import { useWalletStore } from '@/store';
+import { FiatCurrency, pricingService, type AssetTicker } from '@/services/pricing-service';
 import { DfxColors, Typography } from '@/theme';
 
-type AggregatedAsset = {
-  symbol: string;
-  name: string;
-  chain: string;
-  balance: string;
-  balanceFiat: string;
-};
+const SYMBOL_TO_TICKER = new Map<string, AssetTicker>([
+  ['BTC', 'btc'],
+  ['WBTC', 'btc'],
+  ['ETH', 'eth'],
+  ['USDT', 'usdt'],
+  ['USDC', 'usdt'],
+  ['XAUT', 'xaut'],
+  ['MATIC', 'matic'],
+]);
+
+const CHAIN_LABELS = new Map<string, string>([
+  ['ethereum', 'Ethereum'],
+  ['arbitrum', 'Arbitrum'],
+  ['polygon', 'Polygon'],
+  ['spark', 'Lightning'],
+  ['plasma', 'Plasma'],
+  ['sepolia', 'Sepolia'],
+]);
+
+const SYMBOL_COLORS = new Map<string, string>([
+  ['BTC', '#F7931A'],
+  ['WBTC', '#F7931A'],
+  ['ETH', '#627EEA'],
+  ['USDT', '#26A17B'],
+  ['USDC', '#2775CA'],
+  ['ZCHF', '#0E1F3A'],
+  ['XAUT', '#FFC107'],
+  ['MATIC', '#8247E5'],
+]);
 
 const formatBalance = (rawBalance: string, decimals: number): string => {
   if (!rawBalance) return '0';
@@ -30,89 +55,251 @@ const formatBalance = (rawBalance: string, decimals: number): string => {
   }
 };
 
+const toNumeric = (formatted: string): number => {
+  const n = parseFloat(formatted);
+  return Number.isFinite(n) ? n : 0;
+};
+
+type PortfolioAsset = {
+  id: string;
+  symbol: string;
+  name: string;
+  chain: string;
+  category: TokenCategory;
+  balance: string;
+  balanceNum: number;
+  fiatValue: number;
+};
+
 export default function PortfolioScreen() {
   const { t } = useTranslation();
-  const assetConfigs = useMemo(() => getAssets(), []);
+  const router = useRouter();
+  const { enabledChains } = useEnabledChains();
+  const { selectedCurrency } = useWalletStore();
+
+  const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
   const { data: balanceResults } = useBalancesForWallet(0, assetConfigs);
+  const [pricingReady, setPricingReady] = useState(pricingService.isReady());
 
-  const assets = useMemo<AggregatedAsset[]>(() => {
-    if (!balanceResults) return [];
+  useEffect(() => {
+    if (pricingService.isReady()) {
+      setPricingReady(true);
+      return;
+    }
+    void pricingService
+      .initialize()
+      .then(() => setPricingReady(true))
+      .catch(() => setPricingReady(false));
+  }, []);
 
-    return balanceResults
-      .filter((r) => r.success && r.balance && r.balance !== '0')
-      .map((result) => {
-        const asset = assetConfigs.find((a) => a.getId() === result.assetId);
-        if (!asset) return null;
+  const fiatCurrency = selectedCurrency === 'CHF' ? FiatCurrency.CHF : FiatCurrency.USD;
 
-        return {
-          symbol: asset.getSymbol(),
-          name: asset.getName(),
-          chain: asset.getNetwork(),
-          balance: formatBalance(result.balance ?? '0', asset.getDecimals()),
-          balanceFiat: '',
-        } satisfies AggregatedAsset;
-      })
-      .filter((asset): asset is AggregatedAsset => asset !== null);
-  }, [balanceResults, assetConfigs]);
+  const assets = useMemo<PortfolioAsset[]>(() => {
+    return assetConfigs.map((asset) => {
+      const result = balanceResults?.find((r) => r.assetId === asset.getId());
+      const rawBalance = result?.success ? (result.balance ?? '0') : '0';
+      const balance = formatBalance(rawBalance, asset.getDecimals());
+      const balanceNum = toNumeric(balance);
+
+      const ticker = SYMBOL_TO_TICKER.get(asset.getSymbol());
+      const rate =
+        ticker && pricingReady ? pricingService.getExchangeRate(ticker, fiatCurrency) : undefined;
+      const stablecoinValue =
+        asset.getSymbol() === 'USDC' || asset.getSymbol() === 'USDT' ? balanceNum : 0;
+      const fiatValue = rate ? balanceNum * rate : stablecoinValue;
+
+      return {
+        id: asset.getId(),
+        symbol: asset.getSymbol(),
+        name: asset.getName(),
+        chain: asset.getNetwork(),
+        category: getCategoryForAsset(asset.getId()),
+        balance,
+        balanceNum,
+        fiatValue,
+      };
+    });
+  }, [assetConfigs, balanceResults, fiatCurrency, pricingReady]);
+
+  const sortedAssets = useMemo(() => {
+    const CATEGORY_ORDER: Record<TokenCategory, number> = {
+      btc: 0,
+      stablecoin: 1,
+      native: 2,
+      other: 3,
+    };
+    return [...assets].sort((a, b) => {
+      if (a.balanceNum > 0 && b.balanceNum === 0) return -1;
+      if (a.balanceNum === 0 && b.balanceNum > 0) return 1;
+      if (a.balanceNum > 0 && b.balanceNum > 0) return b.fiatValue - a.fiatValue;
+      return CATEGORY_ORDER[a.category] - CATEGORY_ORDER[b.category];
+    });
+  }, [assets]);
+
+  const totalFiat = useMemo(
+    () => sortedAssets.reduce((sum, a) => sum + a.fiatValue, 0),
+    [sortedAssets],
+  );
+
+  const currencySymbol = fiatCurrency === FiatCurrency.CHF ? 'CHF' : '$';
 
   return (
     <>
-      <Stack.Screen options={{ title: t('dashboard.portfolio'), headerShown: true }} />
-      <ScreenContainer scrollable testID="portfolio-screen">
-        {assets.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>{t('portfolio.empty')}</Text>
-            <Text style={styles.emptyDescription}>{t('portfolio.emptyDescription')}</Text>
-          </View>
-        ) : (
-          <ScrollView
-            style={styles.list}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {assets.map((asset, i) => (
-              <AssetListItem
-                key={`${asset.chain}-${asset.symbol}-${i}`}
-                symbol={asset.symbol}
-                name={asset.name}
-                chain={asset.chain}
-                balance={asset.balance}
-                balanceFiat={asset.balanceFiat}
-              />
-            ))}
-          </ScrollView>
-        )}
+      <Stack.Screen
+        options={{
+          title: t('dashboard.portfolio'),
+          headerShown: true,
+          headerRight: () => (
+            <Pressable
+              onPress={() => router.push('/(auth)/portfolio/manage')}
+              hitSlop={12}
+              testID="portfolio-manage-button"
+            >
+              <Text style={styles.manageLink}>{t('portfolio.manage')}</Text>
+            </Pressable>
+          ),
+        }}
+      />
+      <ScreenContainer testID="portfolio-screen">
+        <View style={styles.totalCard}>
+          <Text style={styles.totalLabel}>{t('portfolio.totalValue')}</Text>
+          <Text style={styles.totalValue}>
+            {currencySymbol} {totalFiat.toFixed(2)}
+          </Text>
+        </View>
+
+        <ScrollView
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {sortedAssets.map((asset) => (
+            <PortfolioAssetCard key={asset.id} asset={asset} currencySymbol={currencySymbol} />
+          ))}
+        </ScrollView>
       </ScreenContainer>
     </>
   );
 }
 
+type CardProps = {
+  asset: PortfolioAsset;
+  currencySymbol: string;
+};
+
+function PortfolioAssetCard({ asset, currencySymbol }: CardProps) {
+  const color = SYMBOL_COLORS.get(asset.symbol) ?? DfxColors.primary;
+  const chainLabel = CHAIN_LABELS.get(asset.chain) ?? asset.chain;
+  return (
+    <View style={styles.card}>
+      <View style={[styles.iconBubble, { backgroundColor: color }]}>
+        <Text style={styles.iconText}>{asset.symbol.slice(0, 1)}</Text>
+      </View>
+      <View style={styles.info}>
+        <Text style={styles.name} numberOfLines={1}>
+          {asset.name}
+        </Text>
+        <View style={styles.chainBadge}>
+          <Text style={styles.chainText}>{chainLabel}</Text>
+        </View>
+      </View>
+      <View style={styles.balanceColumn}>
+        <Text style={styles.fiatValue}>
+          {currencySymbol} {asset.fiatValue.toFixed(2)}
+        </Text>
+        <Text style={styles.cryptoBalance}>
+          {asset.balance} {asset.symbol}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  manageLink: {
+    ...Typography.bodyMedium,
+    color: DfxColors.primary,
+    fontWeight: '600',
+  },
+  totalCard: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    gap: 4,
+  },
+  totalLabel: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textSecondary,
+  },
+  totalValue: {
+    fontSize: 36,
+    lineHeight: 42,
+    fontWeight: '700',
+    color: DfxColors.text,
+  },
   list: {
     flex: 1,
   },
   listContent: {
-    paddingVertical: 16,
+    paddingBottom: 32,
     gap: 8,
   },
-  emptyState: {
-    flex: 1,
-    padding: 40,
-    borderRadius: 16,
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: DfxColors.surface,
+    borderRadius: 16,
+    padding: 14,
+    gap: 12,
+    shadowColor: '#0B1426',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  iconBubble: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginTop: 24,
   },
-  emptyTitle: {
+  iconText: {
+    color: DfxColors.white,
+    fontWeight: '700',
+    fontSize: 18,
+  },
+  info: {
+    flex: 1,
+    gap: 4,
+  },
+  name: {
     ...Typography.bodyLarge,
     fontWeight: '600',
     color: DfxColors.text,
   },
-  emptyDescription: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textTertiary,
-    textAlign: 'center',
+  chainBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: DfxColors.surfaceLight,
+    borderRadius: 6,
+  },
+  chainText: {
+    ...Typography.bodySmall,
+    color: DfxColors.textSecondary,
+    fontWeight: '500',
+  },
+  balanceColumn: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  fiatValue: {
+    ...Typography.bodyLarge,
+    fontWeight: '600',
+    color: DfxColors.text,
+  },
+  cryptoBalance: {
+    ...Typography.bodySmall,
+    color: DfxColors.textSecondary,
   },
 });
