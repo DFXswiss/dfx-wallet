@@ -14,13 +14,24 @@ const CURRENCY_SYMBOLS = new Map<string, string>([
   ['CHF', 'CHF'],
 ]);
 
+const insertThousandsSeparators = (whole: string): string => {
+  if (whole.length <= 3) return whole;
+  const result: string[] = [];
+  for (let i = whole.length; i > 0; i -= 3) {
+    result.unshift(whole.slice(Math.max(0, i - 3), i));
+  }
+  return result.join("'");
+};
+
 const splitBalance = (value: string): { whole: string; fraction: string } => {
-  const cleaned = value.replace(/[^0-9.,-]/g, '').replace(',', '.');
-  if (!cleaned) return { whole: '0', fraction: '00' };
-  const [whole, fraction = ''] = cleaned.split('.');
+  const num = parseFloat(value);
+  if (!Number.isFinite(num) || num === 0) return { whole: '0', fraction: '00' };
+  const abs = Math.abs(num);
+  const wholeNum = Math.floor(abs);
+  const frac = Math.round((abs - wholeNum) * 100);
   return {
-    whole: whole || '0',
-    fraction: fraction.padEnd(2, '0').slice(0, 2),
+    whole: insertThousandsSeparators(wholeNum.toString()),
+    fraction: frac.toString().padStart(2, '0'),
   };
 };
 
@@ -184,17 +195,18 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   balanceWhole: {
-    fontSize: 80,
-    lineHeight: 84,
+    fontSize: 52,
+    lineHeight: 56,
     fontWeight: '600',
     color: DfxColors.text,
-    letterSpacing: -2,
+    letterSpacing: -1,
+    flexShrink: 1,
   },
   balanceFraction: {
-    fontSize: 36,
-    lineHeight: 56,
+    fontSize: 24,
+    lineHeight: 48,
     fontWeight: '500',
-    color: DfxColors.text,
+    color: DfxColors.textSecondary,
   },
   balanceHidden: {
     fontSize: 64,
