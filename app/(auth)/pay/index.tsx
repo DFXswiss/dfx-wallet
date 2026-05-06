@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+  Alert,
+  ImageBackground,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -9,9 +17,9 @@ import { DfxColors, Typography } from '@/theme';
 
 const CUTOUT_PCT = {
   left: 0.0925,
-  top: 0.3496,
-  width: 0.8103,
-  height: 0.3366,
+  top: 0.3257,
+  width: 0.8115,
+  height: 0.3838,
 };
 
 export default function PayScreen() {
@@ -44,13 +52,11 @@ export default function PayScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.root}>
-        <Image
-          source={require('../../../assets/pay-bg.png')}
-          style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-        />
-
+      <ImageBackground
+        source={require('../../../assets/pay-bg.png')}
+        style={styles.bg}
+        resizeMode="cover"
+      >
         <SafeAreaView style={styles.flow} edges={['top', 'left', 'right', 'bottom']}>
           <DashboardHeader onMenuPress={() => setMenuOpen(true)} />
 
@@ -69,31 +75,64 @@ export default function PayScreen() {
           </View>
         </SafeAreaView>
 
-        {permission?.granted ? (
-          <View pointerEvents="none" style={[styles.cutout, cutoutStyle]}>
+        <View style={[styles.cutout, cutoutStyle]}>
+          {permission?.granted && (
             <CameraView
               style={StyleSheet.absoluteFill}
               barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
               onBarcodeScanned={handleScan}
             />
-          </View>
-        ) : (
-          <View style={[styles.cutout, cutoutStyle, styles.permissionFallback]}>
-            <Text style={styles.permissionText}>{t('pay.cameraPermission')}</Text>
-            <Pressable style={styles.permissionButton} onPress={requestPermission}>
-              <Text style={styles.permissionButtonText}>{t('pay.grantPermission')}</Text>
-            </Pressable>
-          </View>
-        )}
+          )}
+          {!permission?.granted && (
+            <View style={styles.permissionFallback}>
+              <Text style={styles.permissionText}>{t('pay.cameraPermission')}</Text>
+              <Pressable style={styles.permissionButton} onPress={requestPermission}>
+                <Text style={styles.permissionButtonText}>{t('pay.grantPermission')}</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+
+        <View
+          pointerEvents="none"
+          style={[styles.corner, styles.cornerTL, { top: cutoutStyle.top, left: cutoutStyle.left }]}
+        />
+        <View
+          pointerEvents="none"
+          style={[
+            styles.corner,
+            styles.cornerTR,
+            { top: cutoutStyle.top, left: cutoutStyle.left + cutoutStyle.width - 72 },
+          ]}
+        />
+        <View
+          pointerEvents="none"
+          style={[
+            styles.corner,
+            styles.cornerBL,
+            { top: cutoutStyle.top + cutoutStyle.height - 72, left: cutoutStyle.left },
+          ]}
+        />
+        <View
+          pointerEvents="none"
+          style={[
+            styles.corner,
+            styles.cornerBR,
+            {
+              top: cutoutStyle.top + cutoutStyle.height - 72,
+              left: cutoutStyle.left + cutoutStyle.width - 72,
+            },
+          ]}
+        />
 
         <MenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
-      </View>
+      </ImageBackground>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
+  bg: {
     flex: 1,
     backgroundColor: DfxColors.background,
   },
@@ -105,6 +144,37 @@ const styles = StyleSheet.create({
     position: 'absolute',
     overflow: 'hidden',
     borderRadius: 16,
+    backgroundColor: 'rgba(11, 20, 38, 0.18)',
+  },
+  corner: {
+    position: 'absolute',
+    width: 72,
+    height: 72,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FFFFFF',
+    shadowOpacity: 0.7,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  cornerTL: {
+    borderTopWidth: 8,
+    borderLeftWidth: 8,
+    borderTopLeftRadius: 22,
+  },
+  cornerTR: {
+    borderTopWidth: 8,
+    borderRightWidth: 8,
+    borderTopRightRadius: 22,
+  },
+  cornerBL: {
+    borderBottomWidth: 8,
+    borderLeftWidth: 8,
+    borderBottomLeftRadius: 22,
+  },
+  cornerBR: {
+    borderBottomWidth: 8,
+    borderRightWidth: 8,
+    borderBottomRightRadius: 22,
   },
   lightningWrapper: {
     alignItems: 'center',
@@ -128,6 +198,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 16,
     gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.85)',
   },
   permissionText: {
     ...Typography.bodyMedium,
