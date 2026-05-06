@@ -58,6 +58,9 @@ export default function PortfolioScreen() {
     for (const asset of assetConfigs) {
       const meta = getAssetMeta(asset.getId());
       if (!meta) continue;
+      // Hide native gas tokens (ETH, MATIC) from the overview — they are
+      // tracked for fees but not interesting as a portfolio holding.
+      if (meta.category === 'native') continue;
       const result = balanceResults?.find((r) => r.assetId === asset.getId());
       const rawBalance = result?.success ? (result.balance ?? '0') : '0';
       const balance = formatBalance(rawBalance, asset.getDecimals());
