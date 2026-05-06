@@ -113,6 +113,7 @@
     "emptyDescription": "Buy your first crypto to get started."
   },
   "receive": {
+    "buyBtcWithEuro": "Buy BTC with Euro",
     "onlyCorrectNetwork": "Only send {{asset}} on the {{network}} network to this address.",
     "title": "Receive",
     "yourAddress": "Your {{chain}} address"
@@ -137,6 +138,7 @@
     "irreversible": "Transactions are irreversible. Please verify the recipient address and amount.",
     "recipient": "Recipient",
     "scan": "Scan",
+    "sellInstead": "Sell crypto instead",
     "sent": "Transaction Sent",
     "title": "Send"
   },

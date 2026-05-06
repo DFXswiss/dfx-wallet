@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { ChainSelector, PrimaryButton, ScreenContainer } from '@/components';
+import { ChainSelector, Icon, PrimaryButton, ScreenContainer, ShortcutAction } from '@/components';
 import { QrScanner } from '@/components/QrScanner';
 import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
@@ -86,6 +86,13 @@ export default function SendScreen() {
         title={t('common.continue')}
         onPress={() => setStep('confirm')}
         disabled={!isValidAddress || !amount || parseFloat(amount) <= 0}
+      />
+
+      <ShortcutAction
+        icon={<Icon name="swap" size={18} color={DfxColors.white} strokeWidth={2.2} />}
+        label={t('send.sellInstead')}
+        onPress={() => router.push('/(auth)/sell')}
+        testID="send-action-sell"
       />
     </View>
   );
