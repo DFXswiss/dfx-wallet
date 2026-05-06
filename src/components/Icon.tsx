@@ -11,7 +11,9 @@ type IconName =
   | 'swap'
   | 'send'
   | 'receive'
-  | 'close';
+  | 'close'
+  | 'lightning'
+  | 'arrow-left';
 
 type Props = {
   name: IconName;
@@ -169,6 +171,24 @@ export function Icon({ name, size = 24, color = DfxColors.primary, strokeWidth =
             stroke={stroke}
             strokeWidth={sw}
             strokeLinecap="round"
+          />
+        </Svg>
+      );
+    case 'lightning':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill={stroke}>
+          <Path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />
+        </Svg>
+      );
+    case 'arrow-left':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M15 5l-7 7 7 7"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
         </Svg>
       );

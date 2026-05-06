@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { DashboardHeader, Icon, MenuModal, QrScanner, ShortcutAction } from '@/components';
+import { DashboardHeader, Icon, MenuModal, ShortcutAction } from '@/components';
 import { useDfxAuth } from '@/hooks';
 import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
@@ -33,11 +33,6 @@ export default function DashboardScreen() {
 
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [scannerOpen, setScannerOpen] = useState(false);
-
-  const handleScan = (data: string) => {
-    Alert.alert(t('pay.comingSoonTitle'), t('pay.comingSoonMessage', { data }));
-  };
 
   const hasAttemptedAuthRef = useRef(false);
   useEffect(() => {
@@ -99,7 +94,7 @@ export default function DashboardScreen() {
               icon={<Icon name="grid" size={18} color={DfxColors.white} strokeWidth={2.2} />}
               label={t('dashboard.pay')}
               testID="dashboard-action-pay"
-              onPress={() => setScannerOpen(true)}
+              onPress={() => router.push('/(auth)/pay')}
               style={styles.actionPill}
             />
           </View>
@@ -142,11 +137,6 @@ export default function DashboardScreen() {
         </View>
 
         <MenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
-        <QrScanner
-          visible={scannerOpen}
-          onScan={handleScan}
-          onClose={() => setScannerOpen(false)}
-        />
       </SafeAreaView>
     </ImageBackground>
   );

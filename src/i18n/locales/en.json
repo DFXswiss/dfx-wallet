@@ -94,8 +94,13 @@
     "useSeedInstead": "Use Seed Phrase"
   },
   "pay": {
+    "cameraPermission": "Camera access is needed to scan QR codes.",
     "comingSoonMessage": "Payments are not yet available. Scanned: {{data}}",
-    "comingSoonTitle": "Coming soon"
+    "comingSoonTitle": "Coming soon",
+    "grantPermission": "Grant access",
+    "lightning": "Lightning",
+    "lightningComingSoon": "Lightning support is coming soon.",
+    "scanToPay": "Scan to pay"
   },
   "pin": {
     "confirm": "Confirm PIN",
