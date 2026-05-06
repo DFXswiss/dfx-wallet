@@ -11,3 +11,4 @@ export { QrCode } from './QrCode';
 export { QrScanner } from './QrScanner';
 export { ScreenContainer } from './ScreenContainer';
 export { ShortcutAction } from './ShortcutAction';
+export { TransactionRow } from './TransactionRow';

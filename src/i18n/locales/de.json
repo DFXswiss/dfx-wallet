@@ -29,8 +29,10 @@
     "submit": "Absenden"
   },
   "dashboard": {
+    "noRecentTransactions": "Keine kürzlichen Aktivitäten",
     "pay": "Pay",
     "portfolio": "Portfolio",
+    "seeAll": "Alle anzeigen",
     "title": "Dashboard",
     "toggleBalance": "Guthaben ein-/ausblenden",
     "totalBalance": "Gesamtguthaben",

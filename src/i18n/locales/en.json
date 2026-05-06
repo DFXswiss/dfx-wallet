@@ -29,8 +29,10 @@
     "submit": "Submit"
   },
   "dashboard": {
+    "noRecentTransactions": "No recent activity",
     "pay": "Pay",
     "portfolio": "Portfolio",
+    "seeAll": "See all",
     "title": "Dashboard",
     "toggleBalance": "Toggle balance visibility",
     "totalBalance": "Total Wallet Balance",
