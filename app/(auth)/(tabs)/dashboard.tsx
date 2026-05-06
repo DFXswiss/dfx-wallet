@@ -3,7 +3,7 @@ import { Alert, ImageBackground, Pressable, StyleSheet, Text, View } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { DashboardHeader, Icon, MenuModal, QrScanner } from '@/components';
+import { DashboardHeader, Icon, MenuModal, QrScanner, ShortcutAction } from '@/components';
 import { useDfxAuth } from '@/hooks';
 import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
@@ -88,17 +88,19 @@ export default function DashboardScreen() {
           </View>
 
           <View style={styles.actions}>
-            <PillAction
-              icon="wallet"
+            <ShortcutAction
+              icon={<Icon name="wallet" size={18} color={DfxColors.white} strokeWidth={2.2} />}
               label={t('dashboard.portfolio')}
               testID="dashboard-action-portfolio"
               onPress={() => router.push('/(auth)/portfolio')}
+              style={styles.actionPill}
             />
-            <PillAction
-              icon="grid"
+            <ShortcutAction
+              icon={<Icon name="grid" size={18} color={DfxColors.white} strokeWidth={2.2} />}
               label={t('dashboard.pay')}
               testID="dashboard-action-pay"
               onPress={() => setScannerOpen(true)}
+              style={styles.actionPill}
             />
           </View>
 
@@ -147,31 +149,6 @@ export default function DashboardScreen() {
         />
       </SafeAreaView>
     </ImageBackground>
-  );
-}
-
-type PillActionProps = {
-  icon: 'wallet' | 'grid';
-  label: string;
-  testID: string;
-  onPress: () => void;
-};
-
-function PillAction({ icon, label, testID, onPress }: PillActionProps) {
-  return (
-    <Pressable
-      style={styles.pill}
-      onPress={onPress}
-      testID={testID}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
-      <View style={styles.pillIconBubble}>
-        <Icon name={icon} size={18} color={DfxColors.white} strokeWidth={2.2} />
-      </View>
-      <Text style={styles.pillLabel}>{label}</Text>
-      <Icon name="chevron-right" size={18} color={DfxColors.primary} />
-    </Pressable>
   );
 }
 
@@ -240,35 +217,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-  pill: {
+  actionPill: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DfxColors.surface,
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingLeft: 8,
-    paddingRight: 16,
-    gap: 12,
-    shadowColor: '#0B1426',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  pillIconBubble: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: DfxColors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pillLabel: {
-    flex: 1,
-    ...Typography.bodyLarge,
-    color: DfxColors.primary,
-    fontWeight: '600',
   },
   transactions: {
     flexDirection: 'row',

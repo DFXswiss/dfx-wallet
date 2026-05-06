@@ -5,7 +5,13 @@ import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { ChainSelector, PrimaryButton, QrCode, ScreenContainer } from '@/components';
+import {
+  ChainSelector,
+  PrimaryButton,
+  QrCode,
+  ScreenContainer,
+  ShortcutAction,
+} from '@/components';
 import type { ChainId } from '@/config/chains';
 import { DfxColors, Typography } from '@/theme';
 
@@ -66,6 +72,13 @@ export default function ReceiveScreen() {
           Only send {selectedChain === 'spark' ? 'BTC' : 'compatible tokens'} on the {selectedChain}{' '}
           network to this address.
         </Text>
+
+        <ShortcutAction
+          icon={<Text style={styles.currencyIcon}>{'€'}</Text>}
+          label={t('receive.buyBtcWithEuro')}
+          onPress={() => router.push('/(auth)/buy')}
+          testID="receive-action-buy"
+        />
       </View>
     </ScreenContainer>
   );
@@ -131,5 +144,11 @@ const styles = StyleSheet.create({
     color: DfxColors.warning,
     textAlign: 'center',
     paddingHorizontal: 32,
+  },
+  currencyIcon: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: DfxColors.white,
+    lineHeight: 22,
   },
 });
