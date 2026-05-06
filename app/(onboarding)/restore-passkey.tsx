@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
@@ -32,7 +32,11 @@ export default function RestorePasskeyScreen() {
       console.warn('restore-passkey: restore failed', error);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       if (error instanceof PasskeyPrfUnsupportedError) {
-        Alert.alert(t('common.error'), t('passkey.prfUnsupported'));
+        const provider = Platform.select({
+          ios: 'iCloud Keychain',
+          default: 'Google Password Manager',
+        });
+        Alert.alert(t('common.error'), t('passkey.prfUnsupported', { provider }));
       } else {
         Alert.alert(t('common.error'), t('passkey.restoreError'));
       }

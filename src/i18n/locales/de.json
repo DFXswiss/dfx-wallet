@@ -82,7 +82,7 @@
     "createDescription": "Deine Wallet wird durch einen Passkey im sicheren Element deines Geräts geschützt. Keine Seed Phrase zum Aufschreiben.",
     "createError": "Passkey konnte nicht erstellt werden. Bitte versuche es erneut.",
     "createTitle": "Mit Passkey erstellen",
-    "prfUnsupported": "Dein Gerät unterstützt die benötigten Passkey-Funktionen nicht. Bitte erstelle deine Wallet stattdessen mit einer Seed Phrase.",
+    "prfUnsupported": "Dein Passkey-Anbieter unterstützt die benötigte Verschlüsselungsfunktion (PRF) nicht. Drittanbieter wie Bitwarden unterstützen dies noch nicht. Bitte verwende stattdessen {{provider}} als Passkey-Anbieter.",
     "restoreButton": "Mit Passkey wiederherstellen",
     "restoreDescription": "Verwende deinen bestehenden Passkey, um deine Wallet wiederherzustellen. Derselbe Passkey leitet dieselbe Wallet ab.",
     "restoreError": "Wallet konnte nicht aus Passkey wiederhergestellt werden. Bitte versuche es erneut.",

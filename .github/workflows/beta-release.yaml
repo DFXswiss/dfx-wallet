@@ -36,7 +36,25 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Build Android
-        run: eas build --platform android --profile production --non-interactive --no-wait
+        run: |
+          BUILD_JSON=$(eas build --platform android --profile production --non-interactive --wait --json 2>/dev/null)
+          echo "$BUILD_JSON" > /tmp/android-build.json
+          APK_URL=$(echo "$BUILD_JSON" | jq -r '.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl // empty')
+          echo "APK_URL=$APK_URL" >> $GITHUB_ENV
+
+      - name: Download APK
+        if: env.APK_URL != ''
+        run: |
+          TAG="${GITHUB_REF_NAME:-dev}"
+          VERSION="${TAG#v}"
+          curl -fsSL "$APK_URL" -o "dfx-wallet-${VERSION}.apk"
+
+      - name: Upload APK artifact
+        if: env.APK_URL != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: dfx-wallet-*.apk
 
   build-ios:
     name: Build iOS
@@ -61,7 +79,25 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Build iOS
-        run: eas build --platform ios --profile production --non-interactive --no-wait
+        run: |
+          BUILD_JSON=$(eas build --platform ios --profile production --non-interactive --wait --json 2>/dev/null)
+          echo "$BUILD_JSON" > /tmp/ios-build.json
+          IPA_URL=$(echo "$BUILD_JSON" | jq -r '.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl // empty')
+          echo "IPA_URL=$IPA_URL" >> $GITHUB_ENV
+
+      - name: Download IPA
+        if: env.IPA_URL != ''
+        run: |
+          TAG="${GITHUB_REF_NAME:-dev}"
+          VERSION="${TAG#v}"
+          curl -fsSL "$IPA_URL" -o "dfx-wallet-${VERSION}.ipa"
+
+      - name: Upload IPA artifact
+        if: env.IPA_URL != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: dfx-wallet-*.ipa
 
   github-release:
     name: Create GitHub Release
@@ -74,28 +110,68 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Generate changelog
+      - name: Generate Changelog
         id: changelog
-        uses: mikepenz/release-changelog-builder-action@v5
+        uses: mikepenz/release-changelog-builder-action@v6.0.1
         with:
           configurationJson: |
             {
+              "template": "#{{CHANGELOG}}",
               "categories": [
-                { "title": "### Features", "labels": [] },
-                { "title": "### Fixes", "labels": [] },
-                { "title": "### Other", "labels": [] }
+                {
+                  "title": "## 🚀 Features",
+                  "labels": ["feat", "feature"]
+                },
+                {
+                  "title": "## 🐛 Fixes",
+                  "labels": ["fix", "bug"]
+                },
+                {
+                  "title": "## 📦 Refactor",
+                  "labels": ["refactor"]
+                },
+                {
+                  "title": "## 📦 Others",
+                  "labels": ["chore"]
+                },
+                {
+                  "title": "## 🌀 Not labelled",
+                  "labels": []
+                }
               ],
-              "template": "#{{CHANGELOG}}\n\n**Full Changelog**: #{{RELEASE_DIFF}}",
-              "pr_template": "- #{{TITLE}} (#{{NUMBER}})"
+              "label_extractor": [
+                {
+                  "method": "match",
+                  "pattern": "^([\\w\\-]+)",
+                  "target": "$1",
+                  "on_property": "title"
+                }
+              ]
             }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create GitHub Release
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: .
+
+      - name: Download iOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-ipa
+          path: .
+
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           body: ${{ steps.changelog.outputs.changelog }}
+          files: |
+            dfx-wallet-*.apk
+            dfx-wallet-*.ipa
+          generate_release_notes: false
           draft: false
           prerelease: false
         env:
