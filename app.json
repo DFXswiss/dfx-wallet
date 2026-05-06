@@ -21,7 +21,9 @@
       "bundleIdentifier": "wallet.dfx.swiss",
       "appleTeamId": "Y4QBY6387T",
       "deploymentTarget": "18.0",
-      "associatedDomains": ["webcredentials:dfx.swiss?mode=developer"],
+      "associatedDomains": [
+        "webcredentials:dfx.swiss?mode=developer"
+      ],
       "infoPlist": {
         "NSBluetoothAlwaysUsageDescription": "Bluetooth is needed to connect to BitBox02 Nova hardware wallet.",
         "NSBluetoothPeripheralUsageDescription": "Bluetooth is needed to connect to BitBox02 Nova hardware wallet.",
@@ -41,7 +43,9 @@
         "android.permission.BLUETOOTH_CONNECT",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT"
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
@@ -49,23 +53,36 @@
       "expo-dev-client",
       "expo-localization",
       "expo-secure-store",
-      ["expo-build-properties", {
-        "android": {
-          "minSdkVersion": 34,
-          "compileSdkVersion": 36,
-          "buildToolsVersion": "36.0.0",
-          "targetSdkVersion": 35
-        },
-        "ios": {
-          "deploymentTarget": "18.0"
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 34,
+            "compileSdkVersion": 36,
+            "buildToolsVersion": "36.0.0",
+            "targetSdkVersion": 35
+          },
+          "ios": {
+            "deploymentTarget": "18.0"
+          }
         }
-      }],
-      ["expo-camera", {
-        "cameraPermission": "Camera access is needed to scan QR codes."
-      }],
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Camera access is needed to scan QR codes."
+        }
+      ],
       "expo-local-authentication",
       "./plugins/withSwiftConcurrency",
       "./plugins/withAndroidSubprojects.js"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "7aa24d4c-e4bf-4c89-9349-fed981e6c786"
+      }
+    },
+    "owner": "dfxswiss"
   }
 }
