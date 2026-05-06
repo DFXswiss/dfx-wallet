@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, Icon } from '@/components';
-import { CHAIN_LABELS } from '@/config/portfolio-presentation';
+import { CHAIN_LABELS, formatFull } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/services/dfx';
 import { DfxColors, Typography } from '@/theme';
 
@@ -91,9 +91,14 @@ export default function TransactionDetailScreen() {
             >
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryType}>{tx.type}</Text>
-                <Text style={styles.summaryAmount}>
-                  {tx.type === 'Sell' || tx.type === 'Pay' ? '-' : '+'}
-                  {tx.outputAmount} {tx.outputAsset}
+                <Text
+                  style={styles.summaryAmount}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.5}
+                >
+                  {tx.type === 'Sell' || tx.type === 'Pay' || tx.type === 'Send' ? '-' : '+'}
+                  {formatFull(tx.outputAmount)} {tx.outputAsset}
                 </Text>
                 <View style={styles.statusRow}>
                   <View
@@ -113,11 +118,11 @@ export default function TransactionDetailScreen() {
                 />
                 <DetailRow
                   label={t('transactions.input')}
-                  value={`${tx.inputAmount} ${tx.inputAsset}`}
+                  value={`${formatFull(tx.inputAmount)} ${tx.inputAsset}`}
                 />
                 <DetailRow
                   label={t('transactions.output')}
-                  value={`${tx.outputAmount} ${tx.outputAsset}`}
+                  value={`${formatFull(tx.outputAmount)} ${tx.outputAsset}`}
                 />
                 {network ? (
                   <DetailRow

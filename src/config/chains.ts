@@ -12,7 +12,7 @@ export const getWdkConfigs = (): WdkConfigs => ({
       blockchain: 'ethereum',
       config: {
         chainId: 1,
-        provider: process.env.EXPO_PUBLIC_ETH_RPC_URL ?? 'https://eth.merkle.io',
+        provider: process.env.EXPO_PUBLIC_ETH_RPC_URL ?? 'https://ethereum-rpc.publicnode.com',
         bundlerUrl: 'https://api.candide.dev/public/v3/ethereum',
         paymasterUrl: 'https://api.candide.dev/public/v3/ethereum',
         paymasterAddress: CANDIDE_PAYMASTER_ADDRESS,
@@ -26,7 +26,7 @@ export const getWdkConfigs = (): WdkConfigs => ({
       blockchain: 'arbitrum',
       config: {
         chainId: 42161,
-        provider: process.env.EXPO_PUBLIC_ARBITRUM_RPC_URL ?? 'https://arb1.arbitrum.io/rpc',
+        provider: process.env.EXPO_PUBLIC_ARBITRUM_RPC_URL ?? 'https://arbitrum-one-rpc.publicnode.com',
         bundlerUrl: 'https://api.candide.dev/public/v3/arbitrum',
         paymasterUrl: 'https://api.candide.dev/public/v3/arbitrum',
         paymasterAddress: CANDIDE_PAYMASTER_ADDRESS,
@@ -40,7 +40,7 @@ export const getWdkConfigs = (): WdkConfigs => ({
       blockchain: 'polygon',
       config: {
         chainId: 137,
-        provider: process.env.EXPO_PUBLIC_POLYGON_RPC_URL ?? 'https://polygon-rpc.com',
+        provider: process.env.EXPO_PUBLIC_POLYGON_RPC_URL ?? 'https://polygon-bor-rpc.publicnode.com',
         bundlerUrl: 'https://api.candide.dev/public/v3/polygon',
         paymasterUrl: 'https://api.candide.dev/public/v3/polygon',
         paymasterAddress: CANDIDE_PAYMASTER_ADDRESS,
@@ -54,7 +54,7 @@ export const getWdkConfigs = (): WdkConfigs => ({
       blockchain: 'base',
       config: {
         chainId: 8453,
-        provider: process.env.EXPO_PUBLIC_BASE_RPC_URL ?? 'https://mainnet.base.org',
+        provider: process.env.EXPO_PUBLIC_BASE_RPC_URL ?? 'https://base-rpc.publicnode.com',
         bundlerUrl: 'https://api.candide.dev/public/v3/base',
         paymasterUrl: 'https://api.candide.dev/public/v3/base',
         paymasterAddress: CANDIDE_PAYMASTER_ADDRESS,

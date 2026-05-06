@@ -62,6 +62,55 @@ export const formatNumber = (n: number, maxFractionDigits = 8): string => {
   return fixed.replace(/\.?0+$/, '');
 };
 
+/**
+ * Compact display for narrow contexts (TX rows, asset cards).
+ * Examples: 100000000 → "100M", 1500000 → "1.5M", 12345 → "12.3K", 0.0002 → "0.0002".
+ */
+export const formatCompact = (n: number): string => {
+  if (!Number.isFinite(n) || n === 0) return '0';
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  const trim = (s: string) => s.replace(/\.?0+$/, '');
+  if (abs >= 1_000_000_000) return `${sign}${trim((abs / 1_000_000_000).toFixed(2))}B`;
+  if (abs >= 1_000_000) return `${sign}${trim((abs / 1_000_000).toFixed(2))}M`;
+  if (abs >= 10_000) return `${sign}${trim((abs / 1_000).toFixed(1))}K`;
+  if (abs >= 1) return `${sign}${trim(abs.toFixed(2))}`;
+  return `${sign}${formatNumber(abs)}`;
+};
+
+const insertThousandsSeparators = (whole: string): string => {
+  if (whole.length <= 3) return whole;
+  const result: string[] = [];
+  for (let i = whole.length; i > 0; i -= 3) {
+    result.unshift(whole.slice(Math.max(0, i - 3), i));
+  }
+  return result.join(',');
+};
+
+/**
+ * Full formatting with thousands separators (detail screens, headlines).
+ * Examples: 100000000 → "100,000,000.00", 0.0002 → "0.0002".
+ */
+export const formatFull = (n: number, maxFractionDigits = 8): string => {
+  if (!Number.isFinite(n)) return '0';
+  if (n === 0) return '0';
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  if (abs >= 1) {
+    const parts = abs.toFixed(maxFractionDigits).split('.');
+    const whole = parts[0] ?? '0';
+    const fraction = parts[1] ?? '';
+    const trimmedFraction = fraction.replace(/0+$/, '');
+    const wholeWithSep = insertThousandsSeparators(whole);
+    const minDecimals = abs < 1000 ? 2 : 0;
+    if (trimmedFraction.length >= minDecimals) {
+      return `${sign}${wholeWithSep}${trimmedFraction ? '.' + trimmedFraction : ''}`;
+    }
+    return `${sign}${wholeWithSep}.${trimmedFraction.padEnd(minDecimals, '0')}`;
+  }
+  return `${sign}${formatNumber(abs, maxFractionDigits)}`;
+};
+
 /** Convert a token balance into the user's display fiat currency. */
 export function computeFiatValue(
   balance: number,

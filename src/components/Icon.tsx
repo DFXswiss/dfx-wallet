@@ -18,7 +18,10 @@ type IconName =
   | 'shield'
   | 'globe'
   | 'document'
-  | 'support';
+  | 'support'
+  | 'arrow-down'
+  | 'arrow-up'
+  | 'storefront';
 
 type Props = {
   name: IconName;
@@ -238,6 +241,56 @@ export function Icon({ name, size = 24, color = DfxColors.primary, strokeWidth =
           <Path d="M6 3h8l4 4v14H6z" stroke={stroke} strokeWidth={sw} strokeLinejoin="round" />
           <Path d="M14 3v4h4" stroke={stroke} strokeWidth={sw} strokeLinejoin="round" />
           <Path d="M9 12h6M9 16h6" stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+        </Svg>
+      );
+    case 'arrow-down':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M12 4v15m0 0l-6-6m6 6l6-6"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    case 'arrow-up':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M12 20V5m0 0l-6 6m6-6l6 6"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    case 'storefront':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M3 9l1.5-4h15L21 9"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Path
+            d="M3 9v11h18V9"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Path
+            d="M3 9c0 1.7 1.3 3 3 3s3-1.3 3-3M9 9c0 1.7 1.3 3 3 3s3-1.3 3-3M15 9c0 1.7 1.3 3 3 3s3-1.3 3-3"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </Svg>
       );
     case 'support':

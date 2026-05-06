@@ -5,12 +5,18 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { Icon } from '@/components';
-import { getAssetsForCanonicalSymbol, getAssets, getCanonicalNameForSymbol } from '@/config/tokens';
+import {
+  getAssetsForCanonicalSymbol,
+  getAssets,
+  getCanonicalNameForSymbol,
+  getMockRawBalance,
+} from '@/config/tokens';
 import {
   CHAIN_LABELS,
   computeFiatValue,
   formatBalance,
-  formatNumber,
+  formatCompact,
+  formatFull,
   SYMBOL_COLORS,
   SYMBOL_GLYPH,
   toNumeric,
@@ -76,7 +82,9 @@ export default function AssetDetailScreen() {
 
     const list = holdingMetas.map((meta) => {
       const result = balanceResults?.find((r) => r.assetId === meta.id);
-      const rawBalance = result?.success ? (result.balance ?? '0') : '0';
+      const liveRaw = result?.success ? (result.balance ?? '0') : '0';
+      const mockRaw = getMockRawBalance(meta.network, meta.symbol, meta.decimals);
+      const rawBalance = liveRaw !== '0' ? liveRaw : (mockRaw ?? '0');
       const balanceFormatted = formatBalance(rawBalance, meta.decimals);
       const balanceNum = toNumeric(balanceFormatted);
 
@@ -141,11 +149,21 @@ export default function AssetDetailScreen() {
               <View style={[styles.iconBubble, { backgroundColor: color }]}>
                 <Text style={styles.iconText}>{glyph}</Text>
               </View>
-              <Text style={styles.totalCrypto}>
-                {formatNumber(totalBalance)} {canonicalSymbol}
+              <Text
+                style={styles.totalCrypto}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.5}
+              >
+                {formatFull(totalBalance)} {canonicalSymbol}
               </Text>
-              <Text style={styles.totalFiat}>
-                {currencySymbol} {totalFiat.toFixed(2)}
+              <Text
+                style={styles.totalFiat}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.6}
+              >
+                {currencySymbol} {formatFull(totalFiat)}
               </Text>
             </View>
 
@@ -169,11 +187,16 @@ export default function AssetDetailScreen() {
                     <Text style={styles.holdingSymbol}>{holding.chainLabel}</Text>
                   </View>
                   <View style={styles.holdingBalance}>
-                    <Text style={styles.holdingValue}>
-                      {currencySymbol} {holding.fiatValue.toFixed(2)}
+                    <Text
+                      style={styles.holdingValue}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
+                    >
+                      {currencySymbol} {formatCompact(holding.fiatValue)}
                     </Text>
-                    <Text style={styles.holdingCrypto}>
-                      {formatNumber(holding.balanceNum)} {holding.symbol}
+                    <Text style={styles.holdingCrypto} numberOfLines={1}>
+                      {formatCompact(holding.balanceNum)} {holding.symbol}
                     </Text>
                   </View>
                 </Pressable>

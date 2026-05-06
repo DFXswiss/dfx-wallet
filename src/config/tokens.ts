@@ -346,6 +346,47 @@ const ASSET_SPECS: AssetSpec[] = [
 const buildId = (spec: Pick<AssetSpec, 'network' | 'isNative' | 'address'>): string =>
   spec.isNative ? `${spec.network}-native` : `${spec.network}-${spec.address?.toLowerCase()}`;
 
+// Local-only mock balances (in display units) used to simulate a ~1M CHF
+// portfolio when the real wallet is empty. Keyed by `${network}|${symbol}`.
+// Removed once real wallet integration is wired up.
+const MOCK_BALANCES_DISPLAY = new Map<string, number>([
+  ['spark|BTC', 0.5], //          ~31K CHF
+  ['ethereum|WBTC', 0.3], //      ~19K CHF
+  ['ethereum|USDC', 50_000], //   ~45K CHF
+  ['arbitrum|USDC', 40_000], //   ~36K CHF
+  ['base|USDC', 30_000], //       ~27K CHF
+  ['ethereum|USDT', 60_000], //   ~54K CHF
+  ['polygon|USDT', 40_000], //    ~36K CHF
+  ['ethereum|ZCHF', 200_000], //   200K CHF
+  ['arbitrum|ZCHF', 150_000], //   150K CHF
+  ['polygon|ZCHF', 50_000], //      50K CHF
+  ['base|ZCHF', 40_000], //         40K CHF
+  ['ethereum|dEURO', 100_000], // ~94K CHF
+  ['arbitrum|dEURO', 80_000], //  ~75K CHF
+  ['base|dEURO', 60_000], //      ~56K CHF
+  ['polygon|dEURO', 80_000], //   ~75K CHF
+]);
+
+export const getMockRawBalance = (
+  network: string,
+  symbol: string,
+  decimals: number,
+): string | undefined => {
+  const display = MOCK_BALANCES_DISPLAY.get(`${network}|${symbol}`);
+  if (display === undefined) return undefined;
+  // Use BigInt to avoid precision loss with large decimals (e.g., 18).
+  // Split display into whole and fractional parts to keep accuracy.
+  const parts = display.toString().split('.');
+  const wholePart = parts[0] ?? '0';
+  const fracPart = parts[1] ?? '';
+  const whole = BigInt(wholePart) * 10n ** BigInt(decimals);
+  const fracDigits = fracPart.length;
+  const frac = fracDigits > 0
+    ? BigInt(fracPart) * 10n ** BigInt(decimals - fracDigits)
+    : 0n;
+  return (whole + frac).toString();
+};
+
 /** Always-on networks that the user cannot disable. */
 export const ALWAYS_ON_CHAINS: ChainId[] = ['ethereum', 'spark'];
 
