@@ -24,7 +24,7 @@ type Props = {
  * preview, the global history list, and per-asset filtered lists.
  */
 export function TransactionRow({ tx, onPress, showState = true, testID }: Props) {
-  const isOutgoing = tx.type === 'Sell';
+  const isOutgoing = tx.type === 'Sell' || tx.type === 'Pay';
   const stateColor = STATE_COLORS.get(tx.state) ?? DfxColors.textTertiary;
 
   const Container = onPress ? Pressable : View;

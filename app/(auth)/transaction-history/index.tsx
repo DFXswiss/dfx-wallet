@@ -17,7 +17,7 @@ import { CHAIN_LABELS } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/services/dfx';
 import { DfxColors, Typography } from '@/theme';
 
-type FilterType = 'all' | 'Buy' | 'Sell' | 'Swap';
+type FilterType = 'all' | 'Buy' | 'Sell' | 'Swap' | 'Pay';
 
 const STATE_COLORS = new Map<string, string>([
   ['Completed', DfxColors.success],
@@ -68,7 +68,7 @@ export default function TransactionHistoryScreen() {
     return [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, assetFilter, filter]);
 
-  const filters: FilterType[] = ['all', 'Buy', 'Sell', 'Swap'];
+  const filters: FilterType[] = ['all', 'Buy', 'Sell', 'Swap', 'Pay'];
 
   const headerTitle = (() => {
     if (assetFilter && networkFilter) {
@@ -154,7 +154,7 @@ export default function TransactionHistoryScreen() {
 type RowProps = { tx: TransactionDto; onPress: () => void };
 
 function TransactionRow({ tx, onPress }: RowProps) {
-  const isOutgoing = tx.type === 'Sell';
+  const isOutgoing = tx.type === 'Sell' || tx.type === 'Pay';
   const stateColor = STATE_COLORS.get(tx.state) ?? DfxColors.textTertiary;
   return (
     <Pressable

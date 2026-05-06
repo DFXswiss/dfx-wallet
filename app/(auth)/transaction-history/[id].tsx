@@ -92,7 +92,7 @@ export default function TransactionDetailScreen() {
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryType}>{tx.type}</Text>
                 <Text style={styles.summaryAmount}>
-                  {tx.type === 'Sell' ? '-' : '+'}
+                  {tx.type === 'Sell' || tx.type === 'Pay' ? '-' : '+'}
                   {tx.outputAmount} {tx.outputAsset}
                 </Text>
                 <View style={styles.statusRow}>
