@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import { ScreenContainer } from '@/components';
+import { Icon } from '@/components';
 import { getAssets, type TokenCategory, getCategoryForAsset } from '@/config/tokens';
 import { useEnabledChains } from '@/hooks';
 import { useWalletStore } from '@/store';
@@ -36,8 +37,19 @@ const SYMBOL_COLORS = new Map<string, string>([
   ['USDT', '#26A17B'],
   ['USDC', '#2775CA'],
   ['ZCHF', '#0E1F3A'],
-  ['XAUT', '#FFC107'],
+  ['XAUT', '#D4A017'],
   ['MATIC', '#8247E5'],
+]);
+
+const SYMBOL_GLYPH = new Map<string, string>([
+  ['BTC', '₿'],
+  ['WBTC', '₿'],
+  ['ETH', 'Ξ'],
+  ['USDT', '₮'],
+  ['USDC', '$'],
+  ['ZCHF', '₣'],
+  ['XAUT', 'Au'],
+  ['MATIC', '⧫'],
 ]);
 
 const formatBalance = (rawBalance: string, decimals: number): string => {
@@ -145,39 +157,58 @@ export default function PortfolioScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: t('dashboard.portfolio'),
-          headerShown: true,
-          headerRight: () => (
+      <Stack.Screen options={{ headerShown: false }} />
+      <ImageBackground
+        source={require('../../../assets/dashboard-bg.png')}
+        style={styles.bg}
+        resizeMode="cover"
+      >
+        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+          <View style={styles.header}>
+            <Pressable
+              onPress={() => router.back()}
+              hitSlop={12}
+              style={styles.headerIcon}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.back')}
+              testID="portfolio-back-button"
+            >
+              <Icon name="arrow-left" size={26} color={DfxColors.text} />
+            </Pressable>
+            <Text style={styles.headerTitle}>{t('dashboard.portfolio')}</Text>
             <Pressable
               onPress={() => router.push('/(auth)/portfolio/manage')}
               hitSlop={12}
+              style={styles.headerIcon}
+              accessibilityRole="button"
+              accessibilityLabel={t('portfolio.manage')}
               testID="portfolio-manage-button"
             >
               <Text style={styles.manageLink}>{t('portfolio.manage')}</Text>
             </Pressable>
-          ),
-        }}
-      />
-      <ScreenContainer testID="portfolio-screen">
-        <View style={styles.totalCard}>
-          <Text style={styles.totalLabel}>{t('portfolio.totalValue')}</Text>
-          <Text style={styles.totalValue}>
-            {currencySymbol} {totalFiat.toFixed(2)}
-          </Text>
-        </View>
+          </View>
 
-        <ScrollView
-          style={styles.list}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {sortedAssets.map((asset) => (
-            <PortfolioAssetCard key={asset.id} asset={asset} currencySymbol={currencySymbol} />
-          ))}
-        </ScrollView>
-      </ScreenContainer>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.totalCard}>
+              <Text style={styles.totalLabel}>{t('portfolio.totalValue')}</Text>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalCurrency}>{currencySymbol}</Text>
+                <Text style={styles.totalValue}>{totalFiat.toFixed(2)}</Text>
+              </View>
+            </View>
+
+            <View style={styles.assetList}>
+              {sortedAssets.map((asset) => (
+                <PortfolioAssetCard key={asset.id} asset={asset} currencySymbol={currencySymbol} />
+              ))}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </ImageBackground>
     </>
   );
 }
@@ -189,11 +220,12 @@ type CardProps = {
 
 function PortfolioAssetCard({ asset, currencySymbol }: CardProps) {
   const color = SYMBOL_COLORS.get(asset.symbol) ?? DfxColors.primary;
+  const glyph = SYMBOL_GLYPH.get(asset.symbol) ?? asset.symbol.slice(0, 1);
   const chainLabel = CHAIN_LABELS.get(asset.chain) ?? asset.chain;
   return (
     <View style={styles.card}>
       <View style={[styles.iconBubble, { backgroundColor: color }]}>
-        <Text style={styles.iconText}>{asset.symbol.slice(0, 1)}</Text>
+        <Text style={styles.iconText}>{glyph}</Text>
       </View>
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>
@@ -204,10 +236,10 @@ function PortfolioAssetCard({ asset, currencySymbol }: CardProps) {
         </View>
       </View>
       <View style={styles.balanceColumn}>
-        <Text style={styles.fiatValue}>
+        <Text style={styles.fiatValue} numberOfLines={1}>
           {currencySymbol} {asset.fiatValue.toFixed(2)}
         </Text>
-        <Text style={styles.cryptoBalance}>
+        <Text style={styles.cryptoBalance} numberOfLines={1}>
           {asset.balance} {asset.symbol}
         </Text>
       </View>
@@ -216,45 +248,91 @@ function PortfolioAssetCard({ asset, currencySymbol }: CardProps) {
 }
 
 const styles = StyleSheet.create({
+  bg: {
+    flex: 1,
+    backgroundColor: DfxColors.background,
+  },
+  safeArea: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  headerIcon: {
+    minWidth: 80,
+    height: 32,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    ...Typography.headlineSmall,
+    color: DfxColors.text,
+  },
   manageLink: {
     ...Typography.bodyMedium,
     color: DfxColors.primary,
     fontWeight: '600',
+    textAlign: 'right',
+    width: 80,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 48,
+    gap: 12,
   },
   totalCard: {
-    paddingVertical: 24,
+    paddingTop: 8,
+    paddingBottom: 24,
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   totalLabel: {
     ...Typography.bodyMedium,
     color: DfxColors.textSecondary,
+    fontWeight: '500',
+  },
+  totalRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+  },
+  totalCurrency: {
+    fontSize: 24,
+    color: DfxColors.textTertiary,
+    fontWeight: '500',
   },
   totalValue: {
-    fontSize: 36,
-    lineHeight: 42,
+    fontSize: 44,
+    lineHeight: 50,
     fontWeight: '700',
     color: DfxColors.text,
+    letterSpacing: -1,
   },
-  list: {
-    flex: 1,
-  },
-  listContent: {
-    paddingBottom: 32,
+  assetList: {
     gap: 8,
   },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: DfxColors.surface,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 14,
     gap: 12,
     shadowColor: '#0B1426',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
   iconBubble: {
     width: 44,
@@ -262,11 +340,16 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#0B1426',
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
   iconText: {
     color: DfxColors.white,
     fontWeight: '700',
-    fontSize: 18,
+    fontSize: 22,
+    lineHeight: 26,
   },
   info: {
     flex: 1,
@@ -292,6 +375,7 @@ const styles = StyleSheet.create({
   balanceColumn: {
     alignItems: 'flex-end',
     gap: 2,
+    minWidth: 90,
   },
   fiatValue: {
     ...Typography.bodyLarge,
