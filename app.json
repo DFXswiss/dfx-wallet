@@ -8,6 +8,9 @@
     "userInterfaceStyle": "dark",
     "scheme": "dfxwallet",
     "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -15,9 +18,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "swiss.dfx.wallet",
+      "bundleIdentifier": "wallet.dfx.swiss",
+      "appleTeamId": "Y4QBY6387T",
       "deploymentTarget": "18.0",
-      "associatedDomains": ["webcredentials:dfx.swiss"],
+      "associatedDomains": ["webcredentials:dfx.swiss?mode=developer"],
       "infoPlist": {
         "NSBluetoothAlwaysUsageDescription": "Bluetooth is needed to connect to BitBox02 Nova hardware wallet.",
         "NSBluetoothPeripheralUsageDescription": "Bluetooth is needed to connect to BitBox02 Nova hardware wallet.",
