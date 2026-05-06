@@ -1,36 +1,22 @@
-import { Tabs } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { DfxColors } from '@/theme';
+import { DfxColors, Typography } from '@/theme';
 
 export default function TabsLayout() {
   const { t } = useTranslation();
 
   return (
-    <Tabs
+    <Stack
       screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: DfxColors.surface,
-          borderTopColor: DfxColors.border,
-        },
-        tabBarActiveTintColor: DfxColors.primary,
-        tabBarInactiveTintColor: DfxColors.textTertiary,
+        contentStyle: { backgroundColor: DfxColors.background },
+        headerStyle: { backgroundColor: DfxColors.surface },
+        headerTitleStyle: { ...Typography.headlineSmall, color: DfxColors.text },
+        headerTintColor: DfxColors.primary,
+        headerShadowVisible: false,
       }}
     >
-      <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: t('dashboard.title'),
-          tabBarIcon: () => null,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: t('settings.title'),
-          tabBarIcon: () => null,
-        }}
-      />
-    </Tabs>
+      <Stack.Screen name="dashboard" options={{ headerShown: false }} />
+      <Stack.Screen name="settings" options={{ title: t('settings.title') }} />
+    </Stack>
   );
 }

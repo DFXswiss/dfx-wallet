@@ -1,24 +1,26 @@
 export const DfxColors = {
-  primary: '#F5516C',
-  primaryDark: '#D63B55',
-  primaryLight: '#FF7A8F',
+  primary: '#2F7CF7',
+  primaryDark: '#0566D4',
+  primaryLight: '#DCEAFE',
 
-  background: '#0A0A0A',
-  surface: '#1A1A1A',
-  surfaceLight: '#2A2A2A',
-  card: '#141414',
+  background: '#F0F6FF',
+  surface: '#FFFFFF',
+  surfaceLight: '#F3F6FB',
+  card: '#FFFFFF',
 
-  text: '#FFFFFF',
-  textSecondary: '#A0A0A0',
-  textTertiary: '#666666',
+  text: '#0B1426',
+  textSecondary: '#6B7280',
+  textTertiary: '#9CA3AF',
 
-  success: '#4ADE80',
-  warning: '#FACC15',
-  error: '#EF4444',
-  info: '#60A5FA',
+  success: '#16A34A',
+  warning: '#EAB308',
+  error: '#DC2626',
+  info: '#2F7CF7',
 
-  border: '#2A2A2A',
-  borderLight: '#333333',
+  border: '#E5E7EB',
+  borderLight: '#F3F4F6',
+
+  brandRed: '#F5516C',
 
   white: '#FFFFFF',
   black: '#000000',
