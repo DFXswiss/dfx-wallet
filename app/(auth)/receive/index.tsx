@@ -4,32 +4,30 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { useWallet } from '@tetherto/wdk-react-native-provider';
-import { ChainSelector, PrimaryButton, QrCode, ScreenContainer } from '@/components';
+import { useAccount } from '@tetherto/wdk-react-native-core';
+import {
+  ChainSelector,
+  PrimaryButton,
+  QrCode,
+  ScreenContainer,
+  ShortcutAction,
+} from '@/components';
 import type { ChainId } from '@/config/chains';
 import { DfxColors, Typography } from '@/theme';
-
-const CHAIN_TO_NETWORK: Record<ChainId, string> = {
-  bitcoin: 'bitcoin',
-  ethereum: 'ethereum',
-  arbitrum: 'arbitrum',
-  polygon: 'polygon',
-};
 
 export default function ReceiveScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { addresses } = useWallet();
-  const [selectedChain, setSelectedChain] = useState<ChainId>('bitcoin');
+  const [selectedChain, setSelectedChain] = useState<ChainId>('ethereum');
   const [copied, setCopied] = useState(false);
 
-  const networkKey = CHAIN_TO_NETWORK[selectedChain];
-  const address = (addresses as Record<string, string> | undefined)?.[networkKey] ?? '';
+  const { address: derivedAddress } = useAccount({ network: selectedChain, accountIndex: 0 });
+  const address = derivedAddress ?? '';
 
   const handleCopy = async () => {
     if (!address) return;
     await Clipboard.setStringAsync(address);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -71,9 +69,16 @@ export default function ReceiveScreen() {
         />
 
         <Text style={styles.warning}>
-          Only send {selectedChain === 'bitcoin' ? 'BTC' : 'compatible tokens'} on the{' '}
-          {selectedChain} network to this address.
+          Only send {selectedChain === 'spark' ? 'BTC' : 'compatible tokens'} on the {selectedChain}{' '}
+          network to this address.
         </Text>
+
+        <ShortcutAction
+          icon={<Text style={styles.currencyIcon}>{'€'}</Text>}
+          label={t('receive.buyBtcWithEuro')}
+          onPress={() => router.push('/(auth)/buy')}
+          testID="receive-action-buy"
+        />
       </View>
     </ScreenContainer>
   );
@@ -139,5 +144,11 @@ const styles = StyleSheet.create({
     color: DfxColors.warning,
     textAlign: 'center',
     paddingHorizontal: 32,
+  },
+  currencyIcon: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: DfxColors.white,
+    lineHeight: 22,
   },
 });

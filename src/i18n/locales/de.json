@@ -29,11 +29,12 @@
     "submit": "Absenden"
   },
   "dashboard": {
-    "noAssets": "Noch keine Assets",
-    "noAssetsDescription": "Kaufe dein erstes Krypto um zu starten.",
+    "pay": "Pay",
     "portfolio": "Portfolio",
     "title": "Dashboard",
-    "totalBalance": "Gesamtguthaben"
+    "toggleBalance": "Guthaben ein-/ausblenden",
+    "totalBalance": "Gesamtguthaben",
+    "transactions": "Transaktionen"
   },
   "hardware": {
     "bitbox": "BitBox02",
@@ -63,11 +64,38 @@
     "title": "Rechtliche Informationen"
   },
   "onboarding": {
-    "createWallet": "Wallet erstellen",
+    "createError": "Wallet konnte nicht erstellt werden. Bitte erneut versuchen.",
+    "createPasskey": "Mit Passkey erstellen",
+    "createWallet": "Mit Seed Phrase erstellen",
+    "invalidSeed": "Ungültige Seed Phrase. Muss 12 oder 24 Wörter haben.",
+    "restoreError": "Wallet konnte nicht wiederhergestellt werden. Bitte erneut versuchen.",
+    "restorePasskey": "Mit Passkey",
+    "restoreSeed": "Mit Seed Phrase",
     "restoreWallet": "Wallet wiederherstellen",
     "subtitle": "Kaufe und verkaufe Krypto direkt mit deiner Wallet",
     "title": "Willkommen bei DFX",
     "verifySeed": "Seed verifizieren"
+  },
+  "passkey": {
+    "backupWarning": "Du kannst deine Recovery Phrase später in den Einstellungen exportieren. Dies wird als Backup empfohlen, falls du den Zugang zu deinem Passkey verlierst.",
+    "createButton": "Passkey erstellen",
+    "createDescription": "Deine Wallet wird durch einen Passkey im sicheren Element deines Geräts geschützt. Keine Seed Phrase zum Aufschreiben.",
+    "createError": "Passkey konnte nicht erstellt werden. Bitte versuche es erneut.",
+    "createTitle": "Mit Passkey erstellen",
+    "prfUnsupported": "Dein Gerät unterstützt die benötigten Passkey-Funktionen nicht. Bitte erstelle deine Wallet stattdessen mit einer Seed Phrase.",
+    "restoreButton": "Mit Passkey wiederherstellen",
+    "restoreDescription": "Verwende deinen bestehenden Passkey, um deine Wallet wiederherzustellen. Derselbe Passkey leitet dieselbe Wallet ab.",
+    "restoreError": "Wallet konnte nicht aus Passkey wiederhergestellt werden. Bitte versuche es erneut.",
+    "restoreInfo": "Stelle sicher, dass du denselben Passkey verwendest, mit dem die Wallet erstellt wurde. Wenn dein Passkey über iCloud oder Google synchronisiert wurde, sollte er auf diesem Gerät verfügbar sein.",
+    "restoreTitle": "Mit Passkey wiederherstellen",
+    "step1": "Ein Passkey wird erstellt und sicher auf deinem Gerät gespeichert.",
+    "step2": "Deine Wallet-Schlüssel werden aus dem Passkey abgeleitet.",
+    "step3": "Keine Seed Phrase zum Aufschreiben — dein Passkey ist dein Schlüssel.",
+    "useSeedInstead": "Seed Phrase verwenden"
+  },
+  "pay": {
+    "comingSoonMessage": "Zahlungen sind noch nicht verfügbar. Gescannt: {{data}}",
+    "comingSoonTitle": "Coming soon"
   },
   "pin": {
     "confirm": "PIN bestätigen",
@@ -77,12 +105,26 @@
     "incorrect": "Falsche PIN.",
     "mismatch": "PINs stimmen nicht überein.",
     "remainingAttempts": "{{count}} Versuche übrig.",
+    "saveError": "PIN konnte nicht gespeichert werden. Bitte erneut versuchen.",
     "tooMany": "Zu viele Fehlversuche. Bitte starte die App neu."
   },
+  "portfolio": {
+    "empty": "Noch keine Assets",
+    "emptyDescription": "Kaufe dein erstes Krypto um zu starten."
+  },
   "receive": {
+    "buyBtcWithEuro": "BTC mit Euro kaufen",
     "onlyCorrectNetwork": "Sende nur {{asset}} im {{network}} Netzwerk an diese Adresse.",
     "title": "Empfangen",
     "yourAddress": "Deine {{chain}} Adresse"
+  },
+  "seedExport": {
+    "deriveFailed": "Recovery Phrase konnte nicht aus Passkey abgeleitet werden. Bitte versuche es erneut.",
+    "descriptionPasskey": "Authentifiziere dich mit deinem Passkey, um deine Recovery Phrase anzuzeigen. Schreibe sie auf und bewahre sie sicher auf.",
+    "descriptionSeed": "Deine Recovery Phrase ist der einzige Weg, deine Wallet wiederherzustellen. Bewahre sie sicher auf und teile sie nie.",
+    "revealPasskey": "Authentifizieren zum Anzeigen",
+    "revealSeed": "Tippen um Recovery Phrase anzuzeigen",
+    "warning": "Teile deine Recovery Phrase niemals. Jeder mit diesen Wörtern kann auf deine Wallet zugreifen."
   },
   "sell": {
     "bankAccount": "Bankkonto",
@@ -96,6 +138,7 @@
     "irreversible": "Transaktionen sind unwiderruflich. Bitte überprüfe Empfängeradresse und Betrag.",
     "recipient": "Empfänger",
     "scan": "Scannen",
+    "sellInstead": "Stattdessen Krypto verkaufen",
     "sent": "Transaktion gesendet",
     "title": "Senden"
   },
@@ -105,11 +148,13 @@
     "currencies": "Währungen",
     "deleteWallet": "Wallet löschen",
     "deleteWalletConfirm": "Deine Wallet wird permanent von diesem Gerät entfernt. Stelle sicher, dass du deine Seed Phrase gesichert hast.",
+    "deleteWalletConfirmPasskey": "Deine Wallet wird permanent von diesem Gerät entfernt. Zur Wiederherstellung benötigst du deinen Passkey oder deine exportierte Recovery Phrase. Bitte lösche den Passkey auch aus deinen Geräteeinstellungen.",
     "hardwareWallet": "Hardware Wallet",
     "language": "Sprache",
     "legalDocuments": "Rechtliches",
     "network": "Netzwerk",
-    "seed": "Seed Phrase",
+    "seed": "Recovery Phrase",
+    "seedPhrase": "Seed Phrase",
     "taxReport": "Steuerreport",
     "title": "Einstellungen",
     "userData": "Benutzerdaten",

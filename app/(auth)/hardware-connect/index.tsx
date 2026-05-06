@@ -55,7 +55,7 @@ export default function HardwareConnectScreen() {
 
   useEffect(() => {
     return () => {
-      provider.disconnect();
+      void provider.disconnect();
     };
   }, []);
 
@@ -77,6 +77,7 @@ export default function HardwareConnectScreen() {
 
           <View style={styles.statusContainer}>
             {status === 'scanning' && <ActivityIndicator color={DfxColors.primary} />}
+            {/* eslint-disable-next-line security/detect-object-injection -- status is a HardwareWalletStatus literal union */}
             <Text style={styles.statusText}>{STATUS_TEXT[status]}</Text>
           </View>
 
@@ -157,7 +158,7 @@ export default function HardwareConnectScreen() {
               title="Cancel"
               variant="outlined"
               onPress={() => {
-                provider.disconnect();
+                void provider.disconnect();
                 reset();
               }}
             />

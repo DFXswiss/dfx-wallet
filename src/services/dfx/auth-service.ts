@@ -38,8 +38,8 @@ export class DfxAuthService {
       address,
       signature,
       wallet: options?.wallet ?? 'DFX Wallet',
-      blockchain: options?.blockchain,
-      usedRef: options?.usedRef,
+      ...(options?.blockchain !== undefined ? { blockchain: options.blockchain } : {}),
+      ...(options?.usedRef !== undefined ? { usedRef: options.usedRef } : {}),
     });
   }
 

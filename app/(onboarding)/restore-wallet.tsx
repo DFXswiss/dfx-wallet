@@ -3,18 +3,18 @@ import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { useWallet } from '@tetherto/wdk-react-native-provider';
+import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import { ScreenContainer, PrimaryButton } from '@/components';
 import { validateSeedPhrase, seedToWords, wordsToSeed } from '@/services/wallet';
-import { secureStorage, StorageKeys } from '@/services/storage';
 import { DfxColors, Typography } from '@/theme';
 
 export default function RestoreWalletScreen() {
   const router = useRouter();
-  const { createWallet } = useWallet();
+  const { restoreWallet } = useWalletManager();
   const { t } = useTranslation();
   const [seedPhrase, setSeedPhrase] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   const words = seedToWords(seedPhrase);
   const isValid = validateSeedPhrase(words);
@@ -22,21 +22,30 @@ export default function RestoreWalletScreen() {
 
   const handleContinue = async () => {
     if (!isValid) {
-      setError('Invalid seed phrase. Must be 12 or 24 words.');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(t('onboarding.invalidSeed'));
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
 
-    const seed = wordsToSeed(words);
-    await secureStorage.set(StorageKeys.ENCRYPTED_SEED, seed);
-    await createWallet({ name: 'DFX Wallet', mnemonic: seed });
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.push('/(onboarding)/setup-pin');
+    setIsRestoring(true);
+    setError(null);
+    try {
+      const seed = wordsToSeed(words);
+      await restoreWallet(seed, 'default');
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.push('/(onboarding)/setup-pin');
+    } catch (err) {
+      console.warn('restore-wallet: failed to restore', err);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(t('onboarding.restoreError'));
+    } finally {
+      setIsRestoring(false);
+    }
   };
 
   return (
     <ScreenContainer scrollable>
-      <View style={styles.content}>
+      <View style={styles.content} testID="restore-wallet-screen">
         <Text style={styles.title}>{t('onboarding.restoreWallet')}</Text>
         <Text style={styles.description}>
           Enter your 12 or 24 word seed phrase to restore your wallet.
@@ -44,6 +53,7 @@ export default function RestoreWalletScreen() {
 
         <View style={styles.inputContainer}>
           <TextInput
+            testID="restore-wallet-seed-input"
             style={styles.input}
             value={seedPhrase}
             onChangeText={(text) => {
@@ -57,16 +67,26 @@ export default function RestoreWalletScreen() {
             autoCorrect={false}
             autoComplete="off"
           />
-          <Text style={styles.wordCount}>
+          <Text style={styles.wordCount} testID="restore-wallet-word-count">
             {wordCount} / {wordCount > 12 ? 24 : 12} words
           </Text>
         </View>
 
-        {error && <Text style={styles.error}>{error}</Text>}
+        {error && (
+          <Text style={styles.error} testID="restore-wallet-error">
+            {error}
+          </Text>
+        )}
 
         <View style={styles.spacer} />
 
-        <PrimaryButton title={t('common.continue')} onPress={handleContinue} disabled={!isValid} />
+        <PrimaryButton
+          testID="restore-wallet-continue-button"
+          title={t('common.continue')}
+          onPress={handleContinue}
+          disabled={!isValid}
+          loading={isRestoring}
+        />
       </View>
     </ScreenContainer>
   );

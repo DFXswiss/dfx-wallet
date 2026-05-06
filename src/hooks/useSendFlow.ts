@@ -1,7 +1,7 @@
-import { useCallback, useState } from 'react';
-import { useWallet } from '@tetherto/wdk-react-native-provider';
-import { walletService } from '@/services/wallet/wallet-service';
+import { useCallback, useMemo, useState } from 'react';
+import { useAccount, useRefreshBalance } from '@tetherto/wdk-react-native-core';
 import type { ChainId } from '@/config/chains';
+import { getNativeAsset } from '@/config/tokens';
 
 type SendState = {
   isLoading: boolean;
@@ -10,10 +10,16 @@ type SendState = {
 };
 
 /**
- * Hook for sending crypto via WDK wallet service.
+ * Hook for sending the native asset on a given chain via the WDK worklet.
+ *
+ * The new wdk-react-native-core API exposes a per-account hook (`useAccount`)
+ * with a typed `send({ asset, to, amount })` method, replacing the old
+ * `useWallet().callAccountMethod(network, idx, 'transfer', ...)` plumbing.
  */
-export function useSendFlow() {
-  const { refreshWalletBalance } = useWallet();
+export function useSendFlow(chain: ChainId) {
+  const { send: sendFromAccount } = useAccount({ network: chain, accountIndex: 0 });
+  const { mutate: refreshBalance } = useRefreshBalance();
+  const nativeAsset = useMemo(() => getNativeAsset(chain), [chain]);
   const [state, setState] = useState<SendState>({
     isLoading: false,
     txHash: null,
@@ -21,26 +27,38 @@ export function useSendFlow() {
   });
 
   const send = useCallback(
-    async (params: { chain: ChainId; to: string; amount: string }) => {
+    async (params: { to: string; amount: string }) => {
+      if (!nativeAsset) {
+        const msg = `No native asset configured for ${chain}`;
+        setState({ isLoading: false, txHash: null, error: msg });
+        return null;
+      }
+
       setState({ isLoading: true, txHash: null, error: null });
 
       try {
-        const txHash = await walletService.sendTransaction({
-          chain: params.chain,
+        const result = await sendFromAccount({
+          asset: nativeAsset,
           to: params.to,
           amount: params.amount,
         });
 
-        setState({ isLoading: false, txHash, error: null });
-        await refreshWalletBalance();
-        return txHash;
+        if (!result.success) {
+          const msg = result.error ?? 'Transaction failed';
+          setState({ isLoading: false, txHash: null, error: msg });
+          return null;
+        }
+
+        setState({ isLoading: false, txHash: result.hash, error: null });
+        refreshBalance({ accountIndex: 0, type: 'wallet' });
+        return result.hash;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Transaction failed';
         setState({ isLoading: false, txHash: null, error: msg });
         return null;
       }
     },
-    [refreshWalletBalance],
+    [chain, nativeAsset, sendFromAccount, refreshBalance],
   );
 
   const reset = useCallback(() => {

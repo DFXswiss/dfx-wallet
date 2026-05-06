@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { ChainSelector, PrimaryButton, ScreenContainer } from '@/components';
+import { ChainSelector, Icon, PrimaryButton, ScreenContainer, ShortcutAction } from '@/components';
 import { QrScanner } from '@/components/QrScanner';
 import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
@@ -12,29 +12,32 @@ import { DfxColors, Typography } from '@/theme';
 type SendStep = 'input' | 'confirm' | 'success';
 
 const CHAIN_SYMBOL: Record<ChainId, string> = {
-  bitcoin: 'BTC',
   ethereum: 'ETH',
   arbitrum: 'ETH',
   polygon: 'MATIC',
+  spark: 'BTC',
+  plasma: 'ETH',
+  sepolia: 'ETH',
 };
 
 export default function SendScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { send, isLoading, txHash, error, reset } = useSendFlow();
   const [step, setStep] = useState<SendStep>('input');
   const [selectedChain, setSelectedChain] = useState<ChainId>('ethereum');
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [scannerVisible, setScannerVisible] = useState(false);
+  const { send, isLoading, txHash, error, reset } = useSendFlow(selectedChain);
 
+  // eslint-disable-next-line security/detect-object-injection -- selectedChain is a ChainId literal union
   const symbol = CHAIN_SYMBOL[selectedChain];
   const isValidAddress = recipient.length >= 26;
 
   const handleSend = async () => {
-    const hash = await send({ chain: selectedChain, to: recipient, amount });
+    const hash = await send({ to: recipient, amount });
     if (hash) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStep('success');
     }
   };
@@ -83,6 +86,13 @@ export default function SendScreen() {
         title={t('common.continue')}
         onPress={() => setStep('confirm')}
         disabled={!isValidAddress || !amount || parseFloat(amount) <= 0}
+      />
+
+      <ShortcutAction
+        icon={<Icon name="swap" size={18} color={DfxColors.white} strokeWidth={2.2} />}
+        label={t('send.sellInstead')}
+        onPress={() => router.push('/(auth)/sell')}
+        testID="send-action-sell"
       />
     </View>
   );
@@ -176,7 +186,8 @@ export default function SendScreen() {
           visible={scannerVisible}
           onScan={(data) => {
             // Handle various QR formats: plain address, ethereum:0x..., bitcoin:bc1...
-            const address = data.replace(/^(ethereum|bitcoin):/, '').split('?')[0];
+            // String.prototype.split always yields at least one element, so [0] is defined.
+            const address = data.replace(/^(ethereum|bitcoin):/, '').split('?')[0]!;
             setRecipient(address);
           }}
           onClose={() => setScannerVisible(false)}

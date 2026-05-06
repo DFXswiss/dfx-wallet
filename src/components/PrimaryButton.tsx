@@ -7,15 +7,25 @@ type Props = {
   disabled?: boolean;
   loading?: boolean;
   variant?: 'filled' | 'outlined';
+  testID?: string;
 };
 
-export function PrimaryButton({ title, onPress, disabled, loading, variant = 'filled' }: Props) {
+export function PrimaryButton({
+  title,
+  onPress,
+  disabled,
+  loading,
+  variant = 'filled',
+  testID,
+}: Props) {
   const isFilled = variant === 'filled';
 
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
+      testID={testID}
+      accessibilityLabel={title}
       style={({ pressed }) => [
         styles.button,
         isFilled ? styles.filled : styles.outlined,

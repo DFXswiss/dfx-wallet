@@ -10,10 +10,12 @@ import { DfxColors, Typography } from '@/theme';
 type SellStep = 'amount' | 'bank' | 'confirm';
 
 const CHAIN_ASSET: Record<ChainId, string> = {
-  bitcoin: 'BTC',
   ethereum: 'ETH',
   arbitrum: 'ETH',
   polygon: 'MATIC',
+  spark: 'BTC',
+  plasma: 'ETH',
+  sepolia: 'ETH',
 };
 
 export default function SellScreen() {
@@ -40,7 +42,10 @@ export default function SellScreen() {
           placeholderTextColor={DfxColors.textTertiary}
           keyboardType="decimal-pad"
         />
-        <Text style={styles.amountUnit}>{selectedChain === 'bitcoin' ? 'BTC' : 'ETH'}</Text>
+        <Text style={styles.amountUnit}>
+          {/* eslint-disable-next-line security/detect-object-injection -- selectedChain is a ChainId literal union */}
+          {CHAIN_ASSET[selectedChain]}
+        </Text>
       </View>
 
       <View style={styles.spacer} />
@@ -77,6 +82,7 @@ export default function SellScreen() {
         onPress={async () => {
           const info = await createPaymentInfo({
             amount: parseFloat(amount),
+            // eslint-disable-next-line security/detect-object-injection -- selectedChain is a ChainId literal union
             asset: CHAIN_ASSET[selectedChain],
             blockchain: selectedChain.charAt(0).toUpperCase() + selectedChain.slice(1),
             currency: 'CHF',
@@ -98,7 +104,10 @@ export default function SellScreen() {
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>You sell</Text>
           <Text style={styles.summaryValue}>
-            {paymentInfo?.amount ?? amount} {paymentInfo?.asset?.name ?? CHAIN_ASSET[selectedChain]}
+            {paymentInfo?.amount ?? amount}{' '}
+            {paymentInfo?.asset?.name ??
+              // eslint-disable-next-line security/detect-object-injection -- selectedChain is a ChainId literal union
+              CHAIN_ASSET[selectedChain]}
           </Text>
         </View>
         <View style={styles.summaryRow}>

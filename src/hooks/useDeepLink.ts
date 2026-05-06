@@ -48,10 +48,15 @@ export function useDeepLink() {
 
     const subscription = Linking.addEventListener('url', handleUrl);
 
-    // Handle initial URL (app opened via deep link)
-    Linking.getInitialURL().then((url) => {
-      if (url) handleUrl({ url });
-    });
+    // Handle initial URL (app opened via deep link).
+    // .catch keeps a rejection from getInitialURL out of the unhandled queue.
+    Linking.getInitialURL()
+      .then((url) => {
+        if (url) handleUrl({ url });
+      })
+      .catch((err: unknown) => {
+        console.warn('useDeepLink: getInitialURL failed', err);
+      });
 
     return () => subscription.remove();
   }, [router]);

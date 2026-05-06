@@ -1,5 +1,17 @@
 # DFX Wallet — Claude Code Guidelines
 
+## Branch Workflow — CRITICAL
+
+- Every change goes in a **feature-specific branch** with a **pull request against `develop`**. Never push directly to `develop` or `main`.
+- **Always start from the latest `develop`** before creating a new branch:
+  ```bash
+  git checkout develop && git pull origin develop
+  git checkout -b feat/your-feature   # or fix/..., docs/..., chore/...
+  ```
+- `develop` moves quickly — multiple PRs land in parallel. Treat any local `develop` older than a few minutes as stale and pull again before branching.
+- Never reuse an old branch after its PR was merged or closed — cut a fresh branch from current `develop`.
+- Build **on top of** existing changes in `develop`. If your work overlaps with a recent merge, rebase onto the new `develop` rather than working around it.
+
 ## Build & Run
 
 ```bash
@@ -83,12 +95,11 @@ BitBox02 integration is a MUST-HAVE requirement.
 
 ## Design Reference
 
-UI/UX flows are based on the RealUnit app (`DFXswiss/realunit-app`). Key patterns:
-- Dark theme, DFX brand colors (primary: #F5516C)
-- Onboarding: Welcome → Create/Restore → Verify Seed → Legal → PIN → Dashboard
-- Dashboard: Balance card, action bar (Buy/Sell/Send/Receive), portfolio list
-- Settings: Flat list with sub-pages
-- KYC: Multi-step wizard (Registration → Email → Nationality → Financial Data → 2FA → Ident)
+- **Theme**: Light. Soft sky-blue / white surfaces, dark navy text, blue (`#2F7CF7`) as the UI accent for icons, links, and active controls. The DFX brand red (`#F5516C`) is preserved as `DfxColors.brandRed` for the logo only.
+- **Dashboard**: full-screen mountain-illustration background (`assets/dashboard-bg.png`), DFX logo header + hamburger menu, large balance display with eye-toggle, Portfolio + Pay pill buttons, Transactions link, and a bottom Receive | Send pill. Buy and Sell are reached from inside the Receive and Send flows respectively.
+- **Onboarding flow**: Welcome → Create/Restore (passkey or seed) → Verify Seed → Legal → PIN → Dashboard
+- **Settings**: reached from the Dashboard hamburger menu (no bottom tab bar). Flat list with sub-pages.
+- **KYC**: Multi-step wizard (Registration → Email → Nationality → Financial Data → 2FA → Ident)
 
 ## Styling — CRITICAL
 

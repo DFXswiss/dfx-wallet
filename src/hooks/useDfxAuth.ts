@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react';
-import { useWallet } from '@tetherto/wdk-react-native-provider';
+import { useAccount } from '@tetherto/wdk-react-native-core';
 import { dfxAuthService } from '@/services/dfx';
-import { walletService } from '@/services/wallet/wallet-service';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
 
@@ -10,19 +9,18 @@ import { useAuthStore } from '@/store';
  *
  * Flow:
  * 1. Get ETH address from WDK
- * 2. GET /v1/auth/signMessage?address=... → challenge
+ * 2. GET /v1/auth/signMessage?address=... -> challenge
  * 3. Sign challenge with WDK wallet (inside Bare Worklet)
- * 4. POST /v1/auth → exchange signature for JWT
+ * 4. POST /v1/auth -> exchange signature for JWT
  */
 export function useDfxAuth() {
-  const { addresses } = useWallet();
+  const { address, sign } = useAccount({ network: 'ethereum', accountIndex: 0 });
   const { setDfxAuthenticated } = useAuthStore();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const authenticate = useCallback(async () => {
-    const ethAddress = (addresses as Record<string, string> | undefined)?.ethereum;
-    if (!ethAddress) {
+    if (!address) {
       setError('No Ethereum address available. Create a wallet first.');
       return null;
     }
@@ -32,8 +30,14 @@ export function useDfxAuth() {
 
     try {
       const token = await dfxAuthService.login(
-        ethAddress,
-        async (message) => walletService.signMessage('ethereum', message),
+        address,
+        async (message) => {
+          const result = await sign(message);
+          if (!result.success) {
+            throw new Error(result.error ?? 'Failed to sign message');
+          }
+          return result.signature;
+        },
         { wallet: 'DFX Wallet', blockchain: 'Ethereum' },
       );
 
@@ -47,7 +51,7 @@ export function useDfxAuth() {
     } finally {
       setIsAuthenticating(false);
     }
-  }, [addresses, setDfxAuthenticated]);
+  }, [address, sign, setDfxAuthenticated]);
 
   const logout = useCallback(async () => {
     dfxAuthService.logout();

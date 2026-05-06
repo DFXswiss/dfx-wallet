@@ -9,11 +9,9 @@ describe('WalletStore', () => {
     const state = useWalletStore.getState();
 
     expect(state.walletType).toBeNull();
-    expect(state.accounts).toEqual([]);
-    expect(state.assets).toEqual([]);
     expect(state.totalBalanceFiat).toBe('0.00');
     expect(state.selectedCurrency).toBe('CHF');
-    expect(state.isLoading).toBe(false);
+    expect(state.selectedChain).toBe('ethereum');
   });
 
   it('should set wallet type', () => {
@@ -21,54 +19,19 @@ describe('WalletStore', () => {
     expect(useWalletStore.getState().walletType).toBe('software');
   });
 
-  it('should add accounts', () => {
-    const account = {
-      chain: 'ethereum' as const,
-      address: '0x123',
-      derivationPath: "m/44'/60'/0'/0/0",
-    };
-
-    useWalletStore.getState().addAccount(account);
-    expect(useWalletStore.getState().accounts).toHaveLength(1);
-    expect(useWalletStore.getState().accounts[0]).toEqual(account);
-  });
-
-  it('should get account for chain', () => {
-    const ethAccount = {
-      chain: 'ethereum' as const,
-      address: '0xeth',
-      derivationPath: "m/44'/60'/0'/0/0",
-    };
-    const btcAccount = {
-      chain: 'bitcoin' as const,
-      address: 'bc1abc',
-      derivationPath: "m/84'/0'/0'/0/0",
-    };
-
-    useWalletStore.getState().setAccounts([ethAccount, btcAccount]);
-
-    expect(useWalletStore.getState().getAccountForChain('ethereum')).toEqual(ethAccount);
-    expect(useWalletStore.getState().getAccountForChain('bitcoin')).toEqual(btcAccount);
-    expect(useWalletStore.getState().getAccountForChain('polygon')).toBeUndefined();
-  });
-
-  it('should set assets and total balance', () => {
-    const assets = [
-      {
-        symbol: 'ETH',
-        name: 'Ethereum',
-        chain: 'ethereum' as const,
-        balance: '1.5',
-        balanceFiat: '3000.00',
-        decimals: 18,
-      },
-    ];
-
-    useWalletStore.getState().setAssets(assets);
+  it('should set total balance fiat', () => {
     useWalletStore.getState().setTotalBalanceFiat('3000.00');
-
-    expect(useWalletStore.getState().assets).toEqual(assets);
     expect(useWalletStore.getState().totalBalanceFiat).toBe('3000.00');
+  });
+
+  it('should set selected currency', () => {
+    useWalletStore.getState().setSelectedCurrency('USD');
+    expect(useWalletStore.getState().selectedCurrency).toBe('USD');
+  });
+
+  it('should set selected chain', () => {
+    useWalletStore.getState().setSelectedChain('polygon');
+    expect(useWalletStore.getState().selectedChain).toBe('polygon');
   });
 
   it('should reset state', () => {

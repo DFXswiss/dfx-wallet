@@ -1,0 +1,141 @@
+name: Maestro E2E
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
+
+# Cancel superseded runs on the same PR / branch.
+concurrency:
+  group: maestro-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 22
+  # Public testnet URLs live in the committed `.env.testnet` and are copied
+  # into `.env` during the build step. Only the indexer API key is secret.
+  EXPO_PUBLIC_WDK_INDEXER_API_KEY: ${{ secrets.E2E_WDK_INDEXER_API_KEY }}
+
+jobs:
+  ios:
+    name: iOS Simulator
+    # Skip drafts so WIP pushes don't burn ~30 min of macOS minutes per push.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft != true
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install JS dependencies
+        run: |
+          npm ci --legacy-peer-deps --ignore-scripts
+          npx patch-package
+          npm run postinstall
+
+      - name: Provision testnet env
+        run: cp .env.testnet .env
+
+      - name: Install Maestro CLI
+        run: |
+          curl -Ls https://get.maestro.mobile.dev | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Boot iOS Simulator
+        run: |
+          # Lines look like `    iPhone 16 (UUID) (Shutdown)`; split on parens
+          # and take the UUID column (field 2). $NF used to work but newer
+          # Xcode appends the device state, so $NF was returning "(Shutdown)".
+          DEVICE_ID=$(xcrun simctl list devices available | awk -F'[()]' '/iPhone 16 \(/{print $2; exit}')
+          if [ -z "$DEVICE_ID" ]; then
+            DEVICE_ID=$(xcrun simctl create "iPhone 16 E2E" "iPhone 16")
+          fi
+          xcrun simctl boot "$DEVICE_ID" || true
+          echo "SIM_DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+
+      - name: Build & install app on simulator
+        run: npx expo run:ios --configuration Release --device "$SIM_DEVICE_ID" --no-bundler
+
+      - name: Run Maestro tests
+        run: maestro --platform ios test .maestro/
+
+      - name: Upload Maestro artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: maestro-ios-artifacts
+          path: ~/.maestro/tests/**/*
+          if-no-files-found: ignore
+
+  android:
+    name: Android Emulator
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft != true
+    runs-on: macos-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install JS dependencies
+        run: |
+          npm ci --legacy-peer-deps --ignore-scripts
+          npx patch-package
+          npm run postinstall
+
+      - name: Provision testnet env
+        run: cp .env.testnet .env
+
+      - name: Install Maestro CLI
+        run: |
+          curl -Ls https://get.maestro.mobile.dev | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Run E2E in emulator
+        uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            cd android && ./gradlew :app:assembleRelease && cd ..
+            adb install -r android/app/build/outputs/apk/release/app-release.apk
+            maestro --platform android test .maestro/
+
+      - name: Upload Maestro artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: maestro-android-artifacts
+          path: ~/.maestro/tests/**/*
+          if-no-files-found: ignore

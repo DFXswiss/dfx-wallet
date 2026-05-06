@@ -8,7 +8,7 @@ export default function Index() {
   const { isOnboarded, isAuthenticated, isHydrated, hydrate } = useAuthStore();
 
   useEffect(() => {
-    hydrate();
+    void hydrate();
   }, [hydrate]);
 
   if (!isHydrated) {

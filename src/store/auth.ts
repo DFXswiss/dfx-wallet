@@ -12,7 +12,7 @@ type AuthState = {
   isHydrated: boolean;
 
   hydrate: () => Promise<void>;
-  setOnboarded: (value: boolean) => void;
+  setOnboarded: (value: boolean) => Promise<void>;
   setAuthenticated: (value: boolean) => void;
   setDfxAuthenticated: (value: boolean) => void;
   setPin: (pin: string) => Promise<void>;
@@ -49,8 +49,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
   },
 
-  setOnboarded: (value) => {
-    secureStorage.set(StorageKeys.IS_ONBOARDED, String(value));
+  setOnboarded: async (value) => {
+    await secureStorage.set(StorageKeys.IS_ONBOARDED, String(value));
     set({ isOnboarded: value });
   },
 
@@ -92,6 +92,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       secureStorage.remove(StorageKeys.IS_ONBOARDED),
       secureStorage.remove(StorageKeys.ENCRYPTED_SEED),
       secureStorage.remove(StorageKeys.DFX_AUTH_TOKEN),
+      secureStorage.remove(StorageKeys.WALLET_ORIGIN),
+      secureStorage.remove(StorageKeys.PASSKEY_CREDENTIAL_ID),
+      secureStorage.remove(StorageKeys.PASSKEY_DERIVATION_VERSION),
       secureStorage.remove(BIOMETRIC_KEY),
     ]);
     set({

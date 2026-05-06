@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { useWalletManager, useWdkApp } from '@tetherto/wdk-react-native-core';
 import { ScreenContainer } from '@/components';
 import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
@@ -11,25 +12,48 @@ const MAX_ATTEMPTS = 5;
 export default function VerifyPinScreen() {
   const router = useRouter();
   const { verifyPin, setAuthenticated, authenticateBiometric, biometricEnabled } = useAuthStore();
+  const { unlock } = useWalletManager();
+  const { state } = useWdkApp();
   const [pin, setPinValue] = useState('');
   const [error, setError] = useState(false);
   const [attempts, setAttempts] = useState(0);
 
-  const tryBiometric = useCallback(async () => {
-    const success = await authenticateBiometric();
-    if (success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setAuthenticated(true);
-      router.replace('/(auth)/(tabs)/dashboard');
-    }
-  }, [authenticateBiometric, setAuthenticated, router]);
+  const goToDashboard = useCallback(() => {
+    router.replace('/(auth)/(tabs)/dashboard');
+  }, [router]);
 
-  // Try biometric on mount
+  const unlockWallet = useCallback(async () => {
+    try {
+      await unlock('default');
+    } catch {
+      // WdkAppProvider exposes the error; user can retry from settings.
+    }
+  }, [unlock]);
+
+  const tryBiometric = useCallback(async () => {
+    try {
+      const success = await authenticateBiometric();
+      if (success) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setAuthenticated(true);
+        await unlockWallet();
+      }
+    } catch (err) {
+      console.warn('verify: biometric authentication failed', err);
+    }
+  }, [authenticateBiometric, setAuthenticated, unlockWallet]);
+
   useEffect(() => {
     if (biometricEnabled) {
-      tryBiometric();
+      void tryBiometric();
     }
   }, [biometricEnabled, tryBiometric]);
+
+  useEffect(() => {
+    if (state.status === 'READY') {
+      goToDashboard();
+    }
+  }, [state.status, goToDashboard]);
 
   const handleDigit = (digit: string) => {
     setError(false);
@@ -38,22 +62,28 @@ export default function VerifyPinScreen() {
     setPinValue(newPin);
 
     if (newPin.length === 6) {
-      checkPin(newPin);
+      void checkPin(newPin);
     }
   };
 
   const checkPin = async (pinValue: string) => {
-    const isValid = await verifyPin(pinValue);
-    if (isValid) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setAuthenticated(true);
-      router.replace('/(auth)/(tabs)/dashboard');
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError(true);
-      setAttempts((a) => a + 1);
-      setPinValue('');
+    try {
+      const isValid = await verifyPin(pinValue);
+      if (isValid) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setAuthenticated(true);
+        await unlockWallet();
+        return;
+      }
+    } catch (err) {
+      console.warn('verify: PIN verification threw', err);
+      // Fall through to the error path so the user sees the same UI feedback
+      // as a wrong PIN; the alternative would be a silent crash.
     }
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    setError(true);
+    setAttempts((a) => a + 1);
+    setPinValue('');
   };
 
   const handleDelete = () => {
@@ -65,20 +95,22 @@ export default function VerifyPinScreen() {
 
   return (
     <ScreenContainer>
-      <View style={styles.content}>
+      <View style={styles.content} testID="verify-pin-screen">
         <Text style={styles.title}>Enter PIN</Text>
 
         {isLocked ? (
-          <Text style={styles.locked}>Too many failed attempts. Please restart the app.</Text>
+          <Text style={styles.locked} testID="verify-pin-locked">
+            Too many failed attempts. Please restart the app.
+          </Text>
         ) : (
           <>
             {error && (
-              <Text style={styles.error}>
+              <Text style={styles.error} testID="verify-pin-error">
                 Incorrect PIN. {MAX_ATTEMPTS - attempts} attempts remaining.
               </Text>
             )}
 
-            <View style={styles.dots}>
+            <View style={styles.dots} testID="verify-pin-dots">
               {Array.from({ length: 6 }).map((_, i) => (
                 <View
                   key={i}
@@ -95,6 +127,7 @@ export default function VerifyPinScreen() {
                 return (
                   <Pressable
                     key={key}
+                    testID={key === 'del' ? 'pin-key-delete' : `pin-key-${key}`}
                     style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
                     disabled={isLocked}
                     onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
@@ -113,7 +146,11 @@ export default function VerifyPinScreen() {
             </View>
 
             {biometricEnabled && (
-              <Pressable style={styles.biometricButton} onPress={tryBiometric}>
+              <Pressable
+                testID="verify-pin-biometric-button"
+                style={styles.biometricButton}
+                onPress={tryBiometric}
+              >
                 <Text style={styles.biometricText}>Use Biometric</Text>
               </Pressable>
             )}

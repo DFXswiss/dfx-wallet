@@ -1,28 +1,21 @@
 import 'react-native-get-random-values';
 import 'react-native-url-polyfill/auto';
-
+import { Buffer } from '@craftzdog/react-native-buffer';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { WalletProvider } from '@tetherto/wdk-react-native-provider';
+import { WdkAppProvider } from '@tetherto/wdk-react-native-core';
+import { bundle } from '../.wdk';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { OfflineBanner } from '@/components/OfflineBanner';
-import { CHAINS_CONFIG } from '@/config/chains';
-import { env } from '@/config/env';
+import { getWdkConfigs } from '@/config/chains';
 import '@/i18n';
+
+(globalThis as unknown as { Buffer: typeof Buffer }).Buffer = Buffer;
 
 export default function RootLayout() {
   return (
     <ErrorBoundary>
-      <WalletProvider
-        config={{
-          indexer: {
-            apiKey: env.wdkIndexerApiKey,
-            url: env.wdkIndexerUrl,
-          },
-          chains: CHAINS_CONFIG,
-          enableCaching: true,
-        }}
-      >
+      <WdkAppProvider bundle={{ bundle }} wdkConfigs={getWdkConfigs()}>
         <StatusBar style="light" />
         <OfflineBanner />
         <Stack screenOptions={{ headerShown: false }}>
@@ -30,7 +23,7 @@ export default function RootLayout() {
           <Stack.Screen name="(pin)" />
           <Stack.Screen name="(auth)" />
         </Stack>
-      </WalletProvider>
+      </WdkAppProvider>
     </ErrorBoundary>
   );
 }

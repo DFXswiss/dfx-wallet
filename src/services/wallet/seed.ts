@@ -1,4 +1,12 @@
+import { Buffer } from '@craftzdog/react-native-buffer';
+import * as Crypto from 'expo-crypto';
 import { generateMnemonic, validateMnemonic } from 'bip39';
+
+type Bip39Rng = NonNullable<Parameters<typeof generateMnemonic>[1]>;
+
+// @craftzdog/react-native-buffer's Buffer is structurally compatible with the
+// generic Node Buffer<ArrayBufferLike> that bip39's types now require.
+const rng = ((size: number) => Buffer.from(Crypto.getRandomBytes(size))) as unknown as Bip39Rng;
 
 /**
  * Generate a new BIP-39 seed phrase using real cryptographic randomness.
@@ -6,7 +14,7 @@ import { generateMnemonic, validateMnemonic } from 'bip39';
  */
 export function generateSeedPhrase(wordCount: 12 | 24 = 12): string[] {
   const strength = wordCount === 12 ? 128 : 256;
-  const mnemonic = generateMnemonic(strength);
+  const mnemonic = generateMnemonic(strength, rng);
   return mnemonic.split(' ');
 }
 
