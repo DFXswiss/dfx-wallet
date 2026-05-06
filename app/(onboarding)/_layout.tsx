@@ -7,6 +7,8 @@ export default function OnboardingLayout() {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: DfxColors.background },
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
       }}
     />
   );
