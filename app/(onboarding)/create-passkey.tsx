@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
@@ -28,12 +28,13 @@ export default function CreatePasskeyScreen() {
       console.warn('create-passkey: setup failed', error);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       if (error instanceof PasskeyPrfUnsupportedError) {
-        Alert.alert(t('common.error'), t('passkey.prfUnsupported'), [
+        const provider = Platform.select({ ios: 'iCloud Keychain', default: 'Google Password Manager' });
+        Alert.alert(t('common.error'), t('passkey.prfUnsupported', { provider }), [
+          { text: t('common.retry'), style: 'cancel' },
           {
             text: t('passkey.useSeedInstead'),
             onPress: () => router.replace('/(onboarding)/create-wallet'),
           },
-          { text: t('common.cancel'), style: 'cancel' },
         ]);
       } else {
         Alert.alert(t('common.error'), t('passkey.createError'));
