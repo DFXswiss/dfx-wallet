@@ -9,13 +9,16 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAddresses, type AddressInfo } from '@tetherto/wdk-react-native-core';
 import { ScreenContainer } from '@/components';
+import { getAssets } from '@/config/tokens';
+import { indexerService, type TokenTransfer } from '@/services/indexer-service';
 import { dfxTransactionService, type TransactionDto } from '@/services/dfx';
 import { DfxColors, Typography } from '@/theme';
 
-type FilterType = 'all' | 'Buy' | 'Sell' | 'Swap';
+type FilterType = 'all' | 'transfers' | 'dfx';
 
-const STATE_COLORS: Record<string, string> = {
+const DFX_STATE_COLORS: Record<string, string> = {
   Completed: DfxColors.success,
   Processing: DfxColors.warning,
   AmlCheck: DfxColors.warning,
@@ -24,32 +27,58 @@ const STATE_COLORS: Record<string, string> = {
   Returned: DfxColors.error,
 };
 
+type UnifiedTransaction =
+  | { kind: 'transfer'; data: TokenTransfer }
+  | { kind: 'dfx'; data: TransactionDto };
+
+const SYMBOL_MAP: Record<string, string> = { usdt: 'USDT', xaut: 'XAUT', btc: 'BTC' };
+const CHAIN_MAP: Record<string, string> = {
+  ethereum: 'Ethereum',
+  polygon: 'Polygon',
+  arbitrum: 'Arbitrum',
+  spark: 'Spark',
+};
+
+const formatTransferAmount = (amount: string): string => {
+  const num = parseFloat(amount);
+  if (isNaN(num)) return amount;
+  if (num === Math.floor(num)) return num.toString();
+  return num.toFixed(2);
+};
+
 export default function TransactionHistoryScreen() {
   const router = useRouter();
-  const [transactions, setTransactions] = useState<TransactionDto[]>([]);
+  const { data: addressData } = useAddresses();
+  const [transfers, setTransfers] = useState<TokenTransfer[]>([]);
+  const [dfxTransactions, setDfxTransactions] = useState<TransactionDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('all');
 
-  const loadTransactions = useCallback(async () => {
+  const addressMap = buildAddressMap(addressData);
+
+  const loadData = useCallback(async () => {
     setIsLoading(true);
-    try {
-      const data = await dfxTransactionService.getTransactions();
-      setTransactions(data);
-    } catch {
-      // Silently fail — user may not be authenticated yet
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+
+    const [transferResult, dfxResult] = await Promise.allSettled([
+      loadTransfers(addressMap),
+      dfxTransactionService.getTransactions(),
+    ]);
+
+    if (transferResult.status === 'fulfilled') setTransfers(transferResult.value);
+    if (dfxResult.status === 'fulfilled') setDfxTransactions(dfxResult.value);
+
+    setIsLoading(false);
+  }, [addressMap]);
 
   useEffect(() => {
-    void loadTransactions();
-  }, [loadTransactions]);
+    if (addressData && addressData.length > 0) {
+      void loadData();
+    }
+  }, [addressData, loadData]);
 
-  const filtered =
-    filter === 'all' ? transactions : transactions.filter((tx) => tx.type === filter);
-
-  const filters: FilterType[] = ['all', 'Buy', 'Sell', 'Swap'];
+  const unified = buildUnifiedList(transfers, dfxTransactions, filter);
+  const filters: FilterType[] = ['all', 'transfers', 'dfx'];
+  const filterLabels: Record<FilterType, string> = { all: 'All', transfers: 'On-Chain', dfx: 'DFX' };
 
   return (
     <ScreenContainer>
@@ -74,7 +103,8 @@ export default function TransactionHistoryScreen() {
               onPress={() => setFilter(f)}
             >
               <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-                {f === 'all' ? 'All' : f}
+                {/* eslint-disable-next-line security/detect-object-injection -- filterLabels keys are the FilterType literal union */}
+                {filterLabels[f]}
               </Text>
             </Pressable>
           ))}
@@ -84,7 +114,7 @@ export default function TransactionHistoryScreen() {
           <View style={styles.loadingContainer}>
             <ActivityIndicator color={DfxColors.primary} />
           </View>
-        ) : filtered.length === 0 ? (
+        ) : unified.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No transactions yet</Text>
           </View>
@@ -93,41 +123,124 @@ export default function TransactionHistoryScreen() {
             contentContainerStyle={styles.txList}
             showsVerticalScrollIndicator={false}
             refreshControl={
-              <RefreshControl
-                refreshing={isLoading}
-                onRefresh={loadTransactions}
-                tintColor={DfxColors.primary}
-              />
+              <RefreshControl refreshing={isLoading} onRefresh={loadData} tintColor={DfxColors.primary} />
             }
           >
-            {filtered.map((tx) => (
-              <View key={tx.id} style={styles.txItem}>
-                <View style={styles.txLeft}>
-                  <Text style={styles.txType}>{tx.type}</Text>
-                  <Text style={styles.txDate}>{new Date(tx.date).toLocaleDateString()}</Text>
-                </View>
-                <View style={styles.txRight}>
-                  <Text style={styles.txAmount}>
-                    {tx.type === 'Sell' ? '-' : '+'}
-                    {tx.outputAmount} {tx.outputAsset}
-                  </Text>
-                  <View style={styles.txStatusRow}>
-                    <View
-                      style={[
-                        styles.statusDot,
-                        { backgroundColor: STATE_COLORS[tx.state] ?? DfxColors.textTertiary },
-                      ]}
-                    />
-                    <Text style={styles.txState}>{tx.state}</Text>
-                  </View>
-                </View>
-              </View>
-            ))}
+            {unified.map((tx, i) =>
+              tx.kind === 'transfer' ? (
+                <TransferItem key={`transfer-${tx.data.transactionHash}-${tx.data.transferIndex}`} transfer={tx.data} myAddresses={Object.values(addressMap)} />
+              ) : (
+                <DfxItem key={`dfx-${tx.data.id}-${i}`} tx={tx.data} />
+              ),
+            )}
           </ScrollView>
         )}
       </View>
     </ScreenContainer>
   );
+}
+
+function TransferItem({ transfer, myAddresses }: { transfer: TokenTransfer; myAddresses: string[] }) {
+  const isReceive = myAddresses.some((a) => a.toLowerCase() === transfer.to.toLowerCase());
+  const symbol = SYMBOL_MAP[transfer.token] ?? transfer.token.toUpperCase();
+  const chain = CHAIN_MAP[transfer.blockchain] ?? transfer.blockchain;
+
+  return (
+    <View style={styles.txItem}>
+      <View style={styles.txLeft}>
+        <Text style={styles.txType}>{isReceive ? 'Receive' : 'Send'}</Text>
+        <Text style={styles.txDate}>
+          {new Date(transfer.timestamp * 1000).toLocaleDateString()} · {chain}
+        </Text>
+      </View>
+      <View style={styles.txRight}>
+        <Text style={[styles.txAmount, { color: isReceive ? DfxColors.success : DfxColors.text }]}>
+          {isReceive ? '+' : '-'}{formatTransferAmount(transfer.amount)} {symbol}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function DfxItem({ tx }: { tx: TransactionDto }) {
+  return (
+    <View style={styles.txItem}>
+      <View style={styles.txLeft}>
+        <Text style={styles.txType}>{tx.type}</Text>
+        <Text style={styles.txDate}>{new Date(tx.date).toLocaleDateString()}</Text>
+      </View>
+      <View style={styles.txRight}>
+        <Text style={styles.txAmount}>
+          {tx.type === 'Sell' ? '-' : '+'}
+          {tx.outputAmount} {tx.outputAsset}
+        </Text>
+        <View style={styles.txStatusRow}>
+          <View
+            style={[
+              styles.statusDot,
+              { backgroundColor: DFX_STATE_COLORS[tx.state] ?? DfxColors.textTertiary },
+            ]}
+          />
+          <Text style={styles.txState}>{tx.state}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function buildAddressMap(data: AddressInfo[] | undefined): Record<string, string> {
+  if (!data) return {};
+  const map: Record<string, string> = {};
+  for (const entry of data) {
+    if (entry.accountIndex === 0 && entry.address) {
+      map[entry.network] = entry.address;
+    }
+  }
+  return map;
+}
+
+async function loadTransfers(
+  addressMap: Record<string, string>,
+): Promise<TokenTransfer[]> {
+  if (Object.keys(addressMap).length === 0) return [];
+
+  const assets = getAssets().filter((a) => !a.isNative() && a.getContractAddress());
+  const requests = assets
+    .map((asset) => {
+      const address = addressMap[asset.getNetwork()];
+      if (!address) return null;
+      return {
+        blockchain: asset.getNetwork(),
+        token: asset.getSymbol().toLowerCase(),
+        address,
+        limit: 50,
+      };
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null);
+
+  if (requests.length === 0) return [];
+  return indexerService.getTokenTransfers(requests);
+}
+
+function buildUnifiedList(
+  transfers: TokenTransfer[],
+  dfxTxs: TransactionDto[],
+  filter: FilterType,
+): UnifiedTransaction[] {
+  const items: UnifiedTransaction[] = [];
+
+  if (filter === 'all' || filter === 'transfers') {
+    items.push(...transfers.map((t) => ({ kind: 'transfer' as const, data: t })));
+  }
+  if (filter === 'all' || filter === 'dfx') {
+    items.push(...dfxTxs.map((t) => ({ kind: 'dfx' as const, data: t })));
+  }
+
+  return items.sort((a, b) => {
+    const tsA = a.kind === 'transfer' ? a.data.timestamp * 1000 : new Date(a.data.date).getTime();
+    const tsB = b.kind === 'transfer' ? b.data.timestamp * 1000 : new Date(b.data.date).getTime();
+    return tsB - tsA;
+  });
 }
 
 const styles = StyleSheet.create({

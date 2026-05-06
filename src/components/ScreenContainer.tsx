@@ -1,17 +1,22 @@
-import { ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import type { ReactNode } from 'react';
+import { ScrollView, StyleSheet, View, type RefreshControlProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DfxColors } from '@/theme';
 
 type Props = {
   children: ReactNode;
   scrollable?: boolean;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
   testID?: string;
 };
 
-export function ScreenContainer({ children, scrollable = false, testID }: Props) {
+export function ScreenContainer({ children, scrollable = false, refreshControl, testID }: Props) {
   const content = scrollable ? (
-    <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      contentContainerStyle={styles.scroll}
+      showsVerticalScrollIndicator={false}
+      refreshControl={refreshControl}
+    >
       {children}
     </ScrollView>
   ) : (

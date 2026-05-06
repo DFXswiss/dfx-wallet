@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
+import { useBalancesForWallet, useRefreshBalance } from '@tetherto/wdk-react-native-core';
 import { ActionBar, AssetListItem, BalanceCard, ScreenContainer } from '@/components';
 import { getAssets } from '@/config/tokens';
 import { useDfxAuth } from '@/hooks';
 import { useAuthStore, useWalletStore } from '@/store';
+import { pricingService, type AssetTicker, FiatCurrency } from '@/services/pricing-service';
 import { DfxColors, Typography } from '@/theme';
 
 type AggregatedAsset = {
@@ -15,6 +16,14 @@ type AggregatedAsset = {
   chain: string;
   balance: string;
   balanceFiat: string;
+};
+
+const SYMBOL_TO_TICKER: Record<string, AssetTicker> = {
+  BTC: 'btc',
+  ETH: 'eth',
+  USDT: 'usdt',
+  XAUT: 'xaut',
+  MATIC: 'matic',
 };
 
 const formatBalance = (rawBalance: string, decimals: number): string => {
@@ -32,15 +41,32 @@ const formatBalance = (rawBalance: string, decimals: number): string => {
   }
 };
 
+const formatFiat = (value: number, currency: string): string => {
+  if (value === 0) return '';
+  return `${value.toFixed(2)} ${currency}`;
+};
+
 export default function DashboardScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { totalBalanceFiat, selectedCurrency } = useWalletStore();
+  const { selectedCurrency, setTotalBalanceFiat } = useWalletStore();
   const { isDfxAuthenticated } = useAuthStore();
   const { authenticate, isAuthenticating } = useDfxAuth();
+  const { mutate: refreshBalance } = useRefreshBalance();
+  const [pricingReady, setPricingReady] = useState(pricingService.isReady());
 
   const assetConfigs = useMemo(() => getAssets(), []);
-  const { data: balanceResults } = useBalancesForWallet(0, assetConfigs);
+  const { data: balanceResults, isLoading: isBalanceLoading } = useBalancesForWallet(0, assetConfigs, {
+    refetchInterval: 30_000,
+  });
+
+  useEffect(() => {
+    if (!pricingReady) {
+      pricingService.initialize().then(() => setPricingReady(true)).catch(() => {});
+    }
+  }, [pricingReady]);
+
+  const fiatCurrency = selectedCurrency === 'USD' ? FiatCurrency.USD : FiatCurrency.CHF;
 
   const assets = useMemo<AggregatedAsset[]>(() => {
     if (!balanceResults) return [];
@@ -51,16 +77,41 @@ export default function DashboardScreen() {
         const asset = assetConfigs.find((a) => a.getId() === result.assetId);
         if (!asset) return null;
 
+        const balance = formatBalance(result.balance ?? '0', asset.getDecimals());
+        const numericBalance = parseFloat(balance);
+        const ticker = SYMBOL_TO_TICKER[asset.getSymbol()];
+        const rate = ticker && pricingReady ? pricingService.getExchangeRate(ticker, fiatCurrency) : undefined;
+        const fiatValue = rate !== undefined ? numericBalance * rate : 0;
+
         return {
           symbol: asset.getSymbol(),
           name: asset.getName(),
           chain: asset.getNetwork(),
-          balance: formatBalance(result.balance ?? '0', asset.getDecimals()),
-          balanceFiat: '',
+          balance,
+          balanceFiat: formatFiat(fiatValue, selectedCurrency),
         } satisfies AggregatedAsset;
       })
       .filter((asset): asset is AggregatedAsset => asset !== null);
-  }, [balanceResults, assetConfigs]);
+  }, [balanceResults, assetConfigs, pricingReady, fiatCurrency, selectedCurrency]);
+
+  const totalFiat = useMemo(() => {
+    return assets.reduce((sum, asset) => {
+      const match = asset.balanceFiat.match(/^([\d.]+)/);
+      const value = match?.[1];
+      return sum + (value ? parseFloat(value) : 0);
+    }, 0);
+  }, [assets]);
+
+  useEffect(() => {
+    setTotalBalanceFiat(totalFiat > 0 ? totalFiat.toFixed(2) : '0.00');
+  }, [totalFiat, setTotalBalanceFiat]);
+
+  const onRefresh = useCallback(() => {
+    refreshBalance({ accountIndex: 0, type: 'wallet' });
+    if (pricingReady) {
+      pricingService.initialize().catch(() => {});
+    }
+  }, [refreshBalance, pricingReady]);
 
   const hasAttemptedAuthRef = useRef(false);
   useEffect(() => {
@@ -99,9 +150,18 @@ export default function DashboardScreen() {
   ];
 
   return (
-    <ScreenContainer scrollable>
+    <ScreenContainer
+      scrollable
+      refreshControl={
+        <RefreshControl
+          refreshing={isBalanceLoading}
+          onRefresh={onRefresh}
+          tintColor={DfxColors.primary}
+        />
+      }
+    >
       <View style={styles.content} testID="dashboard-screen">
-        <BalanceCard totalBalance={totalBalanceFiat} currency={selectedCurrency} />
+        <BalanceCard totalBalance={totalFiat > 0 ? totalFiat.toFixed(2) : '0.00'} currency={selectedCurrency} />
         <ActionBar actions={actions} />
 
         <View style={styles.section}>
