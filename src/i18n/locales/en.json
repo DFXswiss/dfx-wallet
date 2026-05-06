@@ -82,7 +82,7 @@
     "createDescription": "Your wallet will be secured by a passkey stored in your device's secure element. No seed phrase to write down.",
     "createError": "Failed to create passkey. Please try again.",
     "createTitle": "Create with Passkey",
-    "prfUnsupported": "Your device does not support the required passkey features. Please create your wallet with a seed phrase instead.",
+    "prfUnsupported": "Your passkey provider does not support the required encryption feature (PRF). Third-party providers like Bitwarden do not support this yet. Please use {{provider}} as your passkey provider instead.",
     "restoreButton": "Restore with Passkey",
     "restoreDescription": "Use your existing passkey to restore your wallet. The same passkey will derive the same wallet.",
     "restoreError": "Failed to restore wallet from passkey. Please try again.",
