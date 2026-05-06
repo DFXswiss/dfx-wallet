@@ -1,9 +1,18 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import {
+  ImageBackground,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { ChainSelector, Icon, PrimaryButton, ScreenContainer, ShortcutAction } from '@/components';
+import { AppHeader, ChainSelector, Icon, PrimaryButton, ShortcutAction } from '@/components';
 import { QrScanner } from '@/components/QrScanner';
 import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
@@ -163,60 +172,63 @@ export default function SendScreen() {
   );
 
   return (
-    <ScreenContainer scrollable>
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Pressable
-            onPress={() => {
-              if (step === 'input') router.back();
-              else if (step === 'confirm') setStep('input');
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ImageBackground
+        source={require('../../../assets/dashboard-bg.png')}
+        style={styles.bg}
+        resizeMode="cover"
+      >
+        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+          <AppHeader
+            title={t('send.title')}
+            onBack={() => {
+              if (step === 'confirm') setStep('input');
               else router.back();
             }}
+            testID="send-screen"
+          />
+
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.backButton}>{'\u2190'}</Text>
-          </Pressable>
-          <Text style={styles.title}>{t('send.title')}</Text>
-          <View style={styles.backButton} />
-        </View>
+            {step === 'input' && renderInputStep()}
+            {step === 'confirm' && renderConfirmStep()}
+            {step === 'success' && renderSuccessStep()}
+          </ScrollView>
 
-        {step === 'input' && renderInputStep()}
-        {step === 'confirm' && renderConfirmStep()}
-        {step === 'success' && renderSuccessStep()}
-
-        <QrScanner
-          visible={scannerVisible}
-          onScan={(data) => {
-            // Handle various QR formats: plain address, ethereum:0x..., bitcoin:bc1...
-            // String.prototype.split always yields at least one element, so [0] is defined.
-            const address = data.replace(/^(ethereum|bitcoin):/, '').split('?')[0]!;
-            setRecipient(address);
-          }}
-          onClose={() => setScannerVisible(false)}
-        />
-      </View>
-    </ScreenContainer>
+          <QrScanner
+            visible={scannerVisible}
+            onScan={(data) => {
+              // Handle various QR formats: plain address, ethereum:0x..., bitcoin:bc1...
+              // String.prototype.split always yields at least one element, so [0] is defined.
+              const address = data.replace(/^(ethereum|bitcoin):/, '').split('?')[0]!;
+              setRecipient(address);
+            }}
+            onClose={() => setScannerVisible(false)}
+          />
+        </SafeAreaView>
+      </ImageBackground>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
+  bg: {
     flex: 1,
-    paddingVertical: 16,
-    gap: 16,
+    backgroundColor: DfxColors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  safeArea: {
+    flex: 1,
   },
-  backButton: {
-    fontSize: 24,
-    color: DfxColors.text,
-    width: 32,
+  scroll: {
+    flex: 1,
   },
-  title: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 32,
   },
   stepContent: {
     flex: 1,

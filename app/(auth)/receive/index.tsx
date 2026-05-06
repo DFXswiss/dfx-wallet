@@ -1,17 +1,12 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { ImageBackground, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import {
-  ChainSelector,
-  PrimaryButton,
-  QrCode,
-  ScreenContainer,
-  ShortcutAction,
-} from '@/components';
+import { AppHeader, ChainSelector, PrimaryButton, QrCode, ShortcutAction } from '@/components';
 import type { ChainId } from '@/config/chains';
 import { DfxColors, Typography } from '@/theme';
 
@@ -33,80 +28,87 @@ export default function ReceiveScreen() {
   };
 
   return (
-    <ScreenContainer>
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()}>
-            <Text style={styles.backButton}>{'\u2190'}</Text>
-          </Pressable>
-          <Text style={styles.title}>{t('receive.title')}</Text>
-          <View style={styles.backButton} />
-        </View>
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ImageBackground
+        source={require('../../../assets/dashboard-bg.png')}
+        style={styles.bg}
+        resizeMode="cover"
+      >
+        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+          <AppHeader title={t('receive.title')} testID="receive-screen" />
 
-        <ChainSelector selected={selectedChain} onSelect={setSelectedChain} />
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <ChainSelector selected={selectedChain} onSelect={setSelectedChain} />
 
-        <View style={styles.qrContainer}>
-          {address ? (
-            <QrCode value={address} size={220} />
-          ) : (
-            <View style={styles.qrPlaceholder}>
-              <Text style={styles.qrPlaceholderText}>No address</Text>
+            <View style={styles.qrContainer}>
+              {address ? (
+                <QrCode value={address} size={220} />
+              ) : (
+                <View style={styles.qrPlaceholder}>
+                  <Text style={styles.qrPlaceholderText}>No address</Text>
+                </View>
+              )}
             </View>
-          )}
-        </View>
 
-        <View style={styles.addressContainer}>
-          <Text style={styles.addressLabel}>Your {selectedChain} address</Text>
-          <Text style={styles.address} selectable numberOfLines={2}>
-            {address || 'Wallet not initialized'}
-          </Text>
-        </View>
+            <View style={styles.addressContainer}>
+              <Text style={styles.addressLabel}>
+                {t('receive.yourAddress', { chain: selectedChain })}
+              </Text>
+              <Text style={styles.address} selectable numberOfLines={2}>
+                {address || 'Wallet not initialized'}
+              </Text>
+            </View>
 
-        <PrimaryButton
-          title={copied ? 'Copied!' : 'Copy Address'}
-          onPress={handleCopy}
-          disabled={!address}
-        />
+            <PrimaryButton
+              title={copied ? t('common.copied') : t('common.copy')}
+              onPress={handleCopy}
+              disabled={!address}
+            />
 
-        <Text style={styles.warning}>
-          Only send {selectedChain === 'spark' ? 'BTC' : 'compatible tokens'} on the {selectedChain}{' '}
-          network to this address.
-        </Text>
+            <Text style={styles.warning}>
+              {t('receive.onlyCorrectNetwork', {
+                asset: selectedChain === 'spark' ? 'BTC' : 'compatible tokens',
+                network: selectedChain,
+              })}
+            </Text>
 
-        <ShortcutAction
-          icon={<Text style={styles.currencyIcon}>{'€'}</Text>}
-          label={t('receive.buyBtcWithEuro')}
-          onPress={() => router.push('/(auth)/buy')}
-          testID="receive-action-buy"
-        />
-      </View>
-    </ScreenContainer>
+            <ShortcutAction
+              icon={<Text style={styles.currencyIcon}>{'€'}</Text>}
+              label={t('receive.buyBtcWithEuro')}
+              onPress={() => router.push('/(auth)/buy')}
+              testID="receive-action-buy"
+            />
+          </ScrollView>
+        </SafeAreaView>
+      </ImageBackground>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
+  bg: {
     flex: 1,
-    paddingVertical: 16,
-    gap: 20,
+    backgroundColor: DfxColors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  safeArea: {
+    flex: 1,
   },
-  backButton: {
-    fontSize: 24,
-    color: DfxColors.text,
-    width: 32,
+  scroll: {
+    flex: 1,
   },
-  title: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+    gap: 18,
   },
   qrContainer: {
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 12,
   },
   qrPlaceholder: {
     width: 220,
@@ -126,6 +128,10 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 8,
     alignItems: 'center',
+    shadowColor: '#0B1426',
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
   },
   addressLabel: {
     ...Typography.bodySmall,

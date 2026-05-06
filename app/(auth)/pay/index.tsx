@@ -58,7 +58,21 @@ export default function PayScreen() {
         resizeMode="cover"
       >
         <SafeAreaView style={styles.flow} edges={['top', 'left', 'right', 'bottom']}>
-          <DashboardHeader onMenuPress={() => setMenuOpen(true)} />
+          <View style={styles.headerRow}>
+            <Pressable
+              onPress={() => router.back()}
+              hitSlop={12}
+              style={styles.backButton}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.back')}
+              testID="pay-back-button"
+            >
+              <Icon name="arrow-left" size={26} color={DfxColors.text} />
+            </Pressable>
+            <View style={styles.headerCenter}>
+              <DashboardHeader onMenuPress={() => setMenuOpen(true)} />
+            </View>
+          </View>
 
           <View style={{ flex: 1 }} />
 
@@ -113,6 +127,22 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 16,
     backgroundColor: 'rgba(11, 20, 38, 0.18)',
+  },
+  headerRow: {
+    position: 'relative',
+  },
+  backButton: {
+    position: 'absolute',
+    left: 16,
+    top: 4,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  headerCenter: {
+    flex: 1,
   },
   lightningWrapper: {
     alignItems: 'center',

@@ -137,7 +137,17 @@ export default function AssetDetailScreen() {
 
             <View style={styles.holdingsList}>
               {holdings.map((holding) => (
-                <View key={holding.id} style={styles.holdingRow}>
+                <Pressable
+                  key={holding.id}
+                  style={({ pressed }) => [styles.holdingRow, pressed && styles.holdingPressed]}
+                  testID={`holding-${holding.network}-${holding.symbol}`}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(auth)/transaction-history',
+                      params: { asset: holding.symbol, network: holding.network },
+                    })
+                  }
+                >
                   <View style={styles.holdingInfo}>
                     <Text style={styles.holdingChain}>{holding.chainLabel}</Text>
                     <Text style={styles.holdingSymbol}>{holding.symbol}</Text>
@@ -150,7 +160,7 @@ export default function AssetDetailScreen() {
                       {formatNumber(holding.balanceNum)} {holding.symbol}
                     </Text>
                   </View>
-                </View>
+                </Pressable>
               ))}
             </View>
           </ScrollView>
@@ -253,6 +263,9 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
     elevation: 1,
+  },
+  holdingPressed: {
+    opacity: 0.7,
   },
   holdingInfo: {
     flex: 1,

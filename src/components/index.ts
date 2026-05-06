@@ -1,3 +1,4 @@
+export { AppHeader } from './AppHeader';
 export { AssetListItem } from './AssetListItem';
 export { ChainSelector } from './ChainSelector';
 export { DashboardHeader } from './DashboardHeader';
