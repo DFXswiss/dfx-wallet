@@ -1,5 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  Alert,
+  Dimensions,
+  ImageBackground,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -7,10 +15,11 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { DashboardHeader, Icon, MenuModal } from '@/components';
 import { DfxColors, Typography } from '@/theme';
 
-const FRAME_SIZE = 280;
-const CORNER_SIZE = 36;
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const FRAME_SIZE = Math.min(SCREEN_WIDTH - 48, 360);
+const CORNER_SIZE = 48;
 const CORNER_THICKNESS = 4;
-const CORNER_RADIUS = 16;
+const CORNER_RADIUS = 24;
 
 export default function PayScreen() {
   const router = useRouter();
@@ -18,22 +27,10 @@ export default function PayScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const laserAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!permission?.granted) void requestPermission();
   }, [permission, requestPermission]);
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(laserAnim, { toValue: 1, duration: 1600, useNativeDriver: true }),
-        Animated.timing(laserAnim, { toValue: 0, duration: 1600, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [laserAnim]);
 
   const handleScan = ({ data }: { data: string }) => {
     if (scanned) return;
@@ -42,11 +39,6 @@ export default function PayScreen() {
       { text: t('common.ok'), onPress: () => router.back() },
     ]);
   };
-
-  const laserY = laserAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [12, FRAME_SIZE - 12],
-  });
 
   return (
     <>
@@ -82,13 +74,6 @@ export default function PayScreen() {
               <View pointerEvents="none" style={[styles.corner, styles.cornerTR]} />
               <View pointerEvents="none" style={[styles.corner, styles.cornerBL]} />
               <View pointerEvents="none" style={[styles.corner, styles.cornerBR]} />
-
-              {permission?.granted && (
-                <Animated.View
-                  pointerEvents="none"
-                  style={[styles.laser, { transform: [{ translateY: laserY }] }]}
-                />
-              )}
             </View>
           </View>
 
@@ -172,17 +157,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: CORNER_THICKNESS,
     borderRightWidth: CORNER_THICKNESS,
     borderBottomRightRadius: CORNER_RADIUS,
-  },
-  laser: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    height: 2,
-    backgroundColor: DfxColors.primary,
-    shadowColor: DfxColors.primary,
-    shadowOpacity: 0.9,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 0 },
   },
   permissionFallback: {
     flex: 1,
