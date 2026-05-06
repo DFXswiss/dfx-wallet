@@ -32,7 +32,10 @@ export default function RestorePasskeyScreen() {
       console.warn('restore-passkey: restore failed', error);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       if (error instanceof PasskeyPrfUnsupportedError) {
-        const provider = Platform.select({ ios: 'iCloud Keychain', default: 'Google Password Manager' });
+        const provider = Platform.select({
+          ios: 'iCloud Keychain',
+          default: 'Google Password Manager',
+        });
         Alert.alert(t('common.error'), t('passkey.prfUnsupported', { provider }));
       } else {
         Alert.alert(t('common.error'), t('passkey.restoreError'));

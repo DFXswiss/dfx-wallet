@@ -28,7 +28,10 @@ export default function CreatePasskeyScreen() {
       console.warn('create-passkey: setup failed', error);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       if (error instanceof PasskeyPrfUnsupportedError) {
-        const provider = Platform.select({ ios: 'iCloud Keychain', default: 'Google Password Manager' });
+        const provider = Platform.select({
+          ios: 'iCloud Keychain',
+          default: 'Google Password Manager',
+        });
         Alert.alert(t('common.error'), t('passkey.prfUnsupported', { provider }), [
           { text: t('common.retry'), style: 'cancel' },
           {
