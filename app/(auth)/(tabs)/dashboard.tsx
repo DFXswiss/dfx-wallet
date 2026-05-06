@@ -3,13 +3,10 @@ import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { DashboardHeader, Icon, MenuModal, ShortcutAction, TransactionRow } from '@/components';
+import { DashboardHeader, Icon, MenuModal, ShortcutAction } from '@/components';
 import { useDfxAuth } from '@/hooks';
-import { dfxTransactionService, type TransactionDto } from '@/services/dfx';
 import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
-
-const RECENT_TX_LIMIT = 4;
 
 const CURRENCY_SYMBOLS = new Map<string, string>([
   ['USD', '$'],
@@ -36,26 +33,6 @@ export default function DashboardScreen() {
 
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [recentTx, setRecentTx] = useState<TransactionDto[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const data = await dfxTransactionService.getTransactions();
-        if (cancelled) return;
-        const sorted = [...data].sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-        );
-        setRecentTx(sorted.slice(0, RECENT_TX_LIMIT));
-      } catch {
-        // Auth may not be ready yet — leave list empty
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isDfxAuthenticated]);
 
   const hasAttemptedAuthRef = useRef(false);
   useEffect(() => {
@@ -122,47 +99,15 @@ export default function DashboardScreen() {
             />
           </View>
 
-          <View style={styles.transactionsSection}>
-            <View style={styles.transactionsHeader}>
-              <Text style={styles.transactionsTitle}>{t('dashboard.transactions')}</Text>
-              <Pressable
-                onPress={() => router.push('/(auth)/transaction-history')}
-                hitSlop={8}
-                testID="dashboard-action-transactions"
-              >
-                <Text style={styles.transactionsSeeAll}>{t('dashboard.seeAll')}</Text>
-              </Pressable>
-            </View>
-
-            {recentTx.length === 0 ? (
-              <Pressable
-                style={styles.transactionsEmpty}
-                onPress={() => router.push('/(auth)/transaction-history')}
-              >
-                <Icon name="swap" size={18} color={DfxColors.textTertiary} />
-                <Text style={styles.transactionsEmptyText}>
-                  {t('dashboard.noRecentTransactions')}
-                </Text>
-              </Pressable>
-            ) : (
-              <View style={styles.transactionsCard}>
-                {recentTx.map((tx) => (
-                  <TransactionRow
-                    key={tx.id}
-                    tx={tx}
-                    showState={false}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/(auth)/transaction-history/[id]',
-                        params: { id: String(tx.id) },
-                      })
-                    }
-                    testID={`dashboard-tx-${tx.id}`}
-                  />
-                ))}
-              </View>
-            )}
-          </View>
+          <Pressable
+            style={styles.transactions}
+            onPress={() => router.push('/(auth)/transaction-history')}
+            testID="dashboard-action-transactions"
+            accessibilityRole="button"
+          >
+            <Icon name="swap" size={18} color={DfxColors.primary} />
+            <Text style={styles.transactionsLabel}>{t('dashboard.transactions')}</Text>
+          </Pressable>
 
           <View style={styles.footer}>
             <View style={styles.bottomPill}>
@@ -265,50 +210,18 @@ const styles = StyleSheet.create({
   actionPill: {
     flex: 1,
   },
-  transactionsSection: {
-    marginTop: 16,
-    gap: 8,
-  },
-  transactionsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-  },
-  transactionsTitle: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    fontWeight: '600',
-  },
-  transactionsSeeAll: {
-    ...Typography.bodyMedium,
-    color: DfxColors.primary,
-    fontWeight: '600',
-  },
-  transactionsCard: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    shadowColor: '#0B1426',
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
-  },
-  transactionsEmpty: {
+  transactions: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 10,
     paddingVertical: 18,
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
+    marginTop: 8,
   },
-  transactionsEmptyText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textTertiary,
+  transactionsLabel: {
+    ...Typography.bodyLarge,
+    color: DfxColors.primary,
+    fontWeight: '600',
   },
   footer: {
     marginTop: 'auto',

@@ -93,6 +93,7 @@ export default function TransactionHistoryScreen() {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
+              style={styles.filterBar}
               contentContainerStyle={styles.filters}
             >
               {filters.map((f) => (
@@ -196,10 +197,14 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  filterBar: {
+    flexGrow: 0,
+    paddingVertical: 12,
+  },
   filters: {
     gap: 8,
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    alignItems: 'center',
   },
   filterChip: {
     paddingHorizontal: 16,
