@@ -56,13 +56,20 @@ export default function DashboardScreen() {
   const [pricingReady, setPricingReady] = useState(pricingService.isReady());
 
   const assetConfigs = useMemo(() => getAssets(), []);
-  const { data: balanceResults, isLoading: isBalanceLoading } = useBalancesForWallet(0, assetConfigs, {
-    refetchInterval: 30_000,
-  });
+  const { data: balanceResults, isLoading: isBalanceLoading } = useBalancesForWallet(
+    0,
+    assetConfigs,
+    {
+      refetchInterval: 30_000,
+    },
+  );
 
   useEffect(() => {
     if (!pricingReady) {
-      pricingService.initialize().then(() => setPricingReady(true)).catch(() => {});
+      pricingService
+        .initialize()
+        .then(() => setPricingReady(true))
+        .catch(() => {});
     }
   }, [pricingReady]);
 
@@ -80,7 +87,8 @@ export default function DashboardScreen() {
         const balance = formatBalance(result.balance ?? '0', asset.getDecimals());
         const numericBalance = parseFloat(balance);
         const ticker = SYMBOL_TO_TICKER[asset.getSymbol()];
-        const rate = ticker && pricingReady ? pricingService.getExchangeRate(ticker, fiatCurrency) : undefined;
+        const rate =
+          ticker && pricingReady ? pricingService.getExchangeRate(ticker, fiatCurrency) : undefined;
         const fiatValue = rate !== undefined ? numericBalance * rate : 0;
 
         return {
@@ -161,7 +169,10 @@ export default function DashboardScreen() {
       }
     >
       <View style={styles.content} testID="dashboard-screen">
-        <BalanceCard totalBalance={totalFiat > 0 ? totalFiat.toFixed(2) : '0.00'} currency={selectedCurrency} />
+        <BalanceCard
+          totalBalance={totalFiat > 0 ? totalFiat.toFixed(2) : '0.00'}
+          currency={selectedCurrency}
+        />
         <ActionBar actions={actions} />
 
         <View style={styles.section}>

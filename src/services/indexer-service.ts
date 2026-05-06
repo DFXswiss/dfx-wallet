@@ -32,7 +32,7 @@ class IndexerService {
 
   private get headers(): HeadersInit {
     return {
-      'accept': 'application/json',
+      accept: 'application/json',
       'x-api-key': env.wdkIndexerApiKey,
       'Content-Type': 'application/json',
     };

@@ -78,7 +78,11 @@ export default function TransactionHistoryScreen() {
 
   const unified = buildUnifiedList(transfers, dfxTransactions, filter);
   const filters: FilterType[] = ['all', 'transfers', 'dfx'];
-  const filterLabels: Record<FilterType, string> = { all: 'All', transfers: 'On-Chain', dfx: 'DFX' };
+  const filterLabels: Record<FilterType, string> = {
+    all: 'All',
+    transfers: 'On-Chain',
+    dfx: 'DFX',
+  };
 
   return (
     <ScreenContainer>
@@ -123,12 +127,20 @@ export default function TransactionHistoryScreen() {
             contentContainerStyle={styles.txList}
             showsVerticalScrollIndicator={false}
             refreshControl={
-              <RefreshControl refreshing={isLoading} onRefresh={loadData} tintColor={DfxColors.primary} />
+              <RefreshControl
+                refreshing={isLoading}
+                onRefresh={loadData}
+                tintColor={DfxColors.primary}
+              />
             }
           >
             {unified.map((tx, i) =>
               tx.kind === 'transfer' ? (
-                <TransferItem key={`transfer-${tx.data.transactionHash}-${tx.data.transferIndex}`} transfer={tx.data} myAddresses={Object.values(addressMap)} />
+                <TransferItem
+                  key={`transfer-${tx.data.transactionHash}-${tx.data.transferIndex}`}
+                  transfer={tx.data}
+                  myAddresses={Object.values(addressMap)}
+                />
               ) : (
                 <DfxItem key={`dfx-${tx.data.id}-${i}`} tx={tx.data} />
               ),
@@ -140,7 +152,13 @@ export default function TransactionHistoryScreen() {
   );
 }
 
-function TransferItem({ transfer, myAddresses }: { transfer: TokenTransfer; myAddresses: string[] }) {
+function TransferItem({
+  transfer,
+  myAddresses,
+}: {
+  transfer: TokenTransfer;
+  myAddresses: string[];
+}) {
   const isReceive = myAddresses.some((a) => a.toLowerCase() === transfer.to.toLowerCase());
   const symbol = SYMBOL_MAP[transfer.token] ?? transfer.token.toUpperCase();
   const chain = CHAIN_MAP[transfer.blockchain] ?? transfer.blockchain;
@@ -155,7 +173,8 @@ function TransferItem({ transfer, myAddresses }: { transfer: TokenTransfer; myAd
       </View>
       <View style={styles.txRight}>
         <Text style={[styles.txAmount, { color: isReceive ? DfxColors.success : DfxColors.text }]}>
-          {isReceive ? '+' : '-'}{formatTransferAmount(transfer.amount)} {symbol}
+          {isReceive ? '+' : '-'}
+          {formatTransferAmount(transfer.amount)} {symbol}
         </Text>
       </View>
     </View>
@@ -199,9 +218,7 @@ function buildAddressMap(data: AddressInfo[] | undefined): Record<string, string
   return map;
 }
 
-async function loadTransfers(
-  addressMap: Record<string, string>,
-): Promise<TokenTransfer[]> {
+async function loadTransfers(addressMap: Record<string, string>): Promise<TokenTransfer[]> {
   if (Object.keys(addressMap).length === 0) return [];
 
   const assets = getAssets().filter((a) => !a.isNative() && a.getContractAddress());
