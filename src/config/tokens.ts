@@ -166,7 +166,7 @@ const ASSET_SPECS: AssetSpec[] = [
     defaultEnabled: true,
   },
 
-  // dEURO (EUR) — addresses are placeholders pending confirmation
+  // dEURO (EUR) — Ethereum address confirmed; L2 contracts pending
   {
     network: 'ethereum',
     symbol: 'dEURO',
@@ -176,7 +176,7 @@ const ASSET_SPECS: AssetSpec[] = [
     decimals: 18,
     isNative: false,
     category: 'stablecoin',
-    address: DEURO_ZERO_ADDRESS,
+    address: '0xbA3f535bbCcCcA2A154b573Ca6c5A49BAAE0a3ea',
     defaultEnabled: true,
   },
   {
