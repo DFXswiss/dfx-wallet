@@ -1,13 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  Alert,
-  Dimensions,
-  ImageBackground,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -15,15 +7,17 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { DashboardHeader, Icon, MenuModal } from '@/components';
 import { DfxColors, Typography } from '@/theme';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const FRAME_SIZE = Math.min(SCREEN_WIDTH - 48, 360);
-const CORNER_SIZE = 48;
-const CORNER_THICKNESS = 4;
-const CORNER_RADIUS = 24;
+const CUTOUT_PCT = {
+  left: 0.0925,
+  top: 0.3496,
+  width: 0.8103,
+  height: 0.3366,
+};
 
 export default function PayScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { width, height } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -40,42 +34,27 @@ export default function PayScreen() {
     ]);
   };
 
+  const cutoutStyle = {
+    left: width * CUTOUT_PCT.left,
+    top: height * CUTOUT_PCT.top,
+    width: width * CUTOUT_PCT.width,
+    height: height * CUTOUT_PCT.height,
+  };
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <ImageBackground
-        source={require('../../../assets/pay-bg.png')}
-        style={styles.bg}
-        resizeMode="cover"
-      >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
+      <View style={styles.root}>
+        <Image
+          source={require('../../../assets/pay-bg.png')}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
+
+        <SafeAreaView style={styles.flow} edges={['top', 'left', 'right', 'bottom']}>
           <DashboardHeader onMenuPress={() => setMenuOpen(true)} />
 
-          <Text style={styles.title}>{t('pay.scanToPay')}</Text>
-
-          <View style={styles.frameWrapper}>
-            <View style={styles.frame} testID="pay-qr-frame">
-              {permission?.granted ? (
-                <CameraView
-                  style={StyleSheet.absoluteFill}
-                  barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-                  onBarcodeScanned={handleScan}
-                />
-              ) : (
-                <View style={styles.permissionFallback}>
-                  <Text style={styles.permissionText}>{t('pay.cameraPermission')}</Text>
-                  <Pressable style={styles.permissionButton} onPress={requestPermission}>
-                    <Text style={styles.permissionButtonText}>{t('pay.grantPermission')}</Text>
-                  </Pressable>
-                </View>
-              )}
-
-              <View pointerEvents="none" style={[styles.corner, styles.cornerTL]} />
-              <View pointerEvents="none" style={[styles.corner, styles.cornerTR]} />
-              <View pointerEvents="none" style={[styles.corner, styles.cornerBL]} />
-              <View pointerEvents="none" style={[styles.corner, styles.cornerBR]} />
-            </View>
-          </View>
+          <View style={{ flex: 1 }} />
 
           <View style={styles.lightningWrapper}>
             <Pressable
@@ -88,98 +67,44 @@ export default function PayScreen() {
               <Icon name="lightning" size={28} color={DfxColors.primary} />
             </Pressable>
           </View>
-
-          <MenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
         </SafeAreaView>
-      </ImageBackground>
+
+        {permission?.granted ? (
+          <View pointerEvents="none" style={[styles.cutout, cutoutStyle]}>
+            <CameraView
+              style={StyleSheet.absoluteFill}
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+              onBarcodeScanned={handleScan}
+            />
+          </View>
+        ) : (
+          <View style={[styles.cutout, cutoutStyle, styles.permissionFallback]}>
+            <Text style={styles.permissionText}>{t('pay.cameraPermission')}</Text>
+            <Pressable style={styles.permissionButton} onPress={requestPermission}>
+              <Text style={styles.permissionButtonText}>{t('pay.grantPermission')}</Text>
+            </Pressable>
+          </View>
+        )}
+
+        <MenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
+      </View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  bg: {
+  root: {
     flex: 1,
     backgroundColor: DfxColors.background,
   },
-  safeArea: {
+  flow: {
     flex: 1,
     paddingHorizontal: 20,
   },
-  title: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-    textAlign: 'center',
-    marginTop: 24,
-    fontWeight: '500',
-  },
-  frameWrapper: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  frame: {
-    width: FRAME_SIZE,
-    height: FRAME_SIZE,
-    borderRadius: CORNER_RADIUS,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(11, 20, 38, 0.08)',
-  },
-  corner: {
+  cutout: {
     position: 'absolute',
-    width: CORNER_SIZE,
-    height: CORNER_SIZE,
-    borderColor: DfxColors.white,
-  },
-  cornerTL: {
-    top: 0,
-    left: 0,
-    borderTopWidth: CORNER_THICKNESS,
-    borderLeftWidth: CORNER_THICKNESS,
-    borderTopLeftRadius: CORNER_RADIUS,
-  },
-  cornerTR: {
-    top: 0,
-    right: 0,
-    borderTopWidth: CORNER_THICKNESS,
-    borderRightWidth: CORNER_THICKNESS,
-    borderTopRightRadius: CORNER_RADIUS,
-  },
-  cornerBL: {
-    bottom: 0,
-    left: 0,
-    borderBottomWidth: CORNER_THICKNESS,
-    borderLeftWidth: CORNER_THICKNESS,
-    borderBottomLeftRadius: CORNER_RADIUS,
-  },
-  cornerBR: {
-    bottom: 0,
-    right: 0,
-    borderBottomWidth: CORNER_THICKNESS,
-    borderRightWidth: CORNER_THICKNESS,
-    borderBottomRightRadius: CORNER_RADIUS,
-  },
-  permissionFallback: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    gap: 12,
-  },
-  permissionText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-    textAlign: 'center',
-  },
-  permissionButton: {
-    backgroundColor: DfxColors.primary,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
-  permissionButtonText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.white,
-    fontWeight: '600',
+    overflow: 'hidden',
+    borderRadius: 16,
   },
   lightningWrapper: {
     alignItems: 'center',
@@ -197,5 +122,27 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
     elevation: 6,
+  },
+  permissionFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  permissionText: {
+    ...Typography.bodyMedium,
+    color: DfxColors.text,
+    textAlign: 'center',
+  },
+  permissionButton: {
+    backgroundColor: DfxColors.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  permissionButtonText: {
+    ...Typography.bodyMedium,
+    color: DfxColors.white,
+    fontWeight: '600',
   },
 });
