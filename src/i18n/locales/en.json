@@ -29,6 +29,7 @@
     "submit": "Submit"
   },
   "dashboard": {
+    "activity": "Activity",
     "noAssets": "No assets yet",
     "noAssetsDescription": "Buy your first crypto to get started.",
     "portfolio": "Portfolio",
@@ -155,7 +156,16 @@
     "title": "Support"
   },
   "transactions": {
-    "noTransactions": "No transactions yet",
-    "title": "Transactions"
+    "dfxTab": "DFX orders",
+    "indexerDisabled": "On-chain history needs the WDK indexer. Set EXPO_PUBLIC_WDK_INDEXER_API_KEY in your environment.",
+    "loadFailed": "Could not load DFX orders.",
+    "noOnchainTransfers": "No on-chain transfers yet",
+    "noTransactions": "No DFX orders yet",
+    "onchainIn": "Received {{symbol}}",
+    "onchainLoadFailed": "Could not load on-chain transfers.",
+    "onchainOut": "Sent {{symbol}}",
+    "retry": "Try again",
+    "title": "Activity",
+    "walletTab": "Wallet"
   }
 }

@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useRef } from 'react';
+import DecimalJS from 'decimal.js';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
+import { useBalancesForWallet, useWalletManager, useWdkApp } from '@tetherto/wdk-react-native-core';
 import { ActionBar, AssetListItem, BalanceCard, ScreenContainer } from '@/components';
 import { getAssets } from '@/config/tokens';
 import { useDfxAuth } from '@/hooks';
+import { AssetTicker, FiatCurrency, pricingService } from '@/services/pricing-service';
 import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
+import { debugLog } from '@/utils/debugLog';
 
 type AggregatedAsset = {
   symbol: string;
@@ -32,17 +35,90 @@ const formatBalance = (rawBalance: string, decimals: number): string => {
   }
 };
 
+const rawBalanceToAmount = (rawBalance: string, decimals: number): DecimalJS => {
+  try {
+    return new DecimalJS(rawBalance).div(DecimalJS.pow(10, decimals));
+  } catch {
+    return new DecimalJS(0);
+  }
+};
+
+const symbolToTicker = (symbol: string): AssetTicker | null => {
+  const s = symbol.toUpperCase();
+  if (s === 'USDT') return 'usdt';
+  if (s === 'ETH') return 'eth';
+  if (s === 'XAUT') return 'xaut';
+  if (s === 'MATIC') return 'matic';
+  if (s === 'BTC') return 'btc';
+  return null;
+};
+
+const toFiatCurrency = (code: string): FiatCurrency =>
+  code === FiatCurrency.USD ? FiatCurrency.USD : FiatCurrency.CHF;
+
+type PortfolioRow = {
+  assetId: string;
+  symbol: string;
+  name: string;
+  chain: string;
+  balance: string;
+  rawBalance: string;
+  decimals: number;
+};
+
 export default function DashboardScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { totalBalanceFiat, selectedCurrency } = useWalletStore();
+  const selectedCurrency = useWalletStore((s) => s.selectedCurrency);
+  const totalBalanceFiat = useWalletStore((s) => s.totalBalanceFiat);
+  const setTotalBalanceFiat = useWalletStore((s) => s.setTotalBalanceFiat);
   const { isDfxAuthenticated } = useAuthStore();
   const { authenticate, isAuthenticating } = useDfxAuth();
 
   const assetConfigs = useMemo(() => getAssets(), []);
-  const { data: balanceResults } = useBalancesForWallet(0, assetConfigs);
+  const { state: wdkState } = useWdkApp();
+  const { activeWalletId, status: walletManagerStatus } = useWalletManager();
+  const {
+    data: balanceResults,
+    isLoading: balancesLoading,
+    error: balancesError,
+    status: balanceQueryStatus,
+    fetchStatus: balanceFetchStatus,
+  } = useBalancesForWallet(0, assetConfigs);
 
-  const assets = useMemo<AggregatedAsset[]>(() => {
+  const [fiatByAssetId, setFiatByAssetId] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!__DEV__) return;
+    const failures = balanceResults?.filter((r) => !r.success).map((r) => ({
+      assetId: r.assetId,
+      error: r.error,
+    }));
+    debugLog('Dashboard', 'WDK + balances', {
+      wdkStatus: wdkState.status,
+      walletManagerStatus,
+      activeWalletId: activeWalletId ? `${activeWalletId.slice(0, 8)}…` : null,
+      balanceQuery: {
+        status: balanceQueryStatus,
+        fetchStatus: balanceFetchStatus,
+        isLoading: balancesLoading,
+        error: balancesError?.message ?? null,
+        rowCount: balanceResults?.length,
+        failureSample: failures?.slice(0, 8),
+      },
+    });
+  }, [
+    wdkState.status,
+    walletManagerStatus,
+    activeWalletId,
+    balanceQueryStatus,
+    balanceFetchStatus,
+    balancesLoading,
+    balancesError?.message,
+    balanceResults,
+  ]);
+
+  const portfolioRows = useMemo<PortfolioRow[]>(() => {
     if (!balanceResults) return [];
 
     return balanceResults
@@ -52,15 +128,90 @@ export default function DashboardScreen() {
         if (!asset) return null;
 
         return {
+          assetId: result.assetId,
           symbol: asset.getSymbol(),
           name: asset.getName(),
           chain: asset.getNetwork(),
           balance: formatBalance(result.balance ?? '0', asset.getDecimals()),
-          balanceFiat: '',
-        } satisfies AggregatedAsset;
+          rawBalance: result.balance ?? '0',
+          decimals: asset.getDecimals(),
+        } satisfies PortfolioRow;
       })
-      .filter((asset): asset is AggregatedAsset => asset !== null);
+      .filter((row): row is PortfolioRow => row !== null);
   }, [balanceResults, assetConfigs]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (balanceResults === undefined) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (portfolioRows.length === 0) {
+      setFiatByAssetId({});
+      setTotalBalanceFiat('0.00');
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const fiatCode = toFiatCurrency(selectedCurrency);
+
+    void (async () => {
+      const parts = await Promise.all(
+        portfolioRows.map(async (row) => {
+          const ticker = symbolToTicker(row.symbol);
+          if (!ticker) {
+            return { assetId: row.assetId, fiat: 0, line: '' as const };
+          }
+          const amount = rawBalanceToAmount(row.rawBalance, row.decimals);
+          const n = amount.toNumber();
+          if (!Number.isFinite(n) || n <= 0) {
+            return { assetId: row.assetId, fiat: 0, line: '' as const };
+          }
+          try {
+            const fiat = await pricingService.getFiatValue(n, ticker, fiatCode);
+            if (!Number.isFinite(fiat)) {
+              return { assetId: row.assetId, fiat: 0, line: '' as const };
+            }
+            const line = `≈ ${fiat.toFixed(2)} ${selectedCurrency}`;
+            return { assetId: row.assetId, fiat, line };
+          } catch {
+            return { assetId: row.assetId, fiat: 0, line: '' as const };
+          }
+        }),
+      );
+
+      if (cancelled) return;
+
+      const nextFiat: Record<string, string> = {};
+      let total = new DecimalJS(0);
+      for (const p of parts) {
+        if (p.line) nextFiat[p.assetId] = p.line;
+        total = total.plus(p.fiat);
+      }
+      setFiatByAssetId(nextFiat);
+      setTotalBalanceFiat(total.toDecimalPlaces(2, DecimalJS.ROUND_HALF_UP).toFixed(2));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [balanceResults, portfolioRows, selectedCurrency, setTotalBalanceFiat]);
+
+  const assets = useMemo<AggregatedAsset[]>(
+    () =>
+      portfolioRows.map((row) => ({
+        symbol: row.symbol,
+        name: row.name,
+        chain: row.chain,
+        balance: row.balance,
+        balanceFiat: fiatByAssetId[row.assetId] ?? '',
+      })),
+    [portfolioRows, fiatByAssetId],
+  );
 
   const hasAttemptedAuthRef = useRef(false);
   useEffect(() => {
@@ -111,7 +262,7 @@ export default function DashboardScreen() {
               testID="dashboard-history-button"
               onPress={() => router.push('/(auth)/transaction-history')}
             >
-              <Text style={styles.seeAll}>History</Text>
+              <Text style={styles.seeAll}>{t('dashboard.activity')}</Text>
             </Pressable>
           </View>
 

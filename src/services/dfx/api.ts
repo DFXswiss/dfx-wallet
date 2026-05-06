@@ -1,4 +1,5 @@
 import { env } from '@/config/env';
+import { debugLog } from '@/utils/debugLog';
 
 export type ApiError = {
   statusCode: number;
@@ -58,6 +59,7 @@ class DfxApi {
 
   private async fetch(method: string, path: string, body?: unknown): Promise<Response> {
     const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
+    debugLog('DFX API', `${method} ${path}`, { url, hasAuth: Boolean(this.authToken) });
     return fetch(url, {
       method,
       headers: this.getHeaders(),

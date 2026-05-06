@@ -29,6 +29,7 @@
     "submit": "Absenden"
   },
   "dashboard": {
+    "activity": "Aktivität",
     "noAssets": "Noch keine Assets",
     "noAssetsDescription": "Kaufe dein erstes Krypto um zu starten.",
     "portfolio": "Portfolio",
@@ -155,7 +156,16 @@
     "title": "Support"
   },
   "transactions": {
-    "noTransactions": "Noch keine Transaktionen",
-    "title": "Transaktionen"
+    "dfxTab": "DFX-Aufträge",
+    "indexerDisabled": "On-Chain-Verlauf benötigt den WDK-Indexer. Setze EXPO_PUBLIC_WDK_INDEXER_API_KEY in deiner Umgebung.",
+    "loadFailed": "DFX-Aufträge konnten nicht geladen werden.",
+    "noOnchainTransfers": "Noch keine On-Chain-Transfers",
+    "noTransactions": "Noch keine DFX-Aufträge",
+    "onchainIn": "{{symbol}} erhalten",
+    "onchainLoadFailed": "On-Chain-Transfers konnten nicht geladen werden.",
+    "onchainOut": "{{symbol}} gesendet",
+    "retry": "Erneut versuchen",
+    "title": "Aktivität",
+    "walletTab": "Wallet"
   }
 }
