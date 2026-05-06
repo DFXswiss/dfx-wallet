@@ -13,6 +13,7 @@ module.exports = {
     ethereum: { package: '@tetherto/wdk-wallet-evm-erc-4337' },
     arbitrum: { package: '@tetherto/wdk-wallet-evm-erc-4337' },
     polygon: { package: '@tetherto/wdk-wallet-evm-erc-4337' },
+    base: { package: '@tetherto/wdk-wallet-evm-erc-4337' },
     plasma: { package: '@tetherto/wdk-wallet-evm-erc-4337' },
     sepolia: { package: '@tetherto/wdk-wallet-evm-erc-4337' },
     spark: { package: '@tetherto/wdk-wallet-spark' },

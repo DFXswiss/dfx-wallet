@@ -16,11 +16,6 @@ type AssetSpec = {
   defaultEnabled?: boolean;
 };
 
-// dEURO (Decentralized Euro) addresses — TODO: replace placeholder zero
-// addresses with the real ERC-20 contracts once they are confirmed for
-// each L2 deployment.
-const DEURO_ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
-
 const ASSET_SPECS: AssetSpec[] = [
   // Bitcoin variants — canonical 'BTC'
   {
@@ -45,6 +40,39 @@ const ASSET_SPECS: AssetSpec[] = [
     category: 'btc',
     address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
     defaultEnabled: true,
+  },
+  {
+    network: 'arbitrum',
+    symbol: 'WBTC',
+    canonicalSymbol: 'BTC',
+    canonicalName: 'Bitcoin',
+    name: 'Wrapped Bitcoin',
+    decimals: 8,
+    isNative: false,
+    category: 'btc',
+    address: '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f',
+  },
+  {
+    network: 'polygon',
+    symbol: 'WBTC',
+    canonicalSymbol: 'BTC',
+    canonicalName: 'Bitcoin',
+    name: 'Wrapped Bitcoin',
+    decimals: 8,
+    isNative: false,
+    category: 'btc',
+    address: '0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6',
+  },
+  {
+    network: 'base',
+    symbol: 'cbBTC',
+    canonicalSymbol: 'BTC',
+    canonicalName: 'Bitcoin',
+    name: 'Coinbase Wrapped BTC',
+    decimals: 8,
+    isNative: false,
+    category: 'btc',
+    address: '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf',
   },
 
   // Ethereum native (used for gas)
@@ -95,6 +123,7 @@ const ASSET_SPECS: AssetSpec[] = [
     isNative: false,
     category: 'stablecoin',
     address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
+    defaultEnabled: true,
   },
   {
     network: 'arbitrum',
@@ -117,6 +146,7 @@ const ASSET_SPECS: AssetSpec[] = [
     isNative: false,
     category: 'stablecoin',
     address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
+    defaultEnabled: true,
   },
   {
     network: 'polygon',
@@ -139,6 +169,7 @@ const ASSET_SPECS: AssetSpec[] = [
     isNative: false,
     category: 'stablecoin',
     address: '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2',
+    defaultEnabled: true,
   },
   {
     network: 'base',
@@ -152,12 +183,12 @@ const ASSET_SPECS: AssetSpec[] = [
     address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
   },
 
-  // Frankencoin (CHF)
+  // Frankencoin (CHF) — Ethereum confirmed; L2 contracts pending
   {
     network: 'ethereum',
     symbol: 'ZCHF',
     canonicalSymbol: 'CHF',
-    canonicalName: 'Frankencoin',
+    canonicalName: 'CHF',
     name: 'Frankencoin',
     decimals: 18,
     isNative: false,
@@ -165,8 +196,41 @@ const ASSET_SPECS: AssetSpec[] = [
     address: '0xB58E61C3098d85632Df34EecfB899A1Ed80921cB',
     defaultEnabled: true,
   },
+  {
+    network: 'arbitrum',
+    symbol: 'ZCHF',
+    canonicalSymbol: 'CHF',
+    canonicalName: 'CHF',
+    name: 'Frankencoin',
+    decimals: 18,
+    isNative: false,
+    category: 'stablecoin',
+    address: '0xd4DD9e2F021bB459d5A5F6C24c12FE09c5d45553',
+  },
+  {
+    network: 'polygon',
+    symbol: 'ZCHF',
+    canonicalSymbol: 'CHF',
+    canonicalName: 'CHF',
+    name: 'Frankencoin',
+    decimals: 18,
+    isNative: false,
+    category: 'stablecoin',
+    address: '0xd4DD9e2F021bB459d5A5F6C24c12FE09c5d45553',
+  },
+  {
+    network: 'base',
+    symbol: 'ZCHF',
+    canonicalSymbol: 'CHF',
+    canonicalName: 'CHF',
+    name: 'Frankencoin',
+    decimals: 18,
+    isNative: false,
+    category: 'stablecoin',
+    address: '0xd4DD9e2F021bB459d5A5F6C24c12FE09c5d45553',
+  },
 
-  // dEURO (EUR) — Ethereum address confirmed; L2 contracts pending
+  // dEURO (EUR)
   {
     network: 'ethereum',
     symbol: 'dEURO',
@@ -188,7 +252,7 @@ const ASSET_SPECS: AssetSpec[] = [
     decimals: 18,
     isNative: false,
     category: 'stablecoin',
-    address: DEURO_ZERO_ADDRESS,
+    address: '0x5e85fAf503621830CA857a5f38B982E0cc57D537',
   },
   {
     network: 'polygon',
@@ -199,7 +263,7 @@ const ASSET_SPECS: AssetSpec[] = [
     decimals: 18,
     isNative: false,
     category: 'stablecoin',
-    address: DEURO_ZERO_ADDRESS,
+    address: '0xC2ff25dD99e467d2589b2c26EDd270F220F14E47',
   },
   {
     network: 'base',
@@ -210,7 +274,7 @@ const ASSET_SPECS: AssetSpec[] = [
     decimals: 18,
     isNative: false,
     category: 'stablecoin',
-    address: DEURO_ZERO_ADDRESS,
+    address: '0x1B5F7fA46ED0F487F049C42f374cA4827d65A264',
   },
 
   // Arbitrum / Polygon / Base native (for gas display)
@@ -282,11 +346,16 @@ const ASSET_SPECS: AssetSpec[] = [
 const buildId = (spec: Pick<AssetSpec, 'network' | 'isNative' | 'address'>): string =>
   spec.isNative ? `${spec.network}-native` : `${spec.network}-${spec.address?.toLowerCase()}`;
 
-export const DEFAULT_ENABLED_CHAINS: ChainId[] = Array.from(
-  new Set(ASSET_SPECS.filter((spec) => spec.defaultEnabled).map((spec) => spec.network)),
-);
+/** Always-on networks that the user cannot disable. */
+export const ALWAYS_ON_CHAINS: ChainId[] = ['ethereum', 'spark'];
 
+/** Networks that are enabled by default but the user can toggle off. */
 export const SELECTABLE_CHAINS: ChainId[] = ['arbitrum', 'polygon', 'base'];
+
+/** Initial set of enabled chains for a fresh install. */
+export const DEFAULT_ENABLED_CHAINS: ChainId[] = Array.from(
+  new Set([...ALWAYS_ON_CHAINS, ...SELECTABLE_CHAINS]),
+);
 
 export type AssetMeta = {
   id: string;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Alert,
+  Image,
   ImageBackground,
   Pressable,
   StyleSheet,
@@ -12,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { DashboardHeader, Icon, MenuModal } from '@/components';
+import { Icon, MenuModal } from '@/components';
 import { DfxColors, Typography } from '@/theme';
 
 const CUTOUT_PCT = {
@@ -58,7 +59,35 @@ export default function PayScreen() {
         resizeMode="cover"
       >
         <SafeAreaView style={styles.flow} edges={['top', 'left', 'right', 'bottom']}>
-          <DashboardHeader onMenuPress={() => setMenuOpen(true)} />
+          <View style={styles.header}>
+            <Pressable
+              onPress={() => router.back()}
+              hitSlop={12}
+              style={styles.headerSlot}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.back')}
+              testID="pay-back-button"
+            >
+              <Icon name="arrow-left" size={26} color={DfxColors.text} />
+            </Pressable>
+
+            <Image
+              source={require('../../../assets/dfx-logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+
+            <Pressable
+              onPress={() => setMenuOpen(true)}
+              hitSlop={12}
+              style={[styles.headerSlot, styles.headerSlotRight]}
+              accessibilityRole="button"
+              accessibilityLabel="Menu"
+              testID="pay-menu-button"
+            >
+              <Icon name="menu" size={26} color={DfxColors.primary} strokeWidth={2.5} />
+            </Pressable>
+          </View>
 
           <View style={{ flex: 1 }} />
 
@@ -113,6 +142,26 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 16,
     backgroundColor: 'rgba(11, 20, 38, 0.18)',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  headerSlot: {
+    width: 36,
+    height: 36,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  headerSlotRight: {
+    alignItems: 'flex-end',
+  },
+  logo: {
+    height: 30,
+    width: 110,
   },
   lightningWrapper: {
     alignItems: 'center',

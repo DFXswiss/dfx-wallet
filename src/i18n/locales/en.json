@@ -29,8 +29,10 @@
     "submit": "Submit"
   },
   "dashboard": {
+    "noRecentTransactions": "No recent activity",
     "pay": "Pay",
     "portfolio": "Portfolio",
+    "seeAll": "See all",
     "title": "Dashboard",
     "toggleBalance": "Toggle balance visibility",
     "totalBalance": "Total Wallet Balance",
@@ -165,6 +167,11 @@
     "language": "Language",
     "legalDocuments": "Legal Documents",
     "network": "Network",
+    "sectionAccount": "Account",
+    "sectionHelp": "Help",
+    "sectionPreferences": "Preferences",
+    "sectionReportsLegal": "Reports & Legal",
+    "sectionWalletSecurity": "Wallet & Security",
     "seed": "Recovery Phrase",
     "seedPhrase": "Seed Phrase",
     "taxReport": "Tax Report",
@@ -178,7 +185,16 @@
     "title": "Support"
   },
   "transactions": {
+    "date": "Date",
+    "detailTitle": "Transaction",
+    "filterAll": "All",
+    "input": "From",
+    "network": "Network",
     "noTransactions": "No transactions yet",
-    "title": "Transactions"
+    "notFound": "Transaction not found",
+    "output": "To",
+    "title": "Transactions",
+    "txHash": "Tx hash",
+    "viewOnExplorer": "View on block explorer"
   }
 }

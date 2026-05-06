@@ -29,8 +29,10 @@
     "submit": "Absenden"
   },
   "dashboard": {
+    "noRecentTransactions": "Keine kürzlichen Aktivitäten",
     "pay": "Pay",
     "portfolio": "Portfolio",
+    "seeAll": "Alle anzeigen",
     "title": "Dashboard",
     "toggleBalance": "Guthaben ein-/ausblenden",
     "totalBalance": "Gesamtguthaben",
@@ -159,6 +161,11 @@
     "contact": "Kontakt",
     "currencies": "Währungen",
     "deleteWallet": "Wallet löschen",
+    "sectionAccount": "Konto",
+    "sectionHelp": "Hilfe",
+    "sectionPreferences": "Einstellungen",
+    "sectionReportsLegal": "Reports & Recht",
+    "sectionWalletSecurity": "Wallet & Sicherheit",
     "deleteWalletConfirm": "Deine Wallet wird permanent von diesem Gerät entfernt. Stelle sicher, dass du deine Seed Phrase gesichert hast.",
     "deleteWalletConfirmPasskey": "Deine Wallet wird permanent von diesem Gerät entfernt. Zur Wiederherstellung benötigst du deinen Passkey oder deine exportierte Recovery Phrase. Bitte lösche den Passkey auch aus deinen Geräteeinstellungen.",
     "hardwareWallet": "Hardware Wallet",
@@ -178,7 +185,16 @@
     "title": "Support"
   },
   "transactions": {
+    "date": "Datum",
+    "detailTitle": "Transaktion",
+    "filterAll": "Alle",
+    "input": "Von",
+    "network": "Netzwerk",
     "noTransactions": "Noch keine Transaktionen",
-    "title": "Transaktionen"
+    "notFound": "Transaktion nicht gefunden",
+    "output": "Nach",
+    "title": "Transaktionen",
+    "txHash": "Tx Hash",
+    "viewOnExplorer": "Auf Block-Explorer ansehen"
   }
 }

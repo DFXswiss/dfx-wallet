@@ -64,7 +64,17 @@ export default function AssetDetailScreen() {
   const currencySymbol = fiatCurrency === FiatCurrency.CHF ? 'CHF' : '$';
 
   const holdings = useMemo<Holding[]>(() => {
-    return holdingMetas.map((meta) => {
+    const NETWORK_ORDER: Record<string, number> = {
+      ethereum: 0,
+      arbitrum: 1,
+      polygon: 2,
+      base: 3,
+      spark: 4,
+      plasma: 5,
+      sepolia: 6,
+    };
+
+    const list = holdingMetas.map((meta) => {
       const result = balanceResults?.find((r) => r.assetId === meta.id);
       const rawBalance = result?.success ? (result.balance ?? '0') : '0';
       const balanceFormatted = formatBalance(rawBalance, meta.decimals);
@@ -82,6 +92,12 @@ export default function AssetDetailScreen() {
         balanceFormatted,
         fiatValue,
       };
+    });
+
+    return list.sort((a, b) => {
+      const symbolCmp = a.symbol.localeCompare(b.symbol);
+      if (symbolCmp !== 0) return symbolCmp;
+      return (NETWORK_ORDER[a.network] ?? 99) - (NETWORK_ORDER[b.network] ?? 99);
     });
   }, [holdingMetas, balanceResults, canonicalSymbol, fiatCurrency, pricingReady]);
 
@@ -137,10 +153,20 @@ export default function AssetDetailScreen() {
 
             <View style={styles.holdingsList}>
               {holdings.map((holding) => (
-                <View key={holding.id} style={styles.holdingRow}>
+                <Pressable
+                  key={holding.id}
+                  style={({ pressed }) => [styles.holdingRow, pressed && styles.holdingPressed]}
+                  testID={`holding-${holding.network}-${holding.symbol}`}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(auth)/transaction-history',
+                      params: { asset: holding.symbol, network: holding.network },
+                    })
+                  }
+                >
                   <View style={styles.holdingInfo}>
-                    <Text style={styles.holdingChain}>{holding.chainLabel}</Text>
-                    <Text style={styles.holdingSymbol}>{holding.symbol}</Text>
+                    <Text style={styles.holdingChain}>{holding.name}</Text>
+                    <Text style={styles.holdingSymbol}>{holding.chainLabel}</Text>
                   </View>
                   <View style={styles.holdingBalance}>
                     <Text style={styles.holdingValue}>
@@ -150,7 +176,7 @@ export default function AssetDetailScreen() {
                       {formatNumber(holding.balanceNum)} {holding.symbol}
                     </Text>
                   </View>
-                </View>
+                </Pressable>
               ))}
             </View>
           </ScrollView>
@@ -253,6 +279,9 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
     elevation: 1,
+  },
+  holdingPressed: {
+    opacity: 0.7,
   },
   holdingInfo: {
     flex: 1,

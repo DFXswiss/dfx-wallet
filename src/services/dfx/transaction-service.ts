@@ -2,7 +2,7 @@ import { dfxApi } from './api';
 
 export type TransactionDto = {
   id: number;
-  type: 'Buy' | 'Sell' | 'Swap';
+  type: 'Buy' | 'Sell' | 'Swap' | 'Pay';
   state: 'Created' | 'Processing' | 'AmlCheck' | 'Completed' | 'Failed' | 'Returned';
   inputAmount: number;
   inputAsset: string;

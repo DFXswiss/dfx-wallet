@@ -12,7 +12,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@/components';
 import type { ChainId } from '@/config/chains';
-import { DEFAULT_ENABLED_CHAINS, SELECTABLE_CHAINS } from '@/config/tokens';
+import { ALWAYS_ON_CHAINS, SELECTABLE_CHAINS } from '@/config/tokens';
 import { useEnabledChains } from '@/hooks';
 import { DfxColors, Typography } from '@/theme';
 
@@ -65,7 +65,7 @@ export default function ManageChainsScreen() {
             showsVerticalScrollIndicator={false}
           >
             <Text style={styles.sectionLabel}>{t('portfolio.alwaysOn')}</Text>
-            {DEFAULT_ENABLED_CHAINS.map((chain) => (
+            {ALWAYS_ON_CHAINS.map((chain) => (
               <View key={chain} style={[styles.row, styles.rowDisabled]}>
                 <View style={styles.info}>
                   <Text style={styles.label}>{CHAIN_LABEL.get(chain) ?? chain}</Text>
