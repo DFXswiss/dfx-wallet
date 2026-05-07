@@ -208,48 +208,69 @@ function WalletAddressBar({ network }: { network: string }) {
   };
 
   return (
-    <Pressable style={styles.addressBar} onPress={handleCopy} testID="wallet-address-copy">
-      <Icon name="wallet" size={16} color={DfxColors.primary} />
+    <Pressable style={styles.addressCard} onPress={handleCopy} testID="wallet-address-copy">
+      <View style={styles.addressIconCircle}>
+        <Icon name="wallet" size={22} color={DfxColors.primary} />
+      </View>
+      <Text style={styles.addressLabel}>Wallet-Adresse</Text>
       <Text style={styles.addressText} numberOfLines={1} selectable>{short}</Text>
       <View style={styles.copyBadge}>
-        <Text style={styles.copyText}>{copied ? 'Copied' : 'Copy'}</Text>
+        <Text style={styles.copyText}>{copied ? 'Kopiert!' : 'Kopieren'}</Text>
       </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  addressBar: {
-    flexDirection: 'row',
+  addressCard: {
     alignItems: 'center',
-    gap: 8,
     marginHorizontal: 20,
-    marginBottom: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    marginBottom: 16,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
     backgroundColor: DfxColors.surface,
-    borderRadius: 12,
+    borderRadius: 20,
     shadowColor: '#0B1426',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+    gap: 8,
+  },
+  addressIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: DfxColors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  addressLabel: {
+    ...Typography.bodySmall,
+    color: DfxColors.textSecondary,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   addressText: {
-    flex: 1,
-    ...Typography.bodyMedium,
+    ...Typography.bodyLarge,
     color: DfxColors.text,
     fontFamily: 'monospace',
+    fontWeight: '500',
+    textAlign: 'center',
   },
   copyBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    marginTop: 4,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
     backgroundColor: DfxColors.primaryLight,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   copyText: {
-    ...Typography.bodySmall,
+    ...Typography.bodyMedium,
     color: DfxColors.primary,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   bg: {
     flex: 1,
