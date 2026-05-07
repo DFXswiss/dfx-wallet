@@ -12,6 +12,9 @@ const STALE_TIME_MS = 15_000;
 const REFETCH_INTERVAL_MS = 30_000;
 const EMPTY_BALANCES: BalanceMap = new Map();
 
+/** Prefix shared with `useRefreshBalances` so invalidation matches every key. */
+export const EVM_BALANCES_QUERY_KEY_PREFIX = ['balances', 'evm'] as const;
+
 /**
  * Fetches balances for `evm` strategy assets via direct JSON-RPC.
  *
@@ -72,7 +75,7 @@ export function useEvmBalances(assets: IAsset[], accountIndex = 0): BalanceSourc
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([c, a]) => `${c}:${a}`)
       .join('|');
-    return ['balances', 'evm', accountIndex, ids, addrs] as const;
+    return [...EVM_BALANCES_QUERY_KEY_PREFIX, accountIndex, ids, addrs] as const;
   }, [specs, addressByChain, accountIndex]);
 
   const enabled = specs.length > 0 && addressByChain.size > 0;
