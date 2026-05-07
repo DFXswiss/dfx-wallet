@@ -6,7 +6,7 @@ import { AppHeader, Icon, PrimaryButton, ScreenContainer } from '@/components';
 import { dfxUserService } from '@/services/dfx';
 import { DfxColors, Typography } from '@/theme';
 
-type Stage = 'idle' | 'enterCode' | 'success';
+type Stage = 'idle' | 'enterToken' | 'success';
 
 export default function EmailScreen() {
   const router = useRouter();
@@ -16,7 +16,7 @@ export default function EmailScreen() {
   const [loadingUser, setLoadingUser] = useState(true);
 
   const [mail, setMail] = useState('');
-  const [code, setCode] = useState('');
+  const [token, setToken] = useState('');
   const [stage, setStage] = useState<Stage>('idle');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,12 +41,12 @@ export default function EmailScreen() {
 
   const isValidEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail.trim());
 
-  const sendCode = async () => {
+  const requestToken = async () => {
     setBusy(true);
     setError(null);
     try {
       await dfxUserService.updateMail(mail.trim());
-      setStage('enterCode');
+      setStage('enterToken');
     } catch (err) {
       setError(err instanceof Error ? err.message : t('email.sendError'));
     } finally {
@@ -58,7 +58,7 @@ export default function EmailScreen() {
     setBusy(true);
     setError(null);
     try {
-      await dfxUserService.verifyMail(code.trim());
+      await dfxUserService.verifyMail(token.trim());
       setStage('success');
       setCurrentMail(mail.trim());
     } catch (err) {
@@ -114,33 +114,35 @@ export default function EmailScreen() {
               {stage === 'idle' && (
                 <PrimaryButton
                   title={t('email.sendCta')}
-                  onPress={sendCode}
+                  onPress={requestToken}
                   disabled={!isValidEmail || busy}
                   loading={busy}
                   testID="email-send"
                 />
               )}
 
-              {stage === 'enterCode' && (
+              {stage === 'enterToken' && (
                 <>
                   <Text style={styles.helperText}>
-                    {t('email.codeHint', { mail: mail.trim() })}
+                    {t('email.tokenHint', { mail: mail.trim() })}
                   </Text>
-                  <Text style={styles.sectionLabel}>{t('email.codeLabel')}</Text>
+                  <Text style={styles.sectionLabel}>{t('email.tokenLabel')}</Text>
                   <TextInput
-                    style={[styles.input, styles.codeInput]}
-                    value={code}
-                    onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="000000"
+                    style={[styles.input, styles.tokenInput]}
+                    value={token}
+                    onChangeText={setToken}
+                    placeholder={t('email.tokenPlaceholder')}
                     placeholderTextColor={DfxColors.textTertiary}
-                    keyboardType="number-pad"
+                    autoCapitalize="none"
+                    autoCorrect={false}
                     autoFocus
-                    testID="email-code-input"
+                    multiline
+                    testID="email-token-input"
                   />
                   <PrimaryButton
                     title={t('email.verifyCta')}
                     onPress={verify}
-                    disabled={code.length !== 6 || busy}
+                    disabled={token.trim().length === 0 || busy}
                     loading={busy}
                     testID="email-verify"
                   />
@@ -187,11 +189,11 @@ const styles = StyleSheet.create({
     color: DfxColors.text,
     ...Typography.bodyLarge,
   },
-  codeInput: {
+  tokenInput: {
     fontFamily: 'monospace',
-    letterSpacing: 6,
-    textAlign: 'center',
-    fontSize: 24,
+    fontSize: 14,
+    minHeight: 80,
+    textAlignVertical: 'top',
   },
   helperText: {
     ...Typography.bodyMedium,

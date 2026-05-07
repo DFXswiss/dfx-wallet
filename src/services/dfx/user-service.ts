@@ -19,8 +19,8 @@ export class DfxUserService {
     await dfxApi.put('/v2/user/mail', { mail });
   }
 
-  async verifyMail(code: string): Promise<void> {
-    await dfxApi.post('/v2/user/mail/verify', { code });
+  async verifyMail(token: string): Promise<UserDto> {
+    return dfxApi.post<UserDto>('/v2/user/mail/verify', { token });
   }
 }
 

@@ -14,12 +14,12 @@ export class DfxAuthService {
 
   /** Get the sign message challenge for an address */
   async getSignMessage(address: string): Promise<SignMessageDto> {
-    return dfxApi.get<SignMessageDto>(`/auth/signMessage?address=${address}`);
+    return dfxApi.get<SignMessageDto>(`/v1/auth/signMessage?address=${address}`);
   }
 
   /** Authenticate with a signed message and get a JWT */
   async authenticate(request: AuthRequestDto): Promise<string> {
-    const response = await dfxApi.post<AuthResponseDto>('/auth', request);
+    const response = await dfxApi.post<AuthResponseDto>('/v1/auth', request);
     this.accessToken = response.accessToken;
     dfxApi.setAuthToken(response.accessToken);
     return response.accessToken;
@@ -50,9 +50,15 @@ export class DfxAuthService {
 
   /**
    * Link a new wallet address to the currently authenticated DFX account.
-   * Posts to /auth with the existing Bearer token attached, so the backend
-   * attaches the new address to the active user instead of creating a fresh one.
-   * Keeps the original token in place.
+   *
+   * Posts to /v1/auth with the existing Bearer token attached. The DFX backend
+   * attaches the new address to the active user, mirroring `@dfx.swiss/react`'s
+   * `useAuth().authenticate()` flow.
+   *
+   * If the backend returns 409, the address already belongs to a different user
+   * — that's a hard error and we surface it to the caller. Throughout, we keep
+   * the original token in place so the user stays signed in as their primary
+   * address regardless of the response.
    */
   async linkAddress(
     address: string,
@@ -60,17 +66,21 @@ export class DfxAuthService {
     options?: { wallet?: string; blockchain?: string },
   ): Promise<void> {
     const previousToken = this.accessToken;
+    if (!previousToken) {
+      throw new Error('Not authenticated — sign in before linking another address.');
+    }
+
     const { message } = await this.getSignMessage(address);
     const signature = await signFn(message);
 
-    await dfxApi.post<AuthResponseDto>('/auth', {
-      address,
-      signature,
-      wallet: options?.wallet ?? 'DFX Wallet',
-      ...(options?.blockchain !== undefined ? { blockchain: options.blockchain } : {}),
-    });
-
-    if (previousToken) {
+    try {
+      await dfxApi.post<AuthResponseDto>('/v1/auth', {
+        address,
+        signature,
+        wallet: options?.wallet ?? 'DFX Wallet',
+        ...(options?.blockchain !== undefined ? { blockchain: options.blockchain } : {}),
+      });
+    } finally {
       this.accessToken = previousToken;
       dfxApi.setAuthToken(previousToken);
     }

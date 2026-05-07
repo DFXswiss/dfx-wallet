@@ -25,7 +25,7 @@ export class DfxPaymentService {
     asset: string;
     blockchain: string;
   }): Promise<BuyPaymentInfoDto> {
-    return dfxApi.put<BuyPaymentInfoDto>('/buy/quote', {
+    return dfxApi.put<BuyPaymentInfoDto>('/v1/buy/quote', {
       amount: params.amount,
       currency: { name: params.currency },
       asset: await buildAssetRef(params.asset, params.blockchain),
@@ -38,7 +38,7 @@ export class DfxPaymentService {
     asset: string;
     blockchain: string;
   }): Promise<BuyPaymentInfoDto> {
-    return dfxApi.put<BuyPaymentInfoDto>('/buy/paymentInfos', {
+    return dfxApi.put<BuyPaymentInfoDto>('/v1/buy/paymentInfos', {
       amount: params.amount,
       currency: { name: params.currency },
       asset: await buildAssetRef(params.asset, params.blockchain),
@@ -46,7 +46,7 @@ export class DfxPaymentService {
   }
 
   async confirmBuy(id: number): Promise<void> {
-    await dfxApi.put(`/buy/paymentInfos/${id}/confirm`, {});
+    await dfxApi.put(`/v1/buy/paymentInfos/${id}/confirm`, {});
   }
 
   // --- Sell ---
@@ -57,7 +57,7 @@ export class DfxPaymentService {
     blockchain: string;
     currency: string;
   }): Promise<SellPaymentInfoDto> {
-    return dfxApi.put<SellPaymentInfoDto>('/sell/quote', {
+    return dfxApi.put<SellPaymentInfoDto>('/v1/sell/quote', {
       amount: params.amount,
       currency: { name: params.currency },
       asset: await buildAssetRef(params.asset, params.blockchain),
@@ -71,7 +71,7 @@ export class DfxPaymentService {
     currency: string;
     iban: string;
   }): Promise<SellPaymentInfoDto> {
-    return dfxApi.put<SellPaymentInfoDto>('/sell/paymentInfos', {
+    return dfxApi.put<SellPaymentInfoDto>('/v1/sell/paymentInfos', {
       amount: params.amount,
       currency: { name: params.currency },
       asset: await buildAssetRef(params.asset, params.blockchain),
@@ -80,17 +80,17 @@ export class DfxPaymentService {
   }
 
   async confirmSell(id: number): Promise<void> {
-    await dfxApi.put(`/sell/paymentInfos/${id}/confirm`, {});
+    await dfxApi.put(`/v1/sell/paymentInfos/${id}/confirm`, {});
   }
 
   // --- Bank Accounts ---
 
   async getBankAccounts(): Promise<BankAccountDto[]> {
-    return dfxApi.get<BankAccountDto[]>('/bankAccount');
+    return dfxApi.get<BankAccountDto[]>('/v1/bankAccount');
   }
 
   async createBankAccount(iban: string, label?: string): Promise<BankAccountDto> {
-    return dfxApi.post<BankAccountDto>('/bankAccount', { iban, label });
+    return dfxApi.post<BankAccountDto>('/v1/bankAccount', { iban, label });
   }
 }
 

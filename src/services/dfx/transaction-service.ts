@@ -25,7 +25,7 @@ export type TransactionDto = {
 
 export class DfxTransactionService {
   async getTransactions(): Promise<TransactionDto[]> {
-    return dfxApi.get<TransactionDto[]>('/transaction/detail');
+    return dfxApi.get<TransactionDto[]>('/v1/transaction/detail');
   }
 }
 
