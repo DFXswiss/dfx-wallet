@@ -196,12 +196,18 @@
     "filterOut": "Out",
     "filterPay": "Pay",
     "input": "Von",
+    "merchant": "Händler",
     "network": "Netzwerk",
     "noTransactions": "Noch keine Transaktionen",
     "notFound": "Transaktion nicht gefunden",
     "output": "Nach",
+    "payout": "Auszahlung an",
+    "recipient": "Empfänger",
+    "sender": "Absender",
+    "source": "Quelle",
     "title": "Transaktionen",
     "txHash": "Tx Hash",
+    "venue": "Börse",
     "viewOnExplorer": "Auf Block-Explorer ansehen"
   }
 }

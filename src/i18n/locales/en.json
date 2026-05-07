@@ -196,12 +196,18 @@
     "filterOut": "Out",
     "filterPay": "Pay",
     "input": "From",
+    "merchant": "Merchant",
     "network": "Network",
     "noTransactions": "No transactions yet",
     "notFound": "Transaction not found",
     "output": "To",
+    "payout": "Payout to",
+    "recipient": "Recipient",
+    "sender": "Sender",
+    "source": "Source",
     "title": "Transactions",
     "txHash": "Tx hash",
+    "venue": "Venue",
     "viewOnExplorer": "View on block explorer"
   }
 }

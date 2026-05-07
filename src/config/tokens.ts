@@ -346,23 +346,11 @@ const ASSET_SPECS: AssetSpec[] = [
 const buildId = (spec: Pick<AssetSpec, 'network' | 'isNative' | 'address'>): string =>
   spec.isNative ? `${spec.network}-native` : `${spec.network}-${spec.address?.toLowerCase()}`;
 
-// Mock balances (display units) for testing. ~990K CHF portfolio.
+// Mock balances (display units) for local visual testing. Kept small so the
+// portfolio overview stays short and the mountain background remains visible.
 const MOCK_BALANCES_DISPLAY = new Map<string, number>([
-  ['spark|BTC', 0.5],
-  ['ethereum|WBTC', 0.3],
-  ['ethereum|USDC', 50_000],
-  ['arbitrum|USDC', 40_000],
-  ['base|USDC', 30_000],
-  ['ethereum|USDT', 60_000],
-  ['polygon|USDT', 40_000],
-  ['ethereum|ZCHF', 200_000],
-  ['arbitrum|ZCHF', 150_000],
-  ['polygon|ZCHF', 50_000],
-  ['base|ZCHF', 40_000],
-  ['ethereum|dEURO', 100_000],
-  ['arbitrum|dEURO', 80_000],
-  ['base|dEURO', 60_000],
-  ['polygon|dEURO', 80_000],
+  ['spark|BTC', 0.0015],
+  ['ethereum|ZCHF', 50],
 ]);
 
 export const getMockRawBalance = (
@@ -447,6 +435,17 @@ export const getAssetsForCanonicalSymbol = (symbol: string, chains?: ChainId[]):
       category: spec.category,
       address: spec.address ?? null,
     }));
+};
+
+/**
+ * Map a token symbol (e.g. "USDC", "WBTC", "ZCHF") to its canonical group
+ * symbol (USD, BTC, CHF, EUR). Fiat tickers (CHF/EUR/USD) map to themselves
+ * so callers can pass any TX asset symbol and get something usable for
+ * fiat conversion.
+ */
+export const getCanonicalForSymbol = (symbol: string): string | undefined => {
+  if (symbol === 'CHF' || symbol === 'EUR' || symbol === 'USD') return symbol;
+  return ASSET_SPECS.find((spec) => spec.symbol === symbol)?.canonicalSymbol;
 };
 
 export const getCanonicalNameForSymbol = (canonicalSymbol: string): string =>

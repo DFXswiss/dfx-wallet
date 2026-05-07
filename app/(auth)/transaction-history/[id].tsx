@@ -92,9 +92,12 @@ export default function TransactionDetailScreen() {
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryType}>{tx.type}</Text>
                 <Text style={styles.summaryAmount}>
-                  {tx.type === 'Sell' || tx.type === 'Pay' ? '-' : '+'}
+                  {tx.type === 'Sell' || tx.type === 'Pay' || tx.type === 'Send' ? '-' : '+'}
                   {tx.outputAmount} {tx.outputAsset}
                 </Text>
+                {tx.counterparty ? (
+                  <Text style={styles.summaryCounterparty}>{tx.counterparty}</Text>
+                ) : null}
                 <View style={styles.statusRow}>
                   <View
                     style={[
@@ -107,6 +110,9 @@ export default function TransactionDetailScreen() {
               </View>
 
               <View style={styles.detailCard}>
+                {tx.counterparty ? (
+                  <DetailRow label={counterpartyLabel(tx.type, t)} value={tx.counterparty} />
+                ) : null}
                 <DetailRow
                   label={t('transactions.date')}
                   value={new Date(tx.date).toLocaleString()}
@@ -167,6 +173,23 @@ function DetailRow({ label, value, isLast }: { label: string; value: string; isL
   );
 }
 
+function counterpartyLabel(type: TransactionDto['type'], t: (key: string) => string): string {
+  switch (type) {
+    case 'Buy':
+      return t('transactions.source');
+    case 'Sell':
+      return t('transactions.payout');
+    case 'Pay':
+      return t('transactions.merchant');
+    case 'Send':
+      return t('transactions.recipient');
+    case 'Receive':
+      return t('transactions.sender');
+    case 'Swap':
+      return t('transactions.venue');
+  }
+}
+
 const styles = StyleSheet.create({
   bg: {
     flex: 1,
@@ -223,6 +246,12 @@ const styles = StyleSheet.create({
     ...Typography.bodyMedium,
     color: DfxColors.textSecondary,
     fontWeight: '500',
+  },
+  summaryCounterparty: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textSecondary,
+    fontWeight: '500',
+    marginTop: 2,
   },
   detailCard: {
     backgroundColor: DfxColors.surface,
