@@ -192,7 +192,7 @@ export default function SettingsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <ImageBackground
         source={require('../../../assets/dashboard-bg.png')}
         style={styles.bg}
