@@ -1,19 +1,9 @@
 import { useEffect, useState } from 'react';
-import {
-  Alert,
-  ImageBackground,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { Linking } from 'react-native';
 import { Icon } from '@/components';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
@@ -193,52 +183,49 @@ export default function SettingsScreen() {
   return (
     <>
       <Stack.Screen
-        options={{ headerShown: true, gestureEnabled: true, title: t('settings.title') }}
+        options={{
+          headerShown: true,
+          gestureEnabled: true,
+          title: t('settings.title'),
+          headerBackTitle: ' ',
+        }}
       />
-      <ImageBackground
-        source={require('../../../assets/dashboard-bg.png')}
-        style={styles.bg}
-        resizeMode="cover"
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces
+        alwaysBounceVertical
       >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            bounces
-            alwaysBounceVertical
-          >
-            {sections.map((section) => (
-              <View key={section.title} style={styles.section}>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
-                <View style={styles.sectionCard}>
-                  {section.rows.map((row, index) => (
-                    <SettingsRowView
-                      key={row.testID}
-                      row={row}
-                      isLast={index === section.rows.length - 1}
-                      onPress={() => {
-                        if (row.onPress) row.onPress();
-                        else if (row.route) router.push(row.route as never);
-                      }}
-                    />
-                  ))}
-                </View>
-              </View>
-            ))}
+        {sections.map((section) => (
+          <View key={section.title} style={styles.section}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <View style={styles.sectionCard}>
+              {section.rows.map((row, index) => (
+                <SettingsRowView
+                  key={row.testID}
+                  row={row}
+                  isLast={index === section.rows.length - 1}
+                  onPress={() => {
+                    if (row.onPress) row.onPress();
+                    else if (row.route) router.push(row.route as never);
+                  }}
+                />
+              ))}
+            </View>
+          </View>
+        ))}
 
-            <Pressable
-              testID="settings-delete-wallet"
-              style={({ pressed }) => [styles.dangerCard, pressed && styles.pressed]}
-              onPress={handleDeleteWallet}
-            >
-              <Text style={styles.dangerLabel}>{t('settings.deleteWallet')}</Text>
-            </Pressable>
+        <Pressable
+          testID="settings-delete-wallet"
+          style={({ pressed }) => [styles.dangerCard, pressed && styles.pressed]}
+          onPress={handleDeleteWallet}
+        >
+          <Text style={styles.dangerLabel}>{t('settings.deleteWallet')}</Text>
+        </Pressable>
 
-            <Text style={styles.version}>DFX Wallet v0.1.0</Text>
-          </ScrollView>
-        </SafeAreaView>
-      </ImageBackground>
+        <Text style={styles.version}>DFX Wallet v0.1.0</Text>
+      </ScrollView>
     </>
   );
 }
@@ -267,15 +254,9 @@ function SettingsRowView({ row, isLast, onPress }: RowProps) {
 }
 
 const styles = StyleSheet.create({
-  bg: {
-    flex: 1,
-    backgroundColor: DfxColors.background,
-  },
-  safeArea: {
-    flex: 1,
-  },
   scroll: {
     flex: 1,
+    backgroundColor: DfxColors.background,
   },
   scrollContent: {
     paddingHorizontal: 20,
