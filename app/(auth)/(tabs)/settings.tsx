@@ -186,7 +186,13 @@ export default function SettingsScreen() {
       <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+          <Pressable
+            onPress={() =>
+              router.canGoBack() ? router.back() : router.replace('/(auth)/(tabs)/dashboard')
+            }
+            hitSlop={12}
+            style={styles.backBtn}
+          >
             <Icon name="arrow-left" size={24} color={DfxColors.text} />
           </Pressable>
           <Text style={styles.headerTitle}>{t('settings.title')}</Text>
