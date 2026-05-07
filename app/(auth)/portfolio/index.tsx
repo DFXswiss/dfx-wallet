@@ -304,6 +304,7 @@ const styles = StyleSheet.create({
   },
   assetList: {
     gap: 8,
+    marginTop: 64,
   },
   card: {
     flexDirection: 'row',
