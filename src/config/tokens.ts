@@ -368,29 +368,6 @@ const ASSET_SPECS: AssetSpec[] = [
 const buildId = (spec: Pick<AssetSpec, 'network' | 'isNative' | 'address'>): string =>
   spec.isNative ? `${spec.network}-native` : `${spec.network}-${spec.address?.toLowerCase()}`;
 
-// Mock balances (display units) for local visual testing. Kept small so the
-// portfolio overview stays short and the mountain background remains visible.
-const MOCK_BALANCES_DISPLAY = new Map<string, number>([
-  ['spark|BTC', 0.0015],
-  ['ethereum|ZCHF', 50],
-]);
-
-export const getMockRawBalance = (
-  network: string,
-  symbol: string,
-  decimals: number,
-): string | undefined => {
-  const display = MOCK_BALANCES_DISPLAY.get(`${network}|${symbol}`);
-  if (display === undefined) return undefined;
-  const parts = display.toString().split('.');
-  const wholePart = parts[0] ?? '0';
-  const fracPart = parts[1] ?? '';
-  const whole = BigInt(wholePart) * 10n ** BigInt(decimals);
-  const fracDigits = fracPart.length;
-  const frac = fracDigits > 0 ? BigInt(fracPart) * 10n ** BigInt(decimals - fracDigits) : 0n;
-  return (whole + frac).toString();
-};
-
 /** Always-on networks shown to the user as non-toggleable in the manage UI. */
 export const ALWAYS_ON_CHAINS: ChainId[] = ['ethereum', 'bitcoin'];
 

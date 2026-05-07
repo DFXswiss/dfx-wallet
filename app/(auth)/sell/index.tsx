@@ -22,7 +22,7 @@ import {
   formatFiat as fmtFiat,
   toNumeric,
 } from '@/config/portfolio-presentation';
-import { getAssetMeta, getAssets, getMockRawBalance, WDK_SUPPORTED_CHAINS } from '@/config/tokens';
+import { getAssetMeta, getAssets, WDK_SUPPORTED_CHAINS } from '@/config/tokens';
 import { useEnabledChains, useSellFlow } from '@/hooks';
 import { DfxColors, Typography } from '@/theme';
 
@@ -193,9 +193,7 @@ export default function SellScreen() {
     );
     if (!asset) return false;
     const result = balanceResults?.find((r) => r.assetId === asset.getId());
-    const liveRaw = result?.success ? (result.balance ?? '0') : '0';
-    const mockRaw = getMockRawBalance(network, symbol, asset.getDecimals());
-    const raw = liveRaw !== '0' ? liveRaw : (mockRaw ?? '0');
+    const raw = result?.success ? (result.balance ?? '0') : '0';
     return toNumeric(formatBalance(raw, asset.getDecimals())) > 0;
   };
 

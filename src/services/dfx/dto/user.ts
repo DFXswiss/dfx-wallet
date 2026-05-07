@@ -18,7 +18,7 @@ export type UserKycDto = {
   dataComplete: boolean;
 };
 
-export type KycLevel = 0 | 10 | 20 | 30 | 40 | 50 | 51 | -10 | -20;
+export type KycLevel = 0 | 10 | 20 | 30 | 40 | 50 | -10 | -20;
 
 export type LanguageDto = {
   id: number;
