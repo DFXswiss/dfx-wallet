@@ -3,10 +3,9 @@ import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { Icon } from '@/components';
-import type { ChainId } from '@/config/chains';
-import { getAssetMeta, getAssets, WDK_SUPPORTED_CHAINS, type TokenCategory } from '@/config/tokens';
+import { getAssetMeta, getAssets, type TokenCategory } from '@/config/tokens';
+import { getRawBalance, useBalances } from '@/services/balances';
 import {
   computeFiatValue,
   formatBalance,
@@ -39,11 +38,7 @@ export default function PortfolioScreen() {
   const { selectedCurrency } = useWalletStore();
 
   const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const wdkAssets = useMemo(
-    () => assetConfigs.filter((a) => WDK_SUPPORTED_CHAINS.includes(a.getNetwork() as ChainId)),
-    [assetConfigs],
-  );
-  const { data: balanceResults } = useBalancesForWallet(0, wdkAssets);
+  const { data: balances } = useBalances(assetConfigs);
   const [pricingReady, setPricingReady] = useState(pricingService.isReady());
 
   useEffect(() => {
@@ -69,8 +64,7 @@ export default function PortfolioScreen() {
       // Hide native gas tokens (ETH, MATIC) from the overview — they are
       // tracked for fees but not interesting as a portfolio holding.
       if (meta.category === 'native') continue;
-      const result = balanceResults?.find((r) => r.assetId === asset.getId());
-      const rawBalance = result?.success ? (result.balance ?? '0') : '0';
+      const rawBalance = getRawBalance(balances, asset.getId());
       const balance = formatBalance(rawBalance, asset.getDecimals());
       const balanceNum = toNumeric(balance);
 
@@ -118,7 +112,7 @@ export default function PortfolioScreen() {
       if (cat !== 0) return cat;
       return a.canonicalSymbol.localeCompare(b.canonicalSymbol);
     });
-  }, [assetConfigs, balanceResults, fiatCurrency, pricingReady]);
+  }, [assetConfigs, balances, fiatCurrency, pricingReady]);
 
   const totalFiat = useMemo(() => groups.reduce((sum, g) => sum + g.totalFiat, 0), [groups]);
 

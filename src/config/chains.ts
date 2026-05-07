@@ -15,6 +15,35 @@ const CANDIDE_PAYMASTER_ADDRESS = '0x8b1f6cb5d062aa2ce8d581942bbb960420d875ba';
 const ENTRY_POINT_ADDRESS = '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
 const SAFE_MODULES_VERSION = '0.3.0';
 
+/**
+ * EVM JSON-RPC endpoint per chain. Mirrors the `provider` field that the WDK
+ * worklet reads from `getWdkConfigs()` so the direct-RPC balance fetcher and
+ * the WDK stay on the same nodes. Returns undefined for non-EVM chains.
+ */
+export const getEvmRpcUrl = (network: ChainId): string | undefined => {
+  switch (network) {
+    // Defaults are PublicNode endpoints — they accept unauthenticated batched
+    // JSON-RPC, which the official `eth.merkle.io` / `polygon-rpc.com`
+    // endpoints reject (400 / 401). For production set
+    // `EXPO_PUBLIC_<CHAIN>_RPC_URL` to a keyed provider (Alchemy / Infura /
+    // QuickNode) to avoid PublicNode's shared rate limits.
+    case 'ethereum':
+      return process.env.EXPO_PUBLIC_ETH_RPC_URL ?? 'https://ethereum-rpc.publicnode.com';
+    case 'arbitrum':
+      return process.env.EXPO_PUBLIC_ARBITRUM_RPC_URL ?? 'https://arbitrum-one-rpc.publicnode.com';
+    case 'polygon':
+      return process.env.EXPO_PUBLIC_POLYGON_RPC_URL ?? 'https://polygon-bor-rpc.publicnode.com';
+    case 'base':
+      return process.env.EXPO_PUBLIC_BASE_RPC_URL ?? 'https://base-rpc.publicnode.com';
+    case 'plasma':
+      return process.env.EXPO_PUBLIC_PLASMA_RPC_URL ?? 'https://rpc.plasma.to';
+    case 'sepolia':
+      return process.env.EXPO_PUBLIC_SEPOLIA_RPC_URL ?? 'https://sepolia.gateway.tenderly.co';
+    default:
+      return undefined;
+  }
+};
+
 export const getWdkConfigs = (): WdkConfigs => ({
   networks: {
     ethereum: {

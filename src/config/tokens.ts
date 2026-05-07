@@ -3,6 +3,34 @@ import type { ChainId } from './chains';
 
 export type TokenCategory = 'btc' | 'stablecoin' | 'native' | 'other';
 
+/**
+ * Where the app loads an asset’s on-chain balance. The coordinator in
+ * `src/services/balances` routes each asset to the source matching its
+ * strategy; swapping a strategy's implementation (e.g. moving EVM from
+ * direct RPC to WDK) is a change inside that source, not here.
+ *
+ * - `wdk`  — WDK worklet (Bitcoin variants, Spark/Lightning).
+ * - `evm`  — Direct EVM JSON-RPC fetcher (native + ERC-20 balanceOf).
+ * - `none` — Not fetched.
+ */
+export type BalanceFetchStrategy = 'wdk' | 'evm' | 'none';
+
+/** EVM-family chains. Assets on these chains default to the `evm` strategy. */
+export const EVM_CHAINS: ChainId[] = [
+  'ethereum',
+  'arbitrum',
+  'polygon',
+  'base',
+  'plasma',
+  'sepolia',
+];
+
+/** BTC-family chains. Assets on these chains default to the `wdk` strategy. */
+export const BTC_CHAINS: ChainId[] = ['bitcoin', 'bitcoin-taproot', 'spark'];
+
+const defaultStrategyForChain = (network: ChainId): BalanceFetchStrategy =>
+  EVM_CHAINS.includes(network) ? 'evm' : 'wdk';
+
 type AssetSpec = {
   network: ChainId;
   symbol: string;
@@ -14,6 +42,8 @@ type AssetSpec = {
   category: TokenCategory;
   address?: string | null;
   defaultEnabled?: boolean;
+  /** Defaults to `wdk` when omitted. */
+  balanceFetchStrategy?: BalanceFetchStrategy;
 };
 
 const ASSET_SPECS: AssetSpec[] = [
@@ -412,6 +442,7 @@ export type AssetMeta = {
   isNative: boolean;
   category: TokenCategory;
   address?: string | null;
+  balanceFetchStrategy: BalanceFetchStrategy;
 };
 
 const ASSET_META_BY_ID = new Map<string, AssetMeta>(
@@ -428,12 +459,28 @@ const ASSET_META_BY_ID = new Map<string, AssetMeta>(
       isNative: spec.isNative,
       category: spec.category,
       address: spec.address ?? null,
+      balanceFetchStrategy: spec.balanceFetchStrategy ?? defaultStrategyForChain(spec.network),
     },
   ]),
 );
 
 export const getAssetMeta = (assetId: string): AssetMeta | undefined =>
   ASSET_META_BY_ID.get(assetId);
+
+/** Assets to pass into `useBalancesForWallet` (WDK balance fetch). */
+export const assetIncludedInWdkBalanceQuery = (asset: IAsset): boolean => {
+  const meta = getAssetMeta(asset.getId());
+  if (!meta) return false;
+  if (meta.balanceFetchStrategy !== 'wdk') return false;
+  return WDK_SUPPORTED_CHAINS.includes(meta.network);
+};
+
+/** Assets the EVM JSON-RPC source should fetch. */
+export const assetIncludedInEvmBalanceQuery = (asset: IAsset): boolean => {
+  const meta = getAssetMeta(asset.getId());
+  if (!meta) return false;
+  return meta.balanceFetchStrategy === 'evm';
+};
 
 export const getCategoryForAsset = (assetId: string): TokenCategory =>
   ASSET_META_BY_ID.get(assetId)?.category ?? 'other';
@@ -458,6 +505,7 @@ export const getAssetsForCanonicalSymbol = (symbol: string, chains?: ChainId[]):
       isNative: spec.isNative,
       category: spec.category,
       address: spec.address ?? null,
+      balanceFetchStrategy: spec.balanceFetchStrategy ?? defaultStrategyForChain(spec.network),
     }));
 };
 
