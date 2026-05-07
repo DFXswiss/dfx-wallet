@@ -148,10 +148,14 @@
     "title": "Verkaufen"
   },
   "send": {
+    "addressPlaceholder": "Adresse oder ENS-Name",
+    "amount": "Betrag",
     "confirmTransaction": "Transaktion bestätigen",
     "irreversible": "Transaktionen sind unwiderruflich. Bitte überprüfe Empfängeradresse und Betrag.",
+    "network": "Netzwerk",
     "recipient": "Empfänger",
     "scan": "Scannen",
+    "selectAsset": "Was möchtest du senden?",
     "sellInstead": "Stattdessen Krypto verkaufen",
     "sent": "Transaktion gesendet",
     "title": "Senden"
