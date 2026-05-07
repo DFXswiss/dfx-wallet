@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
@@ -184,7 +184,7 @@ export default function SettingsScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
             <Icon name="arrow-left" size={24} color={DfxColors.text} />
@@ -192,7 +192,11 @@ export default function SettingsScreen() {
           <Text style={styles.headerTitle}>{t('settings.title')}</Text>
           <View style={styles.backBtn} />
         </View>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={true}
+        >
           {sections.map((section) => (
             <View key={section.title} style={styles.section}>
               <Text style={styles.sectionTitle}>{section.title}</Text>
@@ -222,7 +226,7 @@ export default function SettingsScreen() {
 
           <Text style={styles.version}>DFX Wallet v0.1.0</Text>
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </>
   );
 }
@@ -259,7 +263,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 60,
+    paddingTop: 8,
     paddingBottom: 12,
     backgroundColor: DfxColors.background,
   },
