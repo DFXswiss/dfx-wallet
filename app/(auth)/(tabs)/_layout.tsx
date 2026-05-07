@@ -1,5 +1,4 @@
 import { Stack } from 'expo-router';
-import { useTranslation } from 'react-i18next';
 import { DfxColors, Typography } from '@/theme';
 
 // Ensure deep-linking and Metro reloads always land on the dashboard, not on
@@ -11,8 +10,6 @@ export const unstable_settings = {
 };
 
 export default function TabsLayout() {
-  const { t } = useTranslation();
-
   return (
     <Stack
       screenOptions={{

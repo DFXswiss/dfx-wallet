@@ -3,7 +3,6 @@ import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import i18n from 'i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import { Icon } from '@/components';
 import { secureStorage, StorageKeys } from '@/services/storage';
@@ -28,7 +27,7 @@ type SettingsSection = {
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { reset } = useAuthStore();
   const { selectedCurrency, setSelectedCurrency } = useWalletStore();
   const CURRENCIES = ['CHF', 'EUR', 'USD'] as const;

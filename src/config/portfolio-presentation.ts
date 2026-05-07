@@ -64,6 +64,18 @@ export const formatNumber = (n: number, maxFractionDigits = 8): string => {
   return fixed.replace(/\.?0+$/, '');
 };
 
+/** Format a fiat amount with two decimals and CH thousands separator (1'234.56). */
+export const formatFiat = (n: number): string =>
+  Number.isFinite(n)
+    ? n.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : '0.00';
+
+/** Format a crypto amount with up to 8 decimals and CH thousands separator. */
+export const formatCryptoAmount = (n: number): string =>
+  Number.isFinite(n)
+    ? n.toLocaleString('de-CH', { minimumFractionDigits: 0, maximumFractionDigits: 8 })
+    : '0';
+
 /** Convert a token balance into the user's display fiat currency. */
 export function computeFiatValue(
   balance: number,
