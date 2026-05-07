@@ -16,20 +16,15 @@ import * as Haptics from 'expo-haptics';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { AppHeader, Icon, PrimaryButton } from '@/components';
 import type { ChainId } from '@/config/chains';
-import { formatBalance, toNumeric } from '@/config/portfolio-presentation';
+import {
+  formatBalance,
+  formatCryptoAmount as fmtCrypto,
+  formatFiat as fmtFiat,
+  toNumeric,
+} from '@/config/portfolio-presentation';
 import { getAssetMeta, getAssets, getMockRawBalance, WDK_SUPPORTED_CHAINS } from '@/config/tokens';
 import { useEnabledChains, useSellFlow } from '@/hooks';
 import { DfxColors, Typography } from '@/theme';
-
-const fmtFiat = (n: number): string =>
-  Number.isFinite(n)
-    ? n.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : '0.00';
-
-const fmtCrypto = (n: number): string =>
-  Number.isFinite(n)
-    ? n.toLocaleString('de-CH', { minimumFractionDigits: 0, maximumFractionDigits: 8 })
-    : '0';
 
 type SellStep = 'amount' | 'bank' | 'confirm';
 

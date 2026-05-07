@@ -74,7 +74,7 @@ export default function TransactionHistoryScreen() {
       list = list.filter((tx) => allowed.includes(tx.type));
     }
     return [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transactions, assetFilter, networkFilter, filter]);
+  }, [transactions, assetFilter, filter]);
 
   const filters: readonly { key: FilterType; label: string }[] = [
     { key: 'all', label: t('transactions.filterAll') },

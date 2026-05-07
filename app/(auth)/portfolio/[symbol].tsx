@@ -11,7 +11,6 @@ import {
   getAssets,
   getCanonicalNameForSymbol,
   getMockRawBalance,
-  getAssetMeta,
   WDK_SUPPORTED_CHAINS,
 } from '@/config/tokens';
 import {
@@ -117,7 +116,6 @@ export default function AssetDetailScreen() {
       // For BTC the canonical name (always "Bitcoin") becomes the primary
       // label, so the secondary line shows just the variant. For other
       // canonical groups the chain label is meaningful enough on its own.
-      // eslint-disable-next-line security/detect-object-injection -- meta.network is a ChainId literal union
       const variantLabel = isBtc ? (BTC_VARIANT_LABEL[meta.network] ?? chainLabel) : chainLabel;
       return {
         id: meta.id,

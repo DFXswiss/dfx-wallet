@@ -15,18 +15,12 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { AppHeader, Icon, PrimaryButton } from '@/components';
 import type { ChainId } from '@/config/chains';
+import {
+  formatFiat as fmtFiat,
+  formatCryptoAmount as fmtCrypto,
+} from '@/config/portfolio-presentation';
 import { useBuyFlow } from '@/hooks';
 import { DfxColors, Typography } from '@/theme';
-
-const fmtFiat = (n: number): string =>
-  Number.isFinite(n)
-    ? n.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : '0.00';
-
-const fmtCrypto = (n: number): string =>
-  Number.isFinite(n)
-    ? n.toLocaleString('de-CH', { minimumFractionDigits: 0, maximumFractionDigits: 8 })
-    : '0';
 
 type BuyStep = 'amount' | 'payment' | 'confirm';
 
