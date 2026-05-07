@@ -5,7 +5,14 @@ import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { Icon } from '@/components';
-import { getAssetMeta, getAssets, getMockRawBalance, type TokenCategory } from '@/config/tokens';
+import type { ChainId } from '@/config/chains';
+import {
+  getAssetMeta,
+  getAssets,
+  getMockRawBalance,
+  WDK_SUPPORTED_CHAINS,
+  type TokenCategory,
+} from '@/config/tokens';
 import {
   computeFiatValue,
   formatBalance,
@@ -35,7 +42,11 @@ export default function PortfolioScreen() {
   const { selectedCurrency } = useWalletStore();
 
   const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const { data: balanceResults } = useBalancesForWallet(0, assetConfigs);
+  const wdkAssets = useMemo(
+    () => assetConfigs.filter((a) => WDK_SUPPORTED_CHAINS.includes(a.getNetwork() as ChainId)),
+    [assetConfigs],
+  );
+  const { data: balanceResults } = useBalancesForWallet(0, wdkAssets);
   const [pricingReady, setPricingReady] = useState(pricingService.isReady());
 
   useEffect(() => {

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
+import type { ChainId } from '@/config/chains';
 import { computeFiatValue, formatBalance, toNumeric } from '@/config/portfolio-presentation';
-import { getAssetMeta, getAssets, getMockRawBalance } from '@/config/tokens';
+import { getAssetMeta, getAssets, getMockRawBalance, WDK_SUPPORTED_CHAINS } from '@/config/tokens';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { useEnabledChains } from './useEnabledChains';
 import { useWalletStore } from '@/store';
@@ -17,7 +18,11 @@ export function useTotalPortfolioFiat() {
   const setTotalBalanceFiat = useWalletStore((s) => s.setTotalBalanceFiat);
 
   const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const { data: balanceResults } = useBalancesForWallet(0, assetConfigs);
+  const wdkAssets = useMemo(
+    () => assetConfigs.filter((a) => WDK_SUPPORTED_CHAINS.includes(a.getNetwork() as ChainId)),
+    [assetConfigs],
+  );
+  const { data: balanceResults } = useBalancesForWallet(0, wdkAssets);
   const [pricingReady, setPricingReady] = useState(pricingService.isReady());
 
   useEffect(() => {

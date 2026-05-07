@@ -5,12 +5,14 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { Icon } from '@/components';
+import type { ChainId } from '@/config/chains';
 import {
   getAssetsForCanonicalSymbol,
   getAssets,
   getCanonicalNameForSymbol,
   getMockRawBalance,
   getAssetMeta,
+  WDK_SUPPORTED_CHAINS,
 } from '@/config/tokens';
 import {
   CHAIN_LABELS,
@@ -52,7 +54,11 @@ export default function AssetDetailScreen() {
     [canonicalSymbol, enabledChains],
   );
   const allAssetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const { data: balanceResults } = useBalancesForWallet(0, allAssetConfigs);
+  const wdkAssets = useMemo(
+    () => allAssetConfigs.filter((a) => WDK_SUPPORTED_CHAINS.includes(a.getNetwork() as ChainId)),
+    [allAssetConfigs],
+  );
+  const { data: balanceResults } = useBalancesForWallet(0, wdkAssets);
   const [pricingReady, setPricingReady] = useState(pricingService.isReady());
 
   useEffect(() => {

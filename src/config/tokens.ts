@@ -19,6 +19,17 @@ type AssetSpec = {
 const ASSET_SPECS: AssetSpec[] = [
   // Bitcoin variants — canonical 'BTC'
   {
+    network: 'bitcoin',
+    symbol: 'BTC',
+    canonicalSymbol: 'BTC',
+    canonicalName: 'Bitcoin',
+    name: 'Bitcoin (Mainnet)',
+    decimals: 8,
+    isNative: true,
+    category: 'btc',
+    defaultEnabled: true,
+  },
+  {
     network: 'spark',
     symbol: 'BTC',
     canonicalSymbol: 'BTC',
@@ -369,15 +380,35 @@ export const getMockRawBalance = (
   return (whole + frac).toString();
 };
 
-/** Always-on networks that the user cannot disable. */
-export const ALWAYS_ON_CHAINS: ChainId[] = ['ethereum', 'spark'];
+/** Always-on networks shown to the user as non-toggleable in the manage UI. */
+export const ALWAYS_ON_CHAINS: ChainId[] = ['ethereum'];
+
+/**
+ * BTC-side networks (mainnet + Lightning) are always implicitly enabled and
+ * never appear in the manage UI — Bitcoin is a first-class asset of this
+ * wallet and we never want a user to accidentally hide it.
+ */
+export const IMPLICIT_ENABLED_CHAINS: ChainId[] = ['spark', 'bitcoin'];
+
+// Chains the WDK worklet bundle currently knows about. Anything outside this
+// set is shown in the portfolio but skipped when querying live balances so
+// `useBalancesForWallet` doesn't error with "no wallet manager for network".
+export const WDK_SUPPORTED_CHAINS: ChainId[] = [
+  'ethereum',
+  'arbitrum',
+  'polygon',
+  'base',
+  'spark',
+  'plasma',
+  'sepolia',
+];
 
 /** Networks that are enabled by default but the user can toggle off. */
 export const SELECTABLE_CHAINS: ChainId[] = ['arbitrum', 'polygon', 'base'];
 
 /** Initial set of enabled chains for a fresh install. */
 export const DEFAULT_ENABLED_CHAINS: ChainId[] = Array.from(
-  new Set([...ALWAYS_ON_CHAINS, ...SELECTABLE_CHAINS]),
+  new Set([...ALWAYS_ON_CHAINS, ...IMPLICIT_ENABLED_CHAINS, ...SELECTABLE_CHAINS]),
 );
 
 export type AssetMeta = {
@@ -418,6 +449,9 @@ export const getCategoryForAsset = (assetId: string): TokenCategory =>
   ASSET_META_BY_ID.get(assetId)?.category ?? 'other';
 
 export const getAssetsForCanonicalSymbol = (symbol: string, chains?: ChainId[]): AssetMeta[] => {
+  // Wrapped BTC variants follow the user's chain selection (e.g. WBTC/Polygon
+  // hides when Polygon is off). Only the BTC-native chains (mainnet + Lightning)
+  // are always implicitly included via IMPLICIT_ENABLED_CHAINS in useEnabledChains.
   const filtered = chains
     ? ASSET_SPECS.filter((spec) => chains.includes(spec.network))
     : ASSET_SPECS;
@@ -456,6 +490,9 @@ export const getCategoryForCanonicalSymbol = (canonicalSymbol: string): TokenCat
   ASSET_SPECS.find((spec) => spec.canonicalSymbol === canonicalSymbol)?.category ?? 'other';
 
 export const getAssets = (chains?: ChainId[]): IAsset[] => {
+  // Wrapped BTC on EVM chains follows the user's chain selection, so disabling
+  // Polygon hides WBTC/Polygon. Only the BTC-native chains (mainnet + Lightning)
+  // are always implicitly included via IMPLICIT_ENABLED_CHAINS in useEnabledChains.
   const filtered = chains
     ? ASSET_SPECS.filter((spec) => chains.includes(spec.network))
     : ASSET_SPECS;
