@@ -1,12 +1,17 @@
 import { dfxApi } from './api';
 import type { UserDto } from './dto';
 
+export type UpdateUserPayload = {
+  language?: { id?: number; name?: string; symbol?: string };
+  currency?: { id?: number; name?: string };
+};
+
 export class DfxUserService {
   async getUser(): Promise<UserDto> {
     return dfxApi.get<UserDto>('/v2/user');
   }
 
-  async updateUser(data: Partial<Pick<UserDto, 'language' | 'currency'>>): Promise<UserDto> {
+  async updateUser(data: UpdateUserPayload): Promise<UserDto> {
     return dfxApi.put<UserDto>('/v2/user', data);
   }
 

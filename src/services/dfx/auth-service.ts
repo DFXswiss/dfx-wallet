@@ -48,6 +48,34 @@ export class DfxAuthService {
     return this.login(address, signFn);
   }
 
+  /**
+   * Link a new wallet address to the currently authenticated DFX account.
+   * Posts to /auth with the existing Bearer token attached, so the backend
+   * attaches the new address to the active user instead of creating a fresh one.
+   * Keeps the original token in place.
+   */
+  async linkAddress(
+    address: string,
+    signFn: (message: string) => Promise<string>,
+    options?: { wallet?: string; blockchain?: string },
+  ): Promise<void> {
+    const previousToken = this.accessToken;
+    const { message } = await this.getSignMessage(address);
+    const signature = await signFn(message);
+
+    await dfxApi.post<AuthResponseDto>('/auth', {
+      address,
+      signature,
+      wallet: options?.wallet ?? 'DFX Wallet',
+      ...(options?.blockchain !== undefined ? { blockchain: options.blockchain } : {}),
+    });
+
+    if (previousToken) {
+      this.accessToken = previousToken;
+      dfxApi.setAuthToken(previousToken);
+    }
+  }
+
   /** Clear auth state */
   logout(): void {
     this.accessToken = null;
