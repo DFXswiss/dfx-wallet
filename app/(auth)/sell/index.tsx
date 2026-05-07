@@ -15,6 +15,7 @@ const CHAIN_ASSET: Record<ChainId, string> = {
   polygon: 'MATIC',
   base: 'ETH',
   spark: 'BTC',
+  bitcoin: 'BTC',
   plasma: 'ETH',
   sepolia: 'ETH',
 };
