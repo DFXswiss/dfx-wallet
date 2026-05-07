@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import i18n from 'i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import { AppHeader, Icon } from '@/components';
 import { secureStorage, StorageKeys } from '@/services/storage';
@@ -37,7 +38,9 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { reset } = useAuthStore();
-  const { selectedCurrency } = useWalletStore();
+  const { selectedCurrency, setSelectedCurrency } = useWalletStore();
+  const CURRENCIES = ['CHF', 'EUR', 'USD'] as const;
+  const currentLang = i18n.language?.startsWith('de') ? 'DE' : 'EN';
   const { deleteWallet } = useWalletManager();
   const [walletOrigin, setWalletOrigin] = useState<string | null>(null);
 
@@ -109,14 +112,22 @@ export default function SettingsScreen() {
         {
           icon: 'globe',
           label: t('settings.language'),
-          value: 'EN',
+          value: currentLang,
           testID: 'settings-language',
+          onPress: () => {
+            void i18n.changeLanguage(currentLang === 'DE' ? 'en' : 'de');
+          },
         },
         {
           icon: 'globe',
           label: t('settings.currencies'),
           value: selectedCurrency,
           testID: 'settings-currencies',
+          onPress: () => {
+            const idx = CURRENCIES.indexOf(selectedCurrency as (typeof CURRENCIES)[number]);
+            const next = CURRENCIES[(idx + 1) % CURRENCIES.length]!;
+            setSelectedCurrency(next);
+          },
         },
         {
           icon: 'globe',
