@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import type { ChainId } from '@/config/chains';
 import { computeFiatValue, formatBalance, toNumeric } from '@/config/portfolio-presentation';
-import { getAssetMeta, getAssets, WDK_SUPPORTED_CHAINS } from '@/config/tokens';
+import { getAssetMeta, getAssets } from '@/config/tokens';
+import { getRawBalance, useBalances } from '@/services/balances';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { useEnabledChains } from './useEnabledChains';
 import { useWalletStore } from '@/store';
@@ -18,11 +17,7 @@ export function useTotalPortfolioFiat() {
   const setTotalBalanceFiat = useWalletStore((s) => s.setTotalBalanceFiat);
 
   const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const wdkAssets = useMemo(
-    () => assetConfigs.filter((a) => WDK_SUPPORTED_CHAINS.includes(a.getNetwork() as ChainId)),
-    [assetConfigs],
-  );
-  const { data: balanceResults } = useBalancesForWallet(0, wdkAssets);
+  const { data: balances } = useBalances(assetConfigs);
   const [pricingReady, setPricingReady] = useState(pricingService.isReady());
 
   useEffect(() => {
@@ -43,13 +38,12 @@ export function useTotalPortfolioFiat() {
     for (const asset of assetConfigs) {
       const meta = getAssetMeta(asset.getId());
       if (!meta || meta.category === 'native') continue;
-      const result = balanceResults?.find((r) => r.assetId === asset.getId());
-      const rawBalance = result?.success ? (result.balance ?? '0') : '0';
+      const rawBalance = getRawBalance(balances, asset.getId());
       const balanceNum = toNumeric(formatBalance(rawBalance, asset.getDecimals()));
       sum += computeFiatValue(balanceNum, meta.canonicalSymbol, fiatCurrency, pricingReady);
     }
     return sum;
-  }, [assetConfigs, balanceResults, fiatCurrency, pricingReady]);
+  }, [assetConfigs, balances, fiatCurrency, pricingReady]);
 
   useEffect(() => {
     const formatted = Number.isFinite(totalFiat) ? Math.round(totalFiat * 100) / 100 : 0;
