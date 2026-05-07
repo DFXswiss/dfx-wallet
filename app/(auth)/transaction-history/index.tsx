@@ -14,21 +14,22 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { AppHeader, Icon } from '@/components';
+import { AppHeader, Icon, TransactionRow } from '@/components';
 import { CHAIN_LABELS } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/services/dfx';
 import { DfxColors, Typography } from '@/theme';
 
 type FilterType = 'all' | 'in' | 'out' | 'pay';
 
-const STATE_COLORS = new Map<string, string>([
-  ['Completed', DfxColors.success],
-  ['Processing', DfxColors.warning],
-  ['AmlCheck', DfxColors.warning],
-  ['Created', DfxColors.info],
-  ['Failed', DfxColors.error],
-  ['Returned', DfxColors.error],
-]);
+// Tabs map to TX types as follows:
+// - "in"  = Buy (DFX on-ramp) + Receive (on-chain)
+// - "out" = Sell (DFX off-ramp) + Send (on-chain) + Swap (in-wallet conversion)
+// - "pay" = Pay (merchant payment)
+const FILTER_TYPES: Record<Exclude<FilterType, 'all'>, readonly TransactionDto['type'][]> = {
+  in: ['Buy'],
+  out: ['Sell', 'Swap'],
+  pay: ['Pay'],
+};
 
 export default function TransactionHistoryScreen() {
   const { t } = useTranslation();
@@ -66,19 +67,21 @@ export default function TransactionHistoryScreen() {
           tx.outputAsset?.toUpperCase() === assetFilter,
       );
     }
-    if (filter === 'in') list = list.filter((tx) => tx.type === 'Buy');
-    else if (filter === 'out') list = list.filter((tx) => tx.type === 'Sell' || tx.type === 'Swap');
-    else if (filter === 'pay') list = list.filter((tx) => tx.type === 'Pay');
+    // Network filter not supported by current DTO — skip.
+    if (filter !== 'all') {
+      const allowed =
+        filter === 'in' ? FILTER_TYPES.in : filter === 'out' ? FILTER_TYPES.out : FILTER_TYPES.pay;
+      list = list.filter((tx) => allowed.includes(tx.type));
+    }
     return [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transactions, assetFilter, filter]);
+  }, [transactions, assetFilter, networkFilter, filter]);
 
-  const filters: FilterType[] = ['all', 'pay', 'in', 'out'];
-  const filterLabels: Record<FilterType, string> = {
-    all: 'All',
-    pay: 'Pay',
-    in: 'In',
-    out: 'Out',
-  };
+  const filters: readonly { key: FilterType; label: string }[] = [
+    { key: 'all', label: t('transactions.filterAll') },
+    { key: 'pay', label: t('transactions.filterPay') },
+    { key: 'in', label: t('transactions.filterIn') },
+    { key: 'out', label: t('transactions.filterOut') },
+  ];
 
   const headerTitle = (() => {
     if (assetFilter && networkFilter) {
@@ -102,24 +105,29 @@ export default function TransactionHistoryScreen() {
           {networkFilter && <WalletAddressBar network={networkFilter} />}
 
           {!assetFilter && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.filterBar}
-              contentContainerStyle={styles.filters}
-            >
-              {filters.map((f) => (
-                <Pressable
-                  key={f}
-                  style={[styles.filterChip, filter === f && styles.filterChipActive]}
-                  onPress={() => setFilter(f)}
-                >
-                  <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-                    {filterLabels[f]}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+            <View style={styles.segmentedWrapper}>
+              <View style={styles.segmented}>
+                {filters.map((f) => {
+                  const isActive = filter === f.key;
+                  return (
+                    <Pressable
+                      key={f.key}
+                      style={[styles.segment, isActive && styles.segmentActive]}
+                      onPress={() => setFilter(f.key)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isActive }}
+                    >
+                      <Text
+                        style={[styles.segmentText, isActive && styles.segmentTextActive]}
+                        numberOfLines={1}
+                      >
+                        {f.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
           )}
 
           {isLoading ? (
@@ -160,44 +168,6 @@ export default function TransactionHistoryScreen() {
         </SafeAreaView>
       </ImageBackground>
     </>
-  );
-}
-
-type RowProps = { tx: TransactionDto; onPress: () => void };
-
-function TransactionRow({ tx, onPress }: RowProps) {
-  const isOutgoing = tx.type === 'Sell' || tx.type === 'Pay';
-  const stateColor = STATE_COLORS.get(tx.state) ?? DfxColors.textTertiary;
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.txItem, pressed && styles.txItemPressed]}
-    >
-      <View style={[styles.txIcon, { backgroundColor: isOutgoing ? '#FEE2E2' : '#DCFCE7' }]}>
-        <Icon
-          name={isOutgoing ? 'send' : 'receive'}
-          size={18}
-          color={isOutgoing ? DfxColors.error : DfxColors.success}
-          strokeWidth={2.2}
-        />
-      </View>
-      <View style={styles.txInfo}>
-        <Text style={styles.txType}>{tx.type}</Text>
-        <Text style={styles.txDate}>{new Date(tx.date).toLocaleDateString()}</Text>
-      </View>
-      <View style={styles.txAmountColumn}>
-        <Text
-          style={[styles.txAmount, { color: isOutgoing ? DfxColors.error : DfxColors.success }]}
-          numberOfLines={1}
-        >
-          {isOutgoing ? '-' : '+'}
-          {tx.outputAmount} {tx.outputAsset}
-        </Text>
-        <Text style={[styles.txState, { color: stateColor }]} numberOfLines={1}>
-          {tx.state}
-        </Text>
-      </View>
-    </Pressable>
   );
 }
 
@@ -289,30 +259,35 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  filterBar: {
-    flexGrow: 0,
+  segmentedWrapper: {
+    paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  filters: {
-    gap: 8,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-  },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 999,
+  segmented: {
+    flexDirection: 'row',
     backgroundColor: DfxColors.surface,
+    borderRadius: 12,
+    padding: 4,
   },
-  filterChipActive: {
+  segment: {
+    flex: 1,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentActive: {
     backgroundColor: DfxColors.primary,
   },
-  filterText: {
+  segmentText: {
     ...Typography.bodySmall,
     fontWeight: '600',
     color: DfxColors.textSecondary,
+    lineHeight: 16,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
-  filterTextActive: {
+  segmentTextActive: {
     color: DfxColors.white,
   },
   loadingContainer: {
