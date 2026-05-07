@@ -19,7 +19,7 @@ import { CHAIN_LABELS } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/services/dfx';
 import { DfxColors, Typography } from '@/theme';
 
-type FilterType = 'all' | 'Buy' | 'Sell' | 'Swap' | 'Pay';
+type FilterType = 'all' | 'in' | 'out' | 'pay';
 
 const STATE_COLORS = new Map<string, string>([
   ['Completed', DfxColors.success],
@@ -66,11 +66,19 @@ export default function TransactionHistoryScreen() {
           tx.outputAsset?.toUpperCase() === assetFilter,
       );
     }
-    if (filter !== 'all') list = list.filter((tx) => tx.type === filter);
+    if (filter === 'in') list = list.filter((tx) => tx.type === 'Buy');
+    else if (filter === 'out') list = list.filter((tx) => tx.type === 'Sell' || tx.type === 'Swap');
+    else if (filter === 'pay') list = list.filter((tx) => tx.type === 'Pay');
     return [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, assetFilter, filter]);
 
-  const filters: FilterType[] = ['all', 'Buy', 'Sell', 'Swap', 'Pay'];
+  const filters: FilterType[] = ['all', 'pay', 'in', 'out'];
+  const filterLabels: Record<FilterType, string> = {
+    all: 'All',
+    pay: 'Pay',
+    in: 'In',
+    out: 'Out',
+  };
 
   const headerTitle = (() => {
     if (assetFilter && networkFilter) {
@@ -107,7 +115,7 @@ export default function TransactionHistoryScreen() {
                   onPress={() => setFilter(f)}
                 >
                   <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-                    {f === 'all' ? t('transactions.filterAll') : f}
+                    {filterLabels[f]}
                   </Text>
                 </Pressable>
               ))}
