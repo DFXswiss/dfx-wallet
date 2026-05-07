@@ -80,6 +80,94 @@
     "terms": "Nutzungsbedingungen",
     "title": "Rechtliche Informationen"
   },
+  "multiSig": {
+    "backup": {
+      "alertBody": "Wir richten einen {{required}}-von-{{total}}-Tresor ein. Stelle sicher, dass alle Mitunterzeichner erreichbar sind.",
+      "alertTitle": "Tresor aktivieren?",
+      "body": "Drei kurze Schritte, damit du nie den Zugang verlierst — auch wenn ein Handy kaputt geht oder jemand seine PIN vergisst.",
+      "confirm": "Ich verstehe: Ohne genügend Mitunterzeichner bewegen sich meine Kryptowährungen nicht.",
+      "cta": "Tresor aktivieren",
+      "item1Desc": "Drucke oder schreibe das Recovery-Blatt auf — wie bei einer normalen Wallet, aber jeder Mitunterzeichner bekommt sein eigenes Exemplar.",
+      "item1Title": "Recovery-Blatt sichern",
+      "item2Desc": "Wähle einen sicheren Ort: Tresor zuhause, Bankschliessfach oder ein vertrauenswürdiges Familienmitglied.",
+      "item2Title": "Offline aufbewahren",
+      "item3Desc": "Erkläre jedem Mitunterzeichner, wofür der Tresor ist und wie viele Signaturen er braucht.",
+      "item3Title": "Mitunterzeichner informieren",
+      "title": "Letzter Schritt: Backup"
+    },
+    "concept": {
+      "analogyBody": "Stell dir drei Schlüssel zu einem Safe vor, in dem deine Kryptowährungen liegen. Der Safe öffnet erst, wenn mindestens zwei der drei Schlüssel gleichzeitig stecken.",
+      "analogyTitle": "Wie ein Safe mit drei Schlüsseln",
+      "body": "Eine Multi-Signatur-Wallet wird von mehreren Personen geteilt. Um deine Kryptowährungen zu senden, müssen mindestens so viele Personen zustimmen, wie ihr vorher festgelegt habt.",
+      "cta": "Verstanden",
+      "diagramApproved": "freigegeben",
+      "diagramBackup": "Backup",
+      "diagramPartner": "Partner",
+      "diagramPending": "ausstehend",
+      "diagramResult": "Kryptowährungen werden gesendet",
+      "diagramSubResult": "2 von 3 Signaturen genügen",
+      "diagramYou": "Du",
+      "exampleCaption": "Beispiel: Du, dein Partner und eine Backup-Person teilen die Wallet. Sobald zwei von euch zustimmen, werden deine Kryptowährungen gesendet.",
+      "exampleTitle": "Beispiel: 2 von 3 Signaturen",
+      "title": "So funktioniert's"
+    },
+    "cosigners": {
+      "body": "Füge die Wallet-Adressen der Personen hinzu, die mit dir mitunterzeichnen sollen (noch {{count}} nötig).",
+      "cosignerLabel": "Mitunterzeichner {{n}}",
+      "hint": "Mitunterzeichner können ein Familienmitglied sein, eine Hardware-Wallet an einem anderen Ort oder eine Vertrauensperson. Jeder bekommt eine Anfrage, wenn du Kryptowährungen senden willst.",
+      "placeholder": "Wallet-Adresse oder xpub",
+      "title": "Wer unterzeichnet mit dir?",
+      "youDesc": "Deine DFX Wallet auf diesem Gerät.",
+      "youLabel": "Du"
+    },
+    "manage": {
+      "addAnotherCta": "Weiteren Tresor einrichten",
+      "cosignerLabel": "Mitunterzeichner {{n}}",
+      "emptyBody": "Du hast aktuell keinen Multi-Signatur-Tresor. Richte einen ein, um deine Kryptowährungen mit Familie, Partner oder Team gemeinsam zu sichern.",
+      "emptyTitle": "Noch kein Multi-Sig",
+      "membersLabel": "Mitglieder ({{count}})",
+      "quorumMeta": "{{required}} von {{total}} Signaturen nötig",
+      "removeBody": "Möchtest du \"{{name}}\" wirklich entfernen? Die Konfiguration wird gelöscht.",
+      "removeConfirm": "Entfernen",
+      "removeTitle": "Tresor entfernen?",
+      "setupCta": "Multi-Sig einrichten",
+      "summaryLabel": "Aktive Tresore",
+      "summaryValue": "{{count}} Multi-Signatur-Tresor(e) eingerichtet",
+      "youBadge": "Dieses Gerät",
+      "youDesc": "Deine DFX Wallet auf diesem Gerät",
+      "youLabel": "Du"
+    },
+    "intro": {
+      "body": "Schütze deine Wallet mit zwei oder mehr Signaturen. Deine Kryptowährungen bewegen sich nur, wenn genug Personen zustimmen — kein einzelnes Handy, Passwort oder Person ist ein Single Point of Failure.",
+      "bullet1": "Ruhig schlafen: Ein gestohlenes Handy alleine kann deine Wallet nicht leerräumen.",
+      "bullet2": "Verantwortung mit Familie oder Team teilen, ohne ein Passwort zu teilen.",
+      "bullet3": "Zugang wiederherstellen, wenn ein Gerät verloren geht — die anderen funktionieren weiter.",
+      "cta": "Los geht's",
+      "title": "Mehr Sicherheit mit Multi-Signatur"
+    },
+    "quorum": {
+      "body": "Wähle, wie viele Signaturen nötig sind und wie viele Mitunterzeichner es gibt. 2-von-3 ist die beliebteste Wahl — sicher, aber bei Verlust eines Schlüssels noch wiederherstellbar.",
+      "customRequiredLabel": "Erforderliche Signaturen",
+      "customSummary": "{{required}} von {{total}} Signaturen nötig",
+      "customTotalLabel": "Anzahl Mitunterzeichner",
+      "option_2_2_desc": "Beide Signaturen immer nötig. Höchste Sicherheit, aber keine Wiederherstellung bei Schlüsselverlust.",
+      "option_2_2_title": "Paar-Wallet",
+      "option_2_3_desc": "Empfohlen. Zwei von drei Signaturen senden deine Kryptowährungen. Ein Gerät weg — die anderen zwei funktionieren noch.",
+      "option_2_3_title": "Familien-Tresor",
+      "option_3_5_desc": "Strengeres Quorum für Organisationen. Drei von fünf Signaturen unterzeichnen jede Transaktion.",
+      "option_3_5_title": "Team-Tresor",
+      "option_custom_desc": "Stelle Signaturen und Mitunterzeichner selbst ein — von 1-von-2 bis hin zu individuellen Setups bis 9 Personen.",
+      "option_custom_title": "Eigenes Setup",
+      "title": "Wähle dein Setup"
+    },
+    "success": {
+      "body": "Dein {{required}}-von-{{total}}-Tresor ist bereit. Ab jetzt braucht jeder Versand die vereinbarte Anzahl an Signaturen.",
+      "nextBody": "Sende Guthaben in den Tresor, um ihn zu nutzen. Jeder Mitunterzeichner erhält eine Signaturanfrage, wenn du etwas ausgeben willst.",
+      "nextLabel": "Wie geht's weiter",
+      "title": "Tresor aktiv"
+    },
+    "title": "Multi-Sig Set-up"
+  },
   "onboarding": {
     "createError": "Wallet konnte nicht erstellt werden. Bitte erneut versuchen.",
     "createPasskey": "Mit Passkey erstellen",
@@ -211,6 +299,7 @@
     "hardwareWallet": "Hardware Wallet",
     "language": "Sprache",
     "legalDocuments": "Rechtliches",
+    "multiSig": "Multi-Sig",
     "network": "Netzwerk",
     "seed": "Recovery Phrase",
     "seedPhrase": "Seed Phrase",

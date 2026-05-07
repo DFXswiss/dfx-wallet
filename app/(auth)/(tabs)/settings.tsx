@@ -96,6 +96,12 @@ export default function SettingsScreen() {
           testID: 'settings-hardware-wallet',
           route: '/(auth)/hardware-connect',
         },
+        {
+          icon: 'shield',
+          label: t('settings.multiSig'),
+          testID: 'settings-multi-sig',
+          route: '/(auth)/multi-sig',
+        },
       ],
     },
     {
