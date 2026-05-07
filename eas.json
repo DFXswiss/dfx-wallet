@@ -18,7 +18,13 @@
     },
     "production": {
       "channel": "production",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "android": {
+        "image": "latest",
+        "env": {
+          "GRADLE_OPTS": "-Dorg.gradle.jvmargs=-Xmx4096m"
+        }
+      }
     }
   },
   "submit": {
