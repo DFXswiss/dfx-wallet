@@ -44,6 +44,28 @@ export const getEvmRpcUrl = (network: ChainId): string | undefined => {
   }
 };
 
+/**
+ * Paymaster token used by the ERC-4337 setup on each EVM chain — this is the
+ * token Candide debits from the smart account to cover gas instead of native
+ * ETH/MATIC. Mirrors the `paymasterToken` field inside `getWdkConfigs`. Returns
+ * undefined for chains with no paymaster (Plasma) or non-EVM chains.
+ */
+export const getPaymasterTokenInfo = (
+  chain: ChainId,
+): { symbol: string; decimals: number } | undefined => {
+  switch (chain) {
+    case 'ethereum':
+    case 'arbitrum':
+    case 'polygon':
+    case 'sepolia':
+      return { symbol: 'USDT', decimals: 6 };
+    case 'base':
+      return { symbol: 'USDC', decimals: 6 };
+    default:
+      return undefined;
+  }
+};
+
 export const getWdkConfigs = (): WdkConfigs => ({
   networks: {
     ethereum: {
