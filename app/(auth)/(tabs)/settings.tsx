@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
@@ -182,8 +183,8 @@ export default function SettingsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      <View style={styles.container}>
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
+      <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
             <Icon name="arrow-left" size={24} color={DfxColors.text} />
@@ -197,6 +198,9 @@ export default function SettingsScreen() {
           showsVerticalScrollIndicator
           bounces
           alwaysBounceVertical
+          nestedScrollEnabled
+          keyboardShouldPersistTaps="handled"
+          scrollEventThrottle={16}
         >
           {sections.map((section) => (
             <View key={section.title} style={styles.section}>
@@ -227,7 +231,7 @@ export default function SettingsScreen() {
 
           <Text style={styles.version}>DFX Wallet v0.1.0</Text>
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </>
   );
 }
@@ -264,7 +268,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 60,
+    paddingTop: 8,
     paddingBottom: 12,
     backgroundColor: DfxColors.background,
   },
