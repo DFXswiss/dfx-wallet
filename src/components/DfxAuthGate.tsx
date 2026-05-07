@@ -24,16 +24,13 @@ type Props = {
  * - `login`         — the JWT is missing or expired. Re-sign with the active address.
  * - `registration`  — there's no DFX account for this address yet. Sign + auto-create.
  * - `kyc`           — the requested action needs a higher KYC level. Route to /kyc.
- *
- * Always offers a "Wallet wechseln" link to /(auth)/wallets so the user can
- * pick a different DFX-linked address or attach a new one when the active
- * address belongs to the wrong DFX account.
  */
 export function DfxAuthGate({ gate, onClose, onAuthenticated }: Props) {
   const { t } = useTranslation();
   const router = useRouter();
-  const { authenticate } = useDfxAuth();
+  const { authenticate, error: authError } = useDfxAuth();
   const [busy, setBusy] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   if (!gate) return null;
 
@@ -47,23 +44,24 @@ export function DfxAuthGate({ gate, onClose, onAuthenticated }: Props) {
       router.push('/(auth)/kyc');
       return;
     }
-    // login + registration both run the sign-in flow.
     setBusy(true);
+    setLocalError(null);
     try {
       const token = await authenticate();
       if (token) {
         onClose();
         onAuthenticated?.();
+      } else {
+        setLocalError(t('dfxAuthGate.signInFailed'));
       }
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : t('dfxAuthGate.signInFailed'));
     } finally {
       setBusy(false);
     }
   };
 
-  const handleSwitchWallet = () => {
-    onClose();
-    router.push('/(auth)/wallets');
-  };
+  const errorText = localError ?? authError;
 
   return (
     <Modal transparent visible animationType="fade" onRequestClose={onClose} testID="dfx-auth-gate">
@@ -74,7 +72,7 @@ export function DfxAuthGate({ gate, onClose, onAuthenticated }: Props) {
           </View>
           <Text style={styles.title}>{t(titleKey)}</Text>
           <Text style={styles.body}>{t(bodyKey)}</Text>
-          {gate.message ? <Text style={styles.detail}>{gate.message}</Text> : null}
+          {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
 
           <View style={styles.actions}>
             <PrimaryButton
@@ -83,9 +81,6 @@ export function DfxAuthGate({ gate, onClose, onAuthenticated }: Props) {
               loading={busy}
               testID="dfx-auth-gate-primary"
             />
-            <Pressable onPress={handleSwitchWallet} hitSlop={8} testID="dfx-auth-gate-switch">
-              <Text style={styles.linkButton}>{t('dfxAuthGate.switchWallet')}</Text>
-            </Pressable>
             <Pressable onPress={onClose} hitSlop={8} testID="dfx-auth-gate-cancel">
               <Text style={styles.cancelButton}>{t('common.cancel')}</Text>
             </Pressable>
@@ -133,23 +128,15 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     paddingHorizontal: 4,
   },
-  detail: {
+  errorText: {
     ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
+    color: DfxColors.error,
     textAlign: 'center',
-    fontStyle: 'italic',
   },
   actions: {
     width: '100%',
     gap: 10,
     marginTop: 8,
-  },
-  linkButton: {
-    ...Typography.bodyMedium,
-    color: DfxColors.primary,
-    textAlign: 'center',
-    fontWeight: '600',
-    paddingVertical: 8,
   },
   cancelButton: {
     ...Typography.bodyMedium,

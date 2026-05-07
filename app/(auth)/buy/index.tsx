@@ -180,6 +180,7 @@ export default function BuyScreen() {
     createPaymentInfo,
     confirmPayment,
     dismissAuthGate,
+    retryLast,
   } = useBuyFlow();
   const [step, setStep] = useState<BuyStep>('amount');
   const [selectedAsset, setSelectedAsset] = useState<BuyAsset | null>(null);
@@ -559,7 +560,13 @@ export default function BuyScreen() {
           </ScrollView>
         </SafeAreaView>
       </ImageBackground>
-      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} />
+      <DfxAuthGate
+        gate={authGate}
+        onClose={dismissAuthGate}
+        onAuthenticated={() => {
+          void retryLast();
+        }}
+      />
     </>
   );
 }

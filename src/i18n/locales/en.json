@@ -69,7 +69,7 @@
       "cta": "Create DFX account",
       "title": "Create account"
     },
-    "switchWallet": "Connect another wallet"
+    "signInFailed": "Sign-in failed. Please try again."
   },
   "email": {
     "currentLabel": "Current email",

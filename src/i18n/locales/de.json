@@ -69,7 +69,7 @@
       "cta": "DFX-Konto erstellen",
       "title": "Konto erstellen"
     },
-    "switchWallet": "Andere Wallet verbinden"
+    "signInFailed": "Anmeldung fehlgeschlagen. Bitte erneut versuchen."
   },
   "email": {
     "currentLabel": "Aktuelle E-Mail",

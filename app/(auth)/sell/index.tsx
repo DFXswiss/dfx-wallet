@@ -168,8 +168,16 @@ export default function SellScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { enabledChains } = useEnabledChains();
-  const { paymentInfo, isLoading, error, authGate, getQuote, createPaymentInfo, dismissAuthGate } =
-    useSellFlow();
+  const {
+    paymentInfo,
+    isLoading,
+    error,
+    authGate,
+    getQuote,
+    createPaymentInfo,
+    dismissAuthGate,
+    retryLast,
+  } = useSellFlow();
   const [step, setStep] = useState<SellStep>('amount');
   const [selectedAsset, setSelectedAsset] = useState<SellAsset | null>(null);
   const [selectedChainIndex, setSelectedChainIndex] = useState(0);
@@ -557,7 +565,13 @@ export default function SellScreen() {
           </ScrollView>
         </SafeAreaView>
       </ImageBackground>
-      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} />
+      <DfxAuthGate
+        gate={authGate}
+        onClose={dismissAuthGate}
+        onAuthenticated={() => {
+          void retryLast();
+        }}
+      />
     </>
   );
 }
