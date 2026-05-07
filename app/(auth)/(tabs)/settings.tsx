@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Alert, FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
@@ -191,13 +192,9 @@ export default function SettingsScreen() {
           <Text style={styles.headerTitle}>{t('settings.title')}</Text>
           <View style={styles.backBtn} />
         </View>
-        <FlatList
-          data={sections}
-          keyExtractor={(item) => item.title}
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          renderItem={({ item: section }) => (
-            <View style={styles.section}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          {sections.map((section) => (
+            <View key={section.title} style={styles.section}>
               <Text style={styles.sectionTitle}>{section.title}</Text>
               <View style={styles.sectionCard}>
                 {section.rows.map((row, index) => (
@@ -213,20 +210,18 @@ export default function SettingsScreen() {
                 ))}
               </View>
             </View>
-          )}
-          ListFooterComponent={
-            <>
-              <Pressable
-                testID="settings-delete-wallet"
-                style={({ pressed }) => [styles.dangerCard, pressed && styles.pressed]}
-                onPress={handleDeleteWallet}
-              >
-                <Text style={styles.dangerLabel}>{t('settings.deleteWallet')}</Text>
-              </Pressable>
-              <Text style={styles.version}>DFX Wallet v0.1.0</Text>
-            </>
-          }
-        />
+          ))}
+
+          <Pressable
+            testID="settings-delete-wallet"
+            style={({ pressed }) => [styles.dangerCard, pressed && styles.pressed]}
+            onPress={handleDeleteWallet}
+          >
+            <Text style={styles.dangerLabel}>{t('settings.deleteWallet')}</Text>
+          </Pressable>
+
+          <Text style={styles.version}>DFX Wallet v0.1.0</Text>
+        </ScrollView>
       </View>
     </>
   );
