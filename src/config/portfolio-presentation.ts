@@ -30,7 +30,7 @@ export const CHAIN_LABELS = new Map<string, string>([
   ['arbitrum', 'Arbitrum'],
   ['polygon', 'Polygon'],
   ['base', 'Base'],
-  ['spark', 'Lightning'],
+  ['spark', 'Bitcoin'],
   ['plasma', 'Plasma'],
   ['sepolia', 'Sepolia'],
 ]);

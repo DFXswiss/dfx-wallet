@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { DashboardHeader, Icon, MenuModal, ShortcutAction } from '@/components';
-import { useDfxAuth } from '@/hooks';
+import { useDfxAuth, useTotalPortfolioFiat } from '@/hooks';
 import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
@@ -41,6 +41,7 @@ export default function DashboardScreen() {
   const { totalBalanceFiat, selectedCurrency } = useWalletStore();
   const { isDfxAuthenticated } = useAuthStore();
   const { authenticate, isAuthenticating } = useDfxAuth();
+  useTotalPortfolioFiat();
 
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);

@@ -346,6 +346,43 @@ const ASSET_SPECS: AssetSpec[] = [
 const buildId = (spec: Pick<AssetSpec, 'network' | 'isNative' | 'address'>): string =>
   spec.isNative ? `${spec.network}-native` : `${spec.network}-${spec.address?.toLowerCase()}`;
 
+// Mock balances (display units) for testing. ~990K CHF portfolio.
+const MOCK_BALANCES_DISPLAY = new Map<string, number>([
+  ['spark|BTC', 0.5],
+  ['ethereum|WBTC', 0.3],
+  ['ethereum|USDC', 50_000],
+  ['arbitrum|USDC', 40_000],
+  ['base|USDC', 30_000],
+  ['ethereum|USDT', 60_000],
+  ['polygon|USDT', 40_000],
+  ['ethereum|ZCHF', 200_000],
+  ['arbitrum|ZCHF', 150_000],
+  ['polygon|ZCHF', 50_000],
+  ['base|ZCHF', 40_000],
+  ['ethereum|dEURO', 100_000],
+  ['arbitrum|dEURO', 80_000],
+  ['base|dEURO', 60_000],
+  ['polygon|dEURO', 80_000],
+]);
+
+export const getMockRawBalance = (
+  network: string,
+  symbol: string,
+  decimals: number,
+): string | undefined => {
+  const display = MOCK_BALANCES_DISPLAY.get(`${network}|${symbol}`);
+  if (display === undefined) return undefined;
+  const parts = display.toString().split('.');
+  const wholePart = parts[0] ?? '0';
+  const fracPart = parts[1] ?? '';
+  const whole = BigInt(wholePart) * 10n ** BigInt(decimals);
+  const fracDigits = fracPart.length;
+  const frac = fracDigits > 0
+    ? BigInt(fracPart) * 10n ** BigInt(decimals - fracDigits)
+    : 0n;
+  return (whole + frac).toString();
+};
+
 /** Always-on networks that the user cannot disable. */
 export const ALWAYS_ON_CHAINS: ChainId[] = ['ethereum', 'spark'];
 

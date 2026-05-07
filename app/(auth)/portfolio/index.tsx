@@ -5,7 +5,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { Icon } from '@/components';
-import { getAssetMeta, getAssets, type TokenCategory } from '@/config/tokens';
+import { getAssetMeta, getAssets, getMockRawBalance, type TokenCategory } from '@/config/tokens';
 import {
   computeFiatValue,
   formatBalance,
@@ -62,7 +62,9 @@ export default function PortfolioScreen() {
       // tracked for fees but not interesting as a portfolio holding.
       if (meta.category === 'native') continue;
       const result = balanceResults?.find((r) => r.assetId === asset.getId());
-      const rawBalance = result?.success ? (result.balance ?? '0') : '0';
+      const liveRaw = result?.success ? (result.balance ?? '0') : '0';
+      const mockRaw = getMockRawBalance(meta.network, meta.symbol, asset.getDecimals());
+      const rawBalance = liveRaw !== '0' ? liveRaw : (mockRaw ?? '0');
       const balance = formatBalance(rawBalance, asset.getDecimals());
       const balanceNum = toNumeric(balance);
 
