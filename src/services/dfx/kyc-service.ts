@@ -8,24 +8,7 @@ export class DfxKycService {
   }
 
   async getKycStatus(): Promise<KycLevelDto> {
-    // Local-only override: force kyc level 51 + bumped trading limit so
-    // the Buy/Sell flows aren't gated by KYC during dev. Falls back to a
-    // synthesized response if the live API is unreachable.
-    try {
-      const live = await this.kycGet<KycLevelDto>('/v2/kyc');
-      return {
-        ...live,
-        kycLevel: 51,
-        tradingLimit: { limit: 1_000_000, period: 'Day' },
-      };
-    } catch {
-      return {
-        kycLevel: 51,
-        tradingLimit: { limit: 1_000_000, period: 'Day' },
-        language: { id: 1, name: 'English', symbol: 'EN' },
-        kycSteps: [],
-      };
-    }
+    return this.kycGet<KycLevelDto>('/v2/kyc');
   }
 
   async continueKyc(): Promise<KycSessionDto> {

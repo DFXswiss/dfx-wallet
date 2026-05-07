@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import type { ChainId } from '@/config/chains';
 import { computeFiatValue, formatBalance, toNumeric } from '@/config/portfolio-presentation';
-import { getAssetMeta, getAssets, getMockRawBalance, WDK_SUPPORTED_CHAINS } from '@/config/tokens';
+import { getAssetMeta, getAssets, WDK_SUPPORTED_CHAINS } from '@/config/tokens';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { useEnabledChains } from './useEnabledChains';
 import { useWalletStore } from '@/store';
@@ -44,9 +44,7 @@ export function useTotalPortfolioFiat() {
       const meta = getAssetMeta(asset.getId());
       if (!meta || meta.category === 'native') continue;
       const result = balanceResults?.find((r) => r.assetId === asset.getId());
-      const liveRaw = result?.success ? (result.balance ?? '0') : '0';
-      const mockRaw = getMockRawBalance(meta.network, meta.symbol, asset.getDecimals());
-      const rawBalance = liveRaw !== '0' ? liveRaw : (mockRaw ?? '0');
+      const rawBalance = result?.success ? (result.balance ?? '0') : '0';
       const balanceNum = toNumeric(formatBalance(rawBalance, asset.getDecimals()));
       sum += computeFiatValue(balanceNum, meta.canonicalSymbol, fiatCurrency, pricingReady);
     }

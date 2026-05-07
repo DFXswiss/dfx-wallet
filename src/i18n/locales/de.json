@@ -115,9 +115,7 @@
     "comingSoonMessage": "Zahlungen sind noch nicht verfügbar. Gescannt: {{data}}",
     "comingSoonTitle": "Coming soon",
     "grantPermission": "Zugriff erlauben",
-    "lightning": "Lightning",
-    "lightningComingSoon": "Lightning-Support kommt bald.",
-    "scanToPay": "Scan to pay"
+    "scanToPay": "QR-Code scannen"
   },
   "pin": {
     "confirm": "PIN bestätigen",

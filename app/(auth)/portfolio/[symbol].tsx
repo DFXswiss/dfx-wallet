@@ -10,7 +10,6 @@ import {
   getAssetsForCanonicalSymbol,
   getAssets,
   getCanonicalNameForSymbol,
-  getMockRawBalance,
   WDK_SUPPORTED_CHAINS,
 } from '@/config/tokens';
 import {
@@ -103,9 +102,7 @@ export default function AssetDetailScreen() {
 
     const list = holdingMetas.map((meta) => {
       const result = balanceResults?.find((r) => r.assetId === meta.id);
-      const liveRaw = result?.success ? (result.balance ?? '0') : '0';
-      const mockRaw = getMockRawBalance(meta.network, meta.symbol, meta.decimals);
-      const rawBalance = liveRaw !== '0' ? liveRaw : (mockRaw ?? '0');
+      const rawBalance = result?.success ? (result.balance ?? '0') : '0';
       const balanceFormatted = formatBalance(rawBalance, meta.decimals);
       const balanceNum = toNumeric(balanceFormatted);
 

@@ -89,18 +89,6 @@ export default function PayScreen() {
           </View>
 
           <View style={{ flex: 1 }} />
-
-          <View style={styles.lightningWrapper}>
-            <Pressable
-              style={styles.lightningButton}
-              onPress={() => Alert.alert(t('pay.lightningComingSoon'))}
-              accessibilityRole="button"
-              accessibilityLabel={t('pay.lightning')}
-              testID="pay-lightning-button"
-            >
-              <Icon name="lightning" size={28} color={DfxColors.primary} />
-            </Pressable>
-          </View>
         </SafeAreaView>
 
         <View style={[styles.cutout, cutoutStyle]}>
@@ -159,23 +147,6 @@ const styles = StyleSheet.create({
   logo: {
     height: 30,
     width: 110,
-  },
-  lightningWrapper: {
-    alignItems: 'center',
-    paddingBottom: 32,
-  },
-  lightningButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: DfxColors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#0B1426',
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
   },
   permissionFallback: {
     alignItems: 'center',

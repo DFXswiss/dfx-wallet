@@ -174,13 +174,8 @@ export default function TransactionHistoryScreen() {
 // Mock addresses for chains not yet supported by the WDK bundle (e.g. BIP-86
 // Taproot, which the beta wdk-wallet-btc package doesn't expose). Replace
 // once WDK can derive these natively.
-// eslint-disable-next-line no-secrets/no-secrets -- placeholder demo address, not a real key
-const MOCK_TAPROOT_ADDRESS = 'bc1pq8w7n9q3v2x6y5z4a3b2c1d0e9f8g7h6j5k4l3m2n1o0p9q8r7s6t5u4v3w2';
-const MOCK_ADDRESSES = new Map<string, string>([['bitcoin-taproot', MOCK_TAPROOT_ADDRESS]]);
-
 function WalletAddressBar({ network }: { network: string }) {
-  const { address: liveAddress } = useAccount({ network, accountIndex: 0 });
-  const address = liveAddress ?? MOCK_ADDRESSES.get(network) ?? '';
+  const { address } = useAccount({ network, accountIndex: 0 });
   const [copied, setCopied] = useState(false);
 
   if (!address) return null;
