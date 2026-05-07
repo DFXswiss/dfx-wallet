@@ -53,6 +53,24 @@
     "totalBalance": "Total Wallet Balance",
     "transactions": "Transactions"
   },
+  "dfxAuthGate": {
+    "kyc": {
+      "body": "This action requires a higher KYC level. Finish the verification to continue.",
+      "cta": "Continue KYC",
+      "title": "KYC verification needed"
+    },
+    "login": {
+      "body": "Your DFX session has expired. Confirm briefly with your wallet to continue.",
+      "cta": "Sign in to DFX",
+      "title": "DFX sign-in required"
+    },
+    "registration": {
+      "body": "This address has no DFX account yet. Confirm with your wallet to create one.",
+      "cta": "Create DFX account",
+      "title": "Create account"
+    },
+    "switchWallet": "Connect another wallet"
+  },
   "email": {
     "currentLabel": "Current email",
     "newLabel": "New email",

@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import { AppHeader, Icon, PrimaryButton } from '@/components';
+import { AppHeader, DfxAuthGate, Icon, PrimaryButton } from '@/components';
 import type { ChainId } from '@/config/chains';
 import {
   formatBalance,
@@ -168,7 +168,8 @@ export default function SellScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { enabledChains } = useEnabledChains();
-  const { paymentInfo, isLoading, error, getQuote, createPaymentInfo } = useSellFlow();
+  const { paymentInfo, isLoading, error, authGate, getQuote, createPaymentInfo, dismissAuthGate } =
+    useSellFlow();
   const [step, setStep] = useState<SellStep>('amount');
   const [selectedAsset, setSelectedAsset] = useState<SellAsset | null>(null);
   const [selectedChainIndex, setSelectedChainIndex] = useState(0);
@@ -556,6 +557,7 @@ export default function SellScreen() {
           </ScrollView>
         </SafeAreaView>
       </ImageBackground>
+      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} />
     </>
   );
 }

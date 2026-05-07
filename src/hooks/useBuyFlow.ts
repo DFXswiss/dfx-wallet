@@ -1,11 +1,13 @@
 import { useCallback, useState } from 'react';
-import { dfxPaymentService } from '@/services/dfx';
+import { dfxPaymentService, interpretDfxAuthError } from '@/services/dfx';
+import type { DfxAuthGateState } from '@/services/dfx';
 import type { BuyPaymentInfoDto } from '@/services/dfx/dto';
 
 type BuyState = {
   isLoading: boolean;
   paymentInfo: BuyPaymentInfoDto | null;
   error: string | null;
+  authGate: DfxAuthGateState | null;
 };
 
 /**
@@ -22,18 +24,28 @@ export function useBuyFlow() {
     isLoading: false,
     paymentInfo: null,
     error: null,
+    authGate: null,
   });
+
+  const handleError = (err: unknown, fallback: string) => {
+    const gate = interpretDfxAuthError(err);
+    if (gate) {
+      setState((s) => ({ ...s, isLoading: false, authGate: gate, error: null }));
+      return;
+    }
+    const msg = err instanceof Error ? err.message : fallback;
+    setState((s) => ({ ...s, isLoading: false, error: msg }));
+  };
 
   const getQuote = useCallback(
     async (params: { amount: number; currency: string; asset: string; blockchain: string }) => {
-      setState((s) => ({ ...s, isLoading: true, error: null }));
+      setState((s) => ({ ...s, isLoading: true, error: null, authGate: null }));
       try {
         const info = await dfxPaymentService.getBuyQuote(params);
-        setState({ isLoading: false, paymentInfo: info, error: null });
+        setState({ isLoading: false, paymentInfo: info, error: null, authGate: null });
         return info;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Quote failed';
-        setState((s) => ({ ...s, isLoading: false, error: msg }));
+        handleError(err, 'Quote failed');
         return null;
       }
     },
@@ -42,14 +54,13 @@ export function useBuyFlow() {
 
   const createPaymentInfo = useCallback(
     async (params: { amount: number; currency: string; asset: string; blockchain: string }) => {
-      setState((s) => ({ ...s, isLoading: true, error: null }));
+      setState((s) => ({ ...s, isLoading: true, error: null, authGate: null }));
       try {
         const info = await dfxPaymentService.createBuyPaymentInfo(params);
-        setState({ isLoading: false, paymentInfo: info, error: null });
+        setState({ isLoading: false, paymentInfo: info, error: null, authGate: null });
         return info;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Failed to create payment info';
-        setState((s) => ({ ...s, isLoading: false, error: msg }));
+        handleError(err, 'Failed to create payment info');
         return null;
       }
     },
@@ -57,20 +68,23 @@ export function useBuyFlow() {
   );
 
   const confirmPayment = useCallback(async (id: number) => {
-    setState((s) => ({ ...s, isLoading: true, error: null }));
+    setState((s) => ({ ...s, isLoading: true, error: null, authGate: null }));
     try {
       await dfxPaymentService.confirmBuy(id);
       setState((s) => ({ ...s, isLoading: false }));
       return true;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Confirmation failed';
-      setState((s) => ({ ...s, isLoading: false, error: msg }));
+      handleError(err, 'Confirmation failed');
       return false;
     }
   }, []);
 
+  const dismissAuthGate = useCallback(() => {
+    setState((s) => ({ ...s, authGate: null }));
+  }, []);
+
   const reset = useCallback(() => {
-    setState({ isLoading: false, paymentInfo: null, error: null });
+    setState({ isLoading: false, paymentInfo: null, error: null, authGate: null });
   }, []);
 
   return {
@@ -78,6 +92,7 @@ export function useBuyFlow() {
     getQuote,
     createPaymentInfo,
     confirmPayment,
+    dismissAuthGate,
     reset,
   };
 }

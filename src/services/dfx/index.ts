@@ -1,5 +1,7 @@
 export { dfxApi, DfxApiError } from './api';
 export type { ApiError } from './api';
+export { interpretDfxAuthError } from './auth-gate';
+export type { DfxAuthGateKind, DfxAuthGateState } from './auth-gate';
 export { dfxAssetService } from './asset-service';
 export type { DfxAsset } from './asset-service';
 export { dfxAuthService } from './auth-service';

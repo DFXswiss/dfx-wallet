@@ -53,6 +53,24 @@
     "totalBalance": "Gesamtguthaben",
     "transactions": "Transaktionen"
   },
+  "dfxAuthGate": {
+    "kyc": {
+      "body": "Für diese Aktion brauchst du eine höhere KYC-Stufe. Beende die Verifizierung, um fortzufahren.",
+      "cta": "KYC fortsetzen",
+      "title": "KYC-Verifizierung nötig"
+    },
+    "login": {
+      "body": "Dein DFX-Login ist abgelaufen. Bestätige kurz mit deiner Wallet, um weiterzumachen.",
+      "cta": "Bei DFX anmelden",
+      "title": "DFX-Login nötig"
+    },
+    "registration": {
+      "body": "Diese Adresse hat noch kein DFX-Konto. Bestätige mit deiner Wallet, um eines zu erstellen.",
+      "cta": "DFX-Konto erstellen",
+      "title": "Konto erstellen"
+    },
+    "switchWallet": "Andere Wallet verbinden"
+  },
   "email": {
     "currentLabel": "Aktuelle E-Mail",
     "newLabel": "Neue E-Mail",

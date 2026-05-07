@@ -13,7 +13,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { AppHeader, Icon, PrimaryButton } from '@/components';
+import { AppHeader, DfxAuthGate, Icon, PrimaryButton } from '@/components';
 import type { ChainId } from '@/config/chains';
 import {
   formatFiat as fmtFiat,
@@ -171,8 +171,16 @@ const BUY_ASSETS: BuyAsset[] = [
 export default function BuyScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { paymentInfo, isLoading, error, getQuote, createPaymentInfo, confirmPayment } =
-    useBuyFlow();
+  const {
+    paymentInfo,
+    isLoading,
+    error,
+    authGate,
+    getQuote,
+    createPaymentInfo,
+    confirmPayment,
+    dismissAuthGate,
+  } = useBuyFlow();
   const [step, setStep] = useState<BuyStep>('amount');
   const [selectedAsset, setSelectedAsset] = useState<BuyAsset | null>(null);
   const [selectedChainIndex, setSelectedChainIndex] = useState(0);
@@ -551,6 +559,7 @@ export default function BuyScreen() {
           </ScrollView>
         </SafeAreaView>
       </ImageBackground>
+      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} />
     </>
   );
 }
