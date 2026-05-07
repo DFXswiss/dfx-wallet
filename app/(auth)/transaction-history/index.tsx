@@ -26,8 +26,8 @@ type FilterType = 'all' | 'in' | 'out' | 'pay';
 // - "out" = Sell (DFX off-ramp) + Send (on-chain) + Swap (in-wallet conversion)
 // - "pay" = Pay (merchant payment)
 const FILTER_TYPES: Record<Exclude<FilterType, 'all'>, readonly TransactionDto['type'][]> = {
-  in: ['Buy'],
-  out: ['Sell', 'Swap'],
+  in: ['Buy', 'Receive'],
+  out: ['Sell', 'Send', 'Swap'],
   pay: ['Pay'],
 };
 
