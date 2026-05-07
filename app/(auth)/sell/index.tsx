@@ -59,6 +59,36 @@ const SELL_ASSETS: SellAsset[] = [
         blockchain: 'Bitcoin',
         tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
       },
+      {
+        chain: 'spark',
+        label: 'Lightning',
+        blockchain: 'Lightning',
+        tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
+      },
+      {
+        chain: 'ethereum',
+        label: 'Ethereum',
+        blockchain: 'Ethereum',
+        tokens: [{ assetSymbol: 'WBTC', label: 'WBTC' }],
+      },
+      {
+        chain: 'arbitrum',
+        label: 'Arbitrum',
+        blockchain: 'Arbitrum',
+        tokens: [{ assetSymbol: 'WBTC', label: 'WBTC' }],
+      },
+      {
+        chain: 'polygon',
+        label: 'Polygon',
+        blockchain: 'Polygon',
+        tokens: [{ assetSymbol: 'WBTC', label: 'WBTC' }],
+      },
+      {
+        chain: 'base',
+        label: 'Base',
+        blockchain: 'Base',
+        tokens: [{ assetSymbol: 'cbBTC', label: 'cbBTC' }],
+      },
     ],
   },
   {
