@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Icon, MenuModal } from '@/components';
+import { Icon } from '@/components';
 import { DfxColors, Typography } from '@/theme';
 
 const CUTOUT_PCT = {
@@ -29,7 +29,6 @@ export default function PayScreen() {
   const { width, height } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!permission?.granted) void requestPermission();
@@ -78,11 +77,11 @@ export default function PayScreen() {
             />
 
             <Pressable
-              onPress={() => setMenuOpen(true)}
+              onPress={() => router.push('/settings')}
               hitSlop={12}
               style={[styles.headerSlot, styles.headerSlotRight]}
               accessibilityRole="button"
-              accessibilityLabel="Menu"
+              accessibilityLabel={t('settings.title')}
               testID="pay-menu-button"
             >
               <Icon name="menu" size={26} color={DfxColors.primary} strokeWidth={2.5} />
@@ -121,8 +120,6 @@ export default function PayScreen() {
             </View>
           )}
         </View>
-
-        <MenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
       </ImageBackground>
     </>
   );

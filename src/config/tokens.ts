@@ -23,7 +23,18 @@ const ASSET_SPECS: AssetSpec[] = [
     symbol: 'BTC',
     canonicalSymbol: 'BTC',
     canonicalName: 'Bitcoin',
-    name: 'Bitcoin (Mainnet)',
+    name: 'Bitcoin (SegWit)',
+    decimals: 8,
+    isNative: true,
+    category: 'btc',
+    defaultEnabled: true,
+  },
+  {
+    network: 'bitcoin-taproot',
+    symbol: 'BTC',
+    canonicalSymbol: 'BTC',
+    canonicalName: 'Bitcoin',
+    name: 'Bitcoin (Taproot)',
     decimals: 8,
     isNative: true,
     category: 'btc',
@@ -105,7 +116,7 @@ const ASSET_SPECS: AssetSpec[] = [
     symbol: 'USDT',
     canonicalSymbol: 'USD',
     canonicalName: 'Dollar',
-    name: 'Tether USD',
+    name: 'USDT',
     decimals: 6,
     isNative: false,
     category: 'stablecoin',
@@ -117,7 +128,7 @@ const ASSET_SPECS: AssetSpec[] = [
     symbol: 'USDC',
     canonicalSymbol: 'USD',
     canonicalName: 'Dollar',
-    name: 'USD Coin',
+    name: 'USDC',
     decimals: 6,
     isNative: false,
     category: 'stablecoin',
@@ -129,7 +140,7 @@ const ASSET_SPECS: AssetSpec[] = [
     symbol: 'USDT',
     canonicalSymbol: 'USD',
     canonicalName: 'Dollar',
-    name: 'Tether USD',
+    name: 'USDT',
     decimals: 6,
     isNative: false,
     category: 'stablecoin',
@@ -141,7 +152,7 @@ const ASSET_SPECS: AssetSpec[] = [
     symbol: 'USDC',
     canonicalSymbol: 'USD',
     canonicalName: 'Dollar',
-    name: 'USD Coin',
+    name: 'USDC',
     decimals: 6,
     isNative: false,
     category: 'stablecoin',
@@ -152,7 +163,7 @@ const ASSET_SPECS: AssetSpec[] = [
     symbol: 'USDT',
     canonicalSymbol: 'USD',
     canonicalName: 'Dollar',
-    name: 'Tether USD',
+    name: 'USDT',
     decimals: 6,
     isNative: false,
     category: 'stablecoin',
@@ -164,7 +175,7 @@ const ASSET_SPECS: AssetSpec[] = [
     symbol: 'USDC',
     canonicalSymbol: 'USD',
     canonicalName: 'Dollar',
-    name: 'USD Coin',
+    name: 'USDC',
     decimals: 6,
     isNative: false,
     category: 'stablecoin',
@@ -175,7 +186,7 @@ const ASSET_SPECS: AssetSpec[] = [
     symbol: 'USDT',
     canonicalSymbol: 'USD',
     canonicalName: 'Dollar',
-    name: 'Tether USD',
+    name: 'USDT',
     decimals: 6,
     isNative: false,
     category: 'stablecoin',
@@ -187,7 +198,7 @@ const ASSET_SPECS: AssetSpec[] = [
     symbol: 'USDC',
     canonicalSymbol: 'USD',
     canonicalName: 'Dollar',
-    name: 'USD Coin',
+    name: 'USDC',
     decimals: 6,
     isNative: false,
     category: 'stablecoin',
@@ -346,7 +357,7 @@ const ASSET_SPECS: AssetSpec[] = [
     symbol: 'USDT',
     canonicalSymbol: 'USD',
     canonicalName: 'Dollar',
-    name: 'Tether USD',
+    name: 'USDT',
     decimals: 6,
     isNative: false,
     category: 'stablecoin',
@@ -381,14 +392,15 @@ export const getMockRawBalance = (
 };
 
 /** Always-on networks shown to the user as non-toggleable in the manage UI. */
-export const ALWAYS_ON_CHAINS: ChainId[] = ['ethereum'];
+export const ALWAYS_ON_CHAINS: ChainId[] = ['ethereum', 'bitcoin'];
 
 /**
- * BTC-side networks (mainnet + Lightning) are always implicitly enabled and
- * never appear in the manage UI — Bitcoin is a first-class asset of this
- * wallet and we never want a user to accidentally hide it.
+ * Networks that are always implicitly enabled but never appear in the
+ * manage UI. Lightning + Taproot ride along with Bitcoin as transport /
+ * address-type variants rather than user-facing chain choices — exposing
+ * them as separate rows in the manage UI is noise.
  */
-export const IMPLICIT_ENABLED_CHAINS: ChainId[] = ['spark', 'bitcoin'];
+export const IMPLICIT_ENABLED_CHAINS: ChainId[] = ['spark', 'bitcoin-taproot'];
 
 // Chains the WDK worklet bundle currently knows about. Anything outside this
 // set is shown in the portfolio but skipped when querying live balances so

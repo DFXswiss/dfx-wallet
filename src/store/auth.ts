@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { hashPin, verifyPin as verifyPinHash } from '@/services/pin';
 import { authenticateWithBiometric, isBiometricAvailable } from '@/services/biometric';
+import { dfxApi } from '@/services/dfx';
 import { secureStorage, StorageKeys } from '@/services/storage';
 
 type AuthState = {
@@ -39,6 +40,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       secureStorage.get(StorageKeys.DFX_AUTH_TOKEN),
       secureStorage.get(BIOMETRIC_KEY),
     ]);
+
+    // Re-arm dfxApi with the persisted token so authenticated requests work
+    // after a cold start without making the user re-sign the auth challenge.
+    if (dfxToken) {
+      dfxApi.setAuthToken(dfxToken);
+    } else {
+      dfxApi.clearAuthToken();
+    }
 
     set({
       pinHash,

@@ -170,6 +170,7 @@
     "feeNetwork": "Network fee",
     "feeTotal": "Total fee",
     "howMuch": "How much do you want to sell?",
+    "noBalance": "No holdings to sell — top up your wallet first.",
     "payoutTo": "Payout to",
     "selectAsset": "What do you want to sell?",
     "summary": "Quote",

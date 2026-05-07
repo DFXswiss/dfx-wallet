@@ -32,11 +32,27 @@ type Holding = {
   id: string;
   network: string;
   chainLabel: string;
+  // Short variant label for the holding row's secondary line. For BTC the
+  // canonical name is always "Bitcoin", so the row leads with "Bitcoin" on
+  // top and just the variant ("SegWit" / "Taproot" / "Lightning" / chain
+  // name for wrapped variants) below.
+  variantLabel: string;
+  canonicalName: string;
   symbol: string;
   name: string;
   balanceNum: number;
   balanceFormatted: string;
   fiatValue: number;
+};
+
+const BTC_VARIANT_LABEL: Record<string, string> = {
+  bitcoin: 'SegWit',
+  'bitcoin-taproot': 'Taproot',
+  spark: 'Lightning',
+  ethereum: 'Ethereum',
+  arbitrum: 'Arbitrum',
+  polygon: 'Polygon',
+  base: 'Base',
 };
 
 export default function AssetDetailScreen() {
@@ -96,10 +112,19 @@ export default function AssetDetailScreen() {
 
       const fiatValue = computeFiatValue(balanceNum, canonicalSymbol, fiatCurrency, pricingReady);
 
+      const chainLabel = CHAIN_LABELS.get(meta.network) ?? meta.network;
+      const isBtc = meta.canonicalSymbol === 'BTC';
+      // For BTC the canonical name (always "Bitcoin") becomes the primary
+      // label, so the secondary line shows just the variant. For other
+      // canonical groups the chain label is meaningful enough on its own.
+      // eslint-disable-next-line security/detect-object-injection -- meta.network is a ChainId literal union
+      const variantLabel = isBtc ? (BTC_VARIANT_LABEL[meta.network] ?? chainLabel) : chainLabel;
       return {
         id: meta.id,
         network: meta.network,
-        chainLabel: CHAIN_LABELS.get(meta.network) ?? meta.network,
+        chainLabel,
+        variantLabel,
+        canonicalName: meta.canonicalName,
         symbol: meta.symbol,
         name: meta.name,
         balanceNum,
@@ -185,8 +210,8 @@ export default function AssetDetailScreen() {
                   }
                 >
                   <View style={styles.holdingInfo}>
-                    <Text style={styles.holdingChain}>{holding.name}</Text>
-                    <Text style={styles.holdingSymbol}>{holding.chainLabel}</Text>
+                    <Text style={styles.holdingChain}>{holding.canonicalName}</Text>
+                    <Text style={styles.holdingSymbol}>{holding.variantLabel}</Text>
                   </View>
                   <View style={styles.holdingBalance}>
                     <Text style={styles.holdingValue}>

@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useMMKVString } from 'react-native-mmkv';
 import type { ChainId } from '@/config/chains';
-import { DEFAULT_ENABLED_CHAINS, IMPLICIT_ENABLED_CHAINS } from '@/config/tokens';
+import { ALWAYS_ON_CHAINS, DEFAULT_ENABLED_CHAINS, IMPLICIT_ENABLED_CHAINS } from '@/config/tokens';
 
 const STORAGE_KEY = 'portfolio.enabledChains';
 
@@ -22,9 +22,10 @@ export function useEnabledChains(): {
         return DEFAULT_ENABLED_CHAINS;
       }
     })();
-    // BTC-side chains are always implicitly enabled regardless of what the
-    // user selected — Bitcoin must not be accidentally hidden.
-    return Array.from(new Set([...stored, ...IMPLICIT_ENABLED_CHAINS]));
+    // ALWAYS_ON + IMPLICIT chains are merged in unconditionally so a user's
+    // pre-existing stored selection (from before these chains existed) can't
+    // accidentally hide Bitcoin or its companions.
+    return Array.from(new Set([...stored, ...ALWAYS_ON_CHAINS, ...IMPLICIT_ENABLED_CHAINS]));
   }, [raw]);
 
   const setEnabledChains = useCallback(
