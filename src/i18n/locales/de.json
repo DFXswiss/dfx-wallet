@@ -53,6 +53,21 @@
     "totalBalance": "Gesamtguthaben",
     "transactions": "Transaktionen"
   },
+  "email": {
+    "codeHint": "Wir haben einen 6-stelligen Code an {{mail}} geschickt. Gib ihn unten ein, um die Adresse zu bestätigen.",
+    "codeLabel": "Bestätigungscode",
+    "currentLabel": "Aktuelle E-Mail",
+    "newLabel": "Neue E-Mail",
+    "notSet": "Noch nicht gesetzt",
+    "placeholder": "name@example.com",
+    "sendCta": "Bestätigungscode senden",
+    "sendError": "Code konnte nicht gesendet werden. Bitte erneut versuchen.",
+    "successBody": "Deine E-Mail-Adresse {{mail}} ist jetzt mit deinem DFX-Profil verknüpft.",
+    "successTitle": "E-Mail verifiziert",
+    "title": "E-Mail",
+    "verifyCta": "Bestätigen",
+    "verifyError": "Code falsch oder abgelaufen. Bitte erneut versuchen."
+  },
   "hardware": {
     "bitbox": "BitBox02",
     "connect": "Hardware Wallet verbinden",
@@ -296,6 +311,8 @@
     "sectionWalletSecurity": "Wallet & Sicherheit",
     "deleteWalletConfirm": "Deine Wallet wird permanent von diesem Gerät entfernt. Stelle sicher, dass du deine Seed Phrase gesichert hast.",
     "deleteWalletConfirmPasskey": "Deine Wallet wird permanent von diesem Gerät entfernt. Zur Wiederherstellung benötigst du deinen Passkey oder deine exportierte Recovery Phrase. Bitte lösche den Passkey auch aus deinen Geräteeinstellungen.",
+    "dfxWallets": "DFX-Wallets",
+    "email": "E-Mail",
     "hardwareWallet": "Hardware Wallet",
     "language": "Sprache",
     "legalDocuments": "Rechtliches",
@@ -334,5 +351,18 @@
     "txHash": "Tx Hash",
     "venue": "Börse",
     "viewOnExplorer": "Auf Block-Explorer ansehen"
+  },
+  "wallets": {
+    "activeBadge": "Aktiv",
+    "addLabel": "Verfügbar zum Anbinden",
+    "bitcoinLabel": "Bitcoin",
+    "btcAddressUnavailable": "Bitcoin-Adresse nicht verfügbar",
+    "helper": "Eine zusätzliche Wallet anbinden setzt voraus, dass du die Nachricht mit dem privaten Schlüssel der jeweiligen Adresse signierst. Du bleibst danach mit deiner ursprünglichen Adresse eingeloggt.",
+    "intro": "Hier siehst du, welche deiner Wallet-Adressen mit deinem DFX-Profil verknüpft sind. Du kannst weitere Adressen anbinden, damit DFX sie als dasselbe Konto erkennt.",
+    "linkError": "Wallet konnte nicht angebunden werden.",
+    "linkedLabel": "Verknüpfte Adressen",
+    "loadError": "DFX-Profil konnte nicht geladen werden.",
+    "noAddresses": "Noch keine Adressen verknüpft.",
+    "title": "DFX-Wallets"
   }
 }

@@ -5,6 +5,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import { Icon } from '@/components';
+import { dfxUserService } from '@/services/dfx';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
@@ -28,8 +29,20 @@ type SettingsSection = {
 export default function SettingsScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
-  const { reset } = useAuthStore();
+  const { reset, isDfxAuthenticated } = useAuthStore();
   const { selectedCurrency, setSelectedCurrency } = useWalletStore();
+
+  const syncLanguageToDfx = (locale: 'de' | 'en') => {
+    if (!isDfxAuthenticated) return;
+    void dfxUserService
+      .updateUser({ language: { symbol: locale.toUpperCase() } })
+      .catch(() => undefined);
+  };
+
+  const syncCurrencyToDfx = (currency: string) => {
+    if (!isDfxAuthenticated) return;
+    void dfxUserService.updateUser({ currency: { name: currency } }).catch(() => undefined);
+  };
   const CURRENCIES = ['CHF', 'EUR', 'USD'] as const;
   const currentLang = i18n.language?.startsWith('de') ? 'DE' : 'EN';
   const { deleteWallet } = useWalletManager();
@@ -73,6 +86,18 @@ export default function SettingsScreen() {
           testID: 'settings-user-data',
           route: '/(auth)/kyc',
         },
+        {
+          icon: 'user',
+          label: t('settings.email'),
+          testID: 'settings-email',
+          route: '/(auth)/email',
+        },
+        {
+          icon: 'wallet',
+          label: t('settings.dfxWallets'),
+          testID: 'settings-dfx-wallets',
+          route: '/(auth)/wallets',
+        },
       ],
     },
     {
@@ -113,7 +138,9 @@ export default function SettingsScreen() {
           value: currentLang,
           testID: 'settings-language',
           onPress: () => {
-            void i18n.changeLanguage(currentLang === 'DE' ? 'en' : 'de');
+            const next = currentLang === 'DE' ? 'en' : 'de';
+            void i18n.changeLanguage(next);
+            syncLanguageToDfx(next);
           },
         },
         {
@@ -125,6 +152,7 @@ export default function SettingsScreen() {
             const idx = CURRENCIES.indexOf(selectedCurrency as (typeof CURRENCIES)[number]);
             const next = CURRENCIES[(idx + 1) % CURRENCIES.length]!;
             setSelectedCurrency(next);
+            syncCurrencyToDfx(next);
           },
         },
         {

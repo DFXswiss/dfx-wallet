@@ -53,6 +53,21 @@
     "totalBalance": "Total Wallet Balance",
     "transactions": "Transactions"
   },
+  "email": {
+    "codeHint": "We sent a 6-digit code to {{mail}}. Enter it below to confirm the address.",
+    "codeLabel": "Confirmation code",
+    "currentLabel": "Current email",
+    "newLabel": "New email",
+    "notSet": "Not set yet",
+    "placeholder": "name@example.com",
+    "sendCta": "Send confirmation code",
+    "sendError": "Could not send code. Please try again.",
+    "successBody": "Your email address {{mail}} is now linked to your DFX profile.",
+    "successTitle": "Email verified",
+    "title": "Email",
+    "verifyCta": "Confirm",
+    "verifyError": "Code incorrect or expired. Please try again."
+  },
   "hardware": {
     "bitbox": "BitBox02",
     "connect": "Connect Hardware Wallet",
@@ -291,6 +306,8 @@
     "deleteWallet": "Delete Wallet",
     "deleteWalletConfirm": "This will permanently remove your wallet from this device. Make sure you have backed up your seed phrase.",
     "deleteWalletConfirmPasskey": "This will permanently remove your wallet from this device. If you need to restore it, you will need your passkey or your exported recovery phrase. Please also delete the passkey from your device settings.",
+    "dfxWallets": "DFX wallets",
+    "email": "Email",
     "hardwareWallet": "Hardware Wallet",
     "language": "Language",
     "legalDocuments": "Legal Documents",
@@ -334,5 +351,18 @@
     "txHash": "Tx hash",
     "venue": "Venue",
     "viewOnExplorer": "View on block explorer"
+  },
+  "wallets": {
+    "activeBadge": "Active",
+    "addLabel": "Available to link",
+    "bitcoinLabel": "Bitcoin",
+    "btcAddressUnavailable": "Bitcoin address not available",
+    "helper": "Linking an additional wallet requires you to sign a message with the private key of that address. You stay logged in with your original address afterwards.",
+    "intro": "Here you can see which of your wallet addresses are linked to your DFX profile. Link additional addresses so DFX treats them as the same account.",
+    "linkError": "Could not link wallet.",
+    "linkedLabel": "Linked addresses",
+    "loadError": "Could not load DFX profile.",
+    "noAddresses": "No addresses linked yet.",
+    "title": "DFX wallets"
   }
 }
