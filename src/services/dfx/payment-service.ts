@@ -1,5 +1,20 @@
 import { dfxApi } from './api';
+import { dfxAssetService } from './asset-service';
 import type { BankAccountDto, BuyPaymentInfoDto, SellPaymentInfoDto } from './dto';
+
+async function buildAssetRef(symbol: string, blockchain: string) {
+  // DFX /buy/quote expects asset as an object with id (and for EVM also
+  // evmChainId + blockchain). We resolve the id by name+blockchain via /asset.
+  const asset = await dfxAssetService.find(symbol, blockchain);
+  if (!asset) {
+    throw new Error(`Asset ${symbol} on ${blockchain} not found`);
+  }
+  return {
+    id: asset.id,
+    blockchain: asset.blockchain,
+    ...(asset.evmChainId != null ? { evmChainId: asset.evmChainId } : {}),
+  };
+}
 
 export class DfxPaymentService {
   // --- Buy ---
@@ -10,7 +25,11 @@ export class DfxPaymentService {
     asset: string;
     blockchain: string;
   }): Promise<BuyPaymentInfoDto> {
-    return dfxApi.put<BuyPaymentInfoDto>('/buy/quote', params);
+    return dfxApi.put<BuyPaymentInfoDto>('/buy/quote', {
+      amount: params.amount,
+      currency: { name: params.currency },
+      asset: await buildAssetRef(params.asset, params.blockchain),
+    });
   }
 
   async createBuyPaymentInfo(params: {
@@ -19,7 +38,11 @@ export class DfxPaymentService {
     asset: string;
     blockchain: string;
   }): Promise<BuyPaymentInfoDto> {
-    return dfxApi.put<BuyPaymentInfoDto>('/buy/paymentInfos', params);
+    return dfxApi.put<BuyPaymentInfoDto>('/buy/paymentInfos', {
+      amount: params.amount,
+      currency: { name: params.currency },
+      asset: await buildAssetRef(params.asset, params.blockchain),
+    });
   }
 
   async confirmBuy(id: number): Promise<void> {
@@ -34,7 +57,11 @@ export class DfxPaymentService {
     blockchain: string;
     currency: string;
   }): Promise<SellPaymentInfoDto> {
-    return dfxApi.put<SellPaymentInfoDto>('/sell/quote', params);
+    return dfxApi.put<SellPaymentInfoDto>('/sell/quote', {
+      amount: params.amount,
+      currency: { name: params.currency },
+      asset: await buildAssetRef(params.asset, params.blockchain),
+    });
   }
 
   async createSellPaymentInfo(params: {
@@ -44,7 +71,12 @@ export class DfxPaymentService {
     currency: string;
     iban: string;
   }): Promise<SellPaymentInfoDto> {
-    return dfxApi.put<SellPaymentInfoDto>('/sell/paymentInfos', params);
+    return dfxApi.put<SellPaymentInfoDto>('/sell/paymentInfos', {
+      amount: params.amount,
+      currency: { name: params.currency },
+      asset: await buildAssetRef(params.asset, params.blockchain),
+      iban: params.iban,
+    });
   }
 
   async confirmSell(id: number): Promise<void> {

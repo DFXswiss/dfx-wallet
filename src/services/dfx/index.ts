@@ -1,5 +1,7 @@
 export { dfxApi, DfxApiError } from './api';
 export type { ApiError } from './api';
+export { dfxAssetService } from './asset-service';
+export type { DfxAsset } from './asset-service';
 export { dfxAuthService } from './auth-service';
 export { dfxKycService } from './kyc-service';
 export { dfxPaymentService } from './payment-service';
