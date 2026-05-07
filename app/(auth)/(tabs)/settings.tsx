@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import i18n from 'i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import { AppHeader, Icon } from '@/components';
 import { secureStorage, StorageKeys } from '@/services/storage';
@@ -37,7 +38,8 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { reset } = useAuthStore();
-  const { selectedCurrency } = useWalletStore();
+  const { selectedCurrency, setSelectedCurrency } = useWalletStore();
+  const currentLang = i18n.language?.startsWith('de') ? 'DE' : 'EN';
   const { deleteWallet } = useWalletManager();
   const [walletOrigin, setWalletOrigin] = useState<string | null>(null);
 
@@ -109,14 +111,21 @@ export default function SettingsScreen() {
         {
           icon: 'globe',
           label: t('settings.language'),
-          value: 'EN',
+          value: currentLang,
           testID: 'settings-language',
+          onPress: () => {
+            const next = currentLang === 'DE' ? 'en' : 'de';
+            void i18n.changeLanguage(next);
+          },
         },
         {
           icon: 'globe',
           label: t('settings.currencies'),
           value: selectedCurrency,
           testID: 'settings-currencies',
+          onPress: () => {
+            setSelectedCurrency(selectedCurrency === 'CHF' ? 'USD' : 'CHF');
+          },
         },
         {
           icon: 'globe',
@@ -167,6 +176,11 @@ export default function SettingsScreen() {
         resizeMode="cover"
       >
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+          <AppHeader
+            title={t('settings.title')}
+            onBack={() => router.back()}
+            testID="settings-screen"
+          />
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
