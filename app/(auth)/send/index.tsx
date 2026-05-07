@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ImageBackground,
   Pressable,
@@ -16,6 +16,8 @@ import { AppHeader, Icon, PrimaryButton, ShortcutAction } from '@/components';
 import { QrScanner } from '@/components/QrScanner';
 import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
+import { getPaymasterTokenInfo } from '@/config/chains';
+import { formatBalance } from '@/config/portfolio-presentation';
 import { getSendAssetForCanonical } from '@/config/tokens';
 import { DfxColors, Typography } from '@/theme';
 
@@ -76,7 +78,15 @@ export default function SendScreen() {
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [scannerVisible, setScannerVisible] = useState(false);
-  const { send, isLoading, txHash, error, reset } = useSendFlow(selectedChain);
+  const { send, estimate, isLoading, txHash, error, reset } = useSendFlow(selectedChain);
+
+  type FeeState =
+    | { status: 'idle' }
+    | { status: 'loading' }
+    | { status: 'ok'; fee: string }
+    | { status: 'error'; message: string };
+  const [feeState, setFeeState] = useState<FeeState>({ status: 'idle' });
+  const estimateReqRef = useRef(0);
 
   const symbol = selectedAsset?.symbol ?? '';
   const sendAsset = useMemo(
@@ -84,6 +94,7 @@ export default function SendScreen() {
       selectedAsset ? getSendAssetForCanonical(selectedAsset.symbol, selectedChain) : undefined,
     [selectedAsset, selectedChain],
   );
+  const paymasterToken = useMemo(() => getPaymasterTokenInfo(selectedChain), [selectedChain]);
   const isValidAddress = recipient.length >= 26;
 
   const handleAssetSelect = (asset: AssetOption) => {
@@ -91,6 +102,21 @@ export default function SendScreen() {
     setSelectedChain(asset.chains[0]!.chain);
     setStep('input');
   };
+
+  const goToConfirm = useCallback(async () => {
+    if (!sendAsset) return;
+    setStep('confirm');
+    setFeeState({ status: 'loading' });
+    const reqId = ++estimateReqRef.current;
+    const result = await estimate({ asset: sendAsset, to: recipient, amount });
+    // Drop stale results from earlier estimate calls (e.g. user went back, edited, returned).
+    if (reqId !== estimateReqRef.current) return;
+    if (result.success) {
+      setFeeState({ status: 'ok', fee: result.fee });
+    } else {
+      setFeeState({ status: 'error', message: result.error });
+    }
+  }, [sendAsset, estimate, recipient, amount]);
 
   const handleSend = async () => {
     if (!sendAsset) return;
@@ -218,7 +244,7 @@ export default function SendScreen() {
 
         <PrimaryButton
           title={t('common.continue')}
-          onPress={() => setStep('confirm')}
+          onPress={goToConfirm}
           disabled={!isValidAddress || !amount || parseFloat(amount) <= 0}
         />
 
@@ -253,6 +279,17 @@ export default function SendScreen() {
             {amount} {symbol}
           </Text>
         </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>{t('send.networkFee')}</Text>
+          <Text style={styles.summaryValue}>
+            {feeState.status === 'loading' && t('send.feeEstimating')}
+            {feeState.status === 'error' && t('send.feeUnavailable')}
+            {feeState.status === 'ok' &&
+              paymasterToken &&
+              `${formatBalance(feeState.fee, paymasterToken.decimals)} ${paymasterToken.symbol}`}
+            {feeState.status === 'idle' && '—'}
+          </Text>
+        </View>
       </View>
 
       <Text style={styles.warning}>
@@ -269,6 +306,9 @@ export default function SendScreen() {
         variant="outlined"
         onPress={() => {
           reset();
+          // Drop any in-flight estimate so a late-arriving result doesn't render after cancel.
+          estimateReqRef.current += 1;
+          setFeeState({ status: 'idle' });
           setStep('input');
         }}
       />
