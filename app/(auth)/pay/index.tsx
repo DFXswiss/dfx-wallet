@@ -52,7 +52,7 @@ export default function PayScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <ImageBackground
         source={require('../../../assets/pay-bg.png')}
         style={styles.bg}

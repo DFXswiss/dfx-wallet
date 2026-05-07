@@ -118,7 +118,7 @@ export default function PortfolioScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <ImageBackground
         source={require('../../../assets/dashboard-bg.png')}
         style={styles.bg}

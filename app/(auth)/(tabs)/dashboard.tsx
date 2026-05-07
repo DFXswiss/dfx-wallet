@@ -3,7 +3,7 @@ import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { DashboardHeader, Icon, MenuModal, ShortcutAction } from '@/components';
+import { DashboardHeader, Icon, ShortcutAction } from '@/components';
 import { useDfxAuth, useTotalPortfolioFiat } from '@/hooks';
 import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
@@ -44,7 +44,6 @@ export default function DashboardScreen() {
   useTotalPortfolioFiat();
 
   const [balanceVisible, setBalanceVisible] = useState(true);
-  const [menuOpen, setMenuOpen] = useState(false);
 
   const hasAttemptedAuthRef = useRef(false);
   useEffect(() => {
@@ -66,7 +65,7 @@ export default function DashboardScreen() {
     >
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.content} testID="dashboard-screen">
-          <DashboardHeader onMenuPress={() => setMenuOpen(true)} />
+          <DashboardHeader onMenuPress={() => router.push('/(auth)/(tabs)/settings')} />
 
           <View style={styles.balanceSection}>
             <Pressable
@@ -147,8 +146,6 @@ export default function DashboardScreen() {
             </View>
           </View>
         </View>
-
-        <MenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
       </SafeAreaView>
     </ImageBackground>
   );
