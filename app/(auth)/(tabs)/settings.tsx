@@ -263,7 +263,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 120,
     gap: 20,
-    flexGrow: 1,
   },
   section: {
     gap: 8,
