@@ -13,7 +13,12 @@ type IconName =
   | 'receive'
   | 'close'
   | 'lightning'
-  | 'arrow-left';
+  | 'arrow-left'
+  | 'user'
+  | 'shield'
+  | 'globe'
+  | 'document'
+  | 'support';
 
 type Props = {
   name: IconName;
@@ -189,6 +194,61 @@ export function Icon({ name, size = 24, color = DfxColors.primary, strokeWidth =
             strokeWidth={sw}
             strokeLinecap="round"
             strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    case 'user':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Circle cx={12} cy={8} r={4} stroke={stroke} strokeWidth={sw} />
+          <Path
+            d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+        </Svg>
+      );
+    case 'shield':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M12 2.5L4 5.5v6c0 4.5 3.4 8.7 8 10 4.6-1.3 8-5.5 8-10v-6l-8-3z"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    case 'globe':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Circle cx={12} cy={12} r={9} stroke={stroke} strokeWidth={sw} />
+          <Path
+            d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+        </Svg>
+      );
+    case 'document':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path d="M6 3h8l4 4v14H6z" stroke={stroke} strokeWidth={sw} strokeLinejoin="round" />
+          <Path d="M14 3v4h4" stroke={stroke} strokeWidth={sw} strokeLinejoin="round" />
+          <Path d="M9 12h6M9 16h6" stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+        </Svg>
+      );
+    case 'support':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Circle cx={12} cy={12} r={9} stroke={stroke} strokeWidth={sw} />
+          <Path
+            d="M9 9.5a3 3 0 116 0c0 1.5-1.5 2-2.3 2.5-.4.3-.7.7-.7 1.3M12 17h.01"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
           />
         </Svg>
       );

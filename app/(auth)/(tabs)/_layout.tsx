@@ -13,6 +13,8 @@ export default function TabsLayout() {
         headerTitleStyle: { ...Typography.headlineSmall, color: DfxColors.text },
         headerTintColor: DfxColors.primary,
         headerShadowVisible: false,
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
       }}
     >
       <Stack.Screen name="dashboard" options={{ headerShown: false }} />

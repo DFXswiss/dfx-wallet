@@ -1,6 +1,6 @@
 import type { WdkConfigs } from '@tetherto/wdk-react-native-core';
 
-export type ChainId = 'ethereum' | 'arbitrum' | 'polygon' | 'spark' | 'plasma' | 'sepolia';
+export type ChainId = 'ethereum' | 'arbitrum' | 'polygon' | 'base' | 'spark' | 'plasma' | 'sepolia';
 
 const CANDIDE_PAYMASTER_ADDRESS = '0x8b1f6cb5d062aa2ce8d581942bbb960420d875ba';
 const ENTRY_POINT_ADDRESS = '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
@@ -47,6 +47,20 @@ export const getWdkConfigs = (): WdkConfigs => ({
         entryPointAddress: ENTRY_POINT_ADDRESS,
         safeModulesVersion: SAFE_MODULES_VERSION,
         paymasterToken: { address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F' },
+        transferMaxFee: 100000,
+      },
+    },
+    base: {
+      blockchain: 'base',
+      config: {
+        chainId: 8453,
+        provider: process.env.EXPO_PUBLIC_BASE_RPC_URL ?? 'https://mainnet.base.org',
+        bundlerUrl: 'https://api.candide.dev/public/v3/base',
+        paymasterUrl: 'https://api.candide.dev/public/v3/base',
+        paymasterAddress: CANDIDE_PAYMASTER_ADDRESS,
+        entryPointAddress: ENTRY_POINT_ADDRESS,
+        safeModulesVersion: SAFE_MODULES_VERSION,
+        paymasterToken: { address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' },
         transferMaxFee: 100000,
       },
     },

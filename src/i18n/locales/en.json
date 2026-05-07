@@ -29,8 +29,10 @@
     "submit": "Submit"
   },
   "dashboard": {
+    "noRecentTransactions": "No recent activity",
     "pay": "Pay",
     "portfolio": "Portfolio",
+    "seeAll": "See all",
     "title": "Dashboard",
     "toggleBalance": "Toggle balance visibility",
     "totalBalance": "Total Wallet Balance",
@@ -114,8 +116,15 @@
     "tooMany": "Too many failed attempts. Please restart the app."
   },
   "portfolio": {
+    "alwaysOn": "Always on",
+    "alwaysOnHint": "Default network — can't be disabled",
     "empty": "No assets yet",
-    "emptyDescription": "Buy your first crypto to get started."
+    "emptyDescription": "Buy your first crypto to get started.",
+    "holdings": "Holdings by network",
+    "manage": "Manage",
+    "manageChains": "Manage networks",
+    "optional": "Optional networks",
+    "totalValue": "Total value"
   },
   "receive": {
     "buyBtcWithEuro": "Buy BTC with Euro",
@@ -139,10 +148,14 @@
     "title": "Sell"
   },
   "send": {
+    "addressPlaceholder": "Address or ENS name",
+    "amount": "Amount",
     "confirmTransaction": "Confirm Transaction",
     "irreversible": "Transactions are irreversible. Please verify the recipient address and amount.",
+    "network": "Network",
     "recipient": "Recipient",
     "scan": "Scan",
+    "selectAsset": "What do you want to send?",
     "sellInstead": "Sell crypto instead",
     "sent": "Transaction Sent",
     "title": "Send"
@@ -158,6 +171,11 @@
     "language": "Language",
     "legalDocuments": "Legal Documents",
     "network": "Network",
+    "sectionAccount": "Account",
+    "sectionHelp": "Help",
+    "sectionPreferences": "Preferences",
+    "sectionReportsLegal": "Reports & Legal",
+    "sectionWalletSecurity": "Wallet & Security",
     "seed": "Recovery Phrase",
     "seedPhrase": "Seed Phrase",
     "taxReport": "Tax Report",
@@ -171,7 +189,19 @@
     "title": "Support"
   },
   "transactions": {
+    "date": "Date",
+    "detailTitle": "Transaction",
+    "filterAll": "All",
+    "filterIn": "In",
+    "filterOut": "Out",
+    "filterPay": "Pay",
+    "input": "From",
+    "network": "Network",
     "noTransactions": "No transactions yet",
-    "title": "Transactions"
+    "notFound": "Transaction not found",
+    "output": "To",
+    "title": "Transactions",
+    "txHash": "Tx hash",
+    "viewOnExplorer": "View on block explorer"
   }
 }

@@ -1,17 +1,26 @@
 import { useEffect, useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+  Alert,
+  Image,
+  ImageBackground,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { DashboardHeader, Icon, MenuModal } from '@/components';
+import { Icon, MenuModal } from '@/components';
 import { DfxColors, Typography } from '@/theme';
 
 const CUTOUT_PCT = {
   left: 0.0925,
-  top: 0.3496,
-  width: 0.8103,
-  height: 0.3366,
+  top: 0.3257,
+  width: 0.8115,
+  height: 0.3838,
 };
 
 export default function PayScreen() {
@@ -43,16 +52,42 @@ export default function PayScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.root}>
-        <Image
-          source={require('../../../assets/pay-bg.png')}
-          style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-        />
-
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
+      <ImageBackground
+        source={require('../../../assets/pay-bg.png')}
+        style={styles.bg}
+        resizeMode="cover"
+      >
         <SafeAreaView style={styles.flow} edges={['top', 'left', 'right', 'bottom']}>
-          <DashboardHeader onMenuPress={() => setMenuOpen(true)} />
+          <View style={styles.header}>
+            <Pressable
+              onPress={() => router.back()}
+              hitSlop={12}
+              style={styles.headerSlot}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.back')}
+              testID="pay-back-button"
+            >
+              <Icon name="arrow-left" size={26} color={DfxColors.text} />
+            </Pressable>
+
+            <Image
+              source={require('../../../assets/dfx-logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+
+            <Pressable
+              onPress={() => setMenuOpen(true)}
+              hitSlop={12}
+              style={[styles.headerSlot, styles.headerSlotRight]}
+              accessibilityRole="button"
+              accessibilityLabel="Menu"
+              testID="pay-menu-button"
+            >
+              <Icon name="menu" size={26} color={DfxColors.primary} strokeWidth={2.5} />
+            </Pressable>
+          </View>
 
           <View style={{ flex: 1 }} />
 
@@ -69,31 +104,32 @@ export default function PayScreen() {
           </View>
         </SafeAreaView>
 
-        {permission?.granted ? (
-          <View pointerEvents="none" style={[styles.cutout, cutoutStyle]}>
+        <View style={[styles.cutout, cutoutStyle]}>
+          {permission?.granted && (
             <CameraView
               style={StyleSheet.absoluteFill}
               barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
               onBarcodeScanned={handleScan}
             />
-          </View>
-        ) : (
-          <View style={[styles.cutout, cutoutStyle, styles.permissionFallback]}>
-            <Text style={styles.permissionText}>{t('pay.cameraPermission')}</Text>
-            <Pressable style={styles.permissionButton} onPress={requestPermission}>
-              <Text style={styles.permissionButtonText}>{t('pay.grantPermission')}</Text>
-            </Pressable>
-          </View>
-        )}
+          )}
+          {!permission?.granted && (
+            <View style={styles.permissionFallback}>
+              <Text style={styles.permissionText}>{t('pay.cameraPermission')}</Text>
+              <Pressable style={styles.permissionButton} onPress={requestPermission}>
+                <Text style={styles.permissionButtonText}>{t('pay.grantPermission')}</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
 
         <MenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
-      </View>
+      </ImageBackground>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
+  bg: {
     flex: 1,
     backgroundColor: DfxColors.background,
   },
@@ -105,6 +141,27 @@ const styles = StyleSheet.create({
     position: 'absolute',
     overflow: 'hidden',
     borderRadius: 16,
+    backgroundColor: 'rgba(11, 20, 38, 0.18)',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  headerSlot: {
+    width: 36,
+    height: 36,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  headerSlotRight: {
+    alignItems: 'flex-end',
+  },
+  logo: {
+    height: 30,
+    width: 110,
   },
   lightningWrapper: {
     alignItems: 'center',
@@ -128,6 +185,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 16,
     gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.85)',
   },
   permissionText: {
     ...Typography.bodyMedium,

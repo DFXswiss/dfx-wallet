@@ -18,7 +18,13 @@ export default function RootLayout() {
       <WdkAppProvider bundle={{ bundle }} wdkConfigs={getWdkConfigs()}>
         <StatusBar style="light" />
         <OfflineBanner />
-        <Stack screenOptions={{ headerShown: false }}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
+          }}
+        >
           <Stack.Screen name="(onboarding)" />
           <Stack.Screen name="(pin)" />
           <Stack.Screen name="(auth)" />

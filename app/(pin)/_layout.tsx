@@ -7,6 +7,7 @@ export default function PinLayout() {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: DfxColors.background },
+        gestureEnabled: false,
       }}
     />
   );

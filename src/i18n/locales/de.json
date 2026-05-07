@@ -29,8 +29,10 @@
     "submit": "Absenden"
   },
   "dashboard": {
+    "noRecentTransactions": "Keine kürzlichen Aktivitäten",
     "pay": "Pay",
     "portfolio": "Portfolio",
+    "seeAll": "Alle anzeigen",
     "title": "Dashboard",
     "toggleBalance": "Guthaben ein-/ausblenden",
     "totalBalance": "Gesamtguthaben",
@@ -114,8 +116,15 @@
     "tooMany": "Zu viele Fehlversuche. Bitte starte die App neu."
   },
   "portfolio": {
+    "alwaysOn": "Immer aktiv",
+    "alwaysOnHint": "Standardnetzwerk — kann nicht deaktiviert werden",
     "empty": "Noch keine Assets",
-    "emptyDescription": "Kaufe dein erstes Krypto um zu starten."
+    "emptyDescription": "Kaufe dein erstes Krypto um zu starten.",
+    "holdings": "Bestände nach Netzwerk",
+    "manage": "Verwalten",
+    "manageChains": "Netzwerke verwalten",
+    "optional": "Optionale Netzwerke",
+    "totalValue": "Gesamtwert"
   },
   "receive": {
     "buyBtcWithEuro": "BTC mit Euro kaufen",
@@ -139,10 +148,14 @@
     "title": "Verkaufen"
   },
   "send": {
+    "addressPlaceholder": "Adresse oder ENS-Name",
+    "amount": "Betrag",
     "confirmTransaction": "Transaktion bestätigen",
     "irreversible": "Transaktionen sind unwiderruflich. Bitte überprüfe Empfängeradresse und Betrag.",
+    "network": "Netzwerk",
     "recipient": "Empfänger",
     "scan": "Scannen",
+    "selectAsset": "Was möchtest du senden?",
     "sellInstead": "Stattdessen Krypto verkaufen",
     "sent": "Transaktion gesendet",
     "title": "Senden"
@@ -152,6 +165,11 @@
     "contact": "Kontakt",
     "currencies": "Währungen",
     "deleteWallet": "Wallet löschen",
+    "sectionAccount": "Konto",
+    "sectionHelp": "Hilfe",
+    "sectionPreferences": "Einstellungen",
+    "sectionReportsLegal": "Reports & Recht",
+    "sectionWalletSecurity": "Wallet & Sicherheit",
     "deleteWalletConfirm": "Deine Wallet wird permanent von diesem Gerät entfernt. Stelle sicher, dass du deine Seed Phrase gesichert hast.",
     "deleteWalletConfirmPasskey": "Deine Wallet wird permanent von diesem Gerät entfernt. Zur Wiederherstellung benötigst du deinen Passkey oder deine exportierte Recovery Phrase. Bitte lösche den Passkey auch aus deinen Geräteeinstellungen.",
     "hardwareWallet": "Hardware Wallet",
@@ -171,7 +189,19 @@
     "title": "Support"
   },
   "transactions": {
+    "date": "Datum",
+    "detailTitle": "Transaktion",
+    "filterAll": "Alle",
+    "filterIn": "In",
+    "filterOut": "Out",
+    "filterPay": "Pay",
+    "input": "Von",
+    "network": "Netzwerk",
     "noTransactions": "Noch keine Transaktionen",
-    "title": "Transaktionen"
+    "notFound": "Transaktion nicht gefunden",
+    "output": "Nach",
+    "title": "Transaktionen",
+    "txHash": "Tx Hash",
+    "viewOnExplorer": "Auf Block-Explorer ansehen"
   }
 }

@@ -1,38 +1,88 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import {
+  ImageBackground,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { ChainSelector, Icon, PrimaryButton, ScreenContainer, ShortcutAction } from '@/components';
+import { AppHeader, ChainSelector, Icon, PrimaryButton, ShortcutAction } from '@/components';
 import { QrScanner } from '@/components/QrScanner';
 import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
 import { DfxColors, Typography } from '@/theme';
 
-type SendStep = 'input' | 'confirm' | 'success';
+type SendStep = 'asset' | 'input' | 'confirm' | 'success';
 
-const CHAIN_SYMBOL: Record<ChainId, string> = {
-  ethereum: 'ETH',
-  arbitrum: 'ETH',
-  polygon: 'MATIC',
-  spark: 'BTC',
-  plasma: 'ETH',
-  sepolia: 'ETH',
+type AssetOption = {
+  symbol: string;
+  label: string;
+  chains: { chain: ChainId; label: string }[];
 };
+
+const SEND_ASSETS: AssetOption[] = [
+  {
+    symbol: 'BTC',
+    label: 'Bitcoin',
+    chains: [{ chain: 'spark', label: 'Bitcoin' }],
+  },
+  {
+    symbol: 'CHF',
+    label: 'CHF',
+    chains: [
+      { chain: 'ethereum', label: 'Ethereum' },
+      { chain: 'arbitrum', label: 'Arbitrum' },
+      { chain: 'polygon', label: 'Polygon' },
+      { chain: 'base', label: 'Base' },
+    ],
+  },
+  {
+    symbol: 'EUR',
+    label: 'Euro',
+    chains: [
+      { chain: 'ethereum', label: 'Ethereum' },
+      { chain: 'arbitrum', label: 'Arbitrum' },
+      { chain: 'polygon', label: 'Polygon' },
+      { chain: 'base', label: 'Base' },
+    ],
+  },
+  {
+    symbol: 'USD',
+    label: 'Dollar',
+    chains: [
+      { chain: 'ethereum', label: 'Ethereum' },
+      { chain: 'arbitrum', label: 'Arbitrum' },
+      { chain: 'polygon', label: 'Polygon' },
+      { chain: 'base', label: 'Base' },
+    ],
+  },
+];
 
 export default function SendScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const [step, setStep] = useState<SendStep>('input');
-  const [selectedChain, setSelectedChain] = useState<ChainId>('ethereum');
+  const [step, setStep] = useState<SendStep>('asset');
+  const [selectedAsset, setSelectedAsset] = useState<AssetOption>(SEND_ASSETS[0]!);
+  const [selectedChain, setSelectedChain] = useState<ChainId>('spark');
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [scannerVisible, setScannerVisible] = useState(false);
   const { send, isLoading, txHash, error, reset } = useSendFlow(selectedChain);
 
-  // eslint-disable-next-line security/detect-object-injection -- selectedChain is a ChainId literal union
-  const symbol = CHAIN_SYMBOL[selectedChain];
+  const symbol = selectedAsset.symbol;
   const isValidAddress = recipient.length >= 26;
+
+  const handleAssetSelect = (asset: AssetOption) => {
+    setSelectedAsset(asset);
+    setSelectedChain(asset.chains[0]!.chain);
+    setStep('input');
+  };
 
   const handleSend = async () => {
     const hash = await send({ to: recipient, amount });
@@ -42,32 +92,88 @@ export default function SendScreen() {
     }
   };
 
+  const renderAssetStep = () => (
+    <View style={styles.stepContent}>
+      <Text style={styles.stepSubtitle}>{t('send.selectAsset')}</Text>
+      <View style={styles.assetList}>
+        {SEND_ASSETS.map((asset) => (
+          <Pressable
+            key={asset.symbol}
+            style={({ pressed }) => [
+              styles.assetCard,
+              selectedAsset.symbol === asset.symbol && styles.assetCardActive,
+              pressed && styles.pressed,
+            ]}
+            onPress={() => handleAssetSelect(asset)}
+          >
+            <Text
+              style={[
+                styles.assetSymbol,
+                selectedAsset.symbol === asset.symbol && styles.assetSymbolActive,
+              ]}
+            >
+              {asset.symbol}
+            </Text>
+            <Text style={styles.assetLabel}>{asset.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+
   const renderInputStep = () => (
     <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>Send Crypto</Text>
+      <Pressable style={styles.selectedAssetPill} onPress={() => setStep('asset')}>
+        <Text style={styles.selectedAssetText}>{selectedAsset.symbol}</Text>
+        <Icon name="chevron-right" size={14} color={DfxColors.textTertiary} />
+      </Pressable>
 
-      <ChainSelector selected={selectedChain} onSelect={setSelectedChain} />
+      {selectedAsset.chains.length > 1 && (
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>{t('send.network')}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
+            {selectedAsset.chains.map((c) => (
+              <Pressable
+                key={c.chain}
+                style={[styles.chainChip, selectedChain === c.chain && styles.chainChipActive]}
+                onPress={() => setSelectedChain(c.chain)}
+              >
+                <Text
+                  style={[
+                    styles.chainChipText,
+                    selectedChain === c.chain && styles.chainChipTextActive,
+                  ]}
+                >
+                  {c.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Recipient</Text>
+        <Text style={styles.inputLabel}>{t('send.recipient')}</Text>
         <View style={styles.recipientRow}>
           <TextInput
             style={[styles.input, styles.recipientInput]}
             value={recipient}
             onChangeText={setRecipient}
-            placeholder="Address or ENS name"
+            placeholder={t('send.addressPlaceholder')}
             placeholderTextColor={DfxColors.textTertiary}
             autoCapitalize="none"
             autoCorrect={false}
           />
           <Pressable style={styles.scanButton} onPress={() => setScannerVisible(true)}>
-            <Text style={styles.scanText}>Scan</Text>
+            <Text style={styles.scanText}>{t('send.scan')}</Text>
           </Pressable>
         </View>
       </View>
 
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Amount ({symbol})</Text>
+        <Text style={styles.inputLabel}>
+          {t('send.amount')} ({symbol})
+        </Text>
         <TextInput
           style={styles.input}
           value={amount}
@@ -162,60 +268,65 @@ export default function SendScreen() {
   );
 
   return (
-    <ScreenContainer scrollable>
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Pressable
-            onPress={() => {
-              if (step === 'input') router.back();
-              else if (step === 'confirm') setStep('input');
+    <>
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
+      <ImageBackground
+        source={require('../../../assets/dashboard-bg.png')}
+        style={styles.bg}
+        resizeMode="cover"
+      >
+        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+          <AppHeader
+            title={t('send.title')}
+            onBack={() => {
+              if (step === 'confirm') setStep('input');
+              else if (step === 'input') setStep('asset');
               else router.back();
             }}
+            testID="send-screen"
+          />
+
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.backButton}>{'\u2190'}</Text>
-          </Pressable>
-          <Text style={styles.title}>{t('send.title')}</Text>
-          <View style={styles.backButton} />
-        </View>
+            {step === 'asset' && renderAssetStep()}
+            {step === 'input' && renderInputStep()}
+            {step === 'confirm' && renderConfirmStep()}
+            {step === 'success' && renderSuccessStep()}
+          </ScrollView>
 
-        {step === 'input' && renderInputStep()}
-        {step === 'confirm' && renderConfirmStep()}
-        {step === 'success' && renderSuccessStep()}
-
-        <QrScanner
-          visible={scannerVisible}
-          onScan={(data) => {
-            // Handle various QR formats: plain address, ethereum:0x..., bitcoin:bc1...
-            // String.prototype.split always yields at least one element, so [0] is defined.
-            const address = data.replace(/^(ethereum|bitcoin):/, '').split('?')[0]!;
-            setRecipient(address);
-          }}
-          onClose={() => setScannerVisible(false)}
-        />
-      </View>
-    </ScreenContainer>
+          <QrScanner
+            visible={scannerVisible}
+            onScan={(data) => {
+              // Handle various QR formats: plain address, ethereum:0x..., bitcoin:bc1...
+              // String.prototype.split always yields at least one element, so [0] is defined.
+              const address = data.replace(/^(ethereum|bitcoin):/, '').split('?')[0]!;
+              setRecipient(address);
+            }}
+            onClose={() => setScannerVisible(false)}
+          />
+        </SafeAreaView>
+      </ImageBackground>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
+  bg: {
     flex: 1,
-    paddingVertical: 16,
-    gap: 16,
+    backgroundColor: DfxColors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  safeArea: {
+    flex: 1,
   },
-  backButton: {
-    fontSize: 24,
-    color: DfxColors.text,
-    width: 32,
+  scroll: {
+    flex: 1,
   },
-  title: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 32,
   },
   stepContent: {
     flex: 1,
@@ -224,6 +335,85 @@ const styles = StyleSheet.create({
   stepTitle: {
     ...Typography.headlineSmall,
     color: DfxColors.text,
+  },
+  stepSubtitle: {
+    ...Typography.bodyLarge,
+    color: DfxColors.textSecondary,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  assetList: {
+    gap: 10,
+  },
+  assetCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: DfxColors.surface,
+    borderRadius: 16,
+    padding: 18,
+    gap: 14,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  assetCardActive: {
+    borderColor: DfxColors.primary,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  assetSymbol: {
+    ...Typography.headlineSmall,
+    color: DfxColors.text,
+    fontWeight: '700',
+    width: 56,
+  },
+  assetSymbolActive: {
+    color: DfxColors.primary,
+  },
+  assetLabel: {
+    ...Typography.bodyLarge,
+    color: DfxColors.textSecondary,
+  },
+  selectedAssetPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: DfxColors.primaryLight,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    gap: 6,
+    marginBottom: 4,
+  },
+  selectedAssetText: {
+    ...Typography.bodyMedium,
+    color: DfxColors.primary,
+    fontWeight: '700',
+  },
+  chainBar: {
+    flexGrow: 0,
+  },
+  chainChip: {
+    backgroundColor: DfxColors.surface,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    marginRight: 8,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  chainChipActive: {
+    borderColor: DfxColors.primary,
+    backgroundColor: DfxColors.primaryLight,
+  },
+  chainChipText: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textSecondary,
+    fontWeight: '500',
+  },
+  chainChipTextActive: {
+    color: DfxColors.primary,
+    fontWeight: '600',
   },
   inputGroup: {
     gap: 8,

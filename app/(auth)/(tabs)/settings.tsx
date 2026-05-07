@@ -1,25 +1,47 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import {
+  Alert,
+  ImageBackground,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import i18n from 'i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { ScreenContainer } from '@/components';
+import { Linking } from 'react-native';
+import { AppHeader, Icon } from '@/components';
 import { secureStorage, StorageKeys } from '@/services/storage';
-import { useAuthStore } from '@/store';
+import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
-type SettingsItem = {
+type IconName = 'user' | 'wallet' | 'shield' | 'globe' | 'document' | 'support';
+
+type SettingsRow = {
   label: string;
+  value?: string;
   testID: string;
+  icon: IconName;
   route?: string;
   onPress?: () => void;
-  destructive?: boolean;
+};
+
+type SettingsSection = {
+  title: string;
+  rows: SettingsRow[];
 };
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { reset } = useAuthStore();
+  const { selectedCurrency, setSelectedCurrency } = useWalletStore();
+  const CURRENCIES = ['CHF', 'EUR', 'USD'] as const;
+  const currentLang = i18n.language?.startsWith('de') ? 'DE' : 'EN';
   const { deleteWallet } = useWalletManager();
   const [walletOrigin, setWalletOrigin] = useState<string | null>(null);
 
@@ -51,103 +73,274 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const items: SettingsItem[] = [
-    { label: t('settings.userData'), testID: 'settings-user-data', route: '/(auth)/kyc' },
-    { label: t('settings.walletAddress'), testID: 'settings-wallet-address' },
+  const sections: SettingsSection[] = [
     {
-      label: t(walletOrigin === 'passkey' ? 'settings.seed' : 'settings.seedPhrase'),
-      testID: 'settings-seed',
-      route: '/(auth)/seed-export',
+      title: t('settings.sectionAccount'),
+      rows: [
+        {
+          icon: 'user',
+          label: t('settings.userData'),
+          testID: 'settings-user-data',
+          route: '/(auth)/kyc',
+        },
+      ],
     },
     {
-      label: 'Hardware Wallet',
-      testID: 'settings-hardware-wallet',
-      route: '/(auth)/hardware-connect',
+      title: t('settings.sectionWalletSecurity'),
+      rows: [
+        {
+          icon: 'wallet',
+          label: t('settings.walletAddress'),
+          testID: 'settings-wallet-address',
+          route: '/(auth)/receive',
+        },
+        {
+          icon: 'shield',
+          label: t(walletOrigin === 'passkey' ? 'settings.seed' : 'settings.seedPhrase'),
+          testID: 'settings-seed',
+          route: '/(auth)/seed-export',
+        },
+        {
+          icon: 'shield',
+          label: t('settings.hardwareWallet'),
+          testID: 'settings-hardware-wallet',
+          route: '/(auth)/hardware-connect',
+        },
+      ],
     },
-    { label: t('settings.language'), testID: 'settings-language' },
-    { label: t('settings.currencies'), testID: 'settings-currencies' },
-    { label: t('settings.network'), testID: 'settings-network' },
-    { label: t('settings.taxReport'), testID: 'settings-tax-report' },
-    { label: t('settings.legalDocuments'), testID: 'settings-legal-documents' },
-    { label: t('settings.contact'), testID: 'settings-contact' },
-    { label: t('support.title'), testID: 'settings-support', route: '/(auth)/support' },
+    {
+      title: t('settings.sectionPreferences'),
+      rows: [
+        {
+          icon: 'globe',
+          label: t('settings.language'),
+          value: currentLang,
+          testID: 'settings-language',
+          onPress: () => {
+            void i18n.changeLanguage(currentLang === 'DE' ? 'en' : 'de');
+          },
+        },
+        {
+          icon: 'globe',
+          label: t('settings.currencies'),
+          value: selectedCurrency,
+          testID: 'settings-currencies',
+          onPress: () => {
+            const idx = CURRENCIES.indexOf(selectedCurrency as (typeof CURRENCIES)[number]);
+            const next = CURRENCIES[(idx + 1) % CURRENCIES.length]!;
+            setSelectedCurrency(next);
+          },
+        },
+        {
+          icon: 'globe',
+          label: t('settings.network'),
+          testID: 'settings-network',
+          route: '/(auth)/portfolio/manage',
+        },
+      ],
+    },
+    {
+      title: t('settings.sectionReportsLegal'),
+      rows: [
+        {
+          icon: 'document',
+          label: t('settings.taxReport'),
+          testID: 'settings-tax-report',
+          onPress: () => {
+            router.push({
+              pathname: '/(auth)/webview',
+              params: { url: 'https://docs.dfx.swiss/de/faq.html', title: t('settings.taxReport') },
+            });
+          },
+        },
+        {
+          icon: 'document',
+          label: t('settings.legalDocuments'),
+          testID: 'settings-legal-documents',
+          onPress: () => {
+            router.push({
+              pathname: '/(auth)/webview',
+              params: {
+                url: 'https://docs.dfx.swiss/de/tnc.html',
+                title: t('settings.legalDocuments'),
+              },
+            });
+          },
+        },
+      ],
+    },
+    {
+      title: t('settings.sectionHelp'),
+      rows: [
+        {
+          icon: 'support',
+          label: t('settings.contact'),
+          testID: 'settings-contact',
+          onPress: () => {
+            void Linking.openURL('mailto:support@dfx.swiss');
+          },
+        },
+        {
+          icon: 'support',
+          label: t('support.title'),
+          testID: 'settings-support',
+          route: '/(auth)/support',
+        },
+      ],
+    },
   ];
 
   return (
-    <ScreenContainer>
-      <ScrollView
-        testID="settings-screen"
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
+    <>
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
+      <ImageBackground
+        source={require('../../../assets/dashboard-bg.png')}
+        style={styles.bg}
+        resizeMode="cover"
       >
-        <Text style={styles.title}>{t('settings.title')}</Text>
-
-        {items.map((item) => (
-          <Pressable
-            key={item.label}
-            testID={item.testID}
-            style={({ pressed }) => [styles.item, pressed && styles.pressed]}
-            onPress={() => {
-              if (item.onPress) item.onPress();
-              else if (item.route) router.push(item.route as never);
-            }}
+        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.itemLabel}>{item.label}</Text>
-            <Text style={styles.chevron}>{'\u203A'}</Text>
-          </Pressable>
-        ))}
+            {sections.map((section) => (
+              <View key={section.title} style={styles.section}>
+                <Text style={styles.sectionTitle}>{section.title}</Text>
+                <View style={styles.sectionCard}>
+                  {section.rows.map((row, index) => (
+                    <SettingsRowView
+                      key={row.testID}
+                      row={row}
+                      isLast={index === section.rows.length - 1}
+                      onPress={() => {
+                        if (row.onPress) row.onPress();
+                        else if (row.route) router.push(row.route as never);
+                      }}
+                    />
+                  ))}
+                </View>
+              </View>
+            ))}
 
-        <View style={styles.dangerSection}>
-          <Pressable
-            testID="settings-delete-wallet"
-            style={({ pressed }) => [styles.item, styles.dangerItem, pressed && styles.pressed]}
-            onPress={handleDeleteWallet}
-          >
-            <Text style={styles.dangerLabel}>Delete Wallet</Text>
-          </Pressable>
-        </View>
+            <Pressable
+              testID="settings-delete-wallet"
+              style={({ pressed }) => [styles.dangerCard, pressed && styles.pressed]}
+              onPress={handleDeleteWallet}
+            >
+              <Text style={styles.dangerLabel}>{t('settings.deleteWallet')}</Text>
+            </Pressable>
 
-        <Text style={styles.version}>DFX Wallet v0.1.0</Text>
-      </ScrollView>
-    </ScreenContainer>
+            <Text style={styles.version}>DFX Wallet v0.1.0</Text>
+          </ScrollView>
+        </SafeAreaView>
+      </ImageBackground>
+    </>
+  );
+}
+
+type RowProps = {
+  row: SettingsRow;
+  isLast: boolean;
+  onPress: () => void;
+};
+
+function SettingsRowView({ row, isLast, onPress }: RowProps) {
+  return (
+    <Pressable
+      testID={row.testID}
+      style={({ pressed }) => [styles.row, !isLast && styles.rowDivider, pressed && styles.pressed]}
+      onPress={onPress}
+    >
+      <View style={styles.rowIcon}>
+        <Icon name={row.icon} size={20} color={DfxColors.primary} />
+      </View>
+      <Text style={styles.rowLabel}>{row.label}</Text>
+      {row.value ? <Text style={styles.rowValue}>{row.value}</Text> : null}
+      <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  list: {
-    paddingVertical: 16,
-    gap: 4,
+  bg: {
+    flex: 1,
+    backgroundColor: DfxColors.background,
   },
-  title: {
-    ...Typography.headlineMedium,
-    color: DfxColors.text,
-    marginBottom: 16,
+  safeArea: {
+    flex: 1,
   },
-  item: {
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 48,
+    gap: 20,
+  },
+  section: {
+    gap: 8,
+  },
+  sectionTitle: {
+    ...Typography.bodySmall,
+    color: DfxColors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    fontWeight: '600',
+    paddingHorizontal: 4,
+  },
+  sectionCard: {
+    backgroundColor: DfxColors.surface,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#0B1426',
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
+  },
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    backgroundColor: DfxColors.surface,
-    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    gap: 12,
+  },
+  rowDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: DfxColors.border,
+  },
+  rowIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: DfxColors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowLabel: {
+    flex: 1,
+    ...Typography.bodyLarge,
+    color: DfxColors.text,
+    fontWeight: '500',
+  },
+  rowValue: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textSecondary,
   },
   pressed: {
     opacity: 0.7,
   },
-  itemLabel: {
-    ...Typography.bodyLarge,
-    color: DfxColors.text,
-  },
-  chevron: {
-    ...Typography.headlineSmall,
-    color: DfxColors.textTertiary,
-  },
-  dangerSection: {
-    marginTop: 24,
-  },
-  dangerItem: {
-    justifyContent: 'center',
+  dangerCard: {
+    marginTop: 8,
+    paddingVertical: 16,
+    backgroundColor: DfxColors.surface,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#0B1426',
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
   },
   dangerLabel: {
     ...Typography.bodyLarge,
@@ -158,6 +351,6 @@ const styles = StyleSheet.create({
     ...Typography.bodySmall,
     color: DfxColors.textTertiary,
     textAlign: 'center',
-    marginTop: 24,
+    marginTop: 16,
   },
 });
