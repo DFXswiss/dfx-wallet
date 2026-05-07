@@ -79,6 +79,20 @@ export const getWdkConfigs = (): WdkConfigs => ({
         network: 'MAINNET',
       },
     },
+    bitcoin: {
+      blockchain: 'bitcoin',
+      config: {
+        chainId: 0,
+        network: 'bitcoin',
+        client: {
+          type: 'electrum',
+          clientConfig: {
+            host: process.env.EXPO_PUBLIC_BTC_ELECTRUM_HOST ?? 'electrum.blockstream.info',
+            port: Number(process.env.EXPO_PUBLIC_BTC_ELECTRUM_PORT ?? 50001),
+          },
+        },
+      },
+    },
     plasma: {
       blockchain: 'plasma',
       config: {

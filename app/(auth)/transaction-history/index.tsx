@@ -208,13 +208,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingVertical: 24,
     paddingHorizontal: 20,
-    backgroundColor: DfxColors.surface,
-    borderRadius: 20,
-    shadowColor: '#0B1426',
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
     gap: 8,
   },
   addressIconCircle: {
