@@ -1,20 +1,11 @@
 import { useEffect, useState } from 'react';
-import {
-  Alert,
-  ImageBackground,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { Linking } from 'react-native';
-import { AppHeader, Icon } from '@/components';
+import { Icon } from '@/components';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
@@ -192,49 +183,50 @@ export default function SettingsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      <ImageBackground
-        source={require('../../../assets/dashboard-bg.png')}
-        style={styles.bg}
-        resizeMode="cover"
-      >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {sections.map((section) => (
-              <View key={section.title} style={styles.section}>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
-                <View style={styles.sectionCard}>
-                  {section.rows.map((row, index) => (
-                    <SettingsRowView
-                      key={row.testID}
-                      row={row}
-                      isLast={index === section.rows.length - 1}
-                      onPress={() => {
-                        if (row.onPress) row.onPress();
-                        else if (row.route) router.push(row.route as never);
-                      }}
-                    />
-                  ))}
-                </View>
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+            <Icon name="arrow-left" size={24} color={DfxColors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>{t('settings.title')}</Text>
+          <View style={styles.backBtn} />
+        </View>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={true}
+        >
+          {sections.map((section) => (
+            <View key={section.title} style={styles.section}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+              <View style={styles.sectionCard}>
+                {section.rows.map((row, index) => (
+                  <SettingsRowView
+                    key={row.testID}
+                    row={row}
+                    isLast={index === section.rows.length - 1}
+                    onPress={() => {
+                      if (row.onPress) row.onPress();
+                      else if (row.route) router.push(row.route as never);
+                    }}
+                  />
+                ))}
               </View>
-            ))}
+            </View>
+          ))}
 
-            <Pressable
-              testID="settings-delete-wallet"
-              style={({ pressed }) => [styles.dangerCard, pressed && styles.pressed]}
-              onPress={handleDeleteWallet}
-            >
-              <Text style={styles.dangerLabel}>{t('settings.deleteWallet')}</Text>
-            </Pressable>
+          <Pressable
+            testID="settings-delete-wallet"
+            style={({ pressed }) => [styles.dangerCard, pressed && styles.pressed]}
+            onPress={handleDeleteWallet}
+          >
+            <Text style={styles.dangerLabel}>{t('settings.deleteWallet')}</Text>
+          </Pressable>
 
-            <Text style={styles.version}>DFX Wallet v0.1.0</Text>
-          </ScrollView>
-        </SafeAreaView>
-      </ImageBackground>
+          <Text style={styles.version}>DFX Wallet v0.1.0</Text>
+        </ScrollView>
+      </SafeAreaView>
     </>
   );
 }
@@ -263,19 +255,37 @@ function SettingsRowView({ row, isLast, onPress }: RowProps) {
 }
 
 const styles = StyleSheet.create({
-  bg: {
+  container: {
     flex: 1,
     backgroundColor: DfxColors.background,
   },
-  safeArea: {
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    backgroundColor: DfxColors.background,
+  },
+  backBtn: {
+    width: 40,
+    height: 32,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  headerTitle: {
     flex: 1,
+    textAlign: 'center',
+    ...Typography.headlineSmall,
+    color: DfxColors.text,
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 48,
+    paddingTop: 12,
+    paddingBottom: 120,
     gap: 20,
   },
   section: {

@@ -3,6 +3,7 @@ import 'react-native-url-polyfill/auto';
 import { Buffer } from '@craftzdog/react-native-buffer';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { WdkAppProvider } from '@tetherto/wdk-react-native-core';
 import { bundle } from '../.wdk';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -14,22 +15,24 @@ import '@/i18n';
 
 export default function RootLayout() {
   return (
-    <ErrorBoundary>
-      <WdkAppProvider bundle={{ bundle }} wdkConfigs={getWdkConfigs()}>
-        <StatusBar style="light" />
-        <OfflineBanner />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            gestureEnabled: true,
-            fullScreenGestureEnabled: true,
-          }}
-        >
-          <Stack.Screen name="(onboarding)" />
-          <Stack.Screen name="(pin)" />
-          <Stack.Screen name="(auth)" />
-        </Stack>
-      </WdkAppProvider>
-    </ErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <WdkAppProvider bundle={{ bundle }} wdkConfigs={getWdkConfigs()}>
+          <StatusBar style="light" />
+          <OfflineBanner />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              gestureEnabled: true,
+              fullScreenGestureEnabled: true,
+            }}
+          >
+            <Stack.Screen name="(onboarding)" />
+            <Stack.Screen name="(pin)" />
+            <Stack.Screen name="(auth)" />
+          </Stack>
+        </WdkAppProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }

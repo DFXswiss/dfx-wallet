@@ -17,8 +17,15 @@ export default function TabsLayout() {
         fullScreenGestureEnabled: true,
       }}
     >
-      <Stack.Screen name="dashboard" options={{ headerShown: false }} />
-      <Stack.Screen name="settings" options={{ title: t('settings.title') }} />
+      <Stack.Screen name="dashboard" options={{ headerShown: false, headerBackTitle: ' ' }} />
+      <Stack.Screen
+        name="settings"
+        options={{
+          headerShown: false,
+          gestureEnabled: false,
+          fullScreenGestureEnabled: false,
+        }}
+      />
     </Stack>
   );
 }
