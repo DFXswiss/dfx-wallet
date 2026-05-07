@@ -80,6 +80,94 @@
     "terms": "Terms of Service",
     "title": "Legal Information"
   },
+  "multiSig": {
+    "backup": {
+      "alertBody": "We'll create a {{required}}-of-{{total}} vault. Make sure all co-signers are available before continuing.",
+      "alertTitle": "Activate vault?",
+      "body": "Three short steps so you never lose access — even if a phone breaks or someone forgets a PIN.",
+      "confirm": "I understand: without enough co-signers my crypto won't move.",
+      "cta": "Activate vault",
+      "item1Desc": "Print or write down the recovery sheet — same as a normal wallet, but each co-signer keeps their own copy.",
+      "item1Title": "Save the recovery sheet",
+      "item2Desc": "Pick a safe place: home safe, bank deposit box, or a trusted family member.",
+      "item2Title": "Store it offline",
+      "item3Desc": "Tell each co-signer what the vault is for and how many signatures it needs.",
+      "item3Title": "Brief your co-signers",
+      "title": "Last step: backup"
+    },
+    "concept": {
+      "analogyBody": "Imagine three keys to a safe holding your crypto. The safe only opens when at least two of the three keys are inserted at the same time.",
+      "analogyTitle": "Like a safe with three keys",
+      "body": "A multi-signature wallet is shared by several people. To send your crypto, the minimum number of people you agreed on has to approve the transaction together.",
+      "cta": "Got it",
+      "diagramApproved": "approved",
+      "diagramBackup": "Backup",
+      "diagramPartner": "Partner",
+      "diagramPending": "pending",
+      "diagramResult": "Crypto is sent",
+      "diagramSubResult": "2 of 3 signatures are enough",
+      "diagramYou": "You",
+      "exampleCaption": "Example: you, your partner, and a backup person share the wallet. As soon as two of you approve, your crypto is sent.",
+      "exampleTitle": "Example: 2 of 3 signatures",
+      "title": "How it works"
+    },
+    "cosigners": {
+      "body": "Add the wallet addresses of the people who should co-sign with you ({{count}} more needed).",
+      "cosignerLabel": "Co-signer {{n}}",
+      "hint": "Co-signers can be a family member, a hardware wallet you keep elsewhere, or a trusted friend. They each receive a request when you want to send your crypto.",
+      "placeholder": "Wallet address or xpub",
+      "title": "Who signs with you?",
+      "youDesc": "Your DFX Wallet on this device.",
+      "youLabel": "You"
+    },
+    "manage": {
+      "addAnotherCta": "Set up another vault",
+      "cosignerLabel": "Co-signer {{n}}",
+      "emptyBody": "You currently have no multi-signature vault. Set one up to secure your crypto together with family, partner, or team.",
+      "emptyTitle": "No Multi-Sig yet",
+      "membersLabel": "Members ({{count}})",
+      "quorumMeta": "{{required}} of {{total}} signatures required",
+      "removeBody": "Are you sure you want to remove \"{{name}}\"? The configuration will be deleted.",
+      "removeConfirm": "Remove",
+      "removeTitle": "Remove vault?",
+      "setupCta": "Set up Multi-Sig",
+      "summaryLabel": "Active vaults",
+      "summaryValue": "{{count}} multi-signature vault(s) configured",
+      "youBadge": "This device",
+      "youDesc": "Your DFX Wallet on this device",
+      "youLabel": "You"
+    },
+    "intro": {
+      "body": "Protect your wallet with two or more signatures. Your crypto only moves when enough people agree — no single phone, password, or person can be a single point of failure.",
+      "bullet1": "Sleep easier: even a stolen phone alone can't drain your wallet.",
+      "bullet2": "Share responsibility with family or your team without sharing one password.",
+      "bullet3": "Recover access if one device is lost — the others still work.",
+      "cta": "Let's go",
+      "title": "More security with Multi-Signature"
+    },
+    "quorum": {
+      "body": "Pick how many signatures are needed and how many co-signers there are. 2-of-3 is the most popular choice — secure, but still recoverable if one key is lost.",
+      "customRequiredLabel": "Required signatures",
+      "customSummary": "{{required}} of {{total}} signatures needed",
+      "customTotalLabel": "Number of co-signers",
+      "option_2_2_desc": "Both signatures always required. Highest security but no recovery if one key is lost.",
+      "option_2_2_title": "Couple wallet",
+      "option_2_3_desc": "Recommended. Two of three signatures send your crypto. Lose one device — the other two still work.",
+      "option_2_3_title": "Family vault",
+      "option_3_5_desc": "Stricter quorum for organisations. Three of five signatures sign each transaction.",
+      "option_3_5_title": "Team vault",
+      "option_custom_desc": "Set signatures and co-signers yourself — from 1-of-2 up to bespoke setups with 9 people.",
+      "option_custom_title": "Custom setup",
+      "title": "Pick your setup"
+    },
+    "success": {
+      "body": "Your {{required}}-of-{{total}} vault is ready. From now on, every send needs the agreed number of signatures.",
+      "nextBody": "Send funds into the vault to start using it. Each co-signer will get a signing request when you want to spend.",
+      "nextLabel": "What's next",
+      "title": "Vault active"
+    },
+    "title": "Multi-Sig Setup"
+  },
   "onboarding": {
     "createError": "Could not create wallet. Please try again.",
     "createPasskey": "Create with Passkey",
@@ -206,6 +294,7 @@
     "hardwareWallet": "Hardware Wallet",
     "language": "Language",
     "legalDocuments": "Legal Documents",
+    "multiSig": "Multi-Sig",
     "network": "Network",
     "sectionAccount": "Account",
     "sectionHelp": "Help",

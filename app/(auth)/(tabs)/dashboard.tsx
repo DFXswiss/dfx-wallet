@@ -65,7 +65,10 @@ export default function DashboardScreen() {
     >
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.content} testID="dashboard-screen">
-          <DashboardHeader onMenuPress={() => router.push('/settings')} />
+          <DashboardHeader
+            onMenuPress={() => router.push('/settings')}
+            onShieldPress={() => router.push('/(auth)/multi-sig')}
+          />
 
           <View style={styles.balanceSection}>
             <Pressable

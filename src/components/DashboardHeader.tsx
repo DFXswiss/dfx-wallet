@@ -4,12 +4,26 @@ import { DfxColors } from '@/theme';
 
 type Props = {
   onMenuPress: () => void;
+  onShieldPress?: () => void;
 };
 
-export function DashboardHeader({ onMenuPress }: Props) {
+export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
   return (
     <View style={styles.container}>
-      <View style={styles.spacer} />
+      {onShieldPress ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Multi-Sig"
+          hitSlop={12}
+          onPress={onShieldPress}
+          style={styles.iconButton}
+          testID="dashboard-shield-button"
+        >
+          <Icon name="shield" size={26} color={DfxColors.primary} strokeWidth={2.5} />
+        </Pressable>
+      ) : (
+        <View style={styles.iconButton} />
+      )}
       <Image
         source={require('../../assets/dfx-logo.png')}
         style={styles.logo}
@@ -21,7 +35,7 @@ export function DashboardHeader({ onMenuPress }: Props) {
         accessibilityLabel="Menu"
         hitSlop={12}
         onPress={onMenuPress}
-        style={styles.menuButton}
+        style={styles.iconButton}
         testID="dashboard-menu-button"
       >
         <Icon name="menu" size={26} color={DfxColors.primary} strokeWidth={2.5} />
@@ -38,17 +52,14 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     paddingBottom: 8,
   },
-  spacer: {
-    width: 32,
-  },
-  logo: {
-    height: 30,
-    width: 110,
-  },
-  menuButton: {
+  iconButton: {
     width: 32,
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  logo: {
+    height: 30,
+    width: 110,
   },
 });
