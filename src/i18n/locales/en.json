@@ -6,9 +6,24 @@
   "buy": {
     "confirm": "Order placed",
     "confirmDescription": "Your purchase has been initiated. Transfer the amount with the provided reference code.",
+    "exchangeRate": "Exchange rate",
+    "feeDfx": "DFX fee",
+    "feeFixed": "Fixed fee",
+    "feeNetwork": "Network fee",
+    "feeTotal": "Total fee",
     "howMuch": "How much do you want to buy?",
-    "paymentInfo": "Payment Information",
-    "title": "Buy"
+    "iban": "IBAN",
+    "bic": "BIC",
+    "paymentInfo": "Payment information",
+    "recipient": "Recipient",
+    "selectAsset": "What do you want to buy?",
+    "reference": "Reference code",
+    "summary": "Quote",
+    "title": "Buy",
+    "transfer": "Transfer this amount with the reference code. Your crypto arrives in your wallet once payment is received.",
+    "volumeMax": "Max {{amount}} {{currency}}",
+    "volumeMin": "Min {{amount}} {{currency}}",
+    "youReceive": "You receive (est.)"
   },
   "common": {
     "amount": "Amount",
@@ -144,11 +159,26 @@
     "warning": "Never share your recovery phrase. Anyone with these words can access your wallet."
   },
   "sell": {
-    "bankAccount": "Bank Account",
-    "confirmSale": "Confirm Sale",
+    "bankAccount": "Bank account",
+    "bankDescription": "Enter the IBAN where the payout should arrive.",
+    "confirmSale": "Confirm sale",
+    "depositAddress": "Deposit address",
     "depositTo": "Deposit to",
+    "exchangeRate": "Exchange rate",
+    "feeDfx": "DFX fee",
+    "feeFixed": "Fixed fee",
+    "feeNetwork": "Network fee",
+    "feeTotal": "Total fee",
     "howMuch": "How much do you want to sell?",
-    "title": "Sell"
+    "payoutTo": "Payout to",
+    "selectAsset": "What do you want to sell?",
+    "summary": "Quote",
+    "title": "Sell",
+    "transferHint": "Send the exact amount to the deposit address. The payout arrives in your bank account once the transaction is confirmed.",
+    "volumeMax": "Max {{amount}} {{asset}}",
+    "volumeMin": "Min {{amount}} {{asset}}",
+    "youReceive": "You receive (est.)",
+    "youSell": "You sell"
   },
   "send": {
     "addressPlaceholder": "Address or ENS name",

@@ -6,9 +6,24 @@
   "buy": {
     "confirm": "Bestellung bestätigt",
     "confirmDescription": "Dein Kauf wurde initiiert. Überweise den Betrag mit dem angegebenen Verwendungszweck.",
+    "exchangeRate": "Wechselkurs",
+    "feeDfx": "DFX-Gebühr",
+    "feeFixed": "Fixe Gebühr",
+    "feeNetwork": "Netzwerkgebühr",
+    "feeTotal": "Gesamtgebühr",
     "howMuch": "Wie viel möchtest du kaufen?",
+    "iban": "IBAN",
+    "bic": "BIC",
     "paymentInfo": "Zahlungsinformationen",
-    "title": "Kaufen"
+    "recipient": "Empfänger",
+    "selectAsset": "Was möchtest du kaufen?",
+    "reference": "Verwendungszweck",
+    "summary": "Angebot",
+    "title": "Kaufen",
+    "transfer": "Überweise diesen Betrag mit dem Verwendungszweck. Deine Krypto kommt in deine Wallet sobald die Zahlung eingegangen ist.",
+    "volumeMax": "Max {{amount}} {{currency}}",
+    "volumeMin": "Min {{amount}} {{currency}}",
+    "youReceive": "Du erhältst (ca.)"
   },
   "common": {
     "amount": "Betrag",
@@ -145,10 +160,25 @@
   },
   "sell": {
     "bankAccount": "Bankkonto",
+    "bankDescription": "Gib die IBAN ein, auf die ausgezahlt werden soll.",
     "confirmSale": "Verkauf bestätigen",
+    "depositAddress": "Einzahlungsadresse",
     "depositTo": "Einzahlung an",
+    "exchangeRate": "Wechselkurs",
+    "feeDfx": "DFX-Gebühr",
+    "feeFixed": "Fixe Gebühr",
+    "feeNetwork": "Netzwerkgebühr",
+    "feeTotal": "Gesamtgebühr",
     "howMuch": "Wie viel möchtest du verkaufen?",
-    "title": "Verkaufen"
+    "payoutTo": "Auszahlung an",
+    "selectAsset": "Was möchtest du verkaufen?",
+    "summary": "Angebot",
+    "title": "Verkaufen",
+    "transferHint": "Sende den genauen Betrag an die Einzahlungsadresse. Die Auszahlung kommt auf dein Bankkonto sobald die Transaktion bestätigt ist.",
+    "volumeMax": "Max {{amount}} {{asset}}",
+    "volumeMin": "Min {{amount}} {{asset}}",
+    "youReceive": "Du erhältst (ca.)",
+    "youSell": "Du verkaufst"
   },
   "send": {
     "addressPlaceholder": "Adresse oder ENS-Name",
