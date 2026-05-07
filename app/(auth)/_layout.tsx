@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { Redirect, Stack } from 'expo-router';
-import { useDeepLink } from '@/hooks';
+import { useDeepLink, useDfxAuth } from '@/hooks';
+import { dfxApi } from '@/services/dfx';
 import { useAuthStore } from '@/store';
 import { DfxColors } from '@/theme';
 
@@ -15,6 +17,23 @@ export default function AuthLayout() {
   if (!isAuthenticated) {
     return <Redirect href="/(pin)/verify" />;
   }
+
+  return <AuthenticatedLayout />;
+}
+
+/**
+ * Inner layout wired up only after the PIN gate has passed. We register a
+ * silent 401-recovery handler on `dfxApi` here so any expired-token call
+ * transparently re-signs with the wallet and retries before bubbling up to
+ * the user as a "login required" popup. The popup should only ever fire for
+ * genuine registration / KYC states or when the wallet itself can't sign.
+ */
+function AuthenticatedLayout() {
+  const { authenticateSilent } = useDfxAuth();
+
+  useEffect(() => {
+    dfxApi.setOnUnauthorized(authenticateSilent);
+  }, [authenticateSilent]);
 
   return (
     <Stack

@@ -28,6 +28,21 @@ class DfxApi {
     return this.request<T>('GET', path);
   }
 
+  /**
+   * GET request without the Authorization header. Use for public catalog
+   * endpoints (`/v1/asset`, `/v1/fiat`) — DFX filters those per-user when
+   * the request is authenticated, returning a smaller subset that may not
+   * contain the asset/fiat the buy/sell flow needs.
+   */
+  async getPublic<T>(path: string): Promise<T> {
+    const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return this.handleResponse<T>(response);
+  }
+
   async post<T>(path: string, body: unknown): Promise<T> {
     return this.request<T>('POST', path, body);
   }
@@ -85,12 +100,12 @@ class DfxApi {
       throw new DfxApiError(apiError.statusCode, apiError.code, message);
     }
 
-    // 204 No Content
-    if (response.status === 204) {
-      return undefined as T;
-    }
-
-    return response.json() as Promise<T>;
+    // Some DFX endpoints (e.g. POST /v1/auth/mail, PUT /v2/user/mail) return
+    // 200/201/204 with an empty body. Read text first so we can distinguish
+    // empty from JSON without crashing JSON.parse.
+    const text = await response.text();
+    if (!text) return undefined as T;
+    return JSON.parse(text) as T;
   }
 
   private getHeaders(): Record<string, string> {

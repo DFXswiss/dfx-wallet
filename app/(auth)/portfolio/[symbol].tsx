@@ -3,9 +3,15 @@ import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Icon } from '@/components';
-import { getAssetsForCanonicalSymbol, getAssets, getCanonicalNameForSymbol } from '@/config/tokens';
-import { getRawBalance, useBalances } from '@/services/balances';
+import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
+import { AssetActions, Icon } from '@/components';
+import type { ChainId } from '@/config/chains';
+import {
+  getAssetsForCanonicalSymbol,
+  getAssets,
+  getCanonicalNameForSymbol,
+  WDK_SUPPORTED_CHAINS,
+} from '@/config/tokens';
 import {
   CHAIN_LABELS,
   computeFiatValue,
@@ -62,7 +68,11 @@ export default function AssetDetailScreen() {
     [canonicalSymbol, enabledChains],
   );
   const allAssetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const { data: balances } = useBalances(allAssetConfigs);
+  const wdkAssets = useMemo(
+    () => allAssetConfigs.filter((a) => WDK_SUPPORTED_CHAINS.includes(a.getNetwork() as ChainId)),
+    [allAssetConfigs],
+  );
+  const { data: balanceResults } = useBalancesForWallet(0, wdkAssets);
   const [pricingReady, setPricingReady] = useState(pricingService.isReady());
 
   useEffect(() => {
@@ -91,7 +101,8 @@ export default function AssetDetailScreen() {
     };
 
     const list = holdingMetas.map((meta) => {
-      const rawBalance = getRawBalance(balances, meta.id);
+      const result = balanceResults?.find((r) => r.assetId === meta.id);
+      const rawBalance = result?.success ? (result.balance ?? '0') : '0';
       const balanceFormatted = formatBalance(rawBalance, meta.decimals);
       const balanceNum = toNumeric(balanceFormatted);
 
@@ -122,7 +133,7 @@ export default function AssetDetailScreen() {
       if (symbolCmp !== 0) return symbolCmp;
       return (NETWORK_ORDER[a.network] ?? 99) - (NETWORK_ORDER[b.network] ?? 99);
     });
-  }, [holdingMetas, balances, canonicalSymbol, fiatCurrency, pricingReady]);
+  }, [holdingMetas, balanceResults, canonicalSymbol, fiatCurrency, pricingReady]);
 
   const totalBalance = useMemo(
     () => holdings.reduce((sum, h) => sum + h.balanceNum, 0),
@@ -176,6 +187,9 @@ export default function AssetDetailScreen() {
                     })
                   : '0.00'}
               </Text>
+              <View style={styles.actionsRow}>
+                <AssetActions asset={canonicalSymbol} testID={`asset-${canonicalSymbol}-actions`} />
+              </View>
             </View>
 
             <Text style={styles.sectionLabel}>{t('portfolio.holdings')}</Text>
@@ -289,6 +303,9 @@ const styles = StyleSheet.create({
     ...Typography.bodyLarge,
     color: DfxColors.textSecondary,
     fontWeight: '500',
+  },
+  actionsRow: {
+    marginTop: 12,
   },
   sectionLabel: {
     ...Typography.bodySmall,

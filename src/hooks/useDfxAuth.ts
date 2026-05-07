@@ -12,6 +12,11 @@ import { useAuthStore } from '@/store';
  * 2. GET /v1/auth/signMessage?address=... -> challenge
  * 3. Sign challenge with WDK wallet (inside Bare Worklet)
  * 4. POST /v1/auth -> exchange signature for JWT
+ *
+ * `authenticate()` throws on failure so callers can surface specific errors
+ * (network, signature, backend code). Use `authenticateSilent()` from
+ * background paths (e.g. dfxApi.onUnauthorized retry) where a `null` return
+ * is the correct "give up and let the caller handle it" signal.
  */
 export function useDfxAuth() {
   const { address, sign } = useAccount({ network: 'ethereum', accountIndex: 0 });
@@ -19,10 +24,11 @@ export function useDfxAuth() {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const authenticate = useCallback(async () => {
+  const authenticate = useCallback(async (): Promise<string> => {
     if (!address) {
-      setError('No Ethereum address available. Create a wallet first.');
-      return null;
+      const msg = 'Wallet not ready — Ethereum address unavailable.';
+      setError(msg);
+      throw new Error(msg);
     }
 
     setIsAuthenticating(true);
@@ -47,11 +53,20 @@ export function useDfxAuth() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Authentication failed';
       setError(msg);
-      return null;
+      throw err instanceof Error ? err : new Error(msg);
     } finally {
       setIsAuthenticating(false);
     }
   }, [address, sign, setDfxAuthenticated]);
+
+  /** Best-effort variant for background callers: returns the new token or null. */
+  const authenticateSilent = useCallback(async (): Promise<string | null> => {
+    try {
+      return await authenticate();
+    } catch {
+      return null;
+    }
+  }, [authenticate]);
 
   const logout = useCallback(async () => {
     dfxAuthService.logout();
@@ -61,6 +76,7 @@ export function useDfxAuth() {
 
   return {
     authenticate,
+    authenticateSilent,
     logout,
     isAuthenticating,
     error,

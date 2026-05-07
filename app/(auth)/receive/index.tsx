@@ -8,6 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { useAccount } from '@tetherto/wdk-react-native-core';
 import { AppHeader, Icon, PrimaryButton, QrCode } from '@/components';
 import type { ChainId } from '@/config/chains';
+import { useLdsWallet } from '@/hooks';
 import { DfxColors, Typography } from '@/theme';
 
 type ReceiveStep = 'asset' | 'qr';
@@ -60,8 +61,15 @@ export default function ReceiveScreen() {
   const [selectedChain, setSelectedChain] = useState<ChainId>('ethereum');
   const [copied, setCopied] = useState(false);
 
+  // Taproot in this app is the DFX Lightning Address (lightning.space-managed
+  // custodial wallet, Taproot Asset channels under the hood). For every other
+  // chain we use the local WDK-derived address.
   const { address: derivedAddress } = useAccount({ network: selectedChain, accountIndex: 0 });
-  const address = derivedAddress ?? '';
+  const lds = useLdsWallet();
+  const address =
+    selectedChain === 'bitcoin-taproot'
+      ? (lds.user?.lightning.address ?? '')
+      : (derivedAddress ?? '');
 
   const handleAssetSelect = (asset: AssetOption) => {
     setSelectedAsset(asset);

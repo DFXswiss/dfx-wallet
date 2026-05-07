@@ -14,7 +14,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { AppHeader, Icon, TransactionRow } from '@/components';
+import { AppHeader, AssetActions, Icon, TransactionRow } from '@/components';
 import { CHAIN_LABELS } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/services/dfx';
 import { DfxColors, Typography } from '@/theme';
@@ -103,6 +103,16 @@ export default function TransactionHistoryScreen() {
           <AppHeader title={headerTitle} testID="transaction-history" />
 
           {networkFilter && <WalletAddressBar network={networkFilter} />}
+
+          {(assetFilter || networkFilter) && (
+            <View style={styles.actionsWrapper}>
+              <AssetActions
+                {...(assetFilter ? { asset: assetFilter } : {})}
+                {...(networkFilter ? { chain: networkFilter } : {})}
+                testID="wallet-actions"
+              />
+            </View>
+          )}
 
           {!assetFilter && (
             <View style={styles.segmentedWrapper}>
@@ -254,6 +264,11 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
+  },
+  actionsWrapper: {
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 12,
   },
   segmentedWrapper: {
     paddingHorizontal: 16,

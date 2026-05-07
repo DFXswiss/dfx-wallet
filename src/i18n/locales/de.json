@@ -53,6 +53,61 @@
     "totalBalance": "Gesamtguthaben",
     "transactions": "Transaktionen"
   },
+  "dfxAuthGate": {
+    "chainLabel": {
+      "arbitrum": "Arbitrum",
+      "base": "Base",
+      "bitcoin": "Bitcoin",
+      "bitcoin-taproot": "Bitcoin (Taproot)",
+      "ethereum": "Ethereum",
+      "plasma": "Plasma",
+      "polygon": "Polygon",
+      "sepolia": "Sepolia",
+      "spark": "Lightning"
+    },
+    "email": {
+      "body": "Für diesen Kauf braucht DFX deine E-Mail-Adresse. Sobald sie bestätigt ist, läuft die Bestellung automatisch weiter.",
+      "cta": "E-Mail hinterlegen",
+      "title": "E-Mail-Adresse erforderlich"
+    },
+    "kyc": {
+      "body": "Für diese Aktion brauchst du eine höhere KYC-Stufe. Beende die Verifizierung, um fortzufahren.",
+      "cta": "KYC fortsetzen",
+      "title": "KYC-Verifizierung nötig"
+    },
+    "linkChain": {
+      "body": "Damit DFX den Kauf an deine {{chain}}-Wallet senden kann, musst du sie einmalig mit deinem DFX-Konto verknüpfen. Bestätige kurz mit deiner Wallet.",
+      "cta": "{{chain}}-Wallet verknüpfen",
+      "failed": "Verknüpfung fehlgeschlagen. Bitte erneut versuchen.",
+      "title": "{{chain}}-Wallet verknüpfen"
+    },
+    "login": {
+      "body": "Du musst dich kurz bei DFX anmelden, bevor du fortfahren kannst.",
+      "cta": "Bei DFX anmelden",
+      "title": "DFX-Login nötig"
+    },
+    "registration": {
+      "body": "Du brauchst noch ein DFX-Konto. Melde dich mit deiner E-Mail-Adresse an — wir verknüpfen deine Wallet automatisch.",
+      "cta": "Bei DFX anmelden",
+      "title": "DFX-Konto erstellen"
+    }
+  },
+  "dfxLogin": {
+    "mailBody": "Gib deine DFX-E-Mail-Adresse ein. Wir schicken dir einen Bestätigungslink. Wenn noch kein Konto existiert, wird automatisch eins erstellt.",
+    "mailLabel": "E-Mail-Adresse",
+    "mailTitle": "Bei DFX anmelden",
+    "notVerifiedYet": "Noch nicht bestätigt. Bitte klicke zuerst den Link in der Mail.",
+    "sendCta": "Bestätigungslink senden",
+    "sendError": "Anmelde-Mail konnte nicht gesendet werden. Bitte erneut versuchen.",
+    "sendingBody": "Wir bereiten deine Anmeldung vor…",
+    "successBody": "Du bist mit deinem DFX-Konto verbunden. Deine Wallet wurde dem Konto hinzugefügt.",
+    "successTitle": "Erfolgreich angemeldet",
+    "title": "DFX-Login",
+    "verifyBody": "Wir haben dir eine Mail an {{mail}} geschickt. Klicke den Link in der Mail und tippe danach unten auf den Button.",
+    "verifyCta": "E-Mail bestätigt",
+    "verifyError": "Verifizierung fehlgeschlagen. Bitte erneut versuchen.",
+    "verifyTitle": "E-Mail bestätigen"
+  },
   "email": {
     "currentLabel": "Aktuelle E-Mail",
     "newLabel": "Neue E-Mail",

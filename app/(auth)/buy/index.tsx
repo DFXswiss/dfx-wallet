@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ImageBackground,
   Pressable,
@@ -9,17 +9,20 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { AppHeader, Icon, PrimaryButton } from '@/components';
+import { useAccount } from '@tetherto/wdk-react-native-core';
+import { AppHeader, DfxAuthGate, Icon, PrimaryButton } from '@/components';
 import type { ChainId } from '@/config/chains';
 import {
   formatFiat as fmtFiat,
   formatCryptoAmount as fmtCrypto,
 } from '@/config/portfolio-presentation';
-import { useBuyFlow } from '@/hooks';
+import { useBuyFlow, useLdsWallet } from '@/hooks';
+import { dfxAuthService } from '@/services/dfx';
+import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
 type BuyStep = 'amount' | 'payment' | 'confirm';
@@ -61,13 +64,16 @@ const BUY_ASSETS: BuyAsset[] = [
       {
         chain: 'bitcoin-taproot',
         label: 'Taproot',
-        blockchain: 'Bitcoin',
+        // Taproot in dfx-wallet is the DFX Lightning Address (lightning.space-
+        // managed Taproot Asset channels), so it maps to DFX's `Lightning`
+        // blockchain on the buy/sell side.
+        blockchain: 'Lightning',
         tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
       },
       {
         chain: 'spark',
         label: 'Lightning',
-        blockchain: 'Lightning',
+        blockchain: 'Spark',
         tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
       },
       {
@@ -171,15 +177,109 @@ const BUY_ASSETS: BuyAsset[] = [
 export default function BuyScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { paymentInfo, isLoading, error, getQuote, createPaymentInfo, confirmPayment } =
-    useBuyFlow();
+  const params = useLocalSearchParams<{ asset?: string; chain?: string }>();
+  const {
+    paymentInfo,
+    isLoading,
+    error,
+    authGate,
+    getQuote,
+    createPaymentInfo,
+    confirmPayment,
+    dismissAuthGate,
+    retryLast,
+  } = useBuyFlow();
   const [step, setStep] = useState<BuyStep>('amount');
-  const [selectedAsset, setSelectedAsset] = useState<BuyAsset | null>(null);
-  const [selectedChainIndex, setSelectedChainIndex] = useState(0);
+  const initialPreselect = useMemo(() => {
+    const wantedSymbol = typeof params.asset === 'string' ? params.asset.toUpperCase() : null;
+    const wantedChain = typeof params.chain === 'string' ? params.chain : null;
+    if (!wantedSymbol) return null;
+    const asset = BUY_ASSETS.find((a) => a.symbol === wantedSymbol);
+    if (!asset) return null;
+    const chainIdx = wantedChain ? asset.chains.findIndex((c) => c.chain === wantedChain) : 0;
+    return { asset, chainIdx: chainIdx >= 0 ? chainIdx : 0 };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [selectedAsset, setSelectedAsset] = useState<BuyAsset | null>(
+    initialPreselect?.asset ?? null,
+  );
+  const [selectedChainIndex, setSelectedChainIndex] = useState(initialPreselect?.chainIdx ?? 0);
   const [selectedTokenIndex, setSelectedTokenIndex] = useState(0);
   const [amount, setAmount] = useState('');
   const [selectedCurrency, setSelectedCurrency] = useState<(typeof CURRENCIES)[number]>('CHF');
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // After the user goes through the DFX login flow we land back on this
+  // screen; replay the failed call so they don't have to retap "Continue".
+  const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
+  useFocusEffect(
+    useCallback(() => {
+      if (isDfxAuthenticated) {
+        void retryLast();
+      }
+    }, [isDfxAuthenticated, retryLast]),
+  );
+
+  // WDK accounts for the chains the user can buy on. We hold each at the
+  // top of the screen because hooks can't be called conditionally; the
+  // linkChain handler picks the right one based on the failed buy params.
+  const btcAccount = useAccount({ network: 'bitcoin', accountIndex: 0 });
+  const sparkAccount = useAccount({ network: 'spark', accountIndex: 0 });
+  const ethAccount = useAccount({ network: 'ethereum', accountIndex: 0 });
+  const lds = useLdsWallet();
+
+  const linkChainToDfx = useCallback(
+    async (chain: ChainId) => {
+      // Taproot is special: the deposit address is a DFX Lightning Address
+      // (`name@dfx.swiss`), provisioned by lightning.space. We hand DFX the
+      // LN address plus the ownership proof LDS issued instead of running a
+      // wallet sign-flow.
+      if (chain === 'bitcoin-taproot') {
+        const user = lds.user ?? (await lds.signIn());
+        if (!user) {
+          throw new Error('DFX Lightning wallet not ready — please retry.');
+        }
+        await dfxAuthService.linkAddress(
+          user.lightning.address,
+          async () => user.lightning.addressOwnershipProof,
+          { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
+        );
+        void retryLast();
+        return;
+      }
+
+      const account =
+        chain === 'bitcoin' ? btcAccount : chain === 'spark' ? sparkAccount : ethAccount;
+      if (!account.address) {
+        throw new Error(`Wallet for ${chain} not ready`);
+      }
+      const blockchainName =
+        chain === 'bitcoin'
+          ? 'Bitcoin'
+          : chain === 'spark'
+            ? 'Spark'
+            : chain === 'arbitrum'
+              ? 'Arbitrum'
+              : chain === 'polygon'
+                ? 'Polygon'
+                : chain === 'base'
+                  ? 'Base'
+                  : 'Ethereum';
+      await dfxAuthService.linkAddress(
+        account.address,
+        async (message) => {
+          const result = await account.sign(message);
+          if (!result.success) {
+            throw new Error(result.error ?? 'Failed to sign message');
+          }
+          return result.signature;
+        },
+        { wallet: 'DFX Wallet', blockchain: blockchainName },
+      );
+      void retryLast();
+    },
+    [btcAccount, sparkAccount, ethAccount, lds, retryLast],
+  );
 
   // eslint-disable-next-line security/detect-object-injection -- selectedChainIndex is bounded by chains.length
   const selectedChainSpec = selectedAsset?.chains[selectedChainIndex] ?? null;
@@ -196,11 +296,13 @@ export default function BuyScreen() {
     const numAmount = parseFloat(amount);
     if (!numAmount || numAmount <= 0) return;
     const id = setTimeout(() => {
+      if (!selectedChainSpec) return;
       void getQuote({
         amount: numAmount,
         currency: selectedCurrency,
         asset: targetAsset,
         blockchain,
+        chain: selectedChainSpec.chain,
       });
     }, 350);
     return () => clearTimeout(id);
@@ -403,11 +505,13 @@ export default function BuyScreen() {
           <PrimaryButton
             title={t('common.continue')}
             onPress={async () => {
+              if (!selectedChainSpec) return;
               const info = await createPaymentInfo({
                 amount: numAmount,
                 currency: selectedCurrency,
                 asset: targetAsset,
                 blockchain,
+                chain: selectedChainSpec.chain,
               });
               if (info) setStep('payment');
             }}
@@ -551,6 +655,7 @@ export default function BuyScreen() {
           </ScrollView>
         </SafeAreaView>
       </ImageBackground>
+      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} onLinkChain={linkChainToDfx} />
     </>
   );
 }
