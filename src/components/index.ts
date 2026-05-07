@@ -1,7 +1,9 @@
 export { AppHeader } from './AppHeader';
+export { AssetActions } from './AssetActions';
 export { AssetListItem } from './AssetListItem';
 export { ChainSelector } from './ChainSelector';
 export { DashboardHeader } from './DashboardHeader';
+export { DfxAuthGate } from './DfxAuthGate';
 export { ErrorBoundary } from './ErrorBoundary';
 export { Icon } from './Icon';
 export { MenuModal } from './MenuModal';

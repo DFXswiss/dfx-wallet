@@ -53,6 +53,61 @@
     "totalBalance": "Total Wallet Balance",
     "transactions": "Transactions"
   },
+  "dfxAuthGate": {
+    "chainLabel": {
+      "arbitrum": "Arbitrum",
+      "base": "Base",
+      "bitcoin": "Bitcoin",
+      "bitcoin-taproot": "Bitcoin (Taproot)",
+      "ethereum": "Ethereum",
+      "plasma": "Plasma",
+      "polygon": "Polygon",
+      "sepolia": "Sepolia",
+      "spark": "Lightning"
+    },
+    "email": {
+      "body": "DFX needs your email address for this purchase. Once it's verified, the order continues automatically.",
+      "cta": "Add email",
+      "title": "Email address required"
+    },
+    "kyc": {
+      "body": "This action requires a higher KYC level. Finish the verification to continue.",
+      "cta": "Continue KYC",
+      "title": "KYC verification needed"
+    },
+    "linkChain": {
+      "body": "So DFX can deliver the purchase to your {{chain}} wallet, link it once to your DFX account. Confirm briefly with your wallet.",
+      "cta": "Link {{chain}} wallet",
+      "failed": "Linking failed. Please try again.",
+      "title": "Link {{chain}} wallet"
+    },
+    "login": {
+      "body": "You need to sign in to DFX before you can continue.",
+      "cta": "Sign in to DFX",
+      "title": "DFX sign-in required"
+    },
+    "registration": {
+      "body": "You don't have a DFX account yet. Sign in with your email — we'll attach your wallet automatically.",
+      "cta": "Sign in to DFX",
+      "title": "Create DFX account"
+    }
+  },
+  "dfxLogin": {
+    "mailBody": "Enter your DFX email address. We'll send you a confirmation link. If you don't have an account yet, we'll create one for you.",
+    "mailLabel": "Email address",
+    "mailTitle": "Sign in to DFX",
+    "notVerifiedYet": "Not confirmed yet. Please click the link in the email first.",
+    "sendCta": "Send confirmation link",
+    "sendError": "Could not send sign-in email. Please try again.",
+    "sendingBody": "Preparing your sign-in…",
+    "successBody": "You're connected to your DFX account. Your wallet has been added to the account.",
+    "successTitle": "Signed in",
+    "title": "DFX sign-in",
+    "verifyBody": "We sent an email to {{mail}}. Click the link in the email, then tap the button below.",
+    "verifyCta": "Email confirmed",
+    "verifyError": "Verification failed. Please try again.",
+    "verifyTitle": "Confirm email"
+  },
   "email": {
     "currentLabel": "Current email",
     "newLabel": "New email",

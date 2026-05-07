@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ImageBackground,
   Pressable,
@@ -9,12 +9,12 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import { AppHeader, Icon, PrimaryButton } from '@/components';
+import { useAccount, useBalancesForWallet } from '@tetherto/wdk-react-native-core';
+import { AppHeader, DfxAuthGate, Icon, PrimaryButton } from '@/components';
 import type { ChainId } from '@/config/chains';
 import {
   formatBalance,
@@ -23,7 +23,9 @@ import {
   toNumeric,
 } from '@/config/portfolio-presentation';
 import { getAssetMeta, getAssets, WDK_SUPPORTED_CHAINS } from '@/config/tokens';
-import { useEnabledChains, useSellFlow } from '@/hooks';
+import { useEnabledChains, useLdsWallet, useSellFlow } from '@/hooks';
+import { dfxAuthService } from '@/services/dfx';
+import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
 type SellStep = 'amount' | 'bank' | 'confirm';
@@ -60,13 +62,13 @@ const SELL_ASSETS: SellAsset[] = [
       {
         chain: 'bitcoin-taproot',
         label: 'Taproot',
-        blockchain: 'Bitcoin',
+        blockchain: 'Lightning',
         tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
       },
       {
         chain: 'spark',
         label: 'Lightning',
-        blockchain: 'Lightning',
+        blockchain: 'Spark',
         tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
       },
       {
@@ -167,16 +169,102 @@ const SELL_ASSETS: SellAsset[] = [
 export default function SellScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const params = useLocalSearchParams<{ asset?: string; chain?: string }>();
   const { enabledChains } = useEnabledChains();
-  const { paymentInfo, isLoading, error, getQuote, createPaymentInfo } = useSellFlow();
+  const {
+    paymentInfo,
+    isLoading,
+    error,
+    authGate,
+    getQuote,
+    createPaymentInfo,
+    dismissAuthGate,
+    retryLast,
+  } = useSellFlow();
   const [step, setStep] = useState<SellStep>('amount');
-  const [selectedAsset, setSelectedAsset] = useState<SellAsset | null>(null);
-  const [selectedChainIndex, setSelectedChainIndex] = useState(0);
+  const initialPreselect = useMemo(() => {
+    const wantedSymbol = typeof params.asset === 'string' ? params.asset.toUpperCase() : null;
+    const wantedChain = typeof params.chain === 'string' ? params.chain : null;
+    if (!wantedSymbol) return null;
+    const asset = SELL_ASSETS.find((a) => a.symbol === wantedSymbol);
+    if (!asset) return null;
+    const chainIdx = wantedChain ? asset.chains.findIndex((c) => c.chain === wantedChain) : 0;
+    return { asset, chainIdx: chainIdx >= 0 ? chainIdx : 0 };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [selectedAsset, setSelectedAsset] = useState<SellAsset | null>(
+    initialPreselect?.asset ?? null,
+  );
+  const [selectedChainIndex, setSelectedChainIndex] = useState(initialPreselect?.chainIdx ?? 0);
   const [selectedTokenIndex, setSelectedTokenIndex] = useState(0);
   const [amount, setAmount] = useState('');
   const [payoutCurrency, setPayoutCurrency] = useState<(typeof FIAT_CURRENCIES)[number]>('CHF');
   const [iban, setIban] = useState('');
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Replay the last failed call after the user finishes the DFX login flow.
+  const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
+  useFocusEffect(
+    useCallback(() => {
+      if (isDfxAuthenticated) {
+        void retryLast();
+      }
+    }, [isDfxAuthenticated, retryLast]),
+  );
+
+  const btcAccount = useAccount({ network: 'bitcoin', accountIndex: 0 });
+  const sparkAccount = useAccount({ network: 'spark', accountIndex: 0 });
+  const ethAccount = useAccount({ network: 'ethereum', accountIndex: 0 });
+  const lds = useLdsWallet();
+
+  const linkChainToDfx = useCallback(
+    async (chain: ChainId) => {
+      if (chain === 'bitcoin-taproot') {
+        const user = lds.user ?? (await lds.signIn());
+        if (!user) {
+          throw new Error('DFX Lightning wallet not ready — please retry.');
+        }
+        await dfxAuthService.linkAddress(
+          user.lightning.address,
+          async () => user.lightning.addressOwnershipProof,
+          { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
+        );
+        void retryLast();
+        return;
+      }
+
+      const account =
+        chain === 'bitcoin' ? btcAccount : chain === 'spark' ? sparkAccount : ethAccount;
+      if (!account.address) {
+        throw new Error(`Wallet for ${chain} not ready`);
+      }
+      const blockchainName =
+        chain === 'bitcoin'
+          ? 'Bitcoin'
+          : chain === 'spark'
+            ? 'Spark'
+            : chain === 'arbitrum'
+              ? 'Arbitrum'
+              : chain === 'polygon'
+                ? 'Polygon'
+                : chain === 'base'
+                  ? 'Base'
+                  : 'Ethereum';
+      await dfxAuthService.linkAddress(
+        account.address,
+        async (message) => {
+          const result = await account.sign(message);
+          if (!result.success) {
+            throw new Error(result.error ?? 'Failed to sign message');
+          }
+          return result.signature;
+        },
+        { wallet: 'DFX Wallet', blockchain: blockchainName },
+      );
+      void retryLast();
+    },
+    [btcAccount, sparkAccount, ethAccount, lds, retryLast],
+  );
 
   // Wallet balances — drive the chain/token chip filter so users only see
   // chains where they actually have funds to sell.
@@ -221,11 +309,13 @@ export default function SellScreen() {
     const numAmount = parseFloat(amount);
     if (!numAmount || numAmount <= 0) return;
     const id = setTimeout(() => {
+      if (!selectedChainSpec) return;
       void getQuote({
         amount: numAmount,
         asset: sellAsset,
         blockchain,
         currency: payoutCurrency,
+        chain: selectedChainSpec.chain,
       });
     }, 350);
     return () => clearTimeout(id);
@@ -448,12 +538,14 @@ export default function SellScreen() {
       <PrimaryButton
         title={t('common.continue')}
         onPress={async () => {
+          if (!selectedChainSpec) return;
           const info = await createPaymentInfo({
             amount: numAmount,
             asset: sellAsset,
             blockchain,
             currency: payoutCurrency,
             iban: iban.replace(/\s/g, ''),
+            chain: selectedChainSpec.chain,
           });
           if (info) setStep('confirm');
         }}
@@ -556,6 +648,7 @@ export default function SellScreen() {
           </ScrollView>
         </SafeAreaView>
       </ImageBackground>
+      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} onLinkChain={linkChainToDfx} />
     </>
   );
 }

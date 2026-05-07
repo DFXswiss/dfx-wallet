@@ -103,6 +103,7 @@ const ASSET_SPECS: AssetSpec[] = [
     isNative: false,
     category: 'btc',
     address: '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f',
+    defaultEnabled: true,
   },
   {
     network: 'polygon',
@@ -114,6 +115,7 @@ const ASSET_SPECS: AssetSpec[] = [
     isNative: false,
     category: 'btc',
     address: '0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6',
+    defaultEnabled: true,
   },
   {
     network: 'base',
@@ -125,6 +127,7 @@ const ASSET_SPECS: AssetSpec[] = [
     isNative: false,
     category: 'btc',
     address: '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf',
+    defaultEnabled: true,
   },
 
   // Ethereum native (used for gas)
