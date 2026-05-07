@@ -105,6 +105,13 @@ export default function DashboardScreen() {
               style={styles.actionPill}
             />
             <ShortcutAction
+              icon={<Icon name="arrow-down" size={18} color={DfxColors.white} strokeWidth={2.4} />}
+              label={t('buy.title')}
+              testID="dashboard-action-buy"
+              onPress={() => router.push({ pathname: '/(auth)/buy', params: { asset: 'BTC' } })}
+              style={styles.actionPill}
+            />
+            <ShortcutAction
               icon={<Icon name="grid" size={18} color={DfxColors.white} strokeWidth={2.2} />}
               label={t('dashboard.pay')}
               testID="dashboard-action-pay"
