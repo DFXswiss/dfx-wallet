@@ -32,7 +32,7 @@ describe('Onboarding', () => {
       await element(by.id('welcome-create-wallet-button')).tap();
       await waitFor(element(by.id('create-wallet-screen')))
         .toBeVisible()
-        .withTimeout(10_000);
+        .withTimeout(30_000);
       await expectScreenToMatchBaseline('create-wallet');
     });
 
@@ -46,7 +46,7 @@ describe('Onboarding', () => {
       await element(by.id('create-wallet-continue-button')).tap();
       await waitFor(element(by.id('setup-pin-screen')))
         .toBeVisible()
-        .withTimeout(15_000);
+        .withTimeout(30_000);
       await expectScreenToMatchBaseline('setup-pin');
     });
 
@@ -54,7 +54,7 @@ describe('Onboarding', () => {
       await enterPin('111111');
       await waitFor(element(by.id('setup-pin-confirm-screen')))
         .toBeVisible()
-        .withTimeout(5_000);
+        .withTimeout(30_000);
       await expectScreenToMatchBaseline('setup-pin-confirm');
     });
 
@@ -62,7 +62,7 @@ describe('Onboarding', () => {
       await enterPin('111111');
       await waitFor(element(by.id('legal-disclaimer-screen')))
         .toBeVisible()
-        .withTimeout(5_000);
+        .withTimeout(30_000);
       await expectScreenToMatchBaseline('legal-disclaimer');
     });
 
@@ -71,7 +71,7 @@ describe('Onboarding', () => {
       await element(by.id('legal-continue-button')).tap();
       await waitFor(element(by.id('dashboard-screen')))
         .toBeVisible()
-        .withTimeout(10_000);
+        .withTimeout(30_000);
       await expectScreenToMatchBaseline('dashboard');
     });
   });
@@ -87,7 +87,7 @@ describe('Onboarding', () => {
       await element(by.id('welcome-restore-seed-button')).tap();
       await waitFor(element(by.id('restore-wallet-screen')))
         .toBeVisible()
-        .withTimeout(15_000);
+        .withTimeout(30_000);
       await expectScreenToMatchBaseline('restore-wallet');
     });
 

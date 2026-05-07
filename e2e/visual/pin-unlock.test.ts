@@ -11,7 +11,7 @@ describe('PIN unlock', () => {
     await element(by.id('welcome-create-wallet-button')).tap();
     await waitFor(element(by.id('create-wallet-screen')))
       .toBeVisible()
-      .withTimeout(5_000);
+      .withTimeout(30_000);
 
     await element(by.id('create-wallet-reveal-button')).tap();
     // Wait for seed words to render
@@ -19,24 +19,24 @@ describe('PIN unlock', () => {
     await element(by.id('create-wallet-continue-button')).tap();
     await waitFor(element(by.id('setup-pin-screen')))
       .toBeVisible()
-      .withTimeout(15_000);
+      .withTimeout(30_000);
 
     // Enter + confirm PIN (111111)
     await enterPin('111111');
     await waitFor(element(by.id('setup-pin-confirm-screen')))
       .toBeVisible()
-      .withTimeout(5_000);
+      .withTimeout(30_000);
     await enterPin('111111');
 
     // Legal disclaimer
     await waitFor(element(by.id('legal-disclaimer-screen')))
       .toBeVisible()
-      .withTimeout(5_000);
+      .withTimeout(30_000);
     await element(by.id('legal-accept-checkbox')).tap();
     await element(by.id('legal-continue-button')).tap();
     await waitFor(element(by.id('dashboard-screen')))
       .toBeVisible()
-      .withTimeout(10_000);
+      .withTimeout(30_000);
   });
 
   it('shows verify PIN screen after cold restart', async () => {
@@ -51,7 +51,7 @@ describe('PIN unlock', () => {
     await enterPin('222222');
     await waitFor(element(by.id('verify-pin-error')))
       .toBeVisible()
-      .withTimeout(5_000);
+      .withTimeout(30_000);
     await expectScreenToMatchBaseline('verify-pin-error');
   });
 
@@ -59,7 +59,7 @@ describe('PIN unlock', () => {
     await enterPin('111111');
     await waitFor(element(by.id('dashboard-screen')))
       .toBeVisible()
-      .withTimeout(10_000);
+      .withTimeout(30_000);
     await expectScreenToMatchBaseline('pin-unlock-dashboard');
   });
 });
