@@ -100,8 +100,13 @@ export default function PortfolioScreen() {
     };
 
     return Array.from(byCanonical.values()).sort((a, b) => {
+      // BTC always first
+      if (a.category === 'btc' && b.category !== 'btc') return -1;
+      if (a.category !== 'btc' && b.category === 'btc') return 1;
+      // Then by balance: non-zero before zero
       if (a.totalBalanceNum > 0 && b.totalBalanceNum === 0) return -1;
       if (a.totalBalanceNum === 0 && b.totalBalanceNum > 0) return 1;
+      // Then by fiat value descending
       if (a.totalBalanceNum > 0 && b.totalBalanceNum > 0) return b.totalFiat - a.totalFiat;
       const cat = CATEGORY_ORDER[a.category] - CATEGORY_ORDER[b.category];
       if (cat !== 0) return cat;
