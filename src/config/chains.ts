@@ -8,7 +8,8 @@ export type ChainId =
   | 'spark'
   | 'plasma'
   | 'sepolia'
-  | 'bitcoin';
+  | 'bitcoin'
+  | 'bitcoin-taproot';
 
 const CANDIDE_PAYMASTER_ADDRESS = '0x8b1f6cb5d062aa2ce8d581942bbb960420d875ba';
 const ENTRY_POINT_ADDRESS = '0x0000000071727De22E5E9d8BAf0edAc6f37da032';

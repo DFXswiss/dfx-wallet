@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ImageBackground,
   Pressable,
@@ -13,9 +13,12 @@ import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { AppHeader, Icon, PrimaryButton } from '@/components';
 import type { ChainId } from '@/config/chains';
-import { useSellFlow } from '@/hooks';
+import { formatBalance, toNumeric } from '@/config/portfolio-presentation';
+import { getAssetMeta, getAssets, getMockRawBalance, WDK_SUPPORTED_CHAINS } from '@/config/tokens';
+import { useEnabledChains, useSellFlow } from '@/hooks';
 import { DfxColors, Typography } from '@/theme';
 
 const fmtFiat = (n: number): string =>
@@ -55,7 +58,13 @@ const SELL_ASSETS: SellAsset[] = [
     chains: [
       {
         chain: 'bitcoin',
-        label: 'Bitcoin',
+        label: 'SegWit',
+        blockchain: 'Bitcoin',
+        tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
+      },
+      {
+        chain: 'bitcoin-taproot',
+        label: 'Taproot',
         blockchain: 'Bitcoin',
         tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
       },
@@ -163,6 +172,7 @@ const SELL_ASSETS: SellAsset[] = [
 export default function SellScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { enabledChains } = useEnabledChains();
   const { paymentInfo, isLoading, error, getQuote, createPaymentInfo } = useSellFlow();
   const [step, setStep] = useState<SellStep>('amount');
   const [selectedAsset, setSelectedAsset] = useState<SellAsset | null>(null);
@@ -173,8 +183,41 @@ export default function SellScreen() {
   const [iban, setIban] = useState('');
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // eslint-disable-next-line security/detect-object-injection -- selectedChainIndex is bounded by chains.length
-  const selectedChainSpec = selectedAsset?.chains[selectedChainIndex] ?? null;
+  // Wallet balances — drive the chain/token chip filter so users only see
+  // chains where they actually have funds to sell.
+  const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
+  const wdkAssets = useMemo(
+    () => assetConfigs.filter((a) => WDK_SUPPORTED_CHAINS.includes(a.getNetwork() as ChainId)),
+    [assetConfigs],
+  );
+  const { data: balanceResults } = useBalancesForWallet(0, wdkAssets);
+
+  const hasHolding = (network: ChainId, symbol: string): boolean => {
+    const asset = assetConfigs.find(
+      (a) => a.getNetwork() === network && getAssetMeta(a.getId())?.symbol === symbol,
+    );
+    if (!asset) return false;
+    const result = balanceResults?.find((r) => r.assetId === asset.getId());
+    const liveRaw = result?.success ? (result.balance ?? '0') : '0';
+    const mockRaw = getMockRawBalance(network, symbol, asset.getDecimals());
+    const raw = liveRaw !== '0' ? liveRaw : (mockRaw ?? '0');
+    return toNumeric(formatBalance(raw, asset.getDecimals())) > 0;
+  };
+
+  // Only show chains+tokens the user actually holds funds in.
+  const availableChains = useMemo(() => {
+    if (!selectedAsset) return [];
+    return selectedAsset.chains
+      .map((c) => ({
+        ...c,
+        tokens: c.tokens.filter((t) => hasHolding(c.chain, t.assetSymbol)),
+      }))
+      .filter((c) => c.tokens.length > 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAsset, balanceResults, assetConfigs]);
+
+  // eslint-disable-next-line security/detect-object-injection -- selectedChainIndex is bounded by availableChains.length
+  const selectedChainSpec = availableChains[selectedChainIndex] ?? null;
   // eslint-disable-next-line security/detect-object-injection -- selectedTokenIndex is bounded by tokens.length
   const selectedTokenSpec = selectedChainSpec?.tokens[selectedTokenIndex] ?? null;
   const sellAsset = selectedTokenSpec?.assetSymbol ?? '';
@@ -242,31 +285,33 @@ export default function SellScreen() {
         ))}
       </View>
 
-      {selectedAsset ? (
+      {selectedAsset && availableChains.length === 0 ? (
+        <Text style={styles.warning}>{t('sell.noBalance')}</Text>
+      ) : null}
+
+      {selectedAsset && availableChains.length > 0 ? (
         <>
-          {selectedAsset.chains.length > 1 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
-              {selectedAsset.chains.map((c, i) => (
-                <Pressable
-                  key={c.chain}
-                  style={[styles.chainChip, selectedChainIndex === i && styles.chainChipActive]}
-                  onPress={() => {
-                    setSelectedChainIndex(i);
-                    setSelectedTokenIndex(0);
-                  }}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
+            {availableChains.map((c, i) => (
+              <Pressable
+                key={c.chain}
+                style={[styles.chainChip, selectedChainIndex === i && styles.chainChipActive]}
+                onPress={() => {
+                  setSelectedChainIndex(i);
+                  setSelectedTokenIndex(0);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.chainChipText,
+                    selectedChainIndex === i && styles.chainChipTextActive,
+                  ]}
                 >
-                  <Text
-                    style={[
-                      styles.chainChipText,
-                      selectedChainIndex === i && styles.chainChipTextActive,
-                    ]}
-                  >
-                    {c.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          ) : null}
+                  {c.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
 
           {selectedChainSpec && selectedChainSpec.tokens.length > 1 ? (
             <View style={styles.tokenRow}>

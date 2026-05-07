@@ -21,7 +21,9 @@ const CHAIN_LABEL = new Map<ChainId, string>([
   ['arbitrum', 'Arbitrum'],
   ['polygon', 'Polygon'],
   ['base', 'Base'],
-  ['spark', 'Bitcoin'],
+  ['bitcoin', 'Bitcoin'],
+  ['bitcoin-taproot', 'Bitcoin (Taproot)'],
+  ['spark', 'Bitcoin Lightning'],
   ['plasma', 'Plasma'],
   ['sepolia', 'Sepolia'],
 ]);

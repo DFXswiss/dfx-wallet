@@ -27,7 +27,8 @@ const RECEIVE_ASSETS: AssetOption[] = [
     symbol: 'BTC',
     label: 'Bitcoin',
     chains: [
-      { chain: 'bitcoin', label: 'Native' },
+      { chain: 'bitcoin', label: 'SegWit' },
+      { chain: 'bitcoin-taproot', label: 'Taproot' },
       { chain: 'spark', label: 'Lightning' },
       { chain: 'ethereum', label: 'EVM' },
     ],

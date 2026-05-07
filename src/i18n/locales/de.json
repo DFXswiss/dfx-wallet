@@ -170,6 +170,7 @@
     "feeNetwork": "Netzwerkgebühr",
     "feeTotal": "Gesamtgebühr",
     "howMuch": "Wie viel möchtest du verkaufen?",
+    "noBalance": "Keine Bestände zum Verkaufen — bitte zuerst aufladen.",
     "payoutTo": "Auszahlung an",
     "selectAsset": "Was möchtest du verkaufen?",
     "summary": "Angebot",

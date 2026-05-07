@@ -31,7 +31,8 @@ export const CHAIN_LABELS = new Map<string, string>([
   ['polygon', 'Polygon'],
   ['base', 'Base'],
   ['spark', 'Bitcoin Lightning'],
-  ['bitcoin', 'Bitcoin'],
+  ['bitcoin', 'Bitcoin (SegWit)'],
+  ['bitcoin-taproot', 'Bitcoin (Taproot)'],
   ['plasma', 'Plasma'],
   ['sepolia', 'Sepolia'],
 ]);

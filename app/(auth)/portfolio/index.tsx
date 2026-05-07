@@ -32,7 +32,10 @@ type PortfolioGroup = {
   category: TokenCategory;
   totalBalanceNum: number;
   totalFiat: number;
-  chainCount: number;
+  // Distinct networks the canonical asset is held on. USDC + USDT on
+  // Ethereum still counts as one network — the user cares about chains, not
+  // token variants on the same chain.
+  networks: Set<string>;
 };
 
 export default function PortfolioScreen() {
@@ -90,7 +93,7 @@ export default function PortfolioScreen() {
       if (existing) {
         existing.totalBalanceNum += balanceNum;
         existing.totalFiat += fiatValue;
-        existing.chainCount += 1;
+        existing.networks.add(meta.network);
       } else {
         byCanonical.set(meta.canonicalSymbol, {
           canonicalSymbol: meta.canonicalSymbol,
@@ -98,7 +101,7 @@ export default function PortfolioScreen() {
           category: meta.category,
           totalBalanceNum: balanceNum,
           totalFiat: fiatValue,
-          chainCount: 1,
+          networks: new Set([meta.network]),
         });
       }
     }
@@ -227,7 +230,7 @@ function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) 
           {group.canonicalName}
         </Text>
         <Text style={styles.chainCountText}>
-          {group.chainCount === 1 ? '1 network' : `${group.chainCount} networks`}
+          {group.networks.size === 1 ? '1 network' : `${group.networks.size} networks`}
         </Text>
       </View>
       <View style={styles.balanceColumn}>

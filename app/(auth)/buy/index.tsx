@@ -60,7 +60,13 @@ const BUY_ASSETS: BuyAsset[] = [
     chains: [
       {
         chain: 'bitcoin',
-        label: 'Bitcoin',
+        label: 'SegWit',
+        blockchain: 'Bitcoin',
+        tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
+      },
+      {
+        chain: 'bitcoin-taproot',
+        label: 'Taproot',
         blockchain: 'Bitcoin',
         tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
       },
