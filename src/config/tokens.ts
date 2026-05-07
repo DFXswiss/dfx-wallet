@@ -399,6 +399,7 @@ export const WDK_SUPPORTED_CHAINS: ChainId[] = [
   'polygon',
   'base',
   'spark',
+  'bitcoin',
   'plasma',
   'sepolia',
 ];

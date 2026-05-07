@@ -17,6 +17,7 @@ module.exports = {
     plasma: { package: '@tetherto/wdk-wallet-evm-erc-4337' },
     sepolia: { package: '@tetherto/wdk-wallet-evm-erc-4337' },
     spark: { package: '@tetherto/wdk-wallet-spark' },
+    bitcoin: { package: '@tetherto/wdk-wallet-btc' },
   },
   output: {
     // Put the bundle inside `.wdk/` so the generated `.wdk/index.js`'s
