@@ -189,7 +189,7 @@ export default function KycScreen() {
           />
         )}
 
-        {steps.every((s) => s.status === 'Completed') && (
+        {steps.length > 0 && steps.every((s) => s.status === 'Completed') && (
           <View style={styles.completeContainer}>
             <Text style={styles.completeIcon}>{'\u2705'}</Text>
             <Text style={styles.completeText}>KYC verification complete</Text>

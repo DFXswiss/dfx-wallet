@@ -54,19 +54,20 @@
     "transactions": "Transactions"
   },
   "email": {
-    "codeHint": "We sent a 6-digit code to {{mail}}. Enter it below to confirm the address.",
-    "codeLabel": "Confirmation code",
     "currentLabel": "Current email",
     "newLabel": "New email",
     "notSet": "Not set yet",
     "placeholder": "name@example.com",
-    "sendCta": "Send confirmation code",
-    "sendError": "Could not send code. Please try again.",
+    "sendCta": "Send confirmation email",
+    "sendError": "Could not send the confirmation email. Please try again.",
     "successBody": "Your email address {{mail}} is now linked to your DFX profile.",
     "successTitle": "Email verified",
     "title": "Email",
+    "tokenHint": "We sent a confirmation email to {{mail}}. Open it and paste the token from the link into the field below.",
+    "tokenLabel": "Confirmation token",
+    "tokenPlaceholder": "Paste the token from the email",
     "verifyCta": "Confirm",
-    "verifyError": "Code incorrect or expired. Please try again."
+    "verifyError": "Token invalid or expired. Please try again."
   },
   "hardware": {
     "bitbox": "BitBox02",

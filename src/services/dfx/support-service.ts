@@ -19,15 +19,15 @@ export type SupportMessageDto = {
 
 export class DfxSupportService {
   async getIssues(): Promise<SupportIssueDto[]> {
-    return dfxApi.get<SupportIssueDto[]>('/support/issue');
+    return dfxApi.get<SupportIssueDto[]>('/v1/support/issue');
   }
 
   async createIssue(reason: string, message: string): Promise<SupportIssueDto> {
-    return dfxApi.post<SupportIssueDto>('/support/issue', { reason, message });
+    return dfxApi.post<SupportIssueDto>('/v1/support/issue', { reason, message });
   }
 
   async sendMessage(issueId: number, message: string): Promise<SupportMessageDto> {
-    return dfxApi.post<SupportMessageDto>(`/support/issue/${issueId}/message`, { message });
+    return dfxApi.post<SupportMessageDto>(`/v1/support/issue/${issueId}/message`, { message });
   }
 }
 

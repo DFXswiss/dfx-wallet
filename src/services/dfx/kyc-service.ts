@@ -1,3 +1,4 @@
+import { env } from '@/config/env';
 import type { KycLevelDto, KycSessionDto } from './dto';
 
 export class DfxKycService {
@@ -46,7 +47,7 @@ export class DfxKycService {
   }
 
   private async kycGet<T>(path: string): Promise<T> {
-    const response = await fetch(`https://api.dfx.swiss${path}`, {
+    const response = await fetch(`${env.dfxApiUrl}${path}`, {
       headers: this.getKycHeaders(),
     });
     if (!response.ok) throw new Error(`KYC API error: ${response.status}`);
@@ -54,7 +55,7 @@ export class DfxKycService {
   }
 
   private async kycPut<T>(path: string, body: unknown): Promise<T> {
-    const response = await fetch(`https://api.dfx.swiss${path}`, {
+    const response = await fetch(`${env.dfxApiUrl}${path}`, {
       method: 'PUT',
       headers: this.getKycHeaders(),
       body: JSON.stringify(body),
@@ -64,7 +65,7 @@ export class DfxKycService {
   }
 
   private async kycPost<T>(path: string, body: unknown): Promise<T> {
-    const response = await fetch(`https://api.dfx.swiss${path}`, {
+    const response = await fetch(`${env.dfxApiUrl}${path}`, {
       method: 'POST',
       headers: this.getKycHeaders(),
       body: JSON.stringify(body),

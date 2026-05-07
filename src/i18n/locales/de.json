@@ -54,19 +54,20 @@
     "transactions": "Transaktionen"
   },
   "email": {
-    "codeHint": "Wir haben einen 6-stelligen Code an {{mail}} geschickt. Gib ihn unten ein, um die Adresse zu bestätigen.",
-    "codeLabel": "Bestätigungscode",
     "currentLabel": "Aktuelle E-Mail",
     "newLabel": "Neue E-Mail",
     "notSet": "Noch nicht gesetzt",
     "placeholder": "name@example.com",
-    "sendCta": "Bestätigungscode senden",
-    "sendError": "Code konnte nicht gesendet werden. Bitte erneut versuchen.",
+    "sendCta": "Bestätigungs-Mail anfordern",
+    "sendError": "Bestätigungs-Mail konnte nicht gesendet werden. Bitte erneut versuchen.",
     "successBody": "Deine E-Mail-Adresse {{mail}} ist jetzt mit deinem DFX-Profil verknüpft.",
     "successTitle": "E-Mail verifiziert",
     "title": "E-Mail",
+    "tokenHint": "Wir haben dir eine Bestätigungs-Mail an {{mail}} geschickt. Öffne sie und kopiere den Token aus dem Link in das Feld unten.",
+    "tokenLabel": "Bestätigungs-Token",
+    "tokenPlaceholder": "Token aus der E-Mail einfügen",
     "verifyCta": "Bestätigen",
-    "verifyError": "Code falsch oder abgelaufen. Bitte erneut versuchen."
+    "verifyError": "Token ungültig oder abgelaufen. Bitte erneut versuchen."
   },
   "hardware": {
     "bitbox": "BitBox02",
