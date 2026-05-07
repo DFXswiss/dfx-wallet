@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
@@ -184,7 +183,7 @@ export default function SettingsScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
             <Icon name="arrow-left" size={24} color={DfxColors.text} />
@@ -192,18 +191,13 @@ export default function SettingsScreen() {
           <Text style={styles.headerTitle}>{t('settings.title')}</Text>
           <View style={styles.backBtn} />
         </View>
-        <ScrollView
+        <FlatList
+          data={sections}
+          keyExtractor={(item) => item.title}
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator
-          bounces
-          alwaysBounceVertical
-          nestedScrollEnabled
-          keyboardShouldPersistTaps="handled"
-          scrollEventThrottle={16}
-        >
-          {sections.map((section) => (
-            <View key={section.title} style={styles.section}>
+          renderItem={({ item: section }) => (
+            <View style={styles.section}>
               <Text style={styles.sectionTitle}>{section.title}</Text>
               <View style={styles.sectionCard}>
                 {section.rows.map((row, index) => (
@@ -219,19 +213,21 @@ export default function SettingsScreen() {
                 ))}
               </View>
             </View>
-          ))}
-
-          <Pressable
-            testID="settings-delete-wallet"
-            style={({ pressed }) => [styles.dangerCard, pressed && styles.pressed]}
-            onPress={handleDeleteWallet}
-          >
-            <Text style={styles.dangerLabel}>{t('settings.deleteWallet')}</Text>
-          </Pressable>
-
-          <Text style={styles.version}>DFX Wallet v0.1.0</Text>
-        </ScrollView>
-      </SafeAreaView>
+          )}
+          ListFooterComponent={
+            <>
+              <Pressable
+                testID="settings-delete-wallet"
+                style={({ pressed }) => [styles.dangerCard, pressed && styles.pressed]}
+                onPress={handleDeleteWallet}
+              >
+                <Text style={styles.dangerLabel}>{t('settings.deleteWallet')}</Text>
+              </Pressable>
+              <Text style={styles.version}>DFX Wallet v0.1.0</Text>
+            </>
+          }
+        />
+      </View>
     </>
   );
 }
@@ -268,7 +264,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 60,
     paddingBottom: 12,
     backgroundColor: DfxColors.background,
   },
