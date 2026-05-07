@@ -68,14 +68,16 @@ export default function SendScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const [step, setStep] = useState<SendStep>('asset');
-  const [selectedAsset, setSelectedAsset] = useState<AssetOption>(SEND_ASSETS[0]!);
+  // Start unselected so no card has a border on first render — the active
+  // border appears only after the user explicitly picks an asset.
+  const [selectedAsset, setSelectedAsset] = useState<AssetOption | null>(null);
   const [selectedChain, setSelectedChain] = useState<ChainId>('spark');
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [scannerVisible, setScannerVisible] = useState(false);
   const { send, isLoading, txHash, error, reset } = useSendFlow(selectedChain);
 
-  const symbol = selectedAsset.symbol;
+  const symbol = selectedAsset?.symbol ?? '';
   const isValidAddress = recipient.length >= 26;
 
   const handleAssetSelect = (asset: AssetOption) => {
@@ -94,14 +96,14 @@ export default function SendScreen() {
 
   const renderAssetStep = () => (
     <View style={styles.stepContent}>
-      <Text style={styles.stepSubtitle}>{t('send.selectAsset')}</Text>
+      <Text style={styles.stepSubtitle}>{t('send.sendToCrypto')}</Text>
       <View style={styles.assetList}>
         {SEND_ASSETS.map((asset) => (
           <Pressable
             key={asset.symbol}
             style={({ pressed }) => [
               styles.assetCard,
-              selectedAsset.symbol === asset.symbol && styles.assetCardActive,
+              selectedAsset?.symbol === asset.symbol && styles.assetCardActive,
               pressed && styles.pressed,
             ]}
             onPress={() => handleAssetSelect(asset)}
@@ -109,7 +111,7 @@ export default function SendScreen() {
             <Text
               style={[
                 styles.assetSymbol,
-                selectedAsset.symbol === asset.symbol && styles.assetSymbolActive,
+                selectedAsset?.symbol === asset.symbol && styles.assetSymbolActive,
               ]}
             >
               {asset.symbol}
@@ -118,90 +120,110 @@ export default function SendScreen() {
           </Pressable>
         ))}
       </View>
+
+      <Pressable
+        style={({ pressed }) => [styles.destinationCard, pressed && styles.pressed]}
+        onPress={() => router.push('/(auth)/sell')}
+        testID="send-destination-bank"
+        accessibilityRole="button"
+        accessibilityLabel={t('send.sendToBank')}
+      >
+        <View style={styles.destinationIcon}>
+          <Icon name="document" size={20} color={DfxColors.primary} strokeWidth={2.2} />
+        </View>
+        <View style={styles.destinationText}>
+          <Text style={styles.destinationTitle}>{t('send.sendToBank')}</Text>
+          <Text style={styles.destinationSubtitle}>{t('send.sendToBankSubtitle')}</Text>
+        </View>
+        <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
+      </Pressable>
     </View>
   );
 
-  const renderInputStep = () => (
-    <View style={styles.stepContent}>
-      <Pressable style={styles.selectedAssetPill} onPress={() => setStep('asset')}>
-        <Text style={styles.selectedAssetText}>{selectedAsset.symbol}</Text>
-        <Icon name="chevron-right" size={14} color={DfxColors.textTertiary} />
-      </Pressable>
+  const renderInputStep = () => {
+    if (!selectedAsset) return null;
+    return (
+      <View style={styles.stepContent}>
+        <Pressable style={styles.selectedAssetPill} onPress={() => setStep('asset')}>
+          <Text style={styles.selectedAssetText}>{selectedAsset.symbol}</Text>
+          <Icon name="chevron-right" size={14} color={DfxColors.textTertiary} />
+        </Pressable>
 
-      {selectedAsset.chains.length > 1 && (
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>{t('send.network')}</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
-            {selectedAsset.chains.map((c) => (
-              <Pressable
-                key={c.chain}
-                style={[styles.chainChip, selectedChain === c.chain && styles.chainChipActive]}
-                onPress={() => setSelectedChain(c.chain)}
-              >
-                <Text
-                  style={[
-                    styles.chainChipText,
-                    selectedChain === c.chain && styles.chainChipTextActive,
-                  ]}
+        {selectedAsset.chains.length > 1 && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>{t('send.network')}</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
+              {selectedAsset.chains.map((c) => (
+                <Pressable
+                  key={c.chain}
+                  style={[styles.chainChip, selectedChain === c.chain && styles.chainChipActive]}
+                  onPress={() => setSelectedChain(c.chain)}
                 >
-                  {c.label}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      )}
+                  <Text
+                    style={[
+                      styles.chainChipText,
+                      selectedChain === c.chain && styles.chainChipTextActive,
+                    ]}
+                  >
+                    {c.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>{t('send.recipient')}</Text>
-        <View style={styles.recipientRow}>
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>{t('send.recipient')}</Text>
+          <View style={styles.recipientRow}>
+            <TextInput
+              style={[styles.input, styles.recipientInput]}
+              value={recipient}
+              onChangeText={setRecipient}
+              placeholder={t('send.addressPlaceholder')}
+              placeholderTextColor={DfxColors.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Pressable style={styles.scanButton} onPress={() => setScannerVisible(true)}>
+              <Text style={styles.scanText}>{t('send.scan')}</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>
+            {t('send.amount')} ({symbol})
+          </Text>
           <TextInput
-            style={[styles.input, styles.recipientInput]}
-            value={recipient}
-            onChangeText={setRecipient}
-            placeholder={t('send.addressPlaceholder')}
+            style={styles.input}
+            value={amount}
+            onChangeText={setAmount}
+            placeholder="0.00"
             placeholderTextColor={DfxColors.textTertiary}
-            autoCapitalize="none"
-            autoCorrect={false}
+            keyboardType="decimal-pad"
           />
-          <Pressable style={styles.scanButton} onPress={() => setScannerVisible(true)}>
-            <Text style={styles.scanText}>{t('send.scan')}</Text>
-          </Pressable>
         </View>
-      </View>
 
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>
-          {t('send.amount')} ({symbol})
-        </Text>
-        <TextInput
-          style={styles.input}
-          value={amount}
-          onChangeText={setAmount}
-          placeholder="0.00"
-          placeholderTextColor={DfxColors.textTertiary}
-          keyboardType="decimal-pad"
+        {error && <Text style={styles.errorText}>{error}</Text>}
+
+        <View style={styles.spacer} />
+
+        <PrimaryButton
+          title={t('common.continue')}
+          onPress={() => setStep('confirm')}
+          disabled={!isValidAddress || !amount || parseFloat(amount) <= 0}
+        />
+
+        <ShortcutAction
+          icon={<Icon name="swap" size={18} color={DfxColors.white} strokeWidth={2.2} />}
+          label={t('send.sellInstead')}
+          onPress={() => router.push('/(auth)/sell')}
+          testID="send-action-sell"
         />
       </View>
-
-      {error && <Text style={styles.errorText}>{error}</Text>}
-
-      <View style={styles.spacer} />
-
-      <PrimaryButton
-        title={t('common.continue')}
-        onPress={() => setStep('confirm')}
-        disabled={!isValidAddress || !amount || parseFloat(amount) <= 0}
-      />
-
-      <ShortcutAction
-        icon={<Icon name="swap" size={18} color={DfxColors.white} strokeWidth={2.2} />}
-        label={t('send.sellInstead')}
-        onPress={() => router.push('/(auth)/sell')}
-        testID="send-action-sell"
-      />
-    </View>
-  );
+    );
+  };
 
   const renderConfirmStep = () => (
     <View style={styles.stepContent}>
@@ -341,6 +363,37 @@ const styles = StyleSheet.create({
     color: DfxColors.textSecondary,
     fontWeight: '500',
     marginBottom: 4,
+  },
+  destinationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: DfxColors.surface,
+    borderRadius: 16,
+    padding: 16,
+    gap: 14,
+    borderWidth: 2,
+    borderColor: DfxColors.primary,
+  },
+  destinationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: DfxColors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  destinationText: {
+    flex: 1,
+    gap: 2,
+  },
+  destinationTitle: {
+    ...Typography.bodyLarge,
+    color: DfxColors.text,
+    fontWeight: '600',
+  },
+  destinationSubtitle: {
+    ...Typography.bodySmall,
+    color: DfxColors.textSecondary,
   },
   assetList: {
     gap: 10,

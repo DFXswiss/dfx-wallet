@@ -127,6 +127,9 @@
     "totalValue": "Total value"
   },
   "receive": {
+    "buyFromBank": "Buy with your bank account",
+    "buyFromBankSubtitle": "Top up via DFX SEPA transfer",
+    "selectAsset": "What do you want to receive?",
     "buyBtcWithEuro": "Buy BTC with Euro",
     "onlyCorrectNetwork": "Only send {{asset}} on the {{network}} network to this address.",
     "title": "Receive",
@@ -157,6 +160,10 @@
     "scan": "Scan",
     "selectAsset": "What do you want to send?",
     "sellInstead": "Sell crypto instead",
+    "sendToBank": "Send to your bank account",
+    "sendToBankSubtitle": "Cash out via DFX SEPA / SWIFT payout",
+    "sendToCrypto": "Send to a crypto address",
+    "sendToCryptoSubtitle": "On-chain transfer to any wallet",
     "sent": "Transaction Sent",
     "title": "Send"
   },

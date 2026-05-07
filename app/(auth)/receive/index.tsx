@@ -1,23 +1,72 @@
 import { useState } from 'react';
-import { ImageBackground, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { AppHeader, ChainSelector, PrimaryButton, QrCode, ShortcutAction } from '@/components';
+import { AppHeader, Icon, PrimaryButton, QrCode } from '@/components';
 import type { ChainId } from '@/config/chains';
 import { DfxColors, Typography } from '@/theme';
+
+type ReceiveStep = 'asset' | 'qr';
+
+type AssetOption = {
+  symbol: string;
+  label: string;
+  chains: { chain: ChainId; label: string }[];
+};
+
+// Bitcoin offers three receive layers — Native on-chain, Lightning, and EVM
+// (wrapped). Stablecoins only ship over EVM; rather than asking the user to
+// pick between identical EVM chains, we default to Ethereum and skip the chain
+// selector entirely.
+const RECEIVE_ASSETS: AssetOption[] = [
+  {
+    symbol: 'BTC',
+    label: 'Bitcoin',
+    chains: [
+      { chain: 'bitcoin', label: 'Native' },
+      { chain: 'spark', label: 'Lightning' },
+      { chain: 'ethereum', label: 'EVM' },
+    ],
+  },
+  {
+    symbol: 'CHF',
+    label: 'CHF',
+    chains: [{ chain: 'ethereum', label: 'Ethereum' }],
+  },
+  {
+    symbol: 'EUR',
+    label: 'Euro',
+    chains: [{ chain: 'ethereum', label: 'Ethereum' }],
+  },
+  {
+    symbol: 'USD',
+    label: 'Dollar',
+    chains: [{ chain: 'ethereum', label: 'Ethereum' }],
+  },
+];
 
 export default function ReceiveScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const [step, setStep] = useState<ReceiveStep>('asset');
+  // Start unselected so no card has a border on first render — the active
+  // border appears only after the user explicitly picks an asset.
+  const [selectedAsset, setSelectedAsset] = useState<AssetOption | null>(null);
   const [selectedChain, setSelectedChain] = useState<ChainId>('ethereum');
   const [copied, setCopied] = useState(false);
 
   const { address: derivedAddress } = useAccount({ network: selectedChain, accountIndex: 0 });
   const address = derivedAddress ?? '';
+
+  const handleAssetSelect = (asset: AssetOption) => {
+    setSelectedAsset(asset);
+    setSelectedChain(asset.chains[0]!.chain);
+    setStep('qr');
+  };
 
   const handleCopy = async () => {
     if (!address) return;
@@ -25,6 +74,110 @@ export default function ReceiveScreen() {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const renderAssetStep = () => (
+    <View style={styles.stepContent}>
+      <Text style={styles.stepSubtitle}>{t('receive.selectAsset')}</Text>
+      <View style={styles.assetList}>
+        {RECEIVE_ASSETS.map((asset) => (
+          <Pressable
+            key={asset.symbol}
+            style={({ pressed }) => [
+              styles.assetCard,
+              selectedAsset?.symbol === asset.symbol && styles.assetCardActive,
+              pressed && styles.pressed,
+            ]}
+            onPress={() => handleAssetSelect(asset)}
+          >
+            <Text
+              style={[
+                styles.assetSymbol,
+                selectedAsset?.symbol === asset.symbol && styles.assetSymbolActive,
+              ]}
+            >
+              {asset.symbol}
+            </Text>
+            <Text style={styles.assetLabel}>{asset.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Pressable
+        style={({ pressed }) => [styles.destinationCard, pressed && styles.pressed]}
+        onPress={() => router.push('/(auth)/buy')}
+        testID="receive-destination-bank"
+        accessibilityRole="button"
+        accessibilityLabel={t('receive.buyFromBank')}
+      >
+        <View style={styles.destinationIcon}>
+          <Icon name="document" size={20} color={DfxColors.primary} strokeWidth={2.2} />
+        </View>
+        <View style={styles.destinationText}>
+          <Text style={styles.destinationTitle}>{t('receive.buyFromBank')}</Text>
+          <Text style={styles.destinationSubtitle}>{t('receive.buyFromBankSubtitle')}</Text>
+        </View>
+        <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
+      </Pressable>
+    </View>
+  );
+
+  const renderQrStep = () => {
+    if (!selectedAsset) return null;
+    return (
+      <View style={styles.stepContent}>
+        <Pressable style={styles.selectedAssetPill} onPress={() => setStep('asset')}>
+          <Text style={styles.selectedAssetText}>{selectedAsset.symbol}</Text>
+          <Icon name="chevron-right" size={14} color={DfxColors.textTertiary} />
+        </Pressable>
+
+        {selectedAsset.chains.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
+            {selectedAsset.chains.map((c) => (
+              <Pressable
+                key={c.chain}
+                style={[styles.chainChip, selectedChain === c.chain && styles.chainChipActive]}
+                onPress={() => setSelectedChain(c.chain)}
+              >
+                <Text
+                  style={[
+                    styles.chainChipText,
+                    selectedChain === c.chain && styles.chainChipTextActive,
+                  ]}
+                >
+                  {c.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
+
+        <View style={styles.qrContainer}>
+          {address ? (
+            <QrCode value={address} size={200} />
+          ) : (
+            <View style={styles.qrPlaceholder}>
+              <Text style={styles.qrPlaceholderText}>No address</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.addressContainer}>
+          <Text style={styles.addressLabel}>
+            {t('receive.yourAddress', { chain: selectedChain })}
+          </Text>
+          <Text style={styles.address} selectable numberOfLines={2}>
+            {address || 'Wallet not initialized'}
+          </Text>
+        </View>
+
+        <PrimaryButton
+          title={copied ? t('common.copied') : t('common.copy')}
+          onPress={handleCopy}
+          disabled={!address}
+        />
+      </View>
+    );
   };
 
   return (
@@ -36,53 +189,22 @@ export default function ReceiveScreen() {
         resizeMode="cover"
       >
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-          <AppHeader title={t('receive.title')} testID="receive-screen" />
+          <AppHeader
+            title={t('receive.title')}
+            onBack={() => {
+              if (step === 'qr') setStep('asset');
+              else router.back();
+            }}
+            testID="receive-screen"
+          />
 
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            <ChainSelector selected={selectedChain} onSelect={setSelectedChain} />
-
-            <View style={styles.qrContainer}>
-              {address ? (
-                <QrCode value={address} size={220} />
-              ) : (
-                <View style={styles.qrPlaceholder}>
-                  <Text style={styles.qrPlaceholderText}>No address</Text>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.addressContainer}>
-              <Text style={styles.addressLabel}>
-                {t('receive.yourAddress', { chain: selectedChain })}
-              </Text>
-              <Text style={styles.address} selectable numberOfLines={2}>
-                {address || 'Wallet not initialized'}
-              </Text>
-            </View>
-
-            <PrimaryButton
-              title={copied ? t('common.copied') : t('common.copy')}
-              onPress={handleCopy}
-              disabled={!address}
-            />
-
-            <Text style={styles.warning}>
-              {t('receive.onlyCorrectNetwork', {
-                asset: selectedChain === 'spark' ? 'BTC' : 'compatible tokens',
-                network: selectedChain,
-              })}
-            </Text>
-
-            <ShortcutAction
-              icon={<Text style={styles.currencyIcon}>{'€'}</Text>}
-              label={t('receive.buyBtcWithEuro')}
-              onPress={() => router.push('/(auth)/buy')}
-              testID="receive-action-buy"
-            />
+            {step === 'asset' && renderAssetStep()}
+            {step === 'qr' && renderQrStep()}
           </ScrollView>
         </SafeAreaView>
       </ImageBackground>
@@ -106,13 +228,94 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     gap: 18,
   },
+  stepContent: {
+    gap: 18,
+  },
+  stepSubtitle: {
+    ...Typography.bodyLarge,
+    color: DfxColors.textSecondary,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  assetList: {
+    gap: 10,
+  },
+  assetCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: DfxColors.surface,
+    borderRadius: 16,
+    padding: 18,
+    gap: 14,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  assetCardActive: {
+    borderColor: DfxColors.primary,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  assetSymbol: {
+    ...Typography.headlineSmall,
+    color: DfxColors.text,
+    fontWeight: '700',
+    width: 56,
+  },
+  assetSymbolActive: {
+    color: DfxColors.primary,
+  },
+  assetLabel: {
+    ...Typography.bodyLarge,
+    color: DfxColors.textSecondary,
+  },
+  selectedAssetPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: DfxColors.primaryLight,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    gap: 6,
+  },
+  selectedAssetText: {
+    ...Typography.bodyMedium,
+    color: DfxColors.primary,
+    fontWeight: '700',
+  },
+  chainBar: {
+    flexGrow: 0,
+  },
+  chainChip: {
+    backgroundColor: DfxColors.surface,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    marginRight: 8,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  chainChipActive: {
+    borderColor: DfxColors.primary,
+    backgroundColor: DfxColors.primaryLight,
+  },
+  chainChipText: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textSecondary,
+    fontWeight: '500',
+  },
+  chainChipTextActive: {
+    color: DfxColors.primary,
+    fontWeight: '600',
+  },
   qrContainer: {
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   qrPlaceholder: {
-    width: 220,
-    height: 220,
+    width: 200,
+    height: 200,
     borderRadius: 16,
     backgroundColor: DfxColors.surface,
     alignItems: 'center',
@@ -145,16 +348,35 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: 'monospace',
   },
-  warning: {
-    ...Typography.bodySmall,
-    color: DfxColors.warning,
-    textAlign: 'center',
-    paddingHorizontal: 32,
+  destinationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: DfxColors.surface,
+    borderRadius: 16,
+    padding: 16,
+    gap: 14,
+    borderWidth: 2,
+    borderColor: DfxColors.primary,
   },
-  currencyIcon: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: DfxColors.white,
-    lineHeight: 22,
+  destinationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: DfxColors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  destinationText: {
+    flex: 1,
+    gap: 2,
+  },
+  destinationTitle: {
+    ...Typography.bodyLarge,
+    color: DfxColors.text,
+    fontWeight: '600',
+  },
+  destinationSubtitle: {
+    ...Typography.bodySmall,
+    color: DfxColors.textSecondary,
   },
 });
