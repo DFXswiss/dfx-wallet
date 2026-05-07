@@ -15,9 +15,11 @@ export default function TabsLayout() {
 
   // On every fresh layout mount (cold start, hot reload, deep-link entry),
   // collapse the stack back to the dashboard so the user never wakes up
-  // mid-flow on a child screen like Settings.
+  // mid-flow on a child screen like Settings. Deferred to the next tick so
+  // we don't navigate before the Root Layout has finished mounting.
   useEffect(() => {
-    router.replace('/(auth)/(tabs)/dashboard');
+    const id = setTimeout(() => router.replace('/(auth)/(tabs)/dashboard'), 0);
+    return () => clearTimeout(id);
   }, [router]);
 
   return (
