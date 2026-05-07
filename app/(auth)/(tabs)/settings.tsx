@@ -182,50 +182,52 @@ export default function SettingsScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          gestureEnabled: true,
-          title: t('settings.title'),
-          headerBackTitle: ' ',
-        }}
-      />
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        bounces
-        alwaysBounceVertical
-      >
-        {sections.map((section) => (
-          <View key={section.title} style={styles.section}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-            <View style={styles.sectionCard}>
-              {section.rows.map((row, index) => (
-                <SettingsRowView
-                  key={row.testID}
-                  row={row}
-                  isLast={index === section.rows.length - 1}
-                  onPress={() => {
-                    if (row.onPress) row.onPress();
-                    else if (row.route) router.push(row.route as never);
-                  }}
-                />
-              ))}
-            </View>
-          </View>
-        ))}
-
-        <Pressable
-          testID="settings-delete-wallet"
-          style={({ pressed }) => [styles.dangerCard, pressed && styles.pressed]}
-          onPress={handleDeleteWallet}
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+            <Icon name="arrow-left" size={24} color={DfxColors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>{t('settings.title')}</Text>
+          <View style={styles.backBtn} />
+        </View>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator
+          bounces
+          alwaysBounceVertical
         >
-          <Text style={styles.dangerLabel}>{t('settings.deleteWallet')}</Text>
-        </Pressable>
+          {sections.map((section) => (
+            <View key={section.title} style={styles.section}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+              <View style={styles.sectionCard}>
+                {section.rows.map((row, index) => (
+                  <SettingsRowView
+                    key={row.testID}
+                    row={row}
+                    isLast={index === section.rows.length - 1}
+                    onPress={() => {
+                      if (row.onPress) row.onPress();
+                      else if (row.route) router.push(row.route as never);
+                    }}
+                  />
+                ))}
+              </View>
+            </View>
+          ))}
 
-        <Text style={styles.version}>DFX Wallet v0.1.0</Text>
-      </ScrollView>
+          <Pressable
+            testID="settings-delete-wallet"
+            style={({ pressed }) => [styles.dangerCard, pressed && styles.pressed]}
+            onPress={handleDeleteWallet}
+          >
+            <Text style={styles.dangerLabel}>{t('settings.deleteWallet')}</Text>
+          </Pressable>
+
+          <Text style={styles.version}>DFX Wallet v0.1.0</Text>
+        </ScrollView>
+      </View>
     </>
   );
 }
@@ -254,9 +256,32 @@ function SettingsRowView({ row, isLast, onPress }: RowProps) {
 }
 
 const styles = StyleSheet.create({
-  scroll: {
+  container: {
     flex: 1,
     backgroundColor: DfxColors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 60,
+    paddingBottom: 12,
+    backgroundColor: DfxColors.background,
+  },
+  backBtn: {
+    width: 40,
+    height: 32,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    ...Typography.headlineSmall,
+    color: DfxColors.text,
+  },
+  scroll: {
+    flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 20,
