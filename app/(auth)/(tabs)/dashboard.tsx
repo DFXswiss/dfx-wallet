@@ -207,8 +207,8 @@ const styles = StyleSheet.create({
     color: DfxColors.textSecondary,
   },
   balanceHidden: {
-    fontSize: 64,
-    lineHeight: 84,
+    fontSize: 52,
+    lineHeight: 56,
     fontWeight: '600',
     color: DfxColors.text,
     letterSpacing: 4,
