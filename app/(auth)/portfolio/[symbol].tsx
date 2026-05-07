@@ -5,7 +5,13 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { Icon } from '@/components';
-import { getAssetsForCanonicalSymbol, getAssets, getCanonicalNameForSymbol } from '@/config/tokens';
+import {
+  getAssetsForCanonicalSymbol,
+  getAssets,
+  getCanonicalNameForSymbol,
+  getMockRawBalance,
+  getAssetMeta,
+} from '@/config/tokens';
 import {
   CHAIN_LABELS,
   computeFiatValue,
@@ -76,7 +82,9 @@ export default function AssetDetailScreen() {
 
     const list = holdingMetas.map((meta) => {
       const result = balanceResults?.find((r) => r.assetId === meta.id);
-      const rawBalance = result?.success ? (result.balance ?? '0') : '0';
+      const liveRaw = result?.success ? (result.balance ?? '0') : '0';
+      const mockRaw = getMockRawBalance(meta.network, meta.symbol, meta.decimals);
+      const rawBalance = liveRaw !== '0' ? liveRaw : (mockRaw ?? '0');
       const balanceFormatted = formatBalance(rawBalance, meta.decimals);
       const balanceNum = toNumeric(balanceFormatted);
 
@@ -145,7 +153,13 @@ export default function AssetDetailScreen() {
                 {formatNumber(totalBalance)} {canonicalSymbol}
               </Text>
               <Text style={styles.totalFiat}>
-                {currencySymbol} {totalFiat.toFixed(2)}
+                {currencySymbol}{' '}
+                {Number.isFinite(totalFiat)
+                  ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
+                  : '0.00'}
               </Text>
             </View>
 
@@ -170,7 +184,13 @@ export default function AssetDetailScreen() {
                   </View>
                   <View style={styles.holdingBalance}>
                     <Text style={styles.holdingValue}>
-                      {currencySymbol} {holding.fiatValue.toFixed(2)}
+                      {currencySymbol}{' '}
+                      {Number.isFinite(holding.fiatValue)
+                        ? (Math.round(holding.fiatValue * 100) / 100).toLocaleString('de-CH', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })
+                        : '0.00'}
                     </Text>
                     <Text style={styles.holdingCrypto}>
                       {formatNumber(holding.balanceNum)} {holding.symbol}

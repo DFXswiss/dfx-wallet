@@ -18,31 +18,71 @@ import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
 import { DfxColors, Typography } from '@/theme';
 
-type SendStep = 'input' | 'confirm' | 'success';
+type SendStep = 'asset' | 'input' | 'confirm' | 'success';
 
-const CHAIN_SYMBOL: Record<ChainId, string> = {
-  ethereum: 'ETH',
-  arbitrum: 'ETH',
-  polygon: 'MATIC',
-  base: 'ETH',
-  spark: 'BTC',
-  plasma: 'ETH',
-  sepolia: 'ETH',
+type AssetOption = {
+  symbol: string;
+  label: string;
+  chains: { chain: ChainId; label: string }[];
 };
+
+const SEND_ASSETS: AssetOption[] = [
+  {
+    symbol: 'BTC',
+    label: 'Bitcoin',
+    chains: [{ chain: 'spark', label: 'Bitcoin' }],
+  },
+  {
+    symbol: 'CHF',
+    label: 'CHF',
+    chains: [
+      { chain: 'ethereum', label: 'Ethereum' },
+      { chain: 'arbitrum', label: 'Arbitrum' },
+      { chain: 'polygon', label: 'Polygon' },
+      { chain: 'base', label: 'Base' },
+    ],
+  },
+  {
+    symbol: 'EUR',
+    label: 'Euro',
+    chains: [
+      { chain: 'ethereum', label: 'Ethereum' },
+      { chain: 'arbitrum', label: 'Arbitrum' },
+      { chain: 'polygon', label: 'Polygon' },
+      { chain: 'base', label: 'Base' },
+    ],
+  },
+  {
+    symbol: 'USD',
+    label: 'Dollar',
+    chains: [
+      { chain: 'ethereum', label: 'Ethereum' },
+      { chain: 'arbitrum', label: 'Arbitrum' },
+      { chain: 'polygon', label: 'Polygon' },
+      { chain: 'base', label: 'Base' },
+    ],
+  },
+];
 
 export default function SendScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const [step, setStep] = useState<SendStep>('input');
-  const [selectedChain, setSelectedChain] = useState<ChainId>('ethereum');
+  const [step, setStep] = useState<SendStep>('asset');
+  const [selectedAsset, setSelectedAsset] = useState<AssetOption>(SEND_ASSETS[0]!);
+  const [selectedChain, setSelectedChain] = useState<ChainId>('spark');
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [scannerVisible, setScannerVisible] = useState(false);
   const { send, isLoading, txHash, error, reset } = useSendFlow(selectedChain);
 
-  // eslint-disable-next-line security/detect-object-injection -- selectedChain is a ChainId literal union
-  const symbol = CHAIN_SYMBOL[selectedChain];
+  const symbol = selectedAsset.symbol;
   const isValidAddress = recipient.length >= 26;
+
+  const handleAssetSelect = (asset: AssetOption) => {
+    setSelectedAsset(asset);
+    setSelectedChain(asset.chains[0]!.chain);
+    setStep('input');
+  };
 
   const handleSend = async () => {
     const hash = await send({ to: recipient, amount });
@@ -52,32 +92,88 @@ export default function SendScreen() {
     }
   };
 
+  const renderAssetStep = () => (
+    <View style={styles.stepContent}>
+      <Text style={styles.stepSubtitle}>{t('send.selectAsset')}</Text>
+      <View style={styles.assetList}>
+        {SEND_ASSETS.map((asset) => (
+          <Pressable
+            key={asset.symbol}
+            style={({ pressed }) => [
+              styles.assetCard,
+              selectedAsset.symbol === asset.symbol && styles.assetCardActive,
+              pressed && styles.pressed,
+            ]}
+            onPress={() => handleAssetSelect(asset)}
+          >
+            <Text
+              style={[
+                styles.assetSymbol,
+                selectedAsset.symbol === asset.symbol && styles.assetSymbolActive,
+              ]}
+            >
+              {asset.symbol}
+            </Text>
+            <Text style={styles.assetLabel}>{asset.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+
   const renderInputStep = () => (
     <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>Send Crypto</Text>
+      <Pressable style={styles.selectedAssetPill} onPress={() => setStep('asset')}>
+        <Text style={styles.selectedAssetText}>{selectedAsset.symbol}</Text>
+        <Icon name="chevron-right" size={14} color={DfxColors.textTertiary} />
+      </Pressable>
 
-      <ChainSelector selected={selectedChain} onSelect={setSelectedChain} />
+      {selectedAsset.chains.length > 1 && (
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>{t('send.network')}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
+            {selectedAsset.chains.map((c) => (
+              <Pressable
+                key={c.chain}
+                style={[styles.chainChip, selectedChain === c.chain && styles.chainChipActive]}
+                onPress={() => setSelectedChain(c.chain)}
+              >
+                <Text
+                  style={[
+                    styles.chainChipText,
+                    selectedChain === c.chain && styles.chainChipTextActive,
+                  ]}
+                >
+                  {c.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Recipient</Text>
+        <Text style={styles.inputLabel}>{t('send.recipient')}</Text>
         <View style={styles.recipientRow}>
           <TextInput
             style={[styles.input, styles.recipientInput]}
             value={recipient}
             onChangeText={setRecipient}
-            placeholder="Address or ENS name"
+            placeholder={t('send.addressPlaceholder')}
             placeholderTextColor={DfxColors.textTertiary}
             autoCapitalize="none"
             autoCorrect={false}
           />
           <Pressable style={styles.scanButton} onPress={() => setScannerVisible(true)}>
-            <Text style={styles.scanText}>Scan</Text>
+            <Text style={styles.scanText}>{t('send.scan')}</Text>
           </Pressable>
         </View>
       </View>
 
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Amount ({symbol})</Text>
+        <Text style={styles.inputLabel}>
+          {t('send.amount')} ({symbol})
+        </Text>
         <TextInput
           style={styles.input}
           value={amount}
@@ -184,6 +280,7 @@ export default function SendScreen() {
             title={t('send.title')}
             onBack={() => {
               if (step === 'confirm') setStep('input');
+              else if (step === 'input') setStep('asset');
               else router.back();
             }}
             testID="send-screen"
@@ -194,6 +291,7 @@ export default function SendScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
+            {step === 'asset' && renderAssetStep()}
             {step === 'input' && renderInputStep()}
             {step === 'confirm' && renderConfirmStep()}
             {step === 'success' && renderSuccessStep()}
@@ -237,6 +335,85 @@ const styles = StyleSheet.create({
   stepTitle: {
     ...Typography.headlineSmall,
     color: DfxColors.text,
+  },
+  stepSubtitle: {
+    ...Typography.bodyLarge,
+    color: DfxColors.textSecondary,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  assetList: {
+    gap: 10,
+  },
+  assetCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: DfxColors.surface,
+    borderRadius: 16,
+    padding: 18,
+    gap: 14,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  assetCardActive: {
+    borderColor: DfxColors.primary,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  assetSymbol: {
+    ...Typography.headlineSmall,
+    color: DfxColors.text,
+    fontWeight: '700',
+    width: 56,
+  },
+  assetSymbolActive: {
+    color: DfxColors.primary,
+  },
+  assetLabel: {
+    ...Typography.bodyLarge,
+    color: DfxColors.textSecondary,
+  },
+  selectedAssetPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: DfxColors.primaryLight,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    gap: 6,
+    marginBottom: 4,
+  },
+  selectedAssetText: {
+    ...Typography.bodyMedium,
+    color: DfxColors.primary,
+    fontWeight: '700',
+  },
+  chainBar: {
+    flexGrow: 0,
+  },
+  chainChip: {
+    backgroundColor: DfxColors.surface,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    marginRight: 8,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  chainChipActive: {
+    borderColor: DfxColors.primary,
+    backgroundColor: DfxColors.primaryLight,
+  },
+  chainChipText: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textSecondary,
+    fontWeight: '500',
+  },
+  chainChipTextActive: {
+    color: DfxColors.primary,
+    fontWeight: '600',
   },
   inputGroup: {
     gap: 8,

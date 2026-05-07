@@ -5,7 +5,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { Icon } from '@/components';
-import { getAssetMeta, getAssets, type TokenCategory } from '@/config/tokens';
+import { getAssetMeta, getAssets, getMockRawBalance, type TokenCategory } from '@/config/tokens';
 import {
   computeFiatValue,
   formatBalance,
@@ -62,7 +62,9 @@ export default function PortfolioScreen() {
       // tracked for fees but not interesting as a portfolio holding.
       if (meta.category === 'native') continue;
       const result = balanceResults?.find((r) => r.assetId === asset.getId());
-      const rawBalance = result?.success ? (result.balance ?? '0') : '0';
+      const liveRaw = result?.success ? (result.balance ?? '0') : '0';
+      const mockRaw = getMockRawBalance(meta.network, meta.symbol, asset.getDecimals());
+      const rawBalance = liveRaw !== '0' ? liveRaw : (mockRaw ?? '0');
       const balance = formatBalance(rawBalance, asset.getDecimals());
       const balanceNum = toNumeric(balance);
 
@@ -98,8 +100,13 @@ export default function PortfolioScreen() {
     };
 
     return Array.from(byCanonical.values()).sort((a, b) => {
+      // BTC always first
+      if (a.category === 'btc' && b.category !== 'btc') return -1;
+      if (a.category !== 'btc' && b.category === 'btc') return 1;
+      // Then by balance: non-zero before zero
       if (a.totalBalanceNum > 0 && b.totalBalanceNum === 0) return -1;
       if (a.totalBalanceNum === 0 && b.totalBalanceNum > 0) return 1;
+      // Then by fiat value descending
       if (a.totalBalanceNum > 0 && b.totalBalanceNum > 0) return b.totalFiat - a.totalFiat;
       const cat = CATEGORY_ORDER[a.category] - CATEGORY_ORDER[b.category];
       if (cat !== 0) return cat;
@@ -151,7 +158,14 @@ export default function PortfolioScreen() {
               <Text style={styles.totalLabel}>{t('portfolio.totalValue')}</Text>
               <View style={styles.totalRow}>
                 <Text style={styles.totalCurrency}>{currencySymbol}</Text>
-                <Text style={styles.totalValue}>{totalFiat.toFixed(2)}</Text>
+                <Text style={styles.totalValue}>
+                  {Number.isFinite(totalFiat)
+                    ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })
+                    : '0.00'}
+                </Text>
               </View>
             </View>
 

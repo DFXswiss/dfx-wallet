@@ -148,10 +148,14 @@
     "title": "Sell"
   },
   "send": {
+    "addressPlaceholder": "Address or ENS name",
+    "amount": "Amount",
     "confirmTransaction": "Confirm Transaction",
     "irreversible": "Transactions are irreversible. Please verify the recipient address and amount.",
+    "network": "Network",
     "recipient": "Recipient",
     "scan": "Scan",
+    "selectAsset": "What do you want to send?",
     "sellInstead": "Sell crypto instead",
     "sent": "Transaction Sent",
     "title": "Send"
@@ -188,6 +192,9 @@
     "date": "Date",
     "detailTitle": "Transaction",
     "filterAll": "All",
+    "filterIn": "In",
+    "filterOut": "Out",
+    "filterPay": "Pay",
     "input": "From",
     "network": "Network",
     "noTransactions": "No transactions yet",

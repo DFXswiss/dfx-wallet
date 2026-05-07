@@ -21,16 +21,12 @@ const CHAIN_LABEL = new Map<ChainId, string>([
   ['arbitrum', 'Arbitrum'],
   ['polygon', 'Polygon'],
   ['base', 'Base'],
-  ['spark', 'Lightning (Spark)'],
+  ['spark', 'Bitcoin'],
   ['plasma', 'Plasma'],
   ['sepolia', 'Sepolia'],
 ]);
 
-const CHAIN_DESCRIPTION = new Map<ChainId, string>([
-  ['arbitrum', 'L2 — ETH, USD, EUR'],
-  ['polygon', 'POS chain — MATIC, USD, EUR'],
-  ['base', 'L2 — ETH, USD, EUR'],
-]);
+const CHAIN_DESCRIPTION = new Map<ChainId, string>([]);
 
 export default function ManageChainsScreen() {
   const { t } = useTranslation();
@@ -69,7 +65,6 @@ export default function ManageChainsScreen() {
               <View key={chain} style={[styles.row, styles.rowDisabled]}>
                 <View style={styles.info}>
                   <Text style={styles.label}>{CHAIN_LABEL.get(chain) ?? chain}</Text>
-                  <Text style={styles.lockedHint}>{t('portfolio.alwaysOnHint')}</Text>
                 </View>
                 <Switch value disabled />
               </View>

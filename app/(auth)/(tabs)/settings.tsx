@@ -167,8 +167,6 @@ export default function SettingsScreen() {
         resizeMode="cover"
       >
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-          <AppHeader title={t('settings.title')} testID="settings-screen" />
-
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
