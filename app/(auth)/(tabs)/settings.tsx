@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import { Linking } from 'react-native';
-import { AppHeader, Icon } from '@/components';
+import { Icon } from '@/components';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
@@ -192,7 +192,9 @@ export default function SettingsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
+      <Stack.Screen
+        options={{ headerShown: true, gestureEnabled: true, title: t('settings.title') }}
+      />
       <ImageBackground
         source={require('../../../assets/dashboard-bg.png')}
         style={styles.bg}
@@ -203,6 +205,8 @@ export default function SettingsScreen() {
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            bounces
+            alwaysBounceVertical
           >
             {sections.map((section) => (
               <View key={section.title} style={styles.section}>
@@ -275,8 +279,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 48,
+    paddingTop: 12,
+    paddingBottom: 120,
     gap: 20,
+    flexGrow: 1,
   },
   section: {
     gap: 8,
