@@ -12,6 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import * as Clipboard from 'expo-clipboard';
+import { useAccount } from '@tetherto/wdk-react-native-core';
 import { AppHeader, Icon } from '@/components';
 import { CHAIN_LABELS } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/services/dfx';
@@ -88,6 +90,8 @@ export default function TransactionHistoryScreen() {
       >
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
           <AppHeader title={headerTitle} testID="transaction-history" />
+
+          {networkFilter && <WalletAddressBar network={networkFilter} />}
 
           {!assetFilter && (
             <ScrollView
@@ -189,7 +193,64 @@ function TransactionRow({ tx, onPress }: RowProps) {
   );
 }
 
+function WalletAddressBar({ network }: { network: string }) {
+  const { address } = useAccount({ network, accountIndex: 0 });
+  const [copied, setCopied] = useState(false);
+
+  if (!address) return null;
+
+  const short = `${address.slice(0, 10)}...${address.slice(-8)}`;
+
+  const handleCopy = async () => {
+    await Clipboard.setStringAsync(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Pressable style={styles.addressBar} onPress={handleCopy} testID="wallet-address-copy">
+      <Icon name="wallet" size={16} color={DfxColors.primary} />
+      <Text style={styles.addressText} numberOfLines={1} selectable>{short}</Text>
+      <View style={styles.copyBadge}>
+        <Text style={styles.copyText}>{copied ? 'Copied' : 'Copy'}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  addressBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: DfxColors.surface,
+    borderRadius: 12,
+    shadowColor: '#0B1426',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  addressText: {
+    flex: 1,
+    ...Typography.bodyMedium,
+    color: DfxColors.text,
+    fontFamily: 'monospace',
+  },
+  copyBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: DfxColors.primaryLight,
+    borderRadius: 8,
+  },
+  copyText: {
+    ...Typography.bodySmall,
+    color: DfxColors.primary,
+    fontWeight: '600',
+  },
   bg: {
     flex: 1,
     backgroundColor: DfxColors.background,

@@ -3,8 +3,7 @@ import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import * as Clipboard from 'expo-clipboard';
-import { useBalancesForWallet, useAccount } from '@tetherto/wdk-react-native-core';
+import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { Icon } from '@/components';
 import { getAssetsForCanonicalSymbol, getAssets, getCanonicalNameForSymbol } from '@/config/tokens';
 import {
@@ -154,17 +153,30 @@ export default function AssetDetailScreen() {
 
             <View style={styles.holdingsList}>
               {holdings.map((holding) => (
-                <HoldingCard
+                <Pressable
                   key={holding.id}
-                  holding={holding}
-                  currencySymbol={currencySymbol}
+                  style={({ pressed }) => [styles.holdingRow, pressed && styles.holdingPressed]}
+                  testID={`holding-${holding.network}-${holding.symbol}`}
                   onPress={() =>
                     router.push({
                       pathname: '/(auth)/transaction-history',
                       params: { asset: holding.symbol, network: holding.network },
                     })
                   }
-                />
+                >
+                  <View style={styles.holdingInfo}>
+                    <Text style={styles.holdingChain}>{holding.name}</Text>
+                    <Text style={styles.holdingSymbol}>{holding.chainLabel}</Text>
+                  </View>
+                  <View style={styles.holdingBalance}>
+                    <Text style={styles.holdingValue}>
+                      {currencySymbol} {Number.isFinite(holding.fiatValue) ? (Math.round(holding.fiatValue * 100) / 100).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                    </Text>
+                    <Text style={styles.holdingCrypto}>
+                      {formatNumber(holding.balanceNum)} {holding.symbol}
+                    </Text>
+                  </View>
+                </Pressable>
               ))}
             </View>
           </ScrollView>
@@ -174,66 +186,6 @@ export default function AssetDetailScreen() {
   );
 }
 
-function HoldingCard({
-  holding,
-  currencySymbol,
-  onPress,
-}: {
-  holding: Holding;
-  currencySymbol: string;
-  onPress: () => void;
-}) {
-  const { t } = useTranslation();
-  const { address } = useAccount({ network: holding.network, accountIndex: 0 });
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    if (!address) return;
-    await Clipboard.setStringAsync(address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const shortAddress = address
-    ? `${address.slice(0, 8)}...${address.slice(-6)}`
-    : '';
-
-  return (
-    <View style={styles.holdingCard}>
-      <Pressable
-        style={({ pressed }) => [styles.holdingRow, pressed && styles.holdingPressed]}
-        testID={`holding-${holding.network}-${holding.symbol}`}
-        onPress={onPress}
-      >
-        <View style={styles.holdingInfo}>
-          <Text style={styles.holdingChain}>{holding.name}</Text>
-          <Text style={styles.holdingSymbol}>{holding.chainLabel}</Text>
-        </View>
-        <View style={styles.holdingBalance}>
-          <Text style={styles.holdingValue}>
-            {currencySymbol} {Number.isFinite(holding.fiatValue) ? (Math.round(holding.fiatValue * 100) / 100).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
-          </Text>
-          <Text style={styles.holdingCrypto}>
-            {formatNumber(holding.balanceNum)} {holding.symbol}
-          </Text>
-        </View>
-      </Pressable>
-      {shortAddress ? (
-        <Pressable style={styles.addressRow} onPress={handleCopy} hitSlop={4}>
-          <Icon name="wallet" size={14} color={DfxColors.textTertiary} />
-          <Text style={styles.addressText} numberOfLines={1}>
-            {shortAddress}
-          </Text>
-          <Icon
-            name="document"
-            size={14}
-            color={copied ? DfxColors.primary : DfxColors.textTertiary}
-          />
-        </Pressable>
-      ) : null}
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   bg: {
@@ -316,35 +268,18 @@ const styles = StyleSheet.create({
   holdingsList: {
     gap: 8,
   },
-  holdingCard: {
+  holdingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: DfxColors.surface,
     borderRadius: 14,
-    overflow: 'hidden',
+    padding: 14,
+    gap: 12,
     shadowColor: '#0B1426',
     shadowOpacity: 0.05,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
     elevation: 1,
-  },
-  addressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingTop: 0,
-    paddingBottom: 10,
-  },
-  addressText: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    flex: 1,
-    fontFamily: 'monospace',
-  },
-  holdingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    gap: 12,
   },
   holdingPressed: {
     opacity: 0.7,
