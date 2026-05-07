@@ -1,12 +1,12 @@
-import { by, element, waitFor } from 'detox';
+import { by, device, element, waitFor } from 'detox';
 import { expectScreenToMatchBaseline } from '../utils/screenshot';
-import { launchAndWaitForWelcome } from '../utils/launch';
+import { launchAndWaitForWelcome, launchWithExistingState } from '../utils/launch';
 import { enterPin } from '../utils/pin';
 
 // Small delay for UI transitions when synchronization is disabled.
 const pause = (ms = 1_000) => new Promise((r) => setTimeout(r, ms));
 
-describe('Onboarding', () => {
+describe('Visual Regression', () => {
   describe('Welcome screen', () => {
     beforeAll(async () => {
       await launchAndWaitForWelcome();
@@ -44,9 +44,11 @@ describe('Onboarding', () => {
 
     it('shows setup PIN screen', async () => {
       await element(by.id('create-wallet-continue-button')).tap();
+      // WDK restoreWallet() initializes all chain wallets which can
+      // take over 30s, especially with bitcoin + taproot + plasma.
       await waitFor(element(by.id('setup-pin-screen')))
         .toBeVisible()
-        .withTimeout(30_000);
+        .withTimeout(120_000);
       await expectScreenToMatchBaseline('setup-pin');
     });
 
@@ -76,6 +78,36 @@ describe('Onboarding', () => {
     });
   });
 
+  // PIN unlock reuses the onboarded state from the create wallet flow above.
+  // Running this in a separate test file fails because the WDK's second
+  // restoreWallet() call hangs on CI — likely due to stale WDK state that
+  // survives app reinstall.
+  describe('PIN unlock', () => {
+    it('shows verify PIN screen after cold restart', async () => {
+      await launchWithExistingState();
+      await waitFor(element(by.id('verify-pin-screen')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await expectScreenToMatchBaseline('verify-pin');
+    });
+
+    it('shows error state on wrong PIN', async () => {
+      await enterPin('222222');
+      await waitFor(element(by.id('verify-pin-error')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await expectScreenToMatchBaseline('verify-pin-error');
+    });
+
+    it('reaches dashboard after correct PIN', async () => {
+      await enterPin('111111');
+      await waitFor(element(by.id('dashboard-screen')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await expectScreenToMatchBaseline('pin-unlock-dashboard');
+    });
+  });
+
   describe('Restore wallet flow', () => {
     beforeAll(async () => {
       await launchAndWaitForWelcome();
@@ -100,10 +132,5 @@ describe('Onboarding', () => {
       await pause();
       await expectScreenToMatchBaseline('restore-wallet-filled');
     });
-
-    // Setup PIN after restore is visually identical to the create-wallet
-    // flow's setup-pin baseline. That screen is already covered above.
-    // The continue-button tap is skipped here because it requires scrolling
-    // within a Fabric ScrollView which hits a known Detox visibility bug.
   });
 });
