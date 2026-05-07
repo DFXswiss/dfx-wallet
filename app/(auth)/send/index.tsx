@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ImageBackground,
   Pressable,
@@ -16,6 +16,7 @@ import { AppHeader, Icon, PrimaryButton, ShortcutAction } from '@/components';
 import { QrScanner } from '@/components/QrScanner';
 import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
+import { getSendAssetForCanonical } from '@/config/tokens';
 import { DfxColors, Typography } from '@/theme';
 
 type SendStep = 'asset' | 'input' | 'confirm' | 'success';
@@ -78,6 +79,11 @@ export default function SendScreen() {
   const { send, isLoading, txHash, error, reset } = useSendFlow(selectedChain);
 
   const symbol = selectedAsset?.symbol ?? '';
+  const sendAsset = useMemo(
+    () =>
+      selectedAsset ? getSendAssetForCanonical(selectedAsset.symbol, selectedChain) : undefined,
+    [selectedAsset, selectedChain],
+  );
   const isValidAddress = recipient.length >= 26;
 
   const handleAssetSelect = (asset: AssetOption) => {
@@ -87,7 +93,8 @@ export default function SendScreen() {
   };
 
   const handleSend = async () => {
-    const hash = await send({ to: recipient, amount });
+    if (!sendAsset) return;
+    const hash = await send({ asset: sendAsset, to: recipient, amount });
     if (hash) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStep('success');

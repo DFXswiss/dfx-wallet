@@ -57,6 +57,25 @@ export const toNumeric = (formatted: string): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+/**
+ * Parse a user-typed decimal amount ("1", "1.5", "0.000001") into the asset's
+ * smallest unit as a decimal string. Uses BigInt — never Number — so it
+ * preserves precision past 2^53. Fractional digits beyond `decimals` are
+ * truncated rather than rounded (defensive: never send more than the user
+ * typed). Empty / malformed input returns "0".
+ */
+export const parseUnits = (displayAmount: string, decimals: number): string => {
+  const trimmed = displayAmount.trim();
+  if (!trimmed || trimmed === '.') return '0';
+  if (!/^\d*\.?\d*$/.test(trimmed)) return '0';
+  const [whole = '0', fracRaw = ''] = trimmed.split('.');
+  const wholePart = whole === '' ? '0' : whole;
+  const frac = fracRaw.slice(0, decimals).padEnd(decimals, '0');
+  const wholeBig = BigInt(wholePart) * BigInt(10) ** BigInt(decimals);
+  const fracBig = frac === '' ? 0n : BigInt(frac);
+  return (wholeBig + fracBig).toString();
+};
+
 export const formatNumber = (n: number, maxFractionDigits = 8): string => {
   if (n === 0) return '0';
   if (n >= 1) return n.toFixed(2);

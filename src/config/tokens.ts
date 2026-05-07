@@ -553,3 +553,26 @@ export const getAssets = (chains?: ChainId[]): IAsset[] => {
 
 export const getNativeAsset = (network: string): IAsset | undefined =>
   getAssets().find((asset) => asset.getNetwork() === network && asset.isNative());
+
+/**
+ * Resolve the actual `IAsset` to send when the user has picked a canonical
+ * symbol (USD/CHF/EUR/BTC) and a chain. The send screen exposes the symbol
+ * grouping rather than every concrete token, so this is where we map back.
+ *
+ * For USD on EVM chains, USDT wins over USDC because USDT has `defaultEnabled`
+ * everywhere it exists and aligns with the wallet's primary stable.
+ */
+export const getSendAssetForCanonical = (
+  canonicalSymbol: string,
+  chain: ChainId,
+): IAsset | undefined => {
+  const candidates = getAssets([chain]).filter(
+    (asset) => getAssetMeta(asset.getId())?.canonicalSymbol === canonicalSymbol,
+  );
+  if (candidates.length === 0) return undefined;
+  if (canonicalSymbol === 'USD') {
+    const usdt = candidates.find((asset) => getAssetMeta(asset.getId())?.symbol === 'USDT');
+    if (usdt) return usdt;
+  }
+  return candidates[0];
+};

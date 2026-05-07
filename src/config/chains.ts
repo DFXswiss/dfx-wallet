@@ -50,7 +50,7 @@ export const getWdkConfigs = (): WdkConfigs => ({
       blockchain: 'ethereum',
       config: {
         chainId: 1,
-        provider: process.env.EXPO_PUBLIC_ETH_RPC_URL ?? 'https://eth.merkle.io',
+        provider: getEvmRpcUrl('ethereum')!,
         bundlerUrl: 'https://api.candide.dev/public/v3/ethereum',
         paymasterUrl: 'https://api.candide.dev/public/v3/ethereum',
         paymasterAddress: CANDIDE_PAYMASTER_ADDRESS,
@@ -64,7 +64,7 @@ export const getWdkConfigs = (): WdkConfigs => ({
       blockchain: 'arbitrum',
       config: {
         chainId: 42161,
-        provider: process.env.EXPO_PUBLIC_ARBITRUM_RPC_URL ?? 'https://arb1.arbitrum.io/rpc',
+        provider: getEvmRpcUrl('arbitrum')!,
         bundlerUrl: 'https://api.candide.dev/public/v3/arbitrum',
         paymasterUrl: 'https://api.candide.dev/public/v3/arbitrum',
         paymasterAddress: CANDIDE_PAYMASTER_ADDRESS,
@@ -78,7 +78,7 @@ export const getWdkConfigs = (): WdkConfigs => ({
       blockchain: 'polygon',
       config: {
         chainId: 137,
-        provider: process.env.EXPO_PUBLIC_POLYGON_RPC_URL ?? 'https://polygon-rpc.com',
+        provider: getEvmRpcUrl('polygon')!,
         bundlerUrl: 'https://api.candide.dev/public/v3/polygon',
         paymasterUrl: 'https://api.candide.dev/public/v3/polygon',
         paymasterAddress: CANDIDE_PAYMASTER_ADDRESS,
@@ -92,7 +92,7 @@ export const getWdkConfigs = (): WdkConfigs => ({
       blockchain: 'base',
       config: {
         chainId: 8453,
-        provider: process.env.EXPO_PUBLIC_BASE_RPC_URL ?? 'https://mainnet.base.org',
+        provider: getEvmRpcUrl('base')!,
         bundlerUrl: 'https://api.candide.dev/public/v3/base',
         paymasterUrl: 'https://api.candide.dev/public/v3/base',
         paymasterAddress: CANDIDE_PAYMASTER_ADDRESS,
@@ -127,7 +127,7 @@ export const getWdkConfigs = (): WdkConfigs => ({
       blockchain: 'plasma',
       config: {
         chainId: 9745,
-        provider: process.env.EXPO_PUBLIC_PLASMA_RPC_URL ?? 'https://rpc.plasma.to',
+        provider: getEvmRpcUrl('plasma')!,
         bundlerUrl: 'https://api.candide.dev/public/v3/9745',
         paymasterUrl: 'https://api.candide.dev/public/v3/9745',
         paymasterAddress: CANDIDE_PAYMASTER_ADDRESS,
@@ -140,7 +140,7 @@ export const getWdkConfigs = (): WdkConfigs => ({
       blockchain: 'sepolia',
       config: {
         chainId: 11155111,
-        provider: process.env.EXPO_PUBLIC_SEPOLIA_RPC_URL ?? 'https://sepolia.gateway.tenderly.co',
+        provider: getEvmRpcUrl('sepolia')!,
         bundlerUrl: 'https://api.candide.dev/public/v3/sepolia',
         paymasterUrl: 'https://api.candide.dev/public/v3/sepolia',
         paymasterAddress: CANDIDE_PAYMASTER_ADDRESS,
