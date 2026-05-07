@@ -1,4 +1,12 @@
-import { Alert, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  ImageBackground,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -45,7 +53,11 @@ export default function MultiSigManageScreen() {
         resizeMode="cover"
       >
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-          <AppHeader title={t('multiSig.title')} onBack={() => router.back()} testID="multi-sig-manage" />
+          <AppHeader
+            title={t('multiSig.title')}
+            onBack={() => router.back()}
+            testID="multi-sig-manage"
+          />
 
           <ScrollView
             style={styles.scroll}
@@ -127,8 +139,7 @@ export default function MultiSigManageScreen() {
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.memberLabel}>
-                            {c.label ??
-                              t('multiSig.manage.cosignerLabel', { n: idx + 1 })}
+                            {c.label ?? t('multiSig.manage.cosignerLabel', { n: idx + 1 })}
                           </Text>
                           <Text style={styles.memberDesc} numberOfLines={1}>
                             {truncateAddress(c.address)}

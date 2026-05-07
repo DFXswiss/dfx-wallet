@@ -234,9 +234,7 @@ export default function MultiSigSetupScreen() {
                     <Text style={styles.optionTitle}>
                       {t('multiSig.quorum.option_custom_title')}
                     </Text>
-                    <Text style={styles.optionDesc}>
-                      {t('multiSig.quorum.option_custom_desc')}
-                    </Text>
+                    <Text style={styles.optionDesc}>{t('multiSig.quorum.option_custom_desc')}</Text>
                   </View>
                   {isCustomQuorum ? (
                     <Icon name="shield" size={18} color={DfxColors.primary} />
