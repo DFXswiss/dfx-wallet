@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import {
-  computeFiatValue,
-  formatBalance,
-  toNumeric,
-} from '@/config/portfolio-presentation';
+import { computeFiatValue, formatBalance, toNumeric } from '@/config/portfolio-presentation';
 import { getAssetMeta, getAssets, getMockRawBalance } from '@/config/tokens';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { useEnabledChains } from './useEnabledChains';
@@ -53,9 +49,7 @@ export function useTotalPortfolioFiat() {
   }, [assetConfigs, balanceResults, fiatCurrency, pricingReady]);
 
   useEffect(() => {
-    const formatted = Number.isFinite(totalFiat)
-      ? Math.round(totalFiat * 100) / 100
-      : 0;
+    const formatted = Number.isFinite(totalFiat) ? Math.round(totalFiat * 100) / 100 : 0;
     setTotalBalanceFiat(String(formatted));
   }, [totalFiat, setTotalBalanceFiat]);
 

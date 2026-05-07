@@ -213,7 +213,9 @@ function WalletAddressBar({ network }: { network: string }) {
         <Icon name="wallet" size={22} color={DfxColors.primary} />
       </View>
       <Text style={styles.addressLabel}>Wallet-Adresse</Text>
-      <Text style={styles.addressText} numberOfLines={1} selectable>{short}</Text>
+      <Text style={styles.addressText} numberOfLines={1} selectable>
+        {short}
+      </Text>
       <View style={styles.copyBadge}>
         <Text style={styles.copyText}>{copied ? 'Kopiert!' : 'Kopieren'}</Text>
       </View>

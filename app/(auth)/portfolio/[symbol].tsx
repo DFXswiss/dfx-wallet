@@ -5,7 +5,13 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { Icon } from '@/components';
-import { getAssetsForCanonicalSymbol, getAssets, getCanonicalNameForSymbol, getMockRawBalance, getAssetMeta } from '@/config/tokens';
+import {
+  getAssetsForCanonicalSymbol,
+  getAssets,
+  getCanonicalNameForSymbol,
+  getMockRawBalance,
+  getAssetMeta,
+} from '@/config/tokens';
 import {
   CHAIN_LABELS,
   computeFiatValue,
@@ -147,7 +153,13 @@ export default function AssetDetailScreen() {
                 {formatNumber(totalBalance)} {canonicalSymbol}
               </Text>
               <Text style={styles.totalFiat}>
-                {currencySymbol} {Number.isFinite(totalFiat) ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                {currencySymbol}{' '}
+                {Number.isFinite(totalFiat)
+                  ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
+                  : '0.00'}
               </Text>
             </View>
 
@@ -172,7 +184,13 @@ export default function AssetDetailScreen() {
                   </View>
                   <View style={styles.holdingBalance}>
                     <Text style={styles.holdingValue}>
-                      {currencySymbol} {Number.isFinite(holding.fiatValue) ? (Math.round(holding.fiatValue * 100) / 100).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                      {currencySymbol}{' '}
+                      {Number.isFinite(holding.fiatValue)
+                        ? (Math.round(holding.fiatValue * 100) / 100).toLocaleString('de-CH', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })
+                        : '0.00'}
                     </Text>
                     <Text style={styles.holdingCrypto}>
                       {formatNumber(holding.balanceNum)} {holding.symbol}
@@ -187,7 +205,6 @@ export default function AssetDetailScreen() {
     </>
   );
 }
-
 
 const styles = StyleSheet.create({
   bg: {

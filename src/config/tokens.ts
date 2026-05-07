@@ -377,9 +377,7 @@ export const getMockRawBalance = (
   const fracPart = parts[1] ?? '';
   const whole = BigInt(wholePart) * 10n ** BigInt(decimals);
   const fracDigits = fracPart.length;
-  const frac = fracDigits > 0
-    ? BigInt(fracPart) * 10n ** BigInt(decimals - fracDigits)
-    : 0n;
+  const frac = fracDigits > 0 ? BigInt(fracPart) * 10n ** BigInt(decimals - fracDigits) : 0n;
   return (whole + frac).toString();
 };
 

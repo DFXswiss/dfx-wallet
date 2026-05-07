@@ -159,7 +159,12 @@ export default function PortfolioScreen() {
               <View style={styles.totalRow}>
                 <Text style={styles.totalCurrency}>{currencySymbol}</Text>
                 <Text style={styles.totalValue}>
-                  {Number.isFinite(totalFiat) ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                  {Number.isFinite(totalFiat)
+                    ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })
+                    : '0.00'}
                 </Text>
               </View>
             </View>
