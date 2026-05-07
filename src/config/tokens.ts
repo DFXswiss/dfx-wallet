@@ -449,11 +449,11 @@ export const getCategoryForAsset = (assetId: string): TokenCategory =>
   ASSET_META_BY_ID.get(assetId)?.category ?? 'other';
 
 export const getAssetsForCanonicalSymbol = (symbol: string, chains?: ChainId[]): AssetMeta[] => {
-  // BTC variants are always returned regardless of `chains` so the asset
-  // detail page lists every supported BTC network even if some of their EVM
-  // chains are toggled off in the manage UI.
+  // Wrapped BTC variants follow the user's chain selection (e.g. WBTC/Polygon
+  // hides when Polygon is off). Only the BTC-native chains (mainnet + Lightning)
+  // are always implicitly included via IMPLICIT_ENABLED_CHAINS in useEnabledChains.
   const filtered = chains
-    ? ASSET_SPECS.filter((spec) => spec.category === 'btc' || chains.includes(spec.network))
+    ? ASSET_SPECS.filter((spec) => chains.includes(spec.network))
     : ASSET_SPECS;
   return filtered
     .filter((spec) => spec.canonicalSymbol === symbol)
@@ -490,11 +490,11 @@ export const getCategoryForCanonicalSymbol = (canonicalSymbol: string): TokenCat
   ASSET_SPECS.find((spec) => spec.canonicalSymbol === canonicalSymbol)?.category ?? 'other';
 
 export const getAssets = (chains?: ChainId[]): IAsset[] => {
-  // BTC-category assets are always returned regardless of `chains`, so the
-  // Bitcoin group in the portfolio always lists every supported BTC variant
-  // (mainnet, Lightning, WBTC on EVM L1/L2, cbBTC on Base).
+  // Wrapped BTC on EVM chains follows the user's chain selection, so disabling
+  // Polygon hides WBTC/Polygon. Only the BTC-native chains (mainnet + Lightning)
+  // are always implicitly included via IMPLICIT_ENABLED_CHAINS in useEnabledChains.
   const filtered = chains
-    ? ASSET_SPECS.filter((spec) => spec.category === 'btc' || chains.includes(spec.network))
+    ? ASSET_SPECS.filter((spec) => chains.includes(spec.network))
     : ASSET_SPECS;
   return filtered.map(
     (spec) =>
