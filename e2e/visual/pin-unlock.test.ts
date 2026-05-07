@@ -17,9 +17,11 @@ describe('PIN unlock', () => {
     // Wait for seed words to render
     await new Promise((r) => setTimeout(r, 2_000));
     await element(by.id('create-wallet-continue-button')).tap();
+    // WDK restoreWallet() initializes all chain wallets which can
+    // take over 30s, especially with bitcoin + taproot + plasma.
     await waitFor(element(by.id('setup-pin-screen')))
       .toBeVisible()
-      .withTimeout(30_000);
+      .withTimeout(120_000);
 
     // Enter + confirm PIN (111111)
     await enterPin('111111');
