@@ -173,10 +173,7 @@ function DetailRow({ label, value, isLast }: { label: string; value: string; isL
   );
 }
 
-function counterpartyLabel(
-  type: TransactionDto['type'],
-  t: (key: string) => string,
-): string {
+function counterpartyLabel(type: TransactionDto['type'], t: (key: string) => string): string {
   switch (type) {
     case 'Buy':
       return t('transactions.source');
