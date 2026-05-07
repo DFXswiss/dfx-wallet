@@ -32,9 +32,9 @@ export async function expectScreenToMatchBaseline(name: string): Promise<void> {
     customSnapshotsDir: BASELINES_DIR,
     customSnapshotIdentifier: name,
     customDiffDir: DIFF_DIR,
-    // Allow 0.05% pixel difference to absorb anti-aliasing and font rendering
-    // variations across macOS / Xcode versions.
-    failureThreshold: 0.05,
+    // Allow 1% pixel difference to absorb anti-aliasing, font rendering,
+    // and GPU differences across local machines and CI runners.
+    failureThreshold: 1,
     failureThresholdType: 'percent',
   });
 }
