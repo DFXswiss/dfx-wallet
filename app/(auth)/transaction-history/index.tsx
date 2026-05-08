@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
   ImageBackground,
+  type ListRenderItemInfo,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -149,9 +150,25 @@ export default function TransactionHistoryScreen() {
               <Text style={styles.emptyText}>{t('transactions.noTransactions')}</Text>
             </View>
           ) : (
-            <ScrollView
+            // Virtualised so that long histories don't block the JS thread on
+            // first render — the previous ScrollView+map approach mounted every
+            // row up-front and dropped frames once a user crossed ~100 txs.
+            <FlatList
               style={styles.scroll}
               contentContainerStyle={styles.txList}
+              data={filtered}
+              keyExtractor={(tx) => String(tx.id)}
+              renderItem={({ item }: ListRenderItemInfo<TransactionDto>) => (
+                <TransactionRow
+                  tx={item}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(auth)/transaction-history/[id]',
+                      params: { id: String(item.id), network: networkFilter ?? '' },
+                    })
+                  }
+                />
+              )}
               showsVerticalScrollIndicator={false}
               refreshControl={
                 <RefreshControl
@@ -160,20 +177,11 @@ export default function TransactionHistoryScreen() {
                   tintColor={DfxColors.primary}
                 />
               }
-            >
-              {filtered.map((tx) => (
-                <TransactionRow
-                  key={tx.id}
-                  tx={tx}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/(auth)/transaction-history/[id]',
-                      params: { id: String(tx.id), network: networkFilter ?? '' },
-                    })
-                  }
-                />
-              ))}
-            </ScrollView>
+              initialNumToRender={20}
+              maxToRenderPerBatch={20}
+              windowSize={11}
+              removeClippedSubviews
+            />
           )}
         </SafeAreaView>
       </ImageBackground>

@@ -20,7 +20,17 @@ type Props = {
  */
 export function AppHeader({ title, onBack, rightAction, testID }: Props) {
   const router = useRouter();
-  const handleBack = onBack ?? (() => router.back());
+  // When a screen is mounted directly via deep-link (e.g. simctl openurl,
+  // a push-notification tap, or app-clip launch), the navigation stack has
+  // no parent — `router.back()` then crashes the navigator with
+  // "GO_BACK was not handled". Falling back to the dashboard keeps the
+  // user out of a dead-end without any visible back affordance.
+  const handleBack =
+    onBack ??
+    (() => {
+      if (router.canGoBack()) router.back();
+      else router.replace('/(auth)/(tabs)/dashboard');
+    });
 
   return (
     <View style={styles.container} testID={testID}>

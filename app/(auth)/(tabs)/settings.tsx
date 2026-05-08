@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -170,26 +170,13 @@ export default function SettingsScreen() {
           icon: 'document',
           label: t('settings.taxReport'),
           testID: 'settings-tax-report',
-          onPress: () => {
-            router.push({
-              pathname: '/(auth)/webview',
-              params: { url: 'https://docs.dfx.swiss/de/faq.html', title: t('settings.taxReport') },
-            });
-          },
+          route: '/(auth)/tax-report',
         },
         {
           icon: 'document',
           label: t('settings.legalDocuments'),
           testID: 'settings-legal-documents',
-          onPress: () => {
-            router.push({
-              pathname: '/(auth)/webview',
-              params: {
-                url: 'https://docs.dfx.swiss/de/tnc.html',
-                title: t('settings.legalDocuments'),
-              },
-            });
-          },
+          route: '/(auth)/legal',
         },
       ],
     },
@@ -200,9 +187,7 @@ export default function SettingsScreen() {
           icon: 'support',
           label: t('settings.contact'),
           testID: 'settings-contact',
-          onPress: () => {
-            void Linking.openURL('mailto:support@dfx.swiss');
-          },
+          route: '/(auth)/contact',
         },
         {
           icon: 'support',

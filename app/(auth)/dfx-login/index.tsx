@@ -87,7 +87,7 @@ export default function DfxLoginScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <ScreenContainer scrollable testID="dfx-login-screen">
-        <AppHeader title={t('dfxLogin.title')} onBack={() => router.back()} testID="dfx-login" />
+        <AppHeader title={t('dfxLogin.title')} testID="dfx-login" />
 
         <View style={styles.content}>
           <View style={styles.heroIcon}>

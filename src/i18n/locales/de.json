@@ -130,15 +130,16 @@
     "verifyTitle": "E-Mail bestätigen"
   },
   "email": {
-    "currentLabel": "Aktuelle E-Mail",
+    "currentLabel": "E-Mail",
     "newLabel": "Neue E-Mail",
     "notSet": "Noch nicht gesetzt",
+    "phoneLabel": "Telefonnummer",
     "placeholder": "name@example.com",
     "sendCta": "Bestätigungs-Mail anfordern",
     "sendError": "Bestätigungs-Mail konnte nicht gesendet werden. Bitte erneut versuchen.",
     "successBody": "Deine E-Mail-Adresse {{mail}} ist jetzt mit deinem DFX-Profil verknüpft.",
     "successTitle": "E-Mail verifiziert",
-    "title": "E-Mail",
+    "title": "Kontaktdaten",
     "tokenHint": "Wir haben dir eine Bestätigungs-Mail an {{mail}} geschickt. Öffne sie und kopiere den Token aus dem Link in das Feld unten.",
     "tokenLabel": "Bestätigungs-Token",
     "tokenPlaceholder": "Token aus der E-Mail einfügen",
@@ -154,6 +155,13 @@
     "scanning": "Suche nach Geräten...",
     "verifyOnDevice": "Bitte bestätige auf deinem Gerät."
   },
+  "contact": {
+    "docs": "Dokumentation",
+    "email": "E-Mail",
+    "intro": "Erreich uns über das passende Kanal — In-App-Tickets sind der schnellste Weg für technische Fragen.",
+    "support": "Support-Tickets",
+    "website": "Website"
+  },
   "kyc": {
     "complete": "Verifizierung abgeschlossen",
     "completeDescription": "Deine Identitätsverifizierung wird überprüft.",
@@ -161,13 +169,53 @@
     "currentLevel": "Aktuelles Level",
     "financial": "Finanzinformationen",
     "ident": "Identitätsprüfung",
+    "level": {
+      "0": {
+        "body": "Wallet erstellt — keine Kontaktdaten hinterlegt. Du kannst empfangen und versenden, aber nicht handeln.",
+        "title": "Anonym"
+      },
+      "10": {
+        "body": "E-Mail bestätigt. Käufe bis 1'000 CHF/Tag, max. 5'000 CHF im Jahr.",
+        "title": "E-Mail bestätigt"
+      },
+      "20": {
+        "body": "Persönliche Daten erfasst. Höhere Limits, KYC-pflichtige Pfade noch offen.",
+        "title": "Persönliche Daten"
+      },
+      "30": {
+        "body": "Nationalität und Wohnsitz angegeben. Standard-Käufe bis 10'000 CHF/Tag.",
+        "title": "Nationalität geprüft"
+      },
+      "40": {
+        "body": "Finanzielle Angaben hinterlegt. Verifiziert für höhere Volumen.",
+        "title": "Finanziell verifiziert"
+      },
+      "50": {
+        "body": "Identität via Online-Ident bestätigt. Volle Limits, alle DFX-Produkte freigeschaltet.",
+        "title": "Voll verifiziert"
+      }
+    },
+    "continueCta": "Verifizierung fortsetzen",
+    "mergedTitle": "Daten nicht ladbar",
     "nationality": "Nationalität",
     "personal": "Persönliche Daten",
+    "status": {
+      "completed": "Abgeschlossen",
+      "failed": "Fehlgeschlagen",
+      "inProgress": "Läuft",
+      "inReview": "Wird geprüft",
+      "notStarted": "Offen",
+      "outdated": "Auffrischung nötig",
+      "renewal": "Auffrischung läuft",
+      "unknown": "{{raw}}"
+    },
+    "stepsLabel": "Status der Schritte",
     "title": "KYC Verifizierung"
   },
   "legal": {
     "accept": "Ich habe die AGB, Datenschutzerklärung und den Haftungsausschluss gelesen und akzeptiere diese.",
     "disclaimer": "Haftungsausschluss",
+    "intro": "Die rechtlichen Dokumente zu DFX werden im Browser geöffnet, damit du sie speichern, teilen oder drucken kannst.",
     "privacy": "Datenschutzerklärung",
     "terms": "Nutzungsbedingungen",
     "title": "Rechtliche Informationen"
@@ -411,7 +459,7 @@
     "deleteWalletConfirm": "Deine Wallet wird permanent von diesem Gerät entfernt. Stelle sicher, dass du deine Seed Phrase gesichert hast.",
     "deleteWalletConfirmPasskey": "Deine Wallet wird permanent von diesem Gerät entfernt. Zur Wiederherstellung benötigst du deinen Passkey oder deine exportierte Recovery Phrase. Bitte lösche den Passkey auch aus deinen Geräteeinstellungen.",
     "dfxWallets": "DFX-Wallets",
-    "email": "E-Mail",
+    "email": "Kontaktdaten",
     "hardwareWallet": "Hardware Wallet",
     "language": "Sprache",
     "legalDocuments": "Rechtliches",
@@ -450,6 +498,31 @@
     "txHash": "Tx Hash",
     "venue": "Börse",
     "viewOnExplorer": "Auf Block-Explorer ansehen"
+  },
+  "taxReport": {
+    "cta": "Steuerreport herunterladen",
+    "downloadFailed": "Steuerreport konnte nicht erstellt werden.",
+    "formatLabel": "Format",
+    "generating": "Wird erstellt …",
+    "intro": "Lade dein Transaktions-Journal eines bestimmten Jahres als CSV herunter — direkt importierbar in CoinTracking, Blockpit & Co.",
+    "savedAt": "Datei gespeichert: {{uri}}",
+    "shareTitle": "DFX Steuerreport",
+    "title": "Steuerreport",
+    "types": {
+      "chainReport": {
+        "body": "Detaillierter Bericht inkl. on-chain TXIDs.",
+        "title": "Chain-Report"
+      },
+      "coinTracking": {
+        "body": "Standardformat — direkt in CoinTracking importierbar.",
+        "title": "CoinTracking"
+      },
+      "compact": {
+        "body": "Kompakte Übersicht — eine Zeile pro Transaktion.",
+        "title": "Kompakt"
+      }
+    },
+    "yearLabel": "Jahr"
   },
   "wallets": {
     "activeBadge": "Aktiv",

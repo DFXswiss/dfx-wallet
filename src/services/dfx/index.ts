@@ -14,5 +14,5 @@ export { dfxPaymentService } from './payment-service';
 export { dfxSupportService } from './support-service';
 export type { SupportIssueDto, SupportMessageDto } from './support-service';
 export { dfxTransactionService } from './transaction-service';
-export type { TransactionDto } from './transaction-service';
+export type { TaxReportType, TransactionDto } from './transaction-service';
 export { dfxUserService } from './user-service';

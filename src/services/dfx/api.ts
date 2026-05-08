@@ -15,6 +15,13 @@ class DfxApi {
     this.authToken = token;
   }
 
+  /** Base URL exposed for code that needs to construct unauth GET URLs
+   *  (e.g. the single-use CSV download key — server consumes the key on
+   *  first read so we can't proxy it through the auth-injecting client). */
+  baseUrlPublic(): string {
+    return this.baseUrl;
+  }
+
   clearAuthToken() {
     this.authToken = null;
   }
@@ -24,8 +31,8 @@ class DfxApi {
     this.onUnauthorized = handler;
   }
 
-  async get<T>(path: string): Promise<T> {
-    return this.request<T>('GET', path);
+  async get<T>(path: string, options?: { signal?: AbortSignal }): Promise<T> {
+    return this.request<T>('GET', path, undefined, options);
   }
 
   /**
@@ -34,36 +41,42 @@ class DfxApi {
    * the request is authenticated, returning a smaller subset that may not
    * contain the asset/fiat the buy/sell flow needs.
    */
-  async getPublic<T>(path: string): Promise<T> {
+  async getPublic<T>(path: string, options?: { signal?: AbortSignal }): Promise<T> {
     const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
+      ...(options?.signal ? { signal: options.signal } : {}),
     });
     return this.handleResponse<T>(response);
   }
 
-  async post<T>(path: string, body: unknown): Promise<T> {
-    return this.request<T>('POST', path, body);
+  async post<T>(path: string, body: unknown, options?: { signal?: AbortSignal }): Promise<T> {
+    return this.request<T>('POST', path, body, options);
   }
 
-  async put<T>(path: string, body: unknown): Promise<T> {
-    return this.request<T>('PUT', path, body);
+  async put<T>(path: string, body: unknown, options?: { signal?: AbortSignal }): Promise<T> {
+    return this.request<T>('PUT', path, body, options);
   }
 
-  async delete<T>(path: string): Promise<T> {
-    return this.request<T>('DELETE', path);
+  async delete<T>(path: string, options?: { signal?: AbortSignal }): Promise<T> {
+    return this.request<T>('DELETE', path, undefined, options);
   }
 
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const response = await this.fetch(method, path, body);
+  private async request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    options?: { signal?: AbortSignal },
+  ): Promise<T> {
+    const response = await this.fetch(method, path, body, options?.signal);
 
     // Handle 401 — attempt token refresh once
     if (response.status === 401 && this.onUnauthorized) {
       const newToken = await this.onUnauthorized();
       if (newToken) {
         this.authToken = newToken;
-        const retryResponse = await this.fetch(method, path, body);
+        const retryResponse = await this.fetch(method, path, body, options?.signal);
         return this.handleResponse<T>(retryResponse);
       }
     }
@@ -71,12 +84,18 @@ class DfxApi {
     return this.handleResponse<T>(response);
   }
 
-  private async fetch(method: string, path: string, body?: unknown): Promise<Response> {
+  private async fetch(
+    method: string,
+    path: string,
+    body?: unknown,
+    signal?: AbortSignal,
+  ): Promise<Response> {
     const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
     return fetch(url, {
       method,
       headers: this.getHeaders(),
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(signal ? { signal } : {}),
     });
   }
 

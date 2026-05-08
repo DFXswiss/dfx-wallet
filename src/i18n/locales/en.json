@@ -130,15 +130,16 @@
     "verifyTitle": "Confirm email"
   },
   "email": {
-    "currentLabel": "Current email",
+    "currentLabel": "Email",
     "newLabel": "New email",
     "notSet": "Not set yet",
+    "phoneLabel": "Phone number",
     "placeholder": "name@example.com",
     "sendCta": "Send confirmation email",
     "sendError": "Could not send the confirmation email. Please try again.",
     "successBody": "Your email address {{mail}} is now linked to your DFX profile.",
     "successTitle": "Email verified",
-    "title": "Email",
+    "title": "Contact details",
     "tokenHint": "We sent a confirmation email to {{mail}}. Open it and paste the token from the link into the field below.",
     "tokenLabel": "Confirmation token",
     "tokenPlaceholder": "Paste the token from the email",
@@ -154,6 +155,13 @@
     "scanning": "Scanning for devices...",
     "verifyOnDevice": "Please confirm on your device."
   },
+  "contact": {
+    "docs": "Documentation",
+    "email": "Email",
+    "intro": "Reach us via the right channel — in-app tickets are the fastest path for technical questions.",
+    "support": "Support tickets",
+    "website": "Website"
+  },
   "kyc": {
     "complete": "Verification complete",
     "completeDescription": "Your identity verification is being reviewed.",
@@ -161,13 +169,53 @@
     "currentLevel": "Current Level",
     "financial": "Financial Information",
     "ident": "Identity Check",
+    "level": {
+      "0": {
+        "body": "Wallet created — no contact data on file. You can receive and send, but not trade.",
+        "title": "Anonymous"
+      },
+      "10": {
+        "body": "Email confirmed. Purchases up to 1,000 CHF/day, max 5,000 CHF/year.",
+        "title": "Email verified"
+      },
+      "20": {
+        "body": "Personal data recorded. Higher limits; KYC-restricted paths still open.",
+        "title": "Personal data"
+      },
+      "30": {
+        "body": "Nationality and residence on file. Standard purchases up to 10,000 CHF/day.",
+        "title": "Nationality verified"
+      },
+      "40": {
+        "body": "Financial details supplied. Verified for higher-volume trades.",
+        "title": "Financially verified"
+      },
+      "50": {
+        "body": "Identity confirmed via online ident. Full limits, all DFX products unlocked.",
+        "title": "Fully verified"
+      }
+    },
+    "continueCta": "Continue verification",
+    "mergedTitle": "Data unavailable",
     "nationality": "Nationality",
     "personal": "Personal Data",
+    "status": {
+      "completed": "Completed",
+      "failed": "Failed",
+      "inProgress": "In progress",
+      "inReview": "In review",
+      "notStarted": "Not started",
+      "outdated": "Renewal required",
+      "renewal": "Renewal in progress",
+      "unknown": "{{raw}}"
+    },
+    "stepsLabel": "Step status",
     "title": "KYC Verification"
   },
   "legal": {
     "accept": "I have read and agree to the Terms of Service, Privacy Policy, and Disclaimer.",
     "disclaimer": "Disclaimer",
+    "intro": "The legal documents open in your browser so you can save, share or print them.",
     "privacy": "Privacy Policy",
     "terms": "Terms of Service",
     "title": "Legal Information"
@@ -406,7 +454,7 @@
     "deleteWalletConfirm": "This will permanently remove your wallet from this device. Make sure you have backed up your seed phrase.",
     "deleteWalletConfirmPasskey": "This will permanently remove your wallet from this device. If you need to restore it, you will need your passkey or your exported recovery phrase. Please also delete the passkey from your device settings.",
     "dfxWallets": "DFX wallets",
-    "email": "Email",
+    "email": "Contact details",
     "hardwareWallet": "Hardware Wallet",
     "language": "Language",
     "legalDocuments": "Legal Documents",
@@ -450,6 +498,31 @@
     "txHash": "Tx hash",
     "venue": "Venue",
     "viewOnExplorer": "View on block explorer"
+  },
+  "taxReport": {
+    "cta": "Download tax report",
+    "downloadFailed": "Could not generate tax report.",
+    "formatLabel": "Format",
+    "generating": "Generating …",
+    "intro": "Download your transaction journal for a given year as CSV — ready to import into CoinTracking, Blockpit & Co.",
+    "savedAt": "File saved: {{uri}}",
+    "shareTitle": "DFX tax report",
+    "title": "Tax report",
+    "types": {
+      "chainReport": {
+        "body": "Detailed report including on-chain TXIDs.",
+        "title": "Chain Report"
+      },
+      "coinTracking": {
+        "body": "Standard format — ready for CoinTracking import.",
+        "title": "CoinTracking"
+      },
+      "compact": {
+        "body": "Compact summary — one line per transaction.",
+        "title": "Compact"
+      }
+    },
+    "yearLabel": "Year"
   },
   "wallets": {
     "activeBadge": "Active",
