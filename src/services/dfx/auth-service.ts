@@ -9,8 +9,25 @@ import type { AuthRequestDto, AuthResponseDto, SignMessageDto } from './dto';
  * 2. Sign message with wallet (WDK or BitBox)
  * 3. POST /v1/auth → exchange signature for JWT
  */
+
+/**
+ * In-memory cache of recent (address, message) → signature tuples. We
+ * sometimes call /v1/auth twice in quick succession for the same address
+ * (linkAddress → 409 → loginAsAddressOwner re-auth). DFX' sign-message
+ * challenges are stable for a few minutes, so reusing a fresh signature
+ * skips redundant WDK-worklet round-trips and any biometric prompts a
+ * hardware-wallet sign path would otherwise trigger.
+ *
+ * Mirrors realunit-app's `SessionCache.signature` pattern; kept tight
+ * (5-minute TTL, evicted on logout) so a stale challenge can never be
+ * replayed past its server-side expiry.
+ */
+const SIGNATURE_TTL_MS = 5 * 60 * 1000;
+type SignatureCacheEntry = { message: string; signature: string; ts: number };
+
 export class DfxAuthService {
   private accessToken: string | null = null;
+  private signatureCache: Map<string, SignatureCacheEntry> = new Map();
 
   /**
    * Adopt a JWT that was rehydrated from secure storage on cold start. The
@@ -36,6 +53,26 @@ export class DfxAuthService {
     return response.accessToken;
   }
 
+  /**
+   * Sign `message` for `address`, reusing a cached signature when possible.
+   * If the cache has a signature for the same exact challenge string and
+   * it's still inside TTL, return it without invoking signFn. Otherwise
+   * sign fresh and update the cache.
+   */
+  private async signWithCache(
+    address: string,
+    message: string,
+    signFn: (message: string) => Promise<string>,
+  ): Promise<string> {
+    const cached = this.signatureCache.get(address);
+    if (cached && cached.message === message && Date.now() - cached.ts < SIGNATURE_TTL_MS) {
+      return cached.signature;
+    }
+    const signature = await signFn(message);
+    this.signatureCache.set(address, { message, signature, ts: Date.now() });
+    return signature;
+  }
+
   /** Full auth flow: get challenge, sign, exchange for token */
   async login(
     address: string,
@@ -43,7 +80,7 @@ export class DfxAuthService {
     options?: { wallet?: string; blockchain?: string; usedRef?: string },
   ): Promise<string> {
     const { message } = await this.getSignMessage(address);
-    const signature = await signFn(message);
+    const signature = await this.signWithCache(address, message, signFn);
 
     return this.authenticate({
       address,
@@ -224,7 +261,7 @@ export class DfxAuthService {
     }
 
     const { message } = await this.getSignMessage(address);
-    const signature = await signFn(message);
+    const signature = await this.signWithCache(address, message, signFn);
 
     try {
       const response = await dfxApi.post<AuthResponseDto>('/v1/auth', {
@@ -243,9 +280,10 @@ export class DfxAuthService {
     }
   }
 
-  /** Clear auth state */
+  /** Clear auth state and forget any cached signatures. */
   logout(): void {
     this.accessToken = null;
+    this.signatureCache.clear();
     dfxApi.clearAuthToken();
   }
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAccount } from '@tetherto/wdk-react-native-core';
 import { AppHeader, Icon, ScreenContainer } from '@/components';
@@ -28,7 +28,6 @@ const isAddressLinked = (addresses: UserAddressDto[], address: string | null): b
 };
 
 export default function WalletsScreen() {
-  const router = useRouter();
   const { t } = useTranslation();
 
   const [activeAddress, setActiveAddress] = useState<UserAddressDto | null>(null);
@@ -40,7 +39,7 @@ export default function WalletsScreen() {
   const [linkingChain, setLinkingChain] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
 
-  const { authenticate, isAuthenticating } = useDfxAuth();
+  const { reauthenticateAsOwner, isAuthenticating } = useDfxAuth();
   const btc = useAccount({ network: 'bitcoin', accountIndex: 0 });
 
   const refresh = useCallback(async () => {
@@ -71,14 +70,14 @@ export default function WalletsScreen() {
     setRefreshError(null);
     setLoadingUser(true);
     try {
-      await authenticate();
+      await reauthenticateAsOwner();
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : t('wallets.linkError');
       setRefreshError(message);
       setLoadingUser(false);
     }
-  }, [authenticate, refresh, t]);
+  }, [reauthenticateAsOwner, refresh, t]);
 
   useEffect(() => {
     void refresh();
@@ -134,7 +133,7 @@ export default function WalletsScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <ScreenContainer scrollable testID="wallets-screen">
-        <AppHeader title={t('wallets.title')} onBack={() => router.back()} testID="wallets" />
+        <AppHeader title={t('wallets.title')} testID="wallets" />
 
         <View style={styles.content}>
           <Text style={styles.intro}>{t('wallets.intro')}</Text>

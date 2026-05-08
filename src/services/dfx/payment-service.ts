@@ -31,38 +31,52 @@ async function buildCurrencyRef(name: string) {
 export class DfxPaymentService {
   // --- Buy ---
 
-  async getBuyQuote(params: {
-    amount: number;
-    currency: string;
-    asset: string;
-    blockchain: string;
-  }): Promise<BuyPaymentInfoDto> {
+  async getBuyQuote(
+    params: {
+      amount: number;
+      currency: string;
+      asset: string;
+      blockchain: string;
+    },
+    options?: { signal?: AbortSignal },
+  ): Promise<BuyPaymentInfoDto> {
     const [currency, asset] = await Promise.all([
       buildCurrencyRef(params.currency),
       buildAssetRef(params.asset, params.blockchain),
     ]);
-    return dfxApi.put<BuyPaymentInfoDto>('/v1/buy/quote', {
-      amount: params.amount,
-      currency,
-      asset,
-    });
+    return dfxApi.put<BuyPaymentInfoDto>(
+      '/v1/buy/quote',
+      {
+        amount: params.amount,
+        currency,
+        asset,
+      },
+      options,
+    );
   }
 
-  async createBuyPaymentInfo(params: {
-    amount: number;
-    currency: string;
-    asset: string;
-    blockchain: string;
-  }): Promise<BuyPaymentInfoDto> {
+  async createBuyPaymentInfo(
+    params: {
+      amount: number;
+      currency: string;
+      asset: string;
+      blockchain: string;
+    },
+    options?: { signal?: AbortSignal },
+  ): Promise<BuyPaymentInfoDto> {
     const [currency, asset] = await Promise.all([
       buildCurrencyRef(params.currency),
       buildAssetRef(params.asset, params.blockchain),
     ]);
-    return dfxApi.put<BuyPaymentInfoDto>('/v1/buy/paymentInfos', {
-      amount: params.amount,
-      currency,
-      asset,
-    });
+    return dfxApi.put<BuyPaymentInfoDto>(
+      '/v1/buy/paymentInfos',
+      {
+        amount: params.amount,
+        currency,
+        asset,
+      },
+      options,
+    );
   }
 
   async confirmBuy(id: number): Promise<void> {
@@ -71,40 +85,54 @@ export class DfxPaymentService {
 
   // --- Sell ---
 
-  async getSellQuote(params: {
-    amount: number;
-    asset: string;
-    blockchain: string;
-    currency: string;
-  }): Promise<SellPaymentInfoDto> {
+  async getSellQuote(
+    params: {
+      amount: number;
+      asset: string;
+      blockchain: string;
+      currency: string;
+    },
+    options?: { signal?: AbortSignal },
+  ): Promise<SellPaymentInfoDto> {
     const [currency, asset] = await Promise.all([
       buildCurrencyRef(params.currency),
       buildAssetRef(params.asset, params.blockchain),
     ]);
-    return dfxApi.put<SellPaymentInfoDto>('/v1/sell/quote', {
-      amount: params.amount,
-      currency,
-      asset,
-    });
+    return dfxApi.put<SellPaymentInfoDto>(
+      '/v1/sell/quote',
+      {
+        amount: params.amount,
+        currency,
+        asset,
+      },
+      options,
+    );
   }
 
-  async createSellPaymentInfo(params: {
-    amount: number;
-    asset: string;
-    blockchain: string;
-    currency: string;
-    iban: string;
-  }): Promise<SellPaymentInfoDto> {
+  async createSellPaymentInfo(
+    params: {
+      amount: number;
+      asset: string;
+      blockchain: string;
+      currency: string;
+      iban: string;
+    },
+    options?: { signal?: AbortSignal },
+  ): Promise<SellPaymentInfoDto> {
     const [currency, asset] = await Promise.all([
       buildCurrencyRef(params.currency),
       buildAssetRef(params.asset, params.blockchain),
     ]);
-    return dfxApi.put<SellPaymentInfoDto>('/v1/sell/paymentInfos', {
-      amount: params.amount,
-      currency,
-      asset,
-      iban: params.iban,
-    });
+    return dfxApi.put<SellPaymentInfoDto>(
+      '/v1/sell/paymentInfos',
+      {
+        amount: params.amount,
+        currency,
+        asset,
+        iban: params.iban,
+      },
+      options,
+    );
   }
 
   async confirmSell(id: number): Promise<void> {
