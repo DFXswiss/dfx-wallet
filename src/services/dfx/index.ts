@@ -2,7 +2,7 @@ export { dfxApi, DfxApiError } from './api';
 export type { ApiError } from './api';
 export { interpretDfxAuthError } from './auth-gate';
 export type { DfxAuthGateKind, DfxAuthGateState } from './auth-gate';
-export { decodeDfxJwt } from './jwt';
+export { decodeDfxJwt, jwtCoversBlockchain } from './jwt';
 export type { DfxJwtPayload } from './jwt';
 export { dfxAssetService } from './asset-service';
 export type { DfxAsset } from './asset-service';

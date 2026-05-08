@@ -208,7 +208,18 @@ export default function AssetDetailScreen() {
                   }
                 >
                   <View style={styles.holdingInfo}>
-                    <Text style={styles.holdingChain}>{holding.canonicalName}</Text>
+                    {/* For canonical groups with multiple stablecoin variants
+                        (USD → USDC/USDT, EUR → multiple) the user wants the
+                        token symbol on top so they can tell the rows apart;
+                        the generic canonical name ("Dollar") is redundant
+                        with the screen title. For BTC and other groups where
+                        every holding shares the same symbol, fall back to
+                        the canonical name + variant label as before. */}
+                    <Text style={styles.holdingChain}>
+                      {holding.symbol !== canonicalSymbol
+                        ? holding.symbol
+                        : holding.canonicalName}
+                    </Text>
                     <Text style={styles.holdingSymbol}>{holding.variantLabel}</Text>
                   </View>
                   <View style={styles.holdingBalance}>

@@ -1,7 +1,7 @@
 import 'react-native-get-random-values';
 import 'react-native-url-polyfill/auto';
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, LogBox, StyleSheet, View } from 'react-native';
 import { Buffer } from '@craftzdog/react-native-buffer';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -14,6 +14,20 @@ import { getWdkConfigs } from '@/config/chains';
 import { useAuthStore } from '@/store';
 import { DfxColors } from '@/theme';
 import '@/i18n';
+
+// Silence the WDK / Tether SDK error toasts that pile up in dev when the
+// public Ethereum RPC is flaky (timeouts on `eth_getBalance`,
+// `getTokenBalances`, etc.). They're surfaced via `handleServiceError` ->
+// `console.error` and aren't actionable for the user — the dashboard
+// already retries balances on its own.
+LogBox.ignoreLogs([
+  /\[AccountService\] callAccountMethod/,
+  /\[AddressService\] getAddress failed/,
+  /Failed to fetch balance for /,
+  /could not coalesce error/,
+  /bad address checksum/,
+  /Network ethereum timed out/,
+]);
 
 (globalThis as unknown as { Buffer: typeof Buffer }).Buffer = Buffer;
 

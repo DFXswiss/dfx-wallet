@@ -67,7 +67,11 @@ export type BuyPaymentInfoDto = {
   fees: FeeDto;
   feesTarget: FeeDto;
   isValid: boolean;
+  /** DFX' BuyQuoteDto exposes a single error code on validation failure
+   *  (e.g. ASSET_UNSUPPORTED). Older /v1/buy/quote responses sometimes send
+   *  `errors` as an array — we support both shapes. */
   error?: PaymentError;
+  errors?: PaymentError[];
   expiryDate?: string;
 };
 
@@ -92,6 +96,7 @@ export type SellPaymentInfoDto = {
   maxVolume: number;
   isValid: boolean;
   error?: PaymentError;
+  errors?: PaymentError[];
   gaslessAvailable?: boolean;
   expiryDate?: string;
 };

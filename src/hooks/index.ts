@@ -1,6 +1,7 @@
 export { useBuyFlow } from './useBuyFlow';
 export { useDeepLink } from './useDeepLink';
 export { useDfxAuth } from './useDfxAuth';
+export { useDfxAutoLink } from './useDfxAutoLink';
 export { useEnabledChains } from './useEnabledChains';
 export { useKycFlow } from './useKycFlow';
 export { useLdsWallet } from './useLdsWallet';

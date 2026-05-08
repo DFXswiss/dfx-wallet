@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   ImageBackground,
   Pressable,
   ScrollView,
@@ -24,7 +25,9 @@ import {
 } from '@/config/portfolio-presentation';
 import { getAssetMeta, getAssets, WDK_SUPPORTED_CHAINS } from '@/config/tokens';
 import { useEnabledChains, useLdsWallet, useSellFlow } from '@/hooks';
-import { dfxAuthService } from '@/services/dfx';
+import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
+import { dfxAuthService, DfxApiError } from '@/services/dfx';
+import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
@@ -61,14 +64,11 @@ const SELL_ASSETS: SellAsset[] = [
       },
       {
         chain: 'bitcoin-taproot',
+        // Taproot pill = the DFX Lightning Address (lightning.space-managed
+        // Taproot Asset channels). Stays consistent with receive's "Taproot"
+        // label so users see one BTC layer name across screens.
         label: 'Taproot',
         blockchain: 'Lightning',
-        tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
-      },
-      {
-        chain: 'spark',
-        label: 'Lightning',
-        blockchain: 'Spark',
         tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
       },
       {
@@ -224,12 +224,29 @@ export default function SellScreen() {
         if (!user) {
           throw new Error('DFX Lightning wallet not ready — please retry.');
         }
-        await dfxAuthService.linkAddress(
-          user.lightning.address,
-          async () => user.lightning.addressOwnershipProof,
-          { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
-        );
-        void retryLast();
+        try {
+          const ldsToken = await dfxAuthService.linkLnurlAddress(
+            user.lightning.addressLnurl,
+            user.lightning.addressOwnershipProof,
+            { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
+          );
+          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ldsToken);
+          await markChainLinkedInAutoLinkCache('lightning');
+          void retryLast();
+        } catch (err) {
+          if (err instanceof DfxApiError && err.statusCode === 409) {
+            const ownerToken = await dfxAuthService.loginAsLnurlAddressOwner(
+              user.lightning.addressLnurl,
+              user.lightning.addressOwnershipProof,
+              { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
+            );
+            await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
+            await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
+            void retryLast();
+            return;
+          }
+          throw err;
+        }
         return;
       }
 
@@ -250,18 +267,39 @@ export default function SellScreen() {
                 : chain === 'base'
                   ? 'Base'
                   : 'Ethereum';
-      await dfxAuthService.linkAddress(
-        account.address,
-        async (message) => {
-          const result = await account.sign(message);
-          if (!result.success) {
-            throw new Error(result.error ?? 'Failed to sign message');
-          }
-          return result.signature;
-        },
-        { wallet: 'DFX Wallet', blockchain: blockchainName },
-      );
-      void retryLast();
+      const sign = async (message: string) => {
+        const result = await account.sign(message);
+        if (!result.success) {
+          throw new Error(result.error ?? 'Failed to sign message');
+        }
+        return result.signature;
+      };
+      try {
+        const newToken = await dfxAuthService.linkAddress(account.address, sign, {
+          wallet: 'DFX Wallet',
+          blockchain: blockchainName,
+        });
+        await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, newToken);
+        if (chain === 'bitcoin' || chain === 'arbitrum' || chain === 'polygon' || chain === 'base')
+          await markChainLinkedInAutoLinkCache(chain);
+        void retryLast();
+      } catch (err) {
+        // 409 → address belongs to another DFX user. Re-auth as that user
+        // (drop the prior session) so the rest of the flow runs against the
+        // account that already owns this wallet. See buy/index.tsx for full
+        // rationale.
+        if (err instanceof DfxApiError && err.statusCode === 409) {
+          const ownerToken = await dfxAuthService.loginAsAddressOwner(account.address, sign, {
+            wallet: 'DFX Wallet',
+            blockchain: blockchainName,
+          });
+          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
+          await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
+          void retryLast();
+          return;
+        }
+        throw err;
+      }
     },
     [btcAccount, sparkAccount, ethAccount, lds, retryLast],
   );
@@ -330,8 +368,21 @@ export default function SellScreen() {
   };
 
   const fees = paymentInfo?.fees;
-  const showQuote =
-    !!paymentInfo && !!paymentInfo.asset && !!paymentInfo.currency && parseFloat(amount) > 0;
+  // /sell/quote returns SellQuoteDto without asset/currency objects — those
+  // only land on /sell/paymentInfos. We render the breakdown from local
+  // selection state instead, so a valid quote shows up immediately.
+  const hasQuote =
+    !!paymentInfo && paymentInfo.isValid && !!paymentInfo.fees && parseFloat(amount) > 0;
+  const quoteError =
+    !hasQuote && paymentInfo && paymentInfo.error ? String(paymentInfo.error) : null;
+  // Empty quote without an explicit error code → the chain still has to
+  // be linked. Tapping Weiter triggers the linkChain modal and auto-
+  // retries the quote. See buy/index.tsx for full rationale.
+  const needsContinue = !hasQuote && !quoteError && !!paymentInfo && !isLoading;
+  // See buy/index.tsx — open the Angebot card the moment a positive amount
+  // is set so the user always sees something refreshing instead of an empty
+  // void during the /sell/quote round-trip.
+  const showQuoteCard = hasQuote || (parseFloat(amount) > 0 && !!selectedChainSpec);
   const minVolume = paymentInfo?.minVolume;
   const maxVolume = paymentInfo?.maxVolume;
   const numAmount = parseFloat(amount);
@@ -447,43 +498,62 @@ export default function SellScreen() {
             </View>
           </View>
 
-          {showQuote && fees ? (
+          {showQuoteCard ? (
             <View style={styles.quoteCard}>
-              <Text style={styles.quoteTitle}>{t('sell.summary')}</Text>
-              <QuoteRow
-                label={t('sell.exchangeRate')}
-                value={`1 ${paymentInfo!.asset.name} = ${fmtFiat(paymentInfo!.exchangeRate)} ${paymentInfo!.currency.name}`}
-              />
-              <QuoteRow
-                label={t('sell.feeDfx')}
-                value={`${fees.rate.toFixed(2)}%`}
-                {...(fees.dfx > 0
-                  ? { sub: `${fmtFiat(fees.dfx)} ${paymentInfo!.currency.name}` }
-                  : {})}
-              />
-              {fees.network > 0 ? (
-                <QuoteRow
-                  label={t('sell.feeNetwork')}
-                  value={`${fmtFiat(fees.network)} ${paymentInfo!.currency.name}`}
-                />
-              ) : null}
-              {fees.fixed > 0 ? (
-                <QuoteRow
-                  label={t('sell.feeFixed')}
-                  value={`${fmtFiat(fees.fixed)} ${paymentInfo!.currency.name}`}
-                />
-              ) : null}
-              <QuoteRow
-                label={t('sell.feeTotal')}
-                value={`${fmtFiat(fees.total)} ${paymentInfo!.currency.name}`}
-                emphasis
-              />
-              <View style={styles.quoteDivider} />
-              <QuoteRow
-                label={t('sell.youReceive')}
-                value={`${fmtFiat(paymentInfo!.estimatedAmount)} ${paymentInfo!.currency.name}`}
-                emphasis
-              />
+              <View style={styles.quoteHeader}>
+                <Text style={styles.quoteTitle}>{t('sell.summary')}</Text>
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={DfxColors.primary} />
+                ) : null}
+              </View>
+              {hasQuote && fees ? (
+                <>
+                  <QuoteRow
+                    label={t('sell.exchangeRate')}
+                    value={`1 ${sellAsset} = ${fmtFiat(paymentInfo!.exchangeRate)} ${payoutCurrency}`}
+                  />
+                  <QuoteRow
+                    label={t('sell.feeDfx')}
+                    value={`${(fees.rate * 100).toFixed(2)}%`}
+                    {...(fees.dfx > 0
+                      ? { sub: `${fmtFiat(fees.dfx)} ${payoutCurrency}` }
+                      : {})}
+                  />
+                  {fees.network > 0 ? (
+                    <QuoteRow
+                      label={t('sell.feeNetwork')}
+                      value={`${fmtFiat(fees.network)} ${payoutCurrency}`}
+                    />
+                  ) : null}
+                  {fees.fixed > 0 ? (
+                    <QuoteRow
+                      label={t('sell.feeFixed')}
+                      value={`${fmtFiat(fees.fixed)} ${payoutCurrency}`}
+                    />
+                  ) : null}
+                  <QuoteRow
+                    label={t('sell.feeTotal')}
+                    value={`${fmtFiat(fees.total)} ${payoutCurrency}`}
+                    emphasis
+                  />
+                  <View style={styles.quoteDivider} />
+                  <QuoteRow
+                    label={t('sell.youReceive')}
+                    value={`${fmtFiat(paymentInfo!.estimatedAmount)} ${payoutCurrency}`}
+                    emphasis
+                  />
+                </>
+              ) : quoteError ? (
+                <Text style={styles.quoteError}>
+                  {t([`sell.quoteError.${quoteError}`, 'sell.quoteError.generic'], {
+                    code: quoteError,
+                  })}
+                </Text>
+              ) : needsContinue ? (
+                <Text style={styles.quoteHint}>{t('sell.continueHint')}</Text>
+              ) : (
+                <Text style={styles.quotePlaceholder}>{t('sell.fetchingQuote')}</Text>
+              )}
             </View>
           ) : null}
 
@@ -584,10 +654,13 @@ export default function SellScreen() {
           {paymentInfo.fees.dfx > 0 ? (
             <QuoteRow
               label={t('sell.feeDfx')}
-              value={`${paymentInfo.fees.rate.toFixed(2)}% · ${fmtFiat(paymentInfo.fees.dfx)} ${paymentInfo.currency.name}`}
+              value={`${(paymentInfo.fees.rate * 100).toFixed(2)}% · ${fmtFiat(paymentInfo.fees.dfx)} ${paymentInfo.currency.name}`}
             />
           ) : (
-            <QuoteRow label={t('sell.feeDfx')} value={`${paymentInfo.fees.rate.toFixed(2)}%`} />
+            <QuoteRow
+              label={t('sell.feeDfx')}
+              value={`${(paymentInfo.fees.rate * 100).toFixed(2)}%`}
+            />
           )}
           {paymentInfo.fees.network > 0 ? (
             <QuoteRow
@@ -852,12 +925,32 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 12,
   },
+  quoteHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   quoteTitle: {
     ...Typography.bodySmall,
     fontWeight: '600',
     color: DfxColors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  quotePlaceholder: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textTertiary,
+    paddingVertical: 8,
+  },
+  quoteError: {
+    ...Typography.bodyMedium,
+    color: DfxColors.error,
+    paddingVertical: 8,
+  },
+  quoteHint: {
+    ...Typography.bodyMedium,
+    color: DfxColors.primary,
+    paddingVertical: 8,
   },
   quoteRow: {
     flexDirection: 'row',

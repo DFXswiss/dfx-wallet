@@ -65,8 +65,13 @@ export function useBuyFlow() {
     setState((s) => ({ ...s, isLoading: true, error: null, authGate: null }));
     try {
       const info = await dfxPaymentService.getBuyQuote(params);
-      setState({ isLoading: false, paymentInfo: info, error: null, authGate: null });
-      return info;
+      // Normalise: DFX' BuyQuoteDto returns `errors` as an array; older
+      // responses use a singular `error`. We collapse to a single `error`
+      // so the buy screen's display logic stays simple.
+      const firstError = info.errors && info.errors.length > 0 ? info.errors[0] : undefined;
+      const normalised = info.error || !firstError ? info : { ...info, error: firstError };
+      setState({ isLoading: false, paymentInfo: normalised, error: null, authGate: null });
+      return normalised;
     } catch (err) {
       handleError(err, 'Quote failed');
       return null;

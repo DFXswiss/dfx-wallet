@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   ImageBackground,
   Pressable,
   ScrollView,
@@ -21,7 +22,9 @@ import {
   formatCryptoAmount as fmtCrypto,
 } from '@/config/portfolio-presentation';
 import { useBuyFlow, useLdsWallet } from '@/hooks';
-import { dfxAuthService } from '@/services/dfx';
+import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
+import { dfxAuthService, DfxApiError } from '@/services/dfx';
+import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
@@ -38,6 +41,10 @@ type BuyChain = {
   label: string;
   blockchain: string;
   tokens: { assetSymbol: string; label: string }[];
+  /** Pill is shown but tapping it surfaces a "not yet supported" hint
+   *  instead of running the quote/link flow (e.g. Spark/Lightning native:
+   *  DFX' /v1/auth doesn't accept the WDK Spark signature yet). */
+  unsupported?: boolean;
 };
 type BuyAsset = {
   symbol: string;
@@ -63,18 +70,24 @@ const BUY_ASSETS: BuyAsset[] = [
       },
       {
         chain: 'bitcoin-taproot',
+        // Taproot pill = the DFX Lightning Address (lightning.space-managed
+        // Taproot Asset channels). Stays consistent with receive's "Taproot"
+        // label so users see one BTC layer name across screens.
         label: 'Taproot',
-        // Taproot in dfx-wallet is the DFX Lightning Address (lightning.space-
-        // managed Taproot Asset channels), so it maps to DFX's `Lightning`
-        // blockchain on the buy/sell side.
         blockchain: 'Lightning',
         tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
       },
       {
         chain: 'spark',
+        // Spark/Lightning native — visible as a pill so users see the option
+        // (parity with receive flow), but the buy flow surfaces a "not yet
+        // supported" hint instead of running the broken auth path. DFX'
+        // /v1/auth verifier currently rejects WDK's DER-encoded ECDSA Spark
+        // signature with "Invalid signature".
         label: 'Lightning',
         blockchain: 'Spark',
         tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
+        unsupported: true,
       },
       {
         chain: 'ethereum',
@@ -239,12 +252,33 @@ export default function BuyScreen() {
         if (!user) {
           throw new Error('DFX Lightning wallet not ready — please retry.');
         }
-        await dfxAuthService.linkAddress(
-          user.lightning.address,
-          async () => user.lightning.addressOwnershipProof,
-          { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
-        );
-        void retryLast();
+        try {
+          const ldsToken = await dfxAuthService.linkLnurlAddress(
+            user.lightning.addressLnurl,
+            user.lightning.addressOwnershipProof,
+            { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
+          );
+          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ldsToken);
+          await markChainLinkedInAutoLinkCache('lightning');
+          void retryLast();
+        } catch (err) {
+          // 409 → the LDS LNURL is on another DFX user. Mirror the EVM/BTC
+          // recovery: drop the current JWT and re-auth as the LNURL owner
+          // so the buy flow can continue against the account that already
+          // has Lightning attached.
+          if (err instanceof DfxApiError && err.statusCode === 409) {
+            const ownerToken = await dfxAuthService.loginAsLnurlAddressOwner(
+              user.lightning.addressLnurl,
+              user.lightning.addressOwnershipProof,
+              { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
+            );
+            await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
+            await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
+            void retryLast();
+            return;
+          }
+          throw err;
+        }
         return;
       }
 
@@ -265,18 +299,47 @@ export default function BuyScreen() {
                 : chain === 'base'
                   ? 'Base'
                   : 'Ethereum';
-      await dfxAuthService.linkAddress(
-        account.address,
-        async (message) => {
-          const result = await account.sign(message);
-          if (!result.success) {
-            throw new Error(result.error ?? 'Failed to sign message');
-          }
-          return result.signature;
-        },
-        { wallet: 'DFX Wallet', blockchain: blockchainName },
-      );
-      void retryLast();
+      const sign = async (message: string) => {
+        const result = await account.sign(message);
+        if (!result.success) {
+          throw new Error(result.error ?? 'Failed to sign message');
+        }
+        return result.signature;
+      };
+      try {
+        const newToken = await dfxAuthService.linkAddress(account.address, sign, {
+          wallet: 'DFX Wallet',
+          blockchain: blockchainName,
+        });
+        await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, newToken);
+        // Mark in the auto-link cache so the next cold start skips this
+        // chain instead of re-prompting. Only chains that auto-link knows
+        // about: bitcoin + the EVM chains (ethereum is the login, no cache
+        // entry needed).
+        if (chain === 'bitcoin' || chain === 'arbitrum' || chain === 'polygon' || chain === 'base')
+          await markChainLinkedInAutoLinkCache(chain);
+        void retryLast();
+      } catch (err) {
+        // 409 means the address belongs to a *different* DFX user. The user's
+        // mental model is "this is MY wallet" — so re-auth as the owner of
+        // this address (drop the prior JWT) instead of forcing a merge that
+        // DFX won't allow. The buy flow then runs against the account that
+        // already has the chain in `user.blockchains`, dodging both the
+        // 409 and the next "Asset blockchain mismatch".
+        if (err instanceof DfxApiError && err.statusCode === 409) {
+          const ownerToken = await dfxAuthService.loginAsAddressOwner(account.address, sign, {
+            wallet: 'DFX Wallet',
+            blockchain: blockchainName,
+          });
+          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
+          // Wipe the per-chain link cache: a different user means different
+          // already-linked chains, so auto-link should re-evaluate from scratch.
+          await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
+          void retryLast();
+          return;
+        }
+        throw err;
+      }
     },
     [btcAccount, sparkAccount, ethAccount, lds, retryLast],
   );
@@ -293,10 +356,11 @@ export default function BuyScreen() {
   // the API on every keystroke.
   useEffect(() => {
     if (step !== 'amount' || !selectedChainSpec) return;
+    if (selectedChainSpec.unsupported) return;
     const numAmount = parseFloat(amount);
     if (!numAmount || numAmount <= 0) return;
     const id = setTimeout(() => {
-      if (!selectedChainSpec) return;
+      if (!selectedChainSpec || selectedChainSpec.unsupported) return;
       void getQuote({
         amount: numAmount,
         currency: selectedCurrency,
@@ -317,10 +381,30 @@ export default function BuyScreen() {
   };
 
   const fees = paymentInfo?.fees;
-  // Only render the quote breakdown when the API returned a fully-shaped
-  // payment info — partial responses (validation errors) lack `asset`.
-  const showQuote =
-    !!paymentInfo && !!paymentInfo.asset && !!paymentInfo.currency && parseFloat(amount) > 0;
+  // /buy/quote returns DFX' BuyQuoteDto which omits the asset/currency
+  // objects (they only land on the /buy/paymentInfos response). We always
+  // know what the user picked locally, so render the breakdown as soon as
+  // the response is `isValid: true` with a fee block — no need to wait
+  // for `paymentInfo.asset` to materialise (it never will on /quote).
+  const hasQuote =
+    !!paymentInfo && paymentInfo.isValid && !!paymentInfo.fees && parseFloat(amount) > 0;
+  // DFX returns 200 with `error` set for soft validation failures (e.g.
+  // KycRequired, AssetUnsupported). We need to surface that to the user
+  // instead of getting stuck on "Angebot wird berechnet …".
+  const quoteError =
+    !hasQuote && paymentInfo && paymentInfo.error ? String(paymentInfo.error) : null;
+  // DFX sometimes returns 200 with `isValid: false` and no error code —
+  // typically when the chain isn't yet attached to the user's account.
+  // Tapping Weiter triggers /buy/paymentInfos which fires the linkChain
+  // gate, runs the modal sign flow, and auto-refreshes the quote. Tell
+  // the user to do exactly that instead of bouncing off a generic error.
+  const needsContinue = !hasQuote && !quoteError && !!paymentInfo && !isLoading;
+  const unsupportedChain = !!selectedChainSpec?.unsupported;
+  // Open the Angebot card as soon as the user has typed a positive amount,
+  // even before the first /buy/quote round-trip returns. Keeps the previous
+  // quote on screen while a refresh is in flight so the user always sees
+  // *something* and can read the change as it lands.
+  const showQuoteCard = hasQuote || (parseFloat(amount) > 0 && !!selectedChainSpec);
   const minVolume = paymentInfo?.minVolume;
   const maxVolume = paymentInfo?.maxVolume;
   const numAmount = parseFloat(amount);
@@ -443,41 +527,69 @@ export default function BuyScreen() {
             </View>
           </View>
 
-          {showQuote && fees ? (
+          {showQuoteCard ? (
             <View style={styles.quoteCard}>
-              <Text style={styles.quoteTitle}>{t('buy.summary')}</Text>
-              <QuoteRow
-                label={t('buy.exchangeRate')}
-                value={`1 ${selectedCurrency} = ${fmtCrypto(1 / paymentInfo!.exchangeRate)} ${paymentInfo!.asset.name}`}
-              />
-              <QuoteRow
-                label={t('buy.feeDfx')}
-                value={`${fees.rate.toFixed(2)}%`}
-                {...(fees.dfx > 0 ? { sub: `${fmtFiat(fees.dfx)} ${selectedCurrency}` } : {})}
-              />
-              {fees.network > 0 ? (
-                <QuoteRow
-                  label={t('buy.feeNetwork')}
-                  value={`${fmtFiat(fees.network)} ${selectedCurrency}`}
-                />
-              ) : null}
-              {fees.fixed > 0 ? (
-                <QuoteRow
-                  label={t('buy.feeFixed')}
-                  value={`${fmtFiat(fees.fixed)} ${selectedCurrency}`}
-                />
-              ) : null}
-              <QuoteRow
-                label={t('buy.feeTotal')}
-                value={`${fmtFiat(fees.total)} ${selectedCurrency}`}
-                emphasis
-              />
-              <View style={styles.quoteDivider} />
-              <QuoteRow
-                label={t('buy.youReceive')}
-                value={`${fmtCrypto(paymentInfo!.estimatedAmount)} ${paymentInfo!.asset.name}`}
-                emphasis
-              />
+              <View style={styles.quoteHeader}>
+                <Text style={styles.quoteTitle}>{t('buy.summary')}</Text>
+                {isLoading && !unsupportedChain ? (
+                  <ActivityIndicator size="small" color={DfxColors.primary} />
+                ) : null}
+              </View>
+              {unsupportedChain ? (
+                <Text style={styles.quoteError}>{t('buy.chainUnsupported')}</Text>
+              ) : hasQuote && fees ? (
+                <>
+                  <QuoteRow
+                    label={t('buy.exchangeRate')}
+                    value={`1 ${selectedCurrency} = ${fmtCrypto(1 / paymentInfo!.exchangeRate)} ${targetAsset}`}
+                  />
+                  <QuoteRow
+                    label={t('buy.feeDfx')}
+                    value={`${(fees.rate * 100).toFixed(2)}%`}
+                    {...(fees.dfx > 0 ? { sub: `${fmtFiat(fees.dfx)} ${selectedCurrency}` } : {})}
+                  />
+                  {fees.network > 0 ? (
+                    <QuoteRow
+                      label={t('buy.feeNetwork')}
+                      value={`${fmtFiat(fees.network)} ${selectedCurrency}`}
+                    />
+                  ) : null}
+                  {fees.fixed > 0 ? (
+                    <QuoteRow
+                      label={t('buy.feeFixed')}
+                      value={`${fmtFiat(fees.fixed)} ${selectedCurrency}`}
+                    />
+                  ) : null}
+                  <QuoteRow
+                    label={t('buy.feeTotal')}
+                    value={`${fmtFiat(fees.total)} ${selectedCurrency}`}
+                    emphasis
+                  />
+                  <View style={styles.quoteDivider} />
+                  <QuoteRow
+                    label={t('buy.youReceive')}
+                    value={`${fmtCrypto(paymentInfo!.estimatedAmount)} ${targetAsset}`}
+                    emphasis
+                  />
+                </>
+              ) : quoteError ? (
+                // DFX accepted the request but rejected the combination
+                // (e.g. asset unsupported for this user, KYC required, etc.).
+                // Surface the backend error code so the user sees *something*
+                // actionable instead of an endless "calculating" placeholder.
+                <Text style={styles.quoteError}>
+                  {t([`buy.quoteError.${quoteError}`, 'buy.quoteError.generic'], {
+                    code: quoteError,
+                  })}
+                </Text>
+              ) : needsContinue ? (
+                <Text style={styles.quoteHint}>{t('buy.continueHint')}</Text>
+              ) : (
+                // First quote still in flight — show a subtle placeholder so
+                // the card visibly "opens" the moment the user types instead
+                // of jumping in once the response lands.
+                <Text style={styles.quotePlaceholder}>{t('buy.fetchingQuote')}</Text>
+              )}
             </View>
           ) : null}
 
@@ -515,7 +627,7 @@ export default function BuyScreen() {
               });
               if (info) setStep('payment');
             }}
-            disabled={!numAmount || numAmount <= 0 || belowMin || aboveMax}
+            disabled={!numAmount || numAmount <= 0 || belowMin || aboveMax || unsupportedChain}
             loading={isLoading}
           />
         </>
@@ -573,10 +685,13 @@ export default function BuyScreen() {
           {paymentInfo.fees.dfx > 0 ? (
             <QuoteRow
               label={t('buy.feeDfx')}
-              value={`${paymentInfo.fees.rate.toFixed(2)}% · ${fmtFiat(paymentInfo.fees.dfx)} ${paymentInfo.currency.name}`}
+              value={`${(paymentInfo.fees.rate * 100).toFixed(2)}% · ${fmtFiat(paymentInfo.fees.dfx)} ${paymentInfo.currency.name}`}
             />
           ) : (
-            <QuoteRow label={t('buy.feeDfx')} value={`${paymentInfo.fees.rate.toFixed(2)}%`} />
+            <QuoteRow
+              label={t('buy.feeDfx')}
+              value={`${(paymentInfo.fees.rate * 100).toFixed(2)}%`}
+            />
           )}
           {paymentInfo.fees.network > 0 ? (
             <QuoteRow
@@ -883,12 +998,32 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 12,
   },
+  quoteHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   quoteTitle: {
     ...Typography.bodySmall,
     fontWeight: '600',
     color: DfxColors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  quotePlaceholder: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textTertiary,
+    paddingVertical: 8,
+  },
+  quoteError: {
+    ...Typography.bodyMedium,
+    color: DfxColors.error,
+    paddingVertical: 8,
+  },
+  quoteHint: {
+    ...Typography.bodyMedium,
+    color: DfxColors.primary,
+    paddingVertical: 8,
   },
   quoteRow: {
     flexDirection: 'row',

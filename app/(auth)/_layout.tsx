@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Redirect, Stack } from 'expo-router';
-import { useDeepLink, useDfxAuth } from '@/hooks';
+import { useDeepLink, useDfxAuth, useDfxAutoLink } from '@/hooks';
 import { dfxApi } from '@/services/dfx';
 import { useAuthStore } from '@/store';
 import { DfxColors } from '@/theme';
@@ -34,6 +34,12 @@ function AuthenticatedLayout() {
   useEffect(() => {
     dfxApi.setOnUnauthorized(authenticateSilent);
   }, [authenticateSilent]);
+
+  // Once we have a DFX session, attach BTC + Spark wallets to the user's
+  // account in the background so the very first BTC / Lightning quote no
+  // longer hits "Asset blockchain mismatch". Each chain is signed at most
+  // once across app launches.
+  useDfxAutoLink();
 
   return (
     <Stack
