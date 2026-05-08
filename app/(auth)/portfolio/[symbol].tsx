@@ -216,9 +216,7 @@ export default function AssetDetailScreen() {
                         every holding shares the same symbol, fall back to
                         the canonical name + variant label as before. */}
                     <Text style={styles.holdingChain}>
-                      {holding.symbol !== canonicalSymbol
-                        ? holding.symbol
-                        : holding.canonicalName}
+                      {holding.symbol !== canonicalSymbol ? holding.symbol : holding.canonicalName}
                     </Text>
                     <Text style={styles.holdingSymbol}>{holding.variantLabel}</Text>
                   </View>

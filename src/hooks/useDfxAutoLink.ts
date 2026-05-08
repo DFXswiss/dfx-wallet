@@ -68,9 +68,7 @@ const CHAINS: AutoLinkChain[] = [
  */
 export async function markChainLinkedInAutoLinkCache(autoLinkChain: string): Promise<void> {
   const cached = await secureStorage.get(StorageKeys.DFX_LINKED_CHAINS);
-  const linked: Record<string, true> = cached
-    ? (JSON.parse(cached) as Record<string, true>)
-    : {};
+  const linked: Record<string, true> = cached ? (JSON.parse(cached) as Record<string, true>) : {};
   // eslint-disable-next-line security/detect-object-injection -- autoLinkChain is a hardcoded literal at every call site
   if (linked[autoLinkChain]) return;
   // eslint-disable-next-line security/detect-object-injection -- autoLinkChain is a hardcoded literal at every call site

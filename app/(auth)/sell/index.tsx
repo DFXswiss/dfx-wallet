@@ -502,9 +502,7 @@ export default function SellScreen() {
             <View style={styles.quoteCard}>
               <View style={styles.quoteHeader}>
                 <Text style={styles.quoteTitle}>{t('sell.summary')}</Text>
-                {isLoading ? (
-                  <ActivityIndicator size="small" color={DfxColors.primary} />
-                ) : null}
+                {isLoading ? <ActivityIndicator size="small" color={DfxColors.primary} /> : null}
               </View>
               {hasQuote && fees ? (
                 <>
@@ -515,9 +513,7 @@ export default function SellScreen() {
                   <QuoteRow
                     label={t('sell.feeDfx')}
                     value={`${(fees.rate * 100).toFixed(2)}%`}
-                    {...(fees.dfx > 0
-                      ? { sub: `${fmtFiat(fees.dfx)} ${payoutCurrency}` }
-                      : {})}
+                    {...(fees.dfx > 0 ? { sub: `${fmtFiat(fees.dfx)} ${payoutCurrency}` } : {})}
                   />
                   {fees.network > 0 ? (
                     <QuoteRow
