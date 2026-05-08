@@ -70,7 +70,13 @@ export function useDfxAuth() {
 
   const logout = useCallback(async () => {
     dfxAuthService.logout();
-    await secureStorage.remove(StorageKeys.DFX_AUTH_TOKEN);
+    await Promise.all([
+      secureStorage.remove(StorageKeys.DFX_AUTH_TOKEN),
+      // Drop the per-chain link cache too — a fresh DFX session may belong
+      // to a different account whose `user.blockchains` doesn't include
+      // these chains yet, so we want auto-link to run again.
+      secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS),
+    ]);
     setDfxAuthenticated(false);
   }, [setDfxAuthenticated]);
 

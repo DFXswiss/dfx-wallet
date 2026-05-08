@@ -58,7 +58,9 @@ describe('useAuthStore', () => {
 
     it('rejects without flipping state when secureStorage write fails', async () => {
       setItemMock.mockRejectedValueOnce(new Error('keychain unavailable'));
-      await expect(useAuthStore.getState().setOnboarded(true)).rejects.toThrow('keychain unavailable');
+      await expect(useAuthStore.getState().setOnboarded(true)).rejects.toThrow(
+        'keychain unavailable',
+      );
       expect(useAuthStore.getState().isOnboarded).toBe(false);
     });
   });
@@ -153,6 +155,32 @@ describe('useAuthStore', () => {
       });
       await useAuthStore.getState().hydrate();
       expect(useAuthStore.getState().isOnboarded).toBe(false);
+    });
+
+    it('rearms dfxAuthService with the stored JWT so cold-start linkAddress works', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { dfxAuthService } = require('../../src/services/dfx');
+      getItemMock.mockImplementation(async (key: string) =>
+        key === 'dfxAuthToken' ? 'jwt-from-keychain' : null,
+      );
+
+      await useAuthStore.getState().hydrate();
+
+      // Without this `adoptStoredToken` step, `linkAddress` would throw
+      // "Not authenticated" on first post-boot use even though dfxApi has
+      // the bearer header set.
+      expect(dfxAuthService.getAccessToken()).toBe('jwt-from-keychain');
+      expect(dfxAuthService.isAuthenticated()).toBe(true);
+    });
+
+    it('clears the dfxAuthService token when no JWT is stored', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { dfxAuthService } = require('../../src/services/dfx');
+      dfxAuthService.adoptStoredToken('residual');
+
+      await useAuthStore.getState().hydrate();
+
+      expect(dfxAuthService.getAccessToken()).toBeNull();
     });
   });
 

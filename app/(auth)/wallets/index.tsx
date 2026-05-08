@@ -4,8 +4,9 @@ import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAccount } from '@tetherto/wdk-react-native-core';
 import { AppHeader, Icon, ScreenContainer } from '@/components';
-import { dfxAuthService, dfxUserService } from '@/services/dfx';
+import { dfxAuthService, dfxUserService, DfxApiError } from '@/services/dfx';
 import type { UserAddressDto } from '@/services/dfx/dto';
+import { useDfxAuth } from '@/hooks';
 import { DfxColors, Typography } from '@/theme';
 
 type LinkableChain = {
@@ -34,24 +35,50 @@ export default function WalletsScreen() {
   const [addresses, setAddresses] = useState<UserAddressDto[]>([]);
   const [loadingUser, setLoadingUser] = useState(true);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [isMergedState, setIsMergedState] = useState(false);
 
   const [linkingChain, setLinkingChain] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
 
+  const { authenticate, isAuthenticating } = useDfxAuth();
   const btc = useAccount({ network: 'bitcoin', accountIndex: 0 });
 
   const refresh = useCallback(async () => {
     setRefreshError(null);
+    setIsMergedState(false);
     try {
       const user = await dfxUserService.getUser();
       setAddresses(user.addresses ?? []);
       setActiveAddress(user.activeAddress ?? null);
     } catch (err) {
-      setRefreshError(err instanceof Error ? err.message : t('wallets.loadError'));
+      // DFX returns "User is merged" once the current JWT points to an
+      // account that was merged into another via the email-confirmation flow.
+      // The fix is to re-issue the JWT (the new one will resolve to the
+      // merged target user). Detect this and offer a one-tap recovery.
+      const message = err instanceof Error ? err.message : t('wallets.loadError');
+      if (err instanceof DfxApiError && /user is merged/i.test(message)) {
+        setIsMergedState(true);
+        setRefreshError(t('wallets.mergedExplanation'));
+      } else {
+        setRefreshError(message);
+      }
     } finally {
       setLoadingUser(false);
     }
   }, [t]);
+
+  const reauthenticate = useCallback(async () => {
+    setRefreshError(null);
+    setLoadingUser(true);
+    try {
+      await authenticate();
+      await refresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t('wallets.linkError');
+      setRefreshError(message);
+      setLoadingUser(false);
+    }
+  }, [authenticate, refresh, t]);
 
   useEffect(() => {
     void refresh();
@@ -117,7 +144,25 @@ export default function WalletsScreen() {
               <ActivityIndicator color={DfxColors.primary} />
             </View>
           ) : refreshError ? (
-            <Text style={styles.errorText}>{refreshError}</Text>
+            <View style={styles.errorBlock}>
+              <Text style={styles.errorText}>{refreshError}</Text>
+              {isMergedState ? (
+                <Pressable
+                  style={({ pressed }) => [styles.reauthBtn, pressed && styles.pressed]}
+                  onPress={() => {
+                    void reauthenticate();
+                  }}
+                  disabled={isAuthenticating}
+                  testID="wallets-reauth"
+                >
+                  {isAuthenticating ? (
+                    <ActivityIndicator color={DfxColors.white} />
+                  ) : (
+                    <Text style={styles.reauthLabel}>{t('wallets.reauthCta')}</Text>
+                  )}
+                </Pressable>
+              ) : null}
+            </View>
           ) : (
             <>
               <Text style={styles.sectionLabel}>{t('wallets.linkedLabel')}</Text>
@@ -285,10 +330,28 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
+  errorBlock: {
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: DfxColors.surface,
+    borderRadius: 16,
+  },
   errorText: {
     ...Typography.bodySmall,
     color: DfxColors.error,
     textAlign: 'center',
+  },
+  reauthBtn: {
+    backgroundColor: DfxColors.primary,
+    borderRadius: 999,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  reauthLabel: {
+    ...Typography.bodyMedium,
+    fontWeight: '700',
+    color: DfxColors.white,
   },
   helper: {
     ...Typography.bodySmall,
