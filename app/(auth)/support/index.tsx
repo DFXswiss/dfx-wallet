@@ -34,6 +34,7 @@ export default function SupportScreen() {
   const [message, setMessage] = useState('');
   const [selectedIssue, setSelectedIssue] = useState<SupportIssueDto | null>(null);
   const [chatMessage, setChatMessage] = useState('');
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const loadIssues = useCallback(async () => {
     setIsLoading(true);
@@ -52,33 +53,45 @@ export default function SupportScreen() {
   }, [loadIssues]);
 
   const handleCreate = async () => {
-    if (!subject || !message) return;
+    if (!subject.trim() || !message.trim()) return;
     setIsLoading(true);
+    setSubmitError(null);
     try {
-      await dfxSupportService.createIssue(subject, message);
+      // DFX requires `type` and `reason` (enum values) plus `name` —
+      // the previous `{ reason, message }` body silently failed
+      // class-validator and the ticket never landed. Default to the
+      // most generic enum values so a single Subject+Message form is
+      // enough; the user-typed subject becomes the ticket `name`.
+      await dfxSupportService.createIssue({
+        name: subject.trim(),
+        message: message.trim(),
+      });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setSubject('');
       setMessage('');
       setView('list');
       await loadIssues();
-    } catch {
-      // Handle error
+    } catch (err) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setSubmitError(err instanceof Error ? err.message : t('support.createError'));
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleSendMessage = async () => {
-    if (!selectedIssue || !chatMessage) return;
+    if (!selectedIssue || !chatMessage.trim()) return;
+    setSubmitError(null);
     try {
-      await dfxSupportService.sendMessage(selectedIssue.id, chatMessage);
+      await dfxSupportService.sendMessage(selectedIssue.id, chatMessage.trim());
       setChatMessage('');
       // Reload to get updated messages
       const updated = await dfxSupportService.getIssues();
       setIssues(updated);
       setSelectedIssue(updated.find((i) => i.id === selectedIssue.id) ?? null);
-    } catch {
-      // Handle error
+    } catch (err) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setSubmitError(err instanceof Error ? err.message : t('support.sendError'));
     }
   };
 
@@ -148,12 +161,14 @@ export default function SupportScreen() {
         textAlignVertical="top"
       />
 
+      {submitError ? <Text style={styles.errorText}>{submitError}</Text> : null}
+
       <View style={styles.spacer} />
 
       <PrimaryButton
-        title="Submit"
+        title={t('common.submit')}
         onPress={handleCreate}
-        disabled={!subject || !message}
+        disabled={!subject.trim() || !message.trim()}
         loading={isLoading}
       />
     </View>
@@ -224,6 +239,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 16,
     gap: 16,
+  },
+  errorText: {
+    ...Typography.bodySmall,
+    color: DfxColors.error,
+    textAlign: 'center',
   },
   header: {
     flexDirection: 'row',

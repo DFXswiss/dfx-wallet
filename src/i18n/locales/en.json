@@ -473,8 +473,10 @@
     "walletAddress": "Wallet Address"
   },
   "support": {
+    "createError": "Ticket could not be created. Please try again.",
     "createTicket": "Create Ticket",
     "noTickets": "No support tickets",
+    "sendError": "Message could not be sent. Please try again.",
     "title": "Support"
   },
   "transactions": {
