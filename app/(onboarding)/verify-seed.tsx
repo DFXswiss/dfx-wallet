@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +16,22 @@ function getRandomIndices(total: number, count: number): number[] {
     if (!indices.includes(idx)) indices.push(idx);
   }
   return indices.sort((a, b) => a - b);
+}
+
+/**
+ * Uniform Fisher-Yates shuffle. The previous `arr.sort(() => Math.random() - 0.5)`
+ * produces a non-uniform distribution (some permutations appear far more
+ * often than others), which would let an attacker who can observe many
+ * verifications guess the correct option from positional bias alone.
+ */
+function shuffle<T>(arr: T[]): T[] {
+  const out = arr.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    // eslint-disable-next-line security/detect-object-injection -- both i and j are bounded by out.length
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
 }
 
 export default function VerifySeedScreen() {
@@ -41,10 +57,21 @@ export default function VerifySeedScreen() {
       const randomWord = seedWords[Math.floor(Math.random() * seedWords.length)]!;
       if (!options.includes(randomWord)) options.push(randomWord);
     }
-    return options.sort(() => Math.random() - 0.5);
+    return shuffle(options);
   }, [correctWord, seedWords]);
 
   const [options] = useState(getOptions);
+
+  // Track outstanding timers so an unmount mid-animation doesn't fire a
+  // setState on a stale component (warning + memory leak).
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => {
+    const timers = timersRef.current;
+    return () => {
+      timers.forEach(clearTimeout);
+      timers.length = 0;
+    };
+  }, []);
 
   const handleSelect = (word: string) => {
     setSelectedWord(word);
@@ -53,18 +80,22 @@ export default function VerifySeedScreen() {
     if (word === correctWord) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (currentStep < VERIFY_COUNT - 1) {
-        setTimeout(() => {
-          setCurrentStep((s) => s + 1);
-          setSelectedWord(null);
-        }, 500);
+        timersRef.current.push(
+          setTimeout(() => {
+            setCurrentStep((s) => s + 1);
+            setSelectedWord(null);
+          }, 500),
+        );
       }
     } else {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(true);
-      setTimeout(() => {
-        setSelectedWord(null);
-        setError(false);
-      }, 1000);
+      timersRef.current.push(
+        setTimeout(() => {
+          setSelectedWord(null);
+          setError(false);
+        }, 1000),
+      );
     }
   };
 

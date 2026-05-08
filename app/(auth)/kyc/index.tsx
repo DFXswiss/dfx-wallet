@@ -11,7 +11,19 @@ import {
 import { useRouter } from 'expo-router';
 import { PrimaryButton, ScreenContainer } from '@/components';
 import { useKycFlow } from '@/hooks';
+import { isSafeHttpsUrl } from '@/services/security/safe-url';
 import { DfxColors, Typography } from '@/theme';
+
+/**
+ * Hand a server-supplied URL to the OS only after we've verified it's a
+ * proper https:// URL. Anything else (javascript:, data:, http:, malformed)
+ * is dropped silently — KYC redirects come from the DFX backend and any
+ * non-https value here is a backend mistake or a tampered response.
+ */
+async function openExternal(url: string): Promise<void> {
+  if (!isSafeHttpsUrl(url)) return;
+  await Linking.openURL(url);
+}
 
 const STEP_LABELS: Record<string, string> = {
   ContactData: 'Contact',
@@ -55,7 +67,7 @@ export default function KycScreen() {
     if (session?.currentStep?.session) {
       const { type, url } = session.currentStep.session;
       if (type === 'Browser') {
-        await Linking.openURL(url);
+        await openExternal(url);
       }
     }
   };
@@ -174,7 +186,9 @@ export default function KycScreen() {
             </Text>
             <PrimaryButton
               title="Open Verification"
-              onPress={() => Linking.openURL(currentStep.session!.url)}
+              onPress={() => {
+                void openExternal(currentStep.session!.url);
+              }}
             />
           </View>
         )}

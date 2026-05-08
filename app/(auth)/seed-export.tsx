@@ -3,6 +3,7 @@ import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import * as ScreenCapture from 'expo-screen-capture';
 import { ScreenContainer } from '@/components';
 import {
   authenticatePasskey,
@@ -23,6 +24,19 @@ export default function SeedExportScreen() {
   useEffect(() => {
     void secureStorage.get(StorageKeys.WALLET_ORIGIN).then(setWalletOrigin);
   }, []);
+
+  // Block screenshots and the iOS app-switcher snapshot whenever the seed
+  // is on screen. expo-screen-capture wires into FLAG_SECURE on Android
+  // and the iOS UIScreen capture observer; both are no-ops in the
+  // simulator but enforced on real devices. Released on unmount or when
+  // the seed is hidden again.
+  useEffect(() => {
+    if (!seedWords) return;
+    void ScreenCapture.preventScreenCaptureAsync('seed-export');
+    return () => {
+      void ScreenCapture.allowScreenCaptureAsync('seed-export');
+    };
+  }, [seedWords]);
 
   const isPasskey = walletOrigin === 'passkey';
 
