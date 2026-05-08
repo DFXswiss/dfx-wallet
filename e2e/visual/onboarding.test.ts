@@ -1,4 +1,4 @@
-import { by, device, element, waitFor } from 'detox';
+import { by, element, waitFor } from 'detox';
 import { expectScreenToMatchBaseline } from '../utils/screenshot';
 import { launchAndWaitForWelcome, launchWithExistingState } from '../utils/launch';
 import { enterPin } from '../utils/pin';
