@@ -78,6 +78,7 @@
       "arbitrum": "Arbitrum",
       "base": "Base",
       "bitcoin": "Bitcoin",
+      "bitcoin-lightning": "Lightning",
       "bitcoin-taproot": "Taproot",
       "ethereum": "Ethereum",
       "plasma": "Plasma",

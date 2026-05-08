@@ -78,16 +78,15 @@ const BUY_ASSETS: BuyAsset[] = [
         tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
       },
       {
-        chain: 'spark',
-        // Spark/Lightning native — visible as a pill so users see the option
-        // (parity with receive flow), but the buy flow surfaces a "not yet
-        // supported" hint instead of running the broken auth path. DFX'
-        // /v1/auth verifier currently rejects WDK's DER-encoded ECDSA Spark
-        // signature with "Invalid signature".
+        chain: 'bitcoin-lightning',
+        // Lightning pill = same DFX Lightning Network rails as Taproot
+        // (also driven by the lightning.space LDS user). Surfaced as a
+        // separate pill because "Lightning" is the label most users expect.
+        // Auth/buy flow routes through the LDS LNURL helper just like
+        // Taproot.
         label: 'Lightning',
-        blockchain: 'Spark',
+        blockchain: 'Lightning',
         tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
-        unsupported: true,
       },
       {
         chain: 'ethereum',
@@ -243,11 +242,11 @@ export default function BuyScreen() {
 
   const linkChainToDfx = useCallback(
     async (chain: ChainId) => {
-      // Taproot is special: the deposit address is a DFX Lightning Address
-      // (`name@dfx.swiss`), provisioned by lightning.space. We hand DFX the
-      // LN address plus the ownership proof LDS issued instead of running a
-      // wallet sign-flow.
-      if (chain === 'bitcoin-taproot') {
+      // Taproot + Lightning both ride the same DFX Lightning Network rails
+      // (lightning.space-managed LDS user). The deposit address is a Lightning
+      // Address (`name@dfx.swiss`) and we hand DFX the LNURL form plus the
+      // ownership proof LDS issued instead of running a wallet sign-flow.
+      if (chain === 'bitcoin-taproot' || chain === 'bitcoin-lightning') {
         const user = lds.user ?? (await lds.signIn());
         if (!user) {
           throw new Error('DFX Lightning wallet not ready — please retry.');

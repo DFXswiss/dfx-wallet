@@ -64,10 +64,14 @@ const SELL_ASSETS: SellAsset[] = [
       },
       {
         chain: 'bitcoin-taproot',
-        // Taproot pill = the DFX Lightning Address (lightning.space-managed
-        // Taproot Asset channels). Stays consistent with receive's "Taproot"
-        // label so users see one BTC layer name across screens.
         label: 'Taproot',
+        blockchain: 'Lightning',
+        tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
+      },
+      {
+        chain: 'bitcoin-lightning',
+        // Lightning pill = same LDS lightning.space rails as Taproot.
+        label: 'Lightning',
         blockchain: 'Lightning',
         tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
       },
@@ -219,7 +223,7 @@ export default function SellScreen() {
 
   const linkChainToDfx = useCallback(
     async (chain: ChainId) => {
-      if (chain === 'bitcoin-taproot') {
+      if (chain === 'bitcoin-taproot' || chain === 'bitcoin-lightning') {
         const user = lds.user ?? (await lds.signIn());
         if (!user) {
           throw new Error('DFX Lightning wallet not ready — please retry.');

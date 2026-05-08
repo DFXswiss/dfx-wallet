@@ -9,7 +9,13 @@ export type ChainId =
   | 'plasma'
   | 'sepolia'
   | 'bitcoin'
-  | 'bitcoin-taproot';
+  | 'bitcoin-taproot'
+  // Logical chain id for the DFX Lightning Network buy/sell flow. Backed by
+  // the same lightning.space LDS user as `bitcoin-taproot`, but exposed as
+  // a separate buy-screen pill so users see the familiar "Lightning" label
+  // alongside the protocol-specific "Taproot" option. Has no WDK account
+  // mapping — the address comes from the LDS user.
+  | 'bitcoin-lightning';
 
 const CANDIDE_PAYMASTER_ADDRESS = '0x8b1f6cb5d062aa2ce8d581942bbb960420d875ba';
 const ENTRY_POINT_ADDRESS = '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
