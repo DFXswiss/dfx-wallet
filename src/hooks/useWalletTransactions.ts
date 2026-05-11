@@ -242,31 +242,46 @@ export function useWalletTransactions(wallet: UserAddressDto | null): {
       if (!wallet) return [];
       const walletLc = wallet.address.toLowerCase();
 
-      const perChain = await Promise.all(
+      // Per-chain hard timeout so one hung Blockscout / mempool host
+      // doesn't keep the spinner up indefinitely. The free Blockscout
+      // hosts occasionally take >10s to respond under load; 15s leaves
+      // breathing room without making the UI feel dead.
+      const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
+        Promise.race<T | null>([
+          p,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+        ]);
+      const PER_CALL_TIMEOUT_MS = 15_000;
+
+      // `allSettled` so a single chain's failure (or timeout) doesn't
+      // hide every other chain's TX list — the user still sees the rows
+      // that did come back, instead of an infinite spinner.
+      const settled = await Promise.allSettled(
         chains.map(async (chain) => {
           const txs: WalletTransaction[] = [];
           if (chain === 'bitcoin') {
-            const btc = await fetchBtcTransactions(wallet.address);
-            if (btc.ok) {
+            const btc = await withTimeout(fetchBtcTransactions(wallet.address), PER_CALL_TIMEOUT_MS);
+            if (btc?.ok) {
               for (const t of btc.value) txs.push(normalizeBtcTx(walletLc, t));
             }
             return txs;
           }
           const [native, erc20] = await Promise.all([
-            getNormalTxs(chain, wallet.address),
-            getErc20Txs(chain, wallet.address),
+            withTimeout(getNormalTxs(chain, wallet.address), PER_CALL_TIMEOUT_MS),
+            withTimeout(getErc20Txs(chain, wallet.address), PER_CALL_TIMEOUT_MS),
           ]);
-          if (native.ok) {
+          if (native?.ok) {
             // eslint-disable-next-line security/detect-object-injection -- closed ChainId map
             const sym = NATIVE_SYMBOL[chain] ?? '?';
             for (const t of native.value) txs.push(normalizeNative(chain, walletLc, t, sym));
           }
-          if (erc20.ok) {
+          if (erc20?.ok) {
             for (const t of erc20.value) txs.push(normalizeErc20(chain, walletLc, t));
           }
           return txs;
         }),
       );
+      const perChain = settled.map((r) => (r.status === 'fulfilled' ? r.value : []));
 
       const flat = perChain.flat();
       flat.sort((a, b) => b.timestamp - a.timestamp);
