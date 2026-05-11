@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { WdkAppProvider } from '@tetherto/wdk-react-native-core';
 import { bundle } from '../.wdk';
+import { AppAlertProvider } from '@/components/AppAlert';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { getWdkConfigs } from '@/config/chains';
@@ -63,25 +64,27 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
         <WdkAppProvider bundle={{ bundle }} wdkConfigs={getWdkConfigs()}>
-          <StatusBar style="light" />
-          <OfflineBanner />
-          {isHydrated ? (
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                gestureEnabled: true,
-                fullScreenGestureEnabled: true,
-              }}
-            >
-              <Stack.Screen name="(onboarding)" />
-              <Stack.Screen name="(pin)" />
-              <Stack.Screen name="(auth)" />
-            </Stack>
-          ) : (
-            <View style={styles.loading}>
-              <ActivityIndicator size="large" color={DfxColors.primary} />
-            </View>
-          )}
+          <AppAlertProvider>
+            <StatusBar style="light" />
+            <OfflineBanner />
+            {isHydrated ? (
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  gestureEnabled: true,
+                  fullScreenGestureEnabled: true,
+                }}
+              >
+                <Stack.Screen name="(onboarding)" />
+                <Stack.Screen name="(pin)" />
+                <Stack.Screen name="(auth)" />
+              </Stack>
+            ) : (
+              <View style={styles.loading}>
+                <ActivityIndicator size="large" color={DfxColors.primary} />
+              </View>
+            )}
+          </AppAlertProvider>
         </WdkAppProvider>
       </ErrorBoundary>
     </GestureHandlerRootView>

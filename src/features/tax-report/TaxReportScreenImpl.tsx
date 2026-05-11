@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Directory, File, Paths } from 'expo-file-system';
-import { AppHeader, PrimaryButton, ScreenContainer } from '@/components';
-import { dfxTransactionService, type TaxReportType } from '@/services/dfx';
+import { AppHeader, PrimaryButton, ScreenContainer, useAppAlert } from '@/components';
+import { decodeDfxJwt, dfxTransactionService, type TaxReportType } from '@/services/dfx';
+import { secureStorage, StorageKeys } from '@/services/storage';
 import { DfxColors, Typography } from '@/theme';
 
 /**
@@ -54,6 +55,7 @@ const REPORT_TYPES: { kind: TaxReportType; titleKey: string; bodyKey: string }[]
  */
 export default function TaxReportScreen() {
   const { t } = useTranslation();
+  const { show } = useAppAlert();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState<number>(currentYear);
   const [reportType, setReportType] = useState<TaxReportType>('CoinTracking');
@@ -64,9 +66,26 @@ export default function TaxReportScreen() {
   const handleDownload = async () => {
     setBusy(true);
     try {
+      // The DFX `/v1/transaction/csv` endpoint requires the user's active
+      // wallet address in the body — without it the server rejects the
+      // request with "userAddress must be a string, userAddress should not
+      // be empty". Read it from the stored JWT (the `address` claim is the
+      // currently active linked wallet for this session).
+      const token = await secureStorage.get(StorageKeys.DFX_AUTH_TOKEN);
+      const userAddress = token ? (decodeDfxJwt(token)?.address ?? null) : null;
+      if (!userAddress) {
+        show({
+          title: t('taxReport.title'),
+          message: t('taxReport.noAddress'),
+        });
+        setBusy(false);
+        return;
+      }
+
       const from = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0));
       const to = new Date(Date.UTC(year + 1, 0, 1, 0, 0, 0, 0));
       const { downloadUrl } = await dfxTransactionService.createCsvExport({
+        userAddress,
         from,
         to,
         type: reportType,
@@ -83,13 +102,13 @@ export default function TaxReportScreen() {
           dialogTitle: t('taxReport.shareTitle'),
         });
       } else {
-        Alert.alert(t('taxReport.title'), t('taxReport.savedAt', { uri: finalUri }));
+        show({ title: t('taxReport.title'), message: t('taxReport.savedAt', { uri: finalUri }) });
       }
     } catch (err) {
-      Alert.alert(
-        t('taxReport.title'),
-        err instanceof Error ? err.message : t('taxReport.downloadFailed'),
-      );
+      show({
+        title: t('taxReport.title'),
+        message: err instanceof Error ? err.message : t('taxReport.downloadFailed'),
+      });
     } finally {
       setBusy(false);
     }

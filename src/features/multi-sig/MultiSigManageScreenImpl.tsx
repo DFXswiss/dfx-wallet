@@ -1,16 +1,8 @@
-import {
-  Alert,
-  ImageBackground,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader, Icon, PrimaryButton } from '@/components';
+import { AppHeader, Icon, PrimaryButton, useAppAlert } from '@/components';
 import { useMultiSigStore } from './store';
 import type { MultiSigVault } from './store';
 import { DfxColors, Typography } from '@/theme';
@@ -24,16 +16,17 @@ const truncateAddress = (addr: string): string => {
 export default function MultiSigManageScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { show } = useAppAlert();
   const vaults = useMultiSigStore((s) => s.vaults);
   const removeVault = useMultiSigStore((s) => s.removeVault);
 
   const onSetup = () => router.push('/(auth)/multi-sig/setup');
 
   const onRemove = (vault: MultiSigVault) => {
-    Alert.alert(
-      t('multiSig.manage.removeTitle'),
-      t('multiSig.manage.removeBody', { name: vault.name }),
-      [
+    show({
+      title: t('multiSig.manage.removeTitle'),
+      message: t('multiSig.manage.removeBody', { name: vault.name }),
+      buttons: [
         { text: t('common.cancel'), style: 'cancel' },
         {
           text: t('multiSig.manage.removeConfirm'),
@@ -41,7 +34,7 @@ export default function MultiSigManageScreen() {
           onPress: () => removeVault(vault.id),
         },
       ],
-    );
+    });
   };
 
   return (

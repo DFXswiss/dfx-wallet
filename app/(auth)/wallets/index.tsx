@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { AppHeader, DfxBackgroundScreen, Icon, RenameWalletModal } from '@/components';
+import { AppHeader, DfxBackgroundScreen, Icon, RenameWalletModal, useAppAlert } from '@/components';
 import { dfxAuthService, dfxUserService, DfxApiError } from '@/services/dfx';
 import type { UserAddressDto } from '@/services/dfx/dto';
 import {
@@ -34,6 +34,7 @@ const isAddressLinked = (addresses: UserAddressDto[], address: string | null): b
 
 export default function WalletsScreen() {
   const { t } = useTranslation();
+  const { show } = useAppAlert();
 
   const [activeAddress, setActiveAddress] = useState<UserAddressDto | null>(null);
   const [addresses, setAddresses] = useState<UserAddressDto[]>([]);
@@ -93,7 +94,7 @@ export default function WalletsScreen() {
 
   const linkBitcoin = async () => {
     if (!btc.address) {
-      Alert.alert(t('wallets.linkError'), t('wallets.btcAddressUnavailable'));
+      show({ title: t('wallets.linkError'), message: t('wallets.btcAddressUnavailable') });
       return;
     }
     setLinkingChain('bitcoin');

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  Alert,
   Image,
   ImageBackground,
   Pressable,
@@ -13,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Icon } from '@/components';
+import { Icon, useAppAlert } from '@/components';
 import { DfxColors, Typography } from '@/theme';
 
 const CUTOUT_PCT = {
@@ -26,6 +25,7 @@ const CUTOUT_PCT = {
 export default function PayScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { show } = useAppAlert();
   const { width, height } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -37,9 +37,11 @@ export default function PayScreen() {
   const handleScan = ({ data }: { data: string }) => {
     if (scanned) return;
     setScanned(true);
-    Alert.alert(t('pay.comingSoonTitle'), t('pay.comingSoonMessage', { data }), [
-      { text: t('common.ok'), onPress: () => router.back() },
-    ]);
+    show({
+      title: t('pay.comingSoonTitle'),
+      message: t('pay.comingSoonMessage', { data }),
+      buttons: [{ text: t('common.ok'), onPress: () => router.back() }],
+    });
   };
 
   const cutoutStyle = {

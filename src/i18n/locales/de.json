@@ -264,7 +264,7 @@
     "bodyTransactions": "Kryptowährungstransaktionen sind unumkehrbar. Prüfe alle Transaktionsdetails sorgfältig, bevor du bestätigst.",
     "bodyWallet": "DFX Wallet ist non-custodial. Du bist selbst für die Sicherung deiner Seed Phrase und PIN verantwortlich; DFX AG kann deine Wallet bei Verlust nicht wiederherstellen.",
     "disclaimer": "Haftungsausschluss",
-    "intro": "Die rechtlichen Dokumente zu DFX werden im Browser geöffnet, damit du sie speichern, teilen oder drucken kannst.",
+    "intro": "Tippe ein Dokument an, um es direkt in der App zu öffnen.",
     "privacy": "Datenschutzerklärung",
     "terms": "Nutzungsbedingungen",
     "title": "Rechtliche Informationen"
@@ -581,10 +581,14 @@
     "userData": "Benutzerdaten"
   },
   "support": {
+    "chatPlaceholder": "Nachricht eingeben …",
     "createError": "Ticket konnte nicht erstellt werden. Bitte erneut versuchen.",
     "createTicket": "Ticket erstellen",
-    "noTickets": "Keine Support-Tickets",
+    "messagePlaceholder": "Beschreibe dein Anliegen …",
+    "noTickets": "Noch keine Support-Tickets",
+    "send": "Senden",
     "sendError": "Nachricht konnte nicht gesendet werden. Bitte erneut versuchen.",
+    "subjectPlaceholder": "Betreff",
     "title": "Support"
   },
   "transactions": {
@@ -616,6 +620,7 @@
     "formatLabel": "Format",
     "generating": "Wird erstellt …",
     "intro": "Lade dein Transaktions-Journal eines bestimmten Jahres als CSV herunter — direkt importierbar in CoinTracking, Blockpit & Co.",
+    "noAddress": "Keine aktive Wallet-Adresse. Bitte melde dich erneut bei DFX an.",
     "savedAt": "Datei gespeichert: {{uri}}",
     "shareTitle": "DFX Steuerreport",
     "title": "Steuerreport",

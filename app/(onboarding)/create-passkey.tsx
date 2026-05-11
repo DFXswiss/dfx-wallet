@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
@@ -9,6 +9,7 @@ import {
   DfxBackgroundScreen,
   OnboardingStepIndicator,
   PrimaryButton,
+  useAppAlert,
 } from '@/components';
 import { createPasskey, setupPasskeyWallet, PasskeyPrfUnsupportedError } from '@/services/passkey';
 import { DfxColors, Typography } from '@/theme';
@@ -16,6 +17,7 @@ import { DfxColors, Typography } from '@/theme';
 export default function CreatePasskeyScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { show } = useAppAlert();
   const { restoreWallet } = useWalletManager();
   const [isCreating, setIsCreating] = useState(false);
 
@@ -37,15 +39,19 @@ export default function CreatePasskeyScreen() {
           ios: 'iCloud Keychain',
           default: 'Google Password Manager',
         });
-        Alert.alert(t('common.error'), t('passkey.prfUnsupported', { provider }), [
-          { text: t('common.retry'), style: 'cancel' },
-          {
-            text: t('passkey.useSeedInstead'),
-            onPress: () => router.replace('/(onboarding)/create-wallet'),
-          },
-        ]);
+        show({
+          title: t('common.error'),
+          message: t('passkey.prfUnsupported', { provider }),
+          buttons: [
+            { text: t('common.retry'), style: 'cancel' },
+            {
+              text: t('passkey.useSeedInstead'),
+              onPress: () => router.replace('/(onboarding)/create-wallet'),
+            },
+          ],
+        });
       } else {
-        Alert.alert(t('common.error'), t('passkey.createError'));
+        show({ title: t('common.error'), message: t('passkey.createError') });
       }
     } finally {
       setIsCreating(false);
