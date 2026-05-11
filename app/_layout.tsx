@@ -27,6 +27,12 @@ LogBox.ignoreLogs([
   /could not coalesce error/,
   /bad address checksum/,
   /Network ethereum timed out/,
+  // WDK's `useMultiAddressLoader` (consumed transitively by `useBalance`)
+  // wraps an UNAVAILABLE / UNAUTHENTICATED Bare-Worklet response as a
+  // `console.error` toast at the bottom of the dashboard. The hook
+  // already retries the next render cycle once the worklet finishes
+  // booting, so the toast is pure noise for the user.
+  /useMultiAddressLoader failed/,
 ]);
 
 (globalThis as unknown as { Buffer: typeof Buffer }).Buffer = Buffer;
