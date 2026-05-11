@@ -142,16 +142,29 @@ export function useLinkedWalletDiscovery(
               anyKnown = true;
               const balanceNum = toNumeric(formatBalance(r.rawBalance, 8));
               if (balanceNum > 0) {
-                const priceUsd = pricingService.getPriceById('bitcoin', fiatCurrency);
-                assets.push({
-                  chain: 'bitcoin',
-                  symbol: 'BTC',
-                  name: 'Bitcoin',
-                  contract: null,
-                  rawBalance: r.rawBalance,
-                  balance: balanceNum,
-                  fiatValue: priceUsd != null ? balanceNum * priceUsd : null,
-                });
+                // Always pull a fresh BTC price for the active fiat
+                // rather than reading the singleton cache — the cache is
+                // primed once at app boot and can be minutes stale.
+                const fresh = await fetchSimplePrices(['bitcoin'], [fiatCurrency]);
+                // eslint-disable-next-line security/detect-object-injection -- fiatCurrency is a typed FiatCurrency enum
+                const priceFresh = fresh.get('bitcoin')?.[fiatCurrency];
+                const priceCached = pricingService.getPriceById('bitcoin', fiatCurrency);
+                const price =
+                  typeof priceFresh === 'number' && priceFresh > 0 ? priceFresh : priceCached;
+                if (price != null && price > 0) {
+                  const fiatValue = balanceNum * price;
+                  if (fiatValue > 0) {
+                    assets.push({
+                      chain: 'bitcoin',
+                      symbol: 'BTC',
+                      name: 'Bitcoin',
+                      contract: null,
+                      rawBalance: r.rawBalance,
+                      balance: balanceNum,
+                      fiatValue,
+                    });
+                  }
+                }
               }
             }
             continue;
@@ -240,27 +253,34 @@ export function useLinkedWalletDiscovery(
             }
           }
 
-          // Resolve prices once for every discovered token + native (used
-          // for both the prefetched-balance path and the RPC-fetch path).
+          // Always hit /simple/price for every discovered token + native
+          // — never trust the singleton pricingService cache here, since
+          // it only refreshes on Portfolio pull-to-refresh and goes
+          // arbitrarily stale (5+ minutes between user gestures). React
+          // Query's staleTime/refetchInterval gives us at-most-60s
+          // freshness for the linked-wallet view this way.
           const allCoingeckoIds = tokenSpecs.map((t) => t.coingeckoId);
           if (native) allCoingeckoIds.push(native.coingeckoId);
-          const dynamicIds = allCoingeckoIds.filter(
-            (id) => pricingService.getPriceById(id, fiatCurrency) === undefined,
-          );
-          const dynamicPrices = dynamicIds.length
-            ? await fetchSimplePrices(Array.from(new Set(dynamicIds)), [fiatCurrency])
+          const dynamicPrices = allCoingeckoIds.length
+            ? await fetchSimplePrices(Array.from(new Set(allCoingeckoIds)), [fiatCurrency])
             : new Map();
           const priceFor = (coingeckoId: string): number | undefined => {
-            const cached = pricingService.getPriceById(coingeckoId, fiatCurrency);
-            if (cached != null) return cached;
             const entry = dynamicPrices.get(coingeckoId);
             // eslint-disable-next-line security/detect-object-injection -- fiatCurrency is a typed FiatCurrency enum
-            return entry?.[fiatCurrency];
+            const fresh = entry?.[fiatCurrency];
+            if (typeof fresh === 'number' && Number.isFinite(fresh)) return fresh;
+            // CoinGecko missed this id in the live call — fall back to the
+            // singleton cache. Rare; mostly happens during the brief
+            // window between coins/list discovery and the first /simple/price
+            // batch on a fresh wallet.
+            return pricingService.getPriceById(coingeckoId, fiatCurrency);
           };
 
           // Push prefetched (Blockscout) balances straight into `assets`
           // — they already include the on-chain balance, so we don't need
-          // a JSON-RPC roundtrip for these tokens.
+          // a JSON-RPC roundtrip for these tokens. Skip any token whose
+          // CoinGecko price is missing OR ≤ 0 (low-cap / no-liquidity
+          // entries the user doesn't want cluttering the holdings list).
           const tokensNeedingFetch: ChainToken[] = [];
           for (const t of tokenSpecs) {
             if (t.prefetchedBalance == null) {
@@ -270,7 +290,9 @@ export function useLinkedWalletDiscovery(
             const balanceNum = toNumeric(formatBalance(t.prefetchedBalance, t.decimals));
             if (balanceNum <= 0) continue;
             const price = priceFor(t.coingeckoId);
-            if (price == null) continue; // user spec: only CoinGecko-listed tokens
+            if (price == null || price <= 0) continue;
+            const fiatValue = balanceNum * price;
+            if (fiatValue <= 0) continue;
             anyKnown = true;
             assets.push({
               chain,
@@ -279,7 +301,7 @@ export function useLinkedWalletDiscovery(
               contract: t.contract,
               rawBalance: t.prefetchedBalance,
               balance: balanceNum,
-              fiatValue: balanceNum * price,
+              fiatValue,
             });
           }
 
@@ -318,6 +340,9 @@ export function useLinkedWalletDiscovery(
                 const balanceNum = toNumeric(formatBalance(r.rawBalance, native.decimals));
                 if (balanceNum <= 0) continue;
                 const price = priceFor(native.coingeckoId);
+                if (price == null || price <= 0) continue;
+                const fiatValue = balanceNum * price;
+                if (fiatValue <= 0) continue;
                 assets.push({
                   chain,
                   symbol: native.symbol,
@@ -325,7 +350,7 @@ export function useLinkedWalletDiscovery(
                   contract: null,
                   rawBalance: r.rawBalance,
                   balance: balanceNum,
-                  fiatValue: price != null ? balanceNum * price : null,
+                  fiatValue,
                 });
                 continue;
               }
@@ -335,7 +360,9 @@ export function useLinkedWalletDiscovery(
               const balanceNum = toNumeric(formatBalance(r.rawBalance, token.decimals));
               if (balanceNum <= 0) continue;
               const price = priceFor(token.coingeckoId);
-              if (price == null) continue; // user spec: only CoinGecko-listed tokens
+              if (price == null || price <= 0) continue;
+              const fiatValue = balanceNum * price;
+              if (fiatValue <= 0) continue;
               assets.push({
                 chain,
                 symbol: token.symbol,
@@ -343,7 +370,7 @@ export function useLinkedWalletDiscovery(
                 contract: token.contract,
                 rawBalance: r.rawBalance,
                 balance: balanceNum,
-                fiatValue: balanceNum * price,
+                fiatValue,
               });
             }
           } catch {

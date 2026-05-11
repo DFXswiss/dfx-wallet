@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ChainId } from '@/config/chains';
+import { fetchBtcTransactions, type BtcTx } from '@/services/balances/btc-fetcher';
 import {
   getErc20Txs,
   getNormalTxs,
@@ -64,6 +65,7 @@ const CHAIN_KEYS: Record<string, ChainId> = {
   Arbitrum: 'arbitrum',
   Polygon: 'polygon',
   Base: 'base',
+  Bitcoin: 'bitcoin',
 };
 
 /**
@@ -118,6 +120,53 @@ function normalizeNative(
   };
 }
 
+/**
+ * Convert a mempool.space-style Bitcoin TX into the unified
+ * WalletTransaction shape. The net flow into vs out of the wallet
+ * decides direction: send = wallet appears on the vin side,
+ * receive = wallet appears on the vout side, self = both. The amount
+ * is the absolute net flow in BTC (sat / 1e8) so the renderer can show
+ * a single signed number rather than the full UTXO graph.
+ */
+function normalizeBtcTx(walletLc: string, tx: BtcTx): WalletTransaction {
+  let inSat = 0n;
+  let outSat = 0n;
+  let counterparty = '';
+  for (const v of tx.vin) {
+    const addr = v.prevout?.scriptpubkey_address;
+    const val = v.prevout?.value ?? 0;
+    if (addr && addr.toLowerCase() === walletLc) {
+      outSat += BigInt(val);
+    } else if (addr && !counterparty) {
+      counterparty = addr;
+    }
+  }
+  for (const v of tx.vout) {
+    const addr = v.scriptpubkey_address;
+    if (addr && addr.toLowerCase() === walletLc) {
+      inSat += BigInt(v.value);
+    } else if (addr && !counterparty) {
+      counterparty = addr;
+    }
+  }
+  const net = inSat - outSat;
+  const direction: WalletTxDirection = net > 0n ? 'receive' : net < 0n ? 'send' : 'self';
+  const absSat = net < 0n ? -net : net;
+  // Bitcoin chain id + tx hash uniquely identify the row. The
+  // confirmed flag isn't part of the id because a pending TX becomes
+  // confirmed without changing its hash.
+  return {
+    id: `bitcoin:${tx.txid}:native`,
+    chain: 'bitcoin',
+    hash: tx.txid,
+    timestamp: (tx.status.block_time ?? Math.floor(Date.now() / 1000)) * 1000,
+    symbol: 'BTC',
+    amount: formatTokenAmount(absSat.toString(), 8),
+    direction,
+    counterparty,
+  };
+}
+
 function normalizeErc20(
   chain: ChainId,
   walletLc: string,
@@ -165,7 +214,11 @@ export function useWalletTransactions(wallet: UserAddressDto | null): {
     for (const bc of blockchains) {
       // eslint-disable-next-line security/detect-object-injection -- CHAIN_KEYS is closed
       const c = CHAIN_KEYS[bc];
-      if (!c || seen.has(c) || !isBlockscoutSupported(c)) continue;
+      if (!c || seen.has(c)) continue;
+      // Bitcoin uses mempool.space, every EVM chain uses Blockscout. Chains
+      // for which neither source is wired up (Lightning, Spark, BSC, …)
+      // get dropped silently — the user still sees the empty-state copy.
+      if (c !== 'bitcoin' && !isBlockscoutSupported(c)) continue;
       seen.add(c);
       out.push(c);
     }
@@ -187,11 +240,18 @@ export function useWalletTransactions(wallet: UserAddressDto | null): {
 
       const perChain = await Promise.all(
         chains.map(async (chain) => {
+          const txs: WalletTransaction[] = [];
+          if (chain === 'bitcoin') {
+            const btc = await fetchBtcTransactions(wallet.address);
+            if (btc.ok) {
+              for (const t of btc.value) txs.push(normalizeBtcTx(walletLc, t));
+            }
+            return txs;
+          }
           const [native, erc20] = await Promise.all([
             getNormalTxs(chain, wallet.address),
             getErc20Txs(chain, wallet.address),
           ]);
-          const txs: WalletTransaction[] = [];
           if (native.ok) {
             // eslint-disable-next-line security/detect-object-injection -- closed ChainId map
             const sym = NATIVE_SYMBOL[chain] ?? '?';

@@ -58,9 +58,14 @@ export default function SettingsScreen() {
   }, []);
 
   const handleBiometricToggle = async (next: boolean) => {
+    // Honour the user's intent even when the OS reports no enrolled
+    // biometric (sim, freshly-wiped phone, …) — the lock screen falls
+    // back to PIN when Face ID is unavailable, so flipping the toggle
+    // off would just force the user to flip it again the moment they
+    // enrol biometrics. We surface a one-shot hint when they switch it
+    // on without hardware so it's obvious why no Face ID prompt fires.
     if (next && biometricSupported === false) {
       Alert.alert(t('settings.biometric'), t('settings.biometricUnsupported'));
-      return;
     }
     await setBiometricEnabled(next);
   };
@@ -152,7 +157,6 @@ export default function SettingsScreen() {
           toggle: {
             value: biometricEnabled,
             onChange: (next) => void handleBiometricToggle(next),
-            disabled: biometricSupported === false,
           },
         },
         {

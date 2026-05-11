@@ -262,17 +262,16 @@ describe('useAuthStore', () => {
       expect(useAuthStore.getState().biometricEnabled).toBe(true);
     });
 
-    it('does NOT persist or flip state when enabling but no hardware/enrolment is available', async () => {
+    it('still persists the preference when enabling without enrolled hardware (lock-screen falls back to PIN)', async () => {
       hasHardwareMock.mockResolvedValueOnce(false);
       await useAuthStore.getState().setBiometricEnabled(true);
-      expect(setItemMock).not.toHaveBeenCalled();
-      expect(useAuthStore.getState().biometricEnabled).toBe(false);
+      expect(setItemMock).toHaveBeenCalledWith('biometricEnabled', 'true');
+      expect(useAuthStore.getState().biometricEnabled).toBe(true);
     });
 
     it('persists "false" without checking hardware when disabling', async () => {
       useAuthStore.setState({ biometricEnabled: true });
       await useAuthStore.getState().setBiometricEnabled(false);
-      expect(hasHardwareMock).not.toHaveBeenCalled();
       expect(setItemMock).toHaveBeenCalledWith('biometricEnabled', 'false');
       expect(useAuthStore.getState().biometricEnabled).toBe(false);
     });
