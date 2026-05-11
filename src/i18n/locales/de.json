@@ -499,7 +499,8 @@
     "title": "Senden"
   },
   "settings": {
-    "biometric": "Biometrie",
+    "biometric": "Face ID / Touch ID",
+    "biometricUnsupported": "Biometrische Entsperrung ist auf diesem Gerät nicht verfügbar. Aktiviere zuerst Face ID oder Touch ID in den iOS-Einstellungen.",
     "contact": "Kontakt",
     "currencies": "Währungen",
     "deleteWallet": "Wallet löschen",

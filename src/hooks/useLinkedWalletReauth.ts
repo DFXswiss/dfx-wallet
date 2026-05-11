@@ -42,20 +42,27 @@ export function useLinkedWalletReauth() {
       // typical case is exactly that — the user linked the wallet
       // through DFX, so a JWT-rotation suffices and no biometric/sign
       // prompt fires.
+      let path1Error: string | null = null;
       try {
         const token = await dfxAuthService.changeActiveAddress(address);
         await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
         return { ok: true, token };
-      } catch {
-        // Falls through to the per-blockchain sign re-auth.
+      } catch (err) {
+        // Capture so we can surface it if Path 2 also fails — silently
+        // swallowing the message made it impossible to tell why the
+        // server-side switch was refused (different DFX account, blocked
+        // user, expired session, …).
+        path1Error = err instanceof Error ? err.message : 'changeActiveAddress failed';
       }
 
       // Path 2: full sign re-auth — only viable when the wallet is
       // locally signable (Bitcoin SegWit, EVM family, LDS Lightning).
+      const annotate = (msg: string): string =>
+        path1Error ? `${msg} (change: ${path1Error})` : msg;
       try {
         if (blockchain === 'Lightning') {
           const user = lds.user ?? (await lds.signIn());
-          if (!user) return { ok: false, error: 'LDS not ready' };
+          if (!user) return { ok: false, error: annotate('LDS not ready') };
           const token = await dfxAuthService.loginAsLnurlAddressOwner(
             user.lightning.addressLnurl,
             user.lightning.addressOwnershipProof,
@@ -66,9 +73,9 @@ export function useLinkedWalletReauth() {
         }
 
         if (blockchain === 'Bitcoin') {
-          if (!btc.address) return { ok: false, error: 'Bitcoin wallet not ready' };
+          if (!btc.address) return { ok: false, error: annotate('Bitcoin wallet not ready') };
           if (btc.address.toLowerCase() !== address.toLowerCase()) {
-            return { ok: false, error: 'addressMismatch' };
+            return { ok: false, error: annotate('addressMismatch') };
           }
           const token = await dfxAuthService.loginAsAddressOwner(
             address,
@@ -89,9 +96,9 @@ export function useLinkedWalletReauth() {
           blockchain === 'Polygon' ||
           blockchain === 'Base'
         ) {
-          if (!eth.address) return { ok: false, error: 'Ethereum wallet not ready' };
+          if (!eth.address) return { ok: false, error: annotate('Ethereum wallet not ready') };
           if (eth.address.toLowerCase() !== address.toLowerCase()) {
-            return { ok: false, error: 'addressMismatch' };
+            return { ok: false, error: annotate('addressMismatch') };
           }
           const token = await dfxAuthService.loginAsAddressOwner(
             address,
@@ -106,9 +113,12 @@ export function useLinkedWalletReauth() {
           return { ok: true, token };
         }
 
-        return { ok: false, error: `Unsupported blockchain ${blockchain}` };
+        return { ok: false, error: annotate(`Unsupported blockchain ${blockchain}`) };
       } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : 'Reauth failed' };
+        return {
+          ok: false,
+          error: annotate(err instanceof Error ? err.message : 'Reauth failed'),
+        };
       }
     },
     [btc, eth, lds],
