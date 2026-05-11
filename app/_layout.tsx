@@ -11,7 +11,7 @@ import { bundle } from '../.wdk';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { getWdkConfigs } from '@/config/chains';
-import { useAuthStore } from '@/store';
+import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors } from '@/theme';
 import '@/i18n';
 
@@ -43,9 +43,11 @@ export default function RootLayout() {
   // (auth) layout's PIN gate can't detect "not authenticated" and would let
   // a restored deep route bypass PIN entirely.
   const { isHydrated, hydrate } = useAuthStore();
+  const hydrateWallet = useWalletStore((s) => s.hydrate);
   useEffect(() => {
     void hydrate();
-  }, [hydrate]);
+    void hydrateWallet();
+  }, [hydrate, hydrateWallet]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
