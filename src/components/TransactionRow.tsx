@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from './Icon';
-import { computeFiatValue } from '@/config/portfolio-presentation';
+import { computeFiatValue, resolveFiatCurrency } from '@/config/portfolio-presentation';
 import { getCanonicalForSymbol } from '@/config/tokens';
-import { FiatCurrency, pricingService } from '@/services/pricing-service';
+import { pricingService } from '@/services/pricing-service';
 import type { TransactionDto } from '@/services/dfx';
 import { useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
@@ -53,7 +53,7 @@ export function TransactionRow({ tx, onPress, showState = true, testID }: Props)
     ({ iconName: 'swap', fg: DfxColors.primary, bg: '#DCEAFE' } satisfies IconConfig);
 
   const { selectedCurrency } = useWalletStore();
-  const fiatCurrency = selectedCurrency === 'CHF' ? FiatCurrency.CHF : FiatCurrency.USD;
+  const fiatCurrency = resolveFiatCurrency(selectedCurrency);
   const [pricingReady, setPricingReady] = useState(pricingService.isReady());
   useEffect(() => {
     if (pricingService.isReady()) {

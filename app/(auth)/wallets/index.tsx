@@ -3,10 +3,15 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'rea
 import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { AppHeader, Icon, ScreenContainer } from '@/components';
+import { AppHeader, Icon, RenameWalletModal, ScreenContainer } from '@/components';
 import { dfxAuthService, dfxUserService, DfxApiError } from '@/services/dfx';
 import type { UserAddressDto } from '@/services/dfx/dto';
-import { useDfxAuth } from '@/hooks';
+import {
+  defaultLinkedWalletName,
+  useDfxAuth,
+  useLinkedWalletNames,
+  useLinkedWalletSelection,
+} from '@/hooks';
 import { DfxColors, Typography } from '@/theme';
 
 type LinkableChain = {
@@ -40,6 +45,9 @@ export default function WalletsScreen() {
   const [linkError, setLinkError] = useState<string | null>(null);
 
   const { reauthenticateAsOwner, isAuthenticating } = useDfxAuth();
+  const { isSelected, toggle: toggleLinkedWallet } = useLinkedWalletSelection();
+  const { getName, setName } = useLinkedWalletNames();
+  const [renamingWallet, setRenamingWallet] = useState<UserAddressDto | null>(null);
   const btc = useAccount({ network: 'bitcoin', accountIndex: 0 });
 
   const refresh = useCallback(async () => {
@@ -165,6 +173,9 @@ export default function WalletsScreen() {
           ) : (
             <>
               <Text style={styles.sectionLabel}>{t('wallets.linkedLabel')}</Text>
+              {addresses.length > 0 ? (
+                <Text style={styles.selectHint}>{t('wallets.selectHint')}</Text>
+              ) : null}
               <View style={styles.section}>
                 {addresses.length === 0 ? (
                   <Text style={styles.emptyText}>{t('wallets.noAddresses')}</Text>
@@ -172,8 +183,27 @@ export default function WalletsScreen() {
                   addresses.map((a) => {
                     const isActive =
                       activeAddress?.address.toLowerCase() === a.address.toLowerCase();
+                    // The active address is always implicitly part of the
+                    // user's portfolio (their primary wallet shows the
+                    // local WDK balances). Checkbox only applies to the
+                    // additional linked wallets.
+                    const showCheckbox = !isActive;
+                    const checked = showCheckbox && isSelected(a.address);
+                    const displayName = getName(a.address) ?? defaultLinkedWalletName(a.blockchain);
                     return (
-                      <View key={a.address} style={styles.addressRow}>
+                      <Pressable
+                        key={a.address}
+                        style={({ pressed }) => [
+                          styles.addressRow,
+                          showCheckbox && pressed && styles.pressed,
+                        ]}
+                        onPress={() => {
+                          if (!showCheckbox) return;
+                          void toggleLinkedWallet(a.address);
+                        }}
+                        disabled={!showCheckbox}
+                        testID={`wallets-address-${a.address.slice(0, 8)}`}
+                      >
                         <View style={[styles.avatar, isActive && styles.avatarActive]}>
                           <Icon
                             name="wallet"
@@ -182,6 +212,24 @@ export default function WalletsScreen() {
                           />
                         </View>
                         <View style={styles.addressBody}>
+                          <View style={styles.nameRow}>
+                            <Text style={styles.walletName} numberOfLines={1}>
+                              {displayName}
+                            </Text>
+                            <Pressable
+                              hitSlop={10}
+                              style={({ pressed }) => [
+                                styles.editButton,
+                                pressed && styles.pressed,
+                              ]}
+                              onPress={() => setRenamingWallet(a)}
+                              testID={`wallets-rename-${a.address.slice(0, 8)}`}
+                              accessibilityRole="button"
+                              accessibilityLabel={t('linkedWallet.rename.cta')}
+                            >
+                              <Icon name="edit" size={16} color={DfxColors.primary} />
+                            </Pressable>
+                          </View>
                           <Text style={styles.addressMono} numberOfLines={1}>
                             {truncate(a.address)}
                           </Text>
@@ -191,8 +239,17 @@ export default function WalletsScreen() {
                         </View>
                         {isActive ? (
                           <Text style={styles.activeBadge}>{t('wallets.activeBadge')}</Text>
-                        ) : null}
-                      </View>
+                        ) : (
+                          <View
+                            style={[styles.checkbox, checked && styles.checkboxChecked]}
+                            testID={`wallets-checkbox-${checked ? 'on' : 'off'}-${a.address.slice(0, 8)}`}
+                          >
+                            {checked ? (
+                              <Icon name="check" size={14} color={DfxColors.white} />
+                            ) : null}
+                          </View>
+                        )}
+                      </Pressable>
                     );
                   })
                 )}
@@ -237,6 +294,20 @@ export default function WalletsScreen() {
           )}
         </View>
       </ScreenContainer>
+      <RenameWalletModal
+        visible={renamingWallet !== null}
+        initialName={renamingWallet ? (getName(renamingWallet.address) ?? '') : ''}
+        defaultName={
+          renamingWallet ? defaultLinkedWalletName(renamingWallet.blockchain) : 'DFX Wallet'
+        }
+        walletAddressShort={renamingWallet ? truncate(renamingWallet.address) : ''}
+        onClose={() => setRenamingWallet(null)}
+        onSave={(name) => {
+          const target = renamingWallet;
+          if (!target) return;
+          void setName(target.address, name).then(() => setRenamingWallet(null));
+        }}
+      />
     </>
   );
 }
@@ -308,6 +379,25 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  walletName: {
+    ...Typography.bodyMedium,
+    fontWeight: '700',
+    color: DfxColors.text,
+    flexShrink: 1,
+  },
+  editButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: DfxColors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   addressMono: {
     ...Typography.bodyMedium,
     fontFamily: 'monospace',
@@ -328,6 +418,26 @@ const styles = StyleSheet.create({
     color: DfxColors.primary,
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: DfxColors.border,
+    backgroundColor: DfxColors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: DfxColors.primary,
+    borderColor: DfxColors.primary,
+  },
+  selectHint: {
+    ...Typography.bodySmall,
+    color: DfxColors.textSecondary,
+    paddingHorizontal: 4,
+    lineHeight: 18,
   },
   errorBlock: {
     gap: 12,

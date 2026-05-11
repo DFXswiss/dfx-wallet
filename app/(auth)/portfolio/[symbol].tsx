@@ -17,6 +17,7 @@ import {
   computeFiatValue,
   formatBalance,
   formatNumber,
+  resolveFiatCurrency,
   SYMBOL_COLORS,
   SYMBOL_GLYPH,
   toNumeric,
@@ -86,8 +87,9 @@ export default function AssetDetailScreen() {
       .catch(() => setPricingReady(false));
   }, []);
 
-  const fiatCurrency = selectedCurrency === 'CHF' ? FiatCurrency.CHF : FiatCurrency.USD;
-  const currencySymbol = fiatCurrency === FiatCurrency.CHF ? 'CHF' : '$';
+  const fiatCurrency = resolveFiatCurrency(selectedCurrency);
+  const currencySymbol =
+    fiatCurrency === FiatCurrency.CHF ? 'CHF' : fiatCurrency === FiatCurrency.EUR ? '€' : '$';
 
   const holdings = useMemo<Holding[]>(() => {
     const NETWORK_ORDER: Record<string, number> = {

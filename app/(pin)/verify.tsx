@@ -1,22 +1,41 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { useWalletManager, useWdkApp } from '@tetherto/wdk-react-native-core';
-import { ScreenContainer } from '@/components';
+import { Icon } from '@/components';
 import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
 const MAX_ATTEMPTS = 5;
 
+/**
+ * PIN-unlock screen for the cold-start path.
+ *
+ * Visual: the dashboard's mountain illustration is reused as the background
+ * so the unlock surface feels continuous with the post-auth experience
+ * instead of dropping the user onto a flat slate. Important once linked
+ * DFX wallets surface on the dashboard — entry to that screen should feel
+ * like "the same wallet" rather than a separate gate.
+ *
+ * Biometric: auto-prompts Face ID / Touch ID on mount when the user opted
+ * in during onboarding (`biometricEnabled`). A dedicated face-id pill at
+ * the top of the action area is the primary affordance — the digit pad
+ * is the fallback, not the other way around. Mirrors the realunit-app
+ * unlock heuristic where the system prompt is the default path.
+ */
 export default function VerifyPinScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { verifyPin, setAuthenticated, authenticateBiometric, biometricEnabled } = useAuthStore();
   const { unlock } = useWalletManager();
   const { state } = useWdkApp();
   const [pin, setPinValue] = useState('');
   const [error, setError] = useState(false);
   const [attempts, setAttempts] = useState(0);
+  const [biometricInFlight, setBiometricInFlight] = useState(false);
 
   const goToDashboard = useCallback(() => {
     router.replace('/(auth)/(tabs)/dashboard');
@@ -31,6 +50,8 @@ export default function VerifyPinScreen() {
   }, [unlock]);
 
   const tryBiometric = useCallback(async () => {
+    if (biometricInFlight) return;
+    setBiometricInFlight(true);
     try {
       const success = await authenticateBiometric();
       if (success) {
@@ -40,14 +61,19 @@ export default function VerifyPinScreen() {
       }
     } catch (err) {
       console.warn('verify: biometric authentication failed', err);
+    } finally {
+      setBiometricInFlight(false);
     }
-  }, [authenticateBiometric, setAuthenticated, unlockWallet]);
+  }, [authenticateBiometric, biometricInFlight, setAuthenticated, unlockWallet]);
 
   useEffect(() => {
     if (biometricEnabled) {
       void tryBiometric();
     }
-  }, [biometricEnabled, tryBiometric]);
+    // Auto-prompt runs once per mount — the user can re-trigger via the
+    // Face ID pill if they cancel the system sheet.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [biometricEnabled]);
 
   useEffect(() => {
     if (state.status === 'READY') {
@@ -77,8 +103,8 @@ export default function VerifyPinScreen() {
       }
     } catch (err) {
       console.warn('verify: PIN verification threw', err);
-      // Fall through to the error path so the user sees the same UI feedback
-      // as a wrong PIN; the alternative would be a silent crash.
+      // Fall through so the user sees the wrong-PIN feedback instead of
+      // a silent crash.
     }
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     setError(true);
@@ -94,79 +120,103 @@ export default function VerifyPinScreen() {
   const isLocked = attempts >= MAX_ATTEMPTS;
 
   return (
-    <ScreenContainer>
-      <View style={styles.content} testID="verify-pin-screen">
-        <Text style={styles.title}>Enter PIN</Text>
+    <ImageBackground
+      source={require('../../assets/dashboard-bg.png')}
+      style={styles.bg}
+      resizeMode="cover"
+    >
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={styles.content} testID="verify-pin-screen">
+          <Text style={styles.title}>{t('pin.enterTitle')}</Text>
 
-        {isLocked ? (
-          <Text style={styles.locked} testID="verify-pin-locked">
-            Too many failed attempts. Please restart the app.
-          </Text>
-        ) : (
-          <>
-            {error && (
-              <Text style={styles.error} testID="verify-pin-error">
-                Incorrect PIN. {MAX_ATTEMPTS - attempts} attempts remaining.
-              </Text>
-            )}
+          {isLocked ? (
+            <Text style={styles.locked} testID="verify-pin-locked">
+              {t('pin.tooMany')}
+            </Text>
+          ) : (
+            <>
+              {biometricEnabled && (
+                <Pressable
+                  testID="verify-pin-biometric-button"
+                  style={({ pressed }) => [styles.biometricPill, pressed && styles.pressed]}
+                  onPress={tryBiometric}
+                  disabled={biometricInFlight}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('pin.biometricCta')}
+                >
+                  <Icon name="user" size={18} color={DfxColors.primary} />
+                  <Text style={styles.biometricText}>{t('pin.biometricCta')}</Text>
+                </Pressable>
+              )}
 
-            <View style={styles.dots} testID="verify-pin-dots">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <View
-                  key={i}
-                  style={[styles.dot, i < pin.length && styles.dotFilled, error && styles.dotError]}
-                />
-              ))}
-            </View>
+              {error && (
+                <Text style={styles.error} testID="verify-pin-error">
+                  {t('pin.incorrectAttemptsLeft', { count: MAX_ATTEMPTS - attempts })}
+                </Text>
+              )}
 
-            <View style={styles.numpad}>
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((key) => {
-                if (key === '') {
-                  return <View key={key} style={styles.numpadKey} />;
-                }
-                return (
-                  <Pressable
-                    key={key}
-                    testID={key === 'del' ? 'pin-key-delete' : `pin-key-${key}`}
-                    style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
-                    disabled={isLocked}
-                    onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
-                    android_ripple={{
-                      color: DfxColors.surfaceLight,
-                      borderless: false,
-                      radius: 36,
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={key === 'del' ? 'Delete' : key}
-                  >
-                    <Text style={styles.numpadText}>{key === 'del' ? '\u232B' : key}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+              <View style={styles.dots} testID="verify-pin-dots">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.dot,
+                      i < pin.length && styles.dotFilled,
+                      error && styles.dotError,
+                    ]}
+                  />
+                ))}
+              </View>
 
-            {biometricEnabled && (
-              <Pressable
-                testID="verify-pin-biometric-button"
-                style={styles.biometricButton}
-                onPress={tryBiometric}
-              >
-                <Text style={styles.biometricText}>Use Biometric</Text>
-              </Pressable>
-            )}
-          </>
-        )}
-      </View>
-    </ScreenContainer>
+              <View style={styles.numpad}>
+                {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((key) => {
+                  if (key === '') {
+                    return <View key={key} style={styles.numpadKey} />;
+                  }
+                  return (
+                    <Pressable
+                      key={key}
+                      testID={key === 'del' ? 'pin-key-delete' : `pin-key-${key}`}
+                      style={({ pressed }) => [
+                        styles.numpadKey,
+                        pressed && styles.numpadKeyPressed,
+                      ]}
+                      disabled={isLocked}
+                      onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
+                      android_ripple={{
+                        color: 'rgba(11, 20, 38, 0.08)',
+                        borderless: false,
+                        radius: 36,
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={key === 'del' ? 'Delete' : key}
+                    >
+                      <Text style={styles.numpadText}>{key === 'del' ? '⌫' : key}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          )}
+        </View>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  bg: {
+    flex: 1,
+    backgroundColor: DfxColors.background,
+  },
+  safeArea: {
+    flex: 1,
+  },
   content: {
     flex: 1,
     alignItems: 'center',
     paddingVertical: 48,
-    gap: 24,
+    gap: 20,
   },
   title: {
     ...Typography.headlineMedium,
@@ -184,10 +234,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     marginTop: 48,
   },
+  biometricPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: DfxColors.primaryLight,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  biometricText: {
+    ...Typography.bodyMedium,
+    color: DfxColors.primary,
+    fontWeight: '700',
+  },
   dots: {
     flexDirection: 'row',
     gap: 16,
-    marginVertical: 32,
+    marginVertical: 24,
   },
   dot: {
     width: 16,
@@ -216,9 +283,10 @@ const styles = StyleSheet.create({
     margin: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
   },
   numpadKeyPressed: {
-    backgroundColor: DfxColors.surfaceLight,
+    backgroundColor: 'rgba(11, 20, 38, 0.08)',
   },
   numpadText: {
     color: DfxColors.text,
@@ -227,14 +295,5 @@ const styles = StyleSheet.create({
     lineHeight: 32,
     textAlign: 'center',
     includeFontPadding: false,
-  },
-  biometricButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-  },
-  biometricText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.primary,
-    fontWeight: '600',
   },
 });

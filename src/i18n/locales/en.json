@@ -5,7 +5,8 @@
   },
   "buy": {
     "confirm": "Order placed",
-    "confirmDescription": "Your purchase has been initiated. Transfer the amount with the provided reference code.",
+    "confirmDescription": "DFX has received your confirmation and will credit your wallet once the bank transfer arrives — usually within a few hours on business days.",
+    "confirmTransfer": "I've sent the transfer",
     "exchangeRate": "Exchange rate",
     "feeDfx": "DFX fee",
     "feeFixed": "Fixed fee",
@@ -168,7 +169,9 @@
     "contact": "Contact Data",
     "currentLevel": "Current Level",
     "financial": "Financial Information",
+    "firstName": "First name",
     "ident": "Identity Check",
+    "lastName": "Last name",
     "level": {
       "0": {
         "body": "Wallet created — no contact data on file. You can receive and send, but not trade.",
@@ -198,7 +201,9 @@
     "continueCta": "Continue verification",
     "mergedTitle": "Data unavailable",
     "nationality": "Nationality",
+    "openVerification": "Open verification",
     "personal": "Personal Data",
+    "phone": "Phone (optional)",
     "status": {
       "completed": "Completed",
       "failed": "Failed",
@@ -210,6 +215,11 @@
       "unknown": "{{raw}}"
     },
     "stepsLabel": "Step status",
+    "tfaCodePlaceholder": "6-digit code",
+    "tfaCodePrompt": "Enter the code we just sent to your phone.",
+    "tfaDescription": "We need to send you a one-time code by SMS to verify your phone number before this step.",
+    "tfaRequestCta": "Send code",
+    "tfaTitle": "Verify phone number",
     "title": "KYC Verification"
   },
   "legal": {
@@ -219,6 +229,38 @@
     "privacy": "Privacy Policy",
     "terms": "Terms of Service",
     "title": "Legal Information"
+  },
+  "linkedWallet": {
+    "addressLabel": "Wallet address",
+    "banner": {
+      "label": "Buy/sell into wallet",
+      "notSignable": "This wallet was linked from another device and can't be used from here."
+    },
+    "confirm": {
+      "buy": {
+        "body": "After your bank transfer arrives, DFX will send {{asset}} to the wallet below. Confirm to proceed to the bank details.",
+        "title": "Confirm purchase"
+      },
+      "sell": {
+        "body": "You'll send {{asset}} from the wallet below to DFX and receive a bank payout. Confirm to continue to the bank details.",
+        "title": "Confirm sale"
+      }
+    },
+    "loadError": "Could not load wallet details.",
+    "notFound": "This wallet is not linked to your DFX profile.",
+    "note": "Each buy or sell from a linked wallet asks for an extra confirmation so that no asset reaches the wrong account.",
+    "reauthError": {
+      "addressMismatch": "This wallet was linked from another device, so it can't be used from here.",
+      "generic": "Could not switch to this wallet. Please try again."
+    },
+    "rename": {
+      "body": "Pick a name to recognise this wallet across the app. Leave empty to reset to the default.",
+      "cta": "Rename wallet",
+      "title": "Rename wallet"
+    },
+    "title": "DFX Wallet",
+    "transactions": "View all transactions",
+    "transactionsHint": "All DFX transactions for your account"
   },
   "multiSig": {
     "backup": {
@@ -346,11 +388,15 @@
     "scanToPay": "Scan QR code to pay"
   },
   "pin": {
+    "biometricCta": "Unlock with Face ID",
     "confirm": "Confirm PIN",
     "create": "Create PIN",
     "createDescription": "Choose a 6-digit PIN to secure your wallet.",
     "enter": "Enter PIN",
+    "enterTitle": "Welcome back",
     "incorrect": "Incorrect PIN.",
+    "incorrectAttemptsLeft_one": "Incorrect PIN. {{count}} attempt remaining.",
+    "incorrectAttemptsLeft_other": "Incorrect PIN. {{count}} attempts remaining.",
     "mismatch": "PINs do not match.",
     "remainingAttempts": "{{count}} attempts remaining.",
     "saveError": "Could not save PIN. Please try again.",
@@ -362,6 +408,8 @@
     "empty": "No assets yet",
     "emptyDescription": "Buy your first crypto to get started.",
     "holdings": "Holdings by network",
+    "linkedWalletA11y": "DFX wallet {{address}}",
+    "linkedWallets": "Linked DFX wallets",
     "manage": "Manage",
     "manageChains": "Manage networks",
     "optional": "Optional networks",
@@ -469,8 +517,7 @@
     "seedPhrase": "Seed Phrase",
     "taxReport": "Tax Report",
     "title": "Settings",
-    "userData": "User Data",
-    "walletAddress": "Wallet Address"
+    "userData": "User Data"
   },
   "support": {
     "createError": "Ticket could not be created. Please try again.",
@@ -539,6 +586,7 @@
     "mergedExplanation": "Your DFX account was merged into another account. Please sign in again so we can load the current profile.",
     "noAddresses": "No addresses linked yet.",
     "reauthCta": "Sign in to DFX again",
+    "selectHint": "Tick a wallet to surface it in your Portfolio so you can buy or sell into it directly.",
     "title": "DFX wallets"
   }
 }

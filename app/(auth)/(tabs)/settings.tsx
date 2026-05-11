@@ -92,22 +92,21 @@ export default function SettingsScreen() {
           testID: 'settings-email',
           route: '/(auth)/email',
         },
-        {
-          icon: 'wallet',
-          label: t('settings.dfxWallets'),
-          testID: 'settings-dfx-wallets',
-          route: '/(auth)/wallets',
-        },
       ],
     },
     {
       title: t('settings.sectionWalletSecurity'),
       rows: [
+        // Replaces the previous "Wallet address" entry (which deep-linked
+        // to the Receive screen, already reachable from the dashboard).
+        // The DFX-wallet hub holds the linked-address checkboxes that drive
+        // the Portfolio's "Linked DFX wallets" rail, so it earns the slot
+        // a user reaches for when looking for "their addresses".
         {
           icon: 'wallet',
-          label: t('settings.walletAddress'),
-          testID: 'settings-wallet-address',
-          route: '/(auth)/receive',
+          label: t('settings.dfxWallets'),
+          testID: 'settings-dfx-wallets',
+          route: '/(auth)/wallets',
         },
         {
           icon: 'shield',
