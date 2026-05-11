@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -127,6 +127,12 @@ export default function VerifyPinScreen() {
     >
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.content} testID="verify-pin-screen">
+          <Image
+            source={require('../../assets/dfx-logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+            accessibilityLabel="DFX"
+          />
           <Text style={styles.title}>{t('pin.enterTitle')}</Text>
 
           {isLocked ? (
@@ -217,6 +223,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 48,
     gap: 20,
+  },
+  logo: {
+    width: 160,
+    height: 44,
+    marginBottom: 8,
   },
   title: {
     ...Typography.headlineMedium,

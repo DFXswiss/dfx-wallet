@@ -14,18 +14,98 @@ import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { AppHeader, Icon } from '@/components';
-import { defaultLinkedWalletName, useLinkedWalletNames } from '@/hooks';
+import { formatCryptoAmount, resolveFiatCurrency } from '@/config/portfolio-presentation';
+import {
+  defaultLinkedWalletName,
+  useLinkedWalletDiscovery,
+  useLinkedWalletNames,
+  useWalletTransactions,
+  type WalletTransaction,
+} from '@/hooks';
 import { dfxUserService } from '@/services/dfx';
 import type { UserAddressDto } from '@/services/dfx/dto';
+import { FiatCurrency, pricingService } from '@/services/pricing-service';
+import { useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
 const truncate = (addr: string): string =>
   addr.length <= 18 ? addr : `${addr.slice(0, 10)}…${addr.slice(-6)}`;
 
+/**
+ * Human-readable label for a ChainId — `ethereum` → `Ethereum`,
+ * `bitcoin-taproot` → `Bitcoin Taproot`. The Portfolio rail and the
+ * Bestände/Transaktionen sections both read this so the user never
+ * sees the lowercased internal slug.
+ */
+function chainLabel(chain: string): string {
+  if (!chain) return '';
+  return chain
+    .split(/[-_]/)
+    .map((part) => (part.length === 0 ? '' : part[0]!.toUpperCase() + part.slice(1)))
+    .join(' ');
+}
+
+/**
+ * Wall-clock "x ago" formatter for the TX feed. Avoids a third-party date
+ * lib for a single use-case — the precision (hours/days) is plenty for
+ * a transaction list.
+ */
+function formatRelative(ts: number, now: number): string {
+  const diff = Math.max(0, now - ts);
+  const min = Math.floor(diff / 60_000);
+  if (min < 1) return 'gerade';
+  if (min < 60) return `vor ${min} min`;
+  const hours = Math.floor(min / 60);
+  if (hours < 24) return `vor ${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `vor ${days} d`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `vor ${months} mo`;
+  const years = Math.floor(days / 365);
+  return `vor ${years} y`;
+}
+
+function TransactionRow({ tx, now }: { tx: WalletTransaction; now: number }) {
+  const sign = tx.direction === 'send' ? '−' : tx.direction === 'receive' ? '+' : '·';
+  const color =
+    tx.direction === 'send'
+      ? DfxColors.error
+      : tx.direction === 'receive'
+        ? DfxColors.success
+        : DfxColors.text;
+  return (
+    <View style={styles.txRow}>
+      <View style={styles.txIcon}>
+        <Icon
+          name={tx.direction === 'send' ? 'arrow-up' : 'arrow-down'}
+          size={18}
+          color={DfxColors.primary}
+        />
+      </View>
+      <View style={styles.txBody}>
+        <Text style={styles.txTitle} numberOfLines={1}>
+          {tx.symbol} · {chainLabel(tx.chain)}
+        </Text>
+        <Text style={styles.txHint} numberOfLines={1}>
+          {tx.direction === 'send' ? '→ ' : tx.direction === 'receive' ? '← ' : '↔ '}
+          {truncate(tx.counterparty || '')}
+        </Text>
+      </View>
+      <View style={styles.txValues}>
+        <Text style={[styles.txAmount, { color }]} numberOfLines={1}>
+          {sign} {tx.amount} {tx.symbol}
+        </Text>
+        <Text style={styles.txRelative}>{formatRelative(tx.timestamp, now)}</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function LinkedWalletDetailScreen() {
   const params = useLocalSearchParams<{ address: string }>();
   const router = useRouter();
   const { t } = useTranslation();
+  const { selectedCurrency } = useWalletStore();
 
   const targetAddress = String(params.address ?? '');
   const { getName } = useLinkedWalletNames();
@@ -34,6 +114,7 @@ export default function LinkedWalletDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [pricingReady, setPricingReady] = useState(pricingService.isReady());
 
   useEffect(() => {
     let cancelled = false;
@@ -56,23 +137,59 @@ export default function LinkedWalletDetailScreen() {
     };
   }, [t]);
 
+  useEffect(() => {
+    if (pricingService.isReady()) {
+      setPricingReady(true);
+      return;
+    }
+    void pricingService
+      .initialize()
+      .then(() => setPricingReady(true))
+      .catch(() => setPricingReady(false));
+  }, []);
+
   const wallet = useMemo<UserAddressDto | null>(() => {
     const lc = targetAddress.toLowerCase();
     return linkedAddresses.find((a) => a.address.toLowerCase() === lc) ?? null;
   }, [linkedAddresses, targetAddress]);
 
-  const blockchains = wallet
-    ? wallet.blockchains?.length
-      ? wallet.blockchains
-      : [wallet.blockchain]
-    : [];
+  const blockchains = useMemo(
+    () => (wallet ? (wallet.blockchains?.length ? wallet.blockchains : [wallet.blockchain]) : []),
+    [wallet],
+  );
   const primaryBlockchain = wallet?.blockchain ?? blockchains[0] ?? '';
-  // Use the user's custom name across the app — header title, banner copy,
-  // accessibility labels — so the same wallet reads identically wherever
-  // it surfaces.
   const displayName = wallet
     ? (getName(wallet.address) ?? defaultLinkedWalletName(primaryBlockchain))
     : t('linkedWallet.title');
+
+  // Discovery for the single wallet — passed as a one-element array so
+  // the existing hook handles staleness/refetch the same way it does
+  // for the Portfolio rail. Cached query-key matches the rail's, so we
+  // benefit from the warm cache when the user pivots from Portfolio
+  // into the detail screen.
+  const walletArray = useMemo(() => (wallet ? [wallet] : []), [wallet]);
+  const fiatCurrency = resolveFiatCurrency(selectedCurrency);
+  const { data: discovery, isLoading: discoveryLoading } = useLinkedWalletDiscovery(
+    walletArray,
+    fiatCurrency,
+    pricingReady,
+  );
+  const walletDiscovery = wallet ? discovery.get(wallet.address.toLowerCase()) : undefined;
+  const currencySymbol =
+    fiatCurrency === FiatCurrency.CHF ? 'CHF' : fiatCurrency === FiatCurrency.EUR ? '€' : '$';
+
+  // Cross-chain transaction feed. Hidden while the explorer service has
+  // no API key — the UI then shows a hint pointing at the env var setup
+  // instead of an empty list with no explanation.
+  const {
+    data: transactions,
+    isLoading: txLoading,
+    keyMissing: txKeyMissing,
+  } = useWalletTransactions(wallet);
+  // `now` is captured once per render so every relative timestamp in
+  // the list anchors on the same reference instant — avoids the visual
+  // jitter that comes from each row calling `Date.now()` itself.
+  const now = Date.now();
 
   const onCopy = async () => {
     if (!wallet) return;
@@ -82,12 +199,6 @@ export default function LinkedWalletDetailScreen() {
     setTimeout(() => setCopied(false), 1800);
   };
 
-  // Buy/Sell carry the linked-wallet identity into the existing flows via
-  // route params. The buy/sell screens read these to decide whether to show
-  // the "send to wallet X" confirmation modal before issuing the DFX call,
-  // and to re-auth as the wallet's owner so the credit lands at the right
-  // address. Without a wallet object we do not navigate (the buttons are
-  // disabled while loading or on error).
   const navigateToFlow = (path: '/(auth)/buy' | '/(auth)/sell') => {
     if (!wallet) return;
     router.push({
@@ -169,20 +280,69 @@ export default function LinkedWalletDetailScreen() {
                   </Pressable>
                 </View>
 
-                <Pressable
-                  style={({ pressed }) => [styles.txRow, pressed && styles.pressed]}
-                  onPress={() => router.push('/(auth)/transaction-history')}
-                  testID="linked-wallet-transactions"
-                >
-                  <View style={styles.txIcon}>
-                    <Icon name="document" size={18} color={DfxColors.primary} />
-                  </View>
-                  <View style={styles.txBody}>
-                    <Text style={styles.txTitle}>{t('linkedWallet.transactions')}</Text>
-                    <Text style={styles.txHint}>{t('linkedWallet.transactionsHint')}</Text>
-                  </View>
-                  <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
-                </Pressable>
+                {/* Assets block — every token the discovery scan found on
+                 *  this wallet's chains with a CoinGecko price + non-zero
+                 *  balance. Hidden when discovery hasn't returned yet
+                 *  (spinner) or when there's nothing to show. */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>{t('linkedWallet.assetsLabel')}</Text>
+                  {discoveryLoading && !walletDiscovery ? (
+                    <View style={styles.loadingBlock}>
+                      <ActivityIndicator color={DfxColors.primary} />
+                    </View>
+                  ) : !walletDiscovery || walletDiscovery.assets.length === 0 ? (
+                    <Text style={styles.emptyText}>{t('linkedWallet.assetsEmpty')}</Text>
+                  ) : (
+                    <View style={styles.assetList}>
+                      {walletDiscovery.assets.map((asset) => (
+                        <View
+                          key={`${asset.chain}:${asset.contract ?? 'native'}`}
+                          style={styles.assetRow}
+                          testID={`linked-wallet-asset-${asset.chain}-${asset.symbol}`}
+                        >
+                          <View style={styles.assetMain}>
+                            <Text style={styles.assetSymbol}>{asset.symbol}</Text>
+                            <Text style={styles.assetMeta}>{chainLabel(asset.chain)}</Text>
+                          </View>
+                          <View style={styles.assetValues}>
+                            <Text style={styles.assetFiat}>
+                              {asset.fiatValue != null
+                                ? `${currencySymbol} ${(Math.round(asset.fiatValue * 100) / 100).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                : '—'}
+                            </Text>
+                            <Text style={styles.assetAmount} numberOfLines={1}>
+                              {formatCryptoAmount(asset.balance)} {asset.symbol}
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+
+                {/* On-chain transaction feed — Etherscan-V2-unified
+                 *  txlist + tokentx merged chronologically across every
+                 *  chain this wallet lives on. No key configured? The
+                 *  block surfaces a localized hint instead of an empty
+                 *  list so the user knows why. */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>{t('linkedWallet.transactions')}</Text>
+                  {txKeyMissing ? (
+                    <Text style={styles.emptyText}>{t('linkedWallet.txKeyMissing')}</Text>
+                  ) : txLoading && transactions.length === 0 ? (
+                    <View style={styles.loadingBlock}>
+                      <ActivityIndicator color={DfxColors.primary} />
+                    </View>
+                  ) : transactions.length === 0 ? (
+                    <Text style={styles.emptyText}>{t('linkedWallet.txEmpty')}</Text>
+                  ) : (
+                    <View style={styles.txList}>
+                      {transactions.slice(0, 50).map((tx) => (
+                        <TransactionRow key={tx.id} tx={tx} now={now} />
+                      ))}
+                    </View>
+                  )}
+                </View>
 
                 <Text style={styles.note}>{t('linkedWallet.note')}</Text>
               </>
@@ -286,14 +446,92 @@ const styles = StyleSheet.create({
     color: DfxColors.primary,
     fontWeight: '700',
   },
+  section: {
+    gap: 10,
+  },
+  sectionLabel: {
+    ...Typography.bodySmall,
+    fontWeight: '700',
+    color: DfxColors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    paddingHorizontal: 4,
+  },
+  emptyText: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textTertiary,
+    textAlign: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    backgroundColor: DfxColors.surface,
+    borderRadius: 14,
+  },
+  assetList: {
+    backgroundColor: DfxColors.surface,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  assetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: DfxColors.border,
+  },
+  assetMain: {
+    flex: 1,
+    gap: 2,
+  },
+  assetSymbol: {
+    ...Typography.bodyMedium,
+    fontWeight: '700',
+    color: DfxColors.text,
+  },
+  assetMeta: {
+    ...Typography.bodySmall,
+    color: DfxColors.textSecondary,
+  },
+  assetValues: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  assetFiat: {
+    ...Typography.bodyMedium,
+    fontWeight: '700',
+    color: DfxColors.text,
+  },
+  assetAmount: {
+    ...Typography.bodySmall,
+    color: DfxColors.textSecondary,
+  },
+  txList: {
+    backgroundColor: DfxColors.surface,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
   txRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 14,
-    backgroundColor: DfxColors.surface,
-    borderRadius: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: DfxColors.border,
+  },
+  txValues: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  txAmount: {
+    ...Typography.bodyMedium,
+    fontWeight: '700',
+  },
+  txRelative: {
+    ...Typography.bodySmall,
+    color: DfxColors.textTertiary,
   },
   txIcon: {
     width: 36,

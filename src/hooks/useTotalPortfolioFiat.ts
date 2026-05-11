@@ -12,7 +12,7 @@ import type { UserAddressDto } from '@/services/dfx/dto';
 import { pricingService } from '@/services/pricing-service';
 import { useAuthStore, useWalletStore } from '@/store';
 import { useEnabledChains } from './useEnabledChains';
-import { useLinkedWalletFiat } from './useLinkedWalletFiat';
+import { useLinkedWalletDiscovery } from './useLinkedWalletDiscovery';
 import { useLinkedWalletSelection } from './useLinkedWalletSelection';
 
 /**
@@ -90,10 +90,8 @@ export function useTotalPortfolioFiat() {
 
   const fiatCurrency = resolveFiatCurrency(selectedCurrency);
 
-  const { data: linkedBalances } = useLinkedWalletFiat(
+  const { data: linkedDiscovery } = useLinkedWalletDiscovery(
     linkedWallets,
-    assetConfigs,
-    balances,
     fiatCurrency,
     pricingReady,
   );
@@ -108,11 +106,11 @@ export function useTotalPortfolioFiat() {
       sum += computeFiatValue(balanceNum, meta.canonicalSymbol, fiatCurrency, pricingReady);
     }
     for (const wallet of linkedWallets) {
-      const entry = linkedBalances.get(wallet.address.toLowerCase());
-      if (entry?.known) sum += entry.fiatValue;
+      const entry = linkedDiscovery.get(wallet.address.toLowerCase());
+      if (entry?.known) sum += entry.totalFiat;
     }
     return sum;
-  }, [assetConfigs, balances, fiatCurrency, pricingReady, linkedWallets, linkedBalances]);
+  }, [assetConfigs, balances, fiatCurrency, pricingReady, linkedWallets, linkedDiscovery]);
 
   useEffect(() => {
     const formatted = Number.isFinite(totalFiat) ? Math.round(totalFiat * 100) / 100 : 0;
