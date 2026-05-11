@@ -57,7 +57,10 @@ export type WalletTransaction = {
 
 export const WALLET_TX_QUERY_KEY = ['linked-wallet-transactions'] as const;
 
-const STALE_TIME_MS = 30_000;
+// Same minute-fresh contract as the discovery hook — staleTime 0 +
+// `refetchOnMount: 'always'` means navigating back into the screen
+// always pulls a fresh TX list, refetchInterval keeps it warm.
+const STALE_TIME_MS = 0;
 const REFETCH_INTERVAL_MS = 60_000;
 
 const CHAIN_KEYS: Record<string, ChainId> = {
@@ -278,6 +281,7 @@ export function useWalletTransactions(wallet: UserAddressDto | null): {
     enabled,
     staleTime: STALE_TIME_MS,
     refetchInterval: REFETCH_INTERVAL_MS,
+    refetchOnMount: 'always',
   });
 
   const refetch = useMemo(

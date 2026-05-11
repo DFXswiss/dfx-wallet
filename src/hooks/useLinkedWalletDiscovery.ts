@@ -65,7 +65,14 @@ export type WalletDiscovery = {
   known: boolean;
 };
 
-const STALE_TIME_MS = 30_000;
+// Wallet holdings + prices must read as "minute-fresh" to the user.
+// staleTime = 0 ⇒ every mount triggers a refetch immediately (React
+// Query short-circuits identical in-flight requests via `queryKey`
+// deduplication, so two screens mounting at the same time still share
+// one round-trip).
+// refetchInterval = 60s keeps a long-running screen up to date without
+// the user pulling.
+const STALE_TIME_MS = 0;
 const REFETCH_INTERVAL_MS = 60_000;
 const EMPTY = new Map<string, WalletDiscovery>();
 
@@ -390,6 +397,10 @@ export function useLinkedWalletDiscovery(
     enabled: enabled && pricingReady,
     staleTime: STALE_TIME_MS,
     refetchInterval: REFETCH_INTERVAL_MS,
+    // Always refetch when the screen re-mounts (i.e. user navigates
+    // Portfolio → Wallet-Detail) so they never see balances from the
+    // previous session's cached query result.
+    refetchOnMount: 'always',
   });
 
   const refetch = useMemo(
