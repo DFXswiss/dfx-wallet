@@ -263,8 +263,12 @@ const styles = StyleSheet.create({
   },
   headerIcon: {
     width: 40,
-    height: 32,
-    alignItems: 'flex-start',
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    borderWidth: 1,
+    borderColor: DfxColors.border,
+    alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
@@ -279,7 +283,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingBottom: 48,
-    gap: 12,
+    gap: 16,
   },
   totalCard: {
     paddingTop: 12,
@@ -290,7 +294,7 @@ const styles = StyleSheet.create({
   iconBubble: {
     width: 64,
     height: 64,
-    borderRadius: 32,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#0B1426',
@@ -333,8 +337,10 @@ const styles = StyleSheet.create({
   holdingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: DfxColors.surface,
-    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     padding: 14,
     gap: 12,
     shadowColor: '#0B1426',

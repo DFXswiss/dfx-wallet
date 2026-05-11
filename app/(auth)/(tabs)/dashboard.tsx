@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
   balanceSection: {
     marginTop: 'auto',
@@ -187,6 +187,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     marginTop: 4,
+    maxWidth: '100%',
   },
   balanceSymbol: {
     fontSize: 36,
@@ -200,7 +201,6 @@ const styles = StyleSheet.create({
     lineHeight: 56,
     fontWeight: '600',
     color: DfxColors.text,
-    letterSpacing: -1,
     flexShrink: 1,
   },
   balanceFraction: {
@@ -244,11 +244,14 @@ const styles = StyleSheet.create({
   bottomPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: DfxColors.surface,
-    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     paddingHorizontal: 8,
     paddingVertical: 10,
-    width: '70%',
+    width: '100%',
+    maxWidth: 320,
     shadowColor: '#0B1426',
     shadowOpacity: 0.08,
     shadowRadius: 16,

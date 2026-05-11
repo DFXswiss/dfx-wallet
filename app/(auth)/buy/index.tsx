@@ -815,6 +815,15 @@ export default function BuyScreen() {
             }}
             testID="buy-screen"
           />
+          <View style={styles.progressRow}>
+            {['amount', 'payment', 'confirm'].map((item, index) => {
+              const currentIndex = step === 'amount' ? 0 : step === 'payment' ? 1 : 2;
+              const active = index <= currentIndex;
+              return (
+                <View key={item} style={[styles.progressStep, active && styles.progressActive]} />
+              );
+            })}
+          </View>
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
@@ -956,6 +965,25 @@ const styles = StyleSheet.create({
   stepContent: {
     gap: 18,
   },
+  progressRow: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    gap: 8,
+    paddingTop: 4,
+    paddingBottom: 12,
+  },
+  progressStep: {
+    width: 34,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.72)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: DfxColors.border,
+  },
+  progressActive: {
+    backgroundColor: DfxColors.primary,
+    borderColor: DfxColors.primary,
+  },
   stepSubtitle: {
     ...Typography.bodyLarge,
     color: DfxColors.textSecondary,
@@ -969,16 +997,18 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: DfxColors.surface,
+    backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 6,
     gap: 2,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: DfxColors.border,
+    minHeight: 54,
   },
   assetTileActive: {
     borderColor: DfxColors.primary,
+    backgroundColor: 'rgba(220,234,254,0.72)',
   },
   assetTileSymbol: {
     ...Typography.bodyLarge,
@@ -992,7 +1022,7 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   chainChip: {
-    backgroundColor: DfxColors.surface,
+    backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 14,
@@ -1020,7 +1050,7 @@ const styles = StyleSheet.create({
   tokenChip: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: DfxColors.surface,
+    backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: 10,
     paddingVertical: 10,
     borderWidth: 1.5,
@@ -1039,17 +1069,18 @@ const styles = StyleSheet.create({
     color: DfxColors.primary,
   },
   amountCard: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     padding: 18,
-    gap: 14,
+    gap: 16,
   },
   amountInput: {
     fontSize: 36,
     fontWeight: '700',
     color: DfxColors.text,
     textAlign: 'center',
-    letterSpacing: -1,
     paddingVertical: 8,
   },
   currencyRow: {
@@ -1095,10 +1126,12 @@ const styles = StyleSheet.create({
     color: DfxColors.textSecondary,
   },
   quoteCard: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     padding: 18,
-    gap: 12,
+    gap: 14,
   },
   quoteHeader: {
     flexDirection: 'row',
@@ -1158,8 +1191,10 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   bankCard: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     paddingVertical: 4,
   },
   copyRow: {
@@ -1247,8 +1282,10 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    backgroundColor: DfxColors.surface,
-    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     borderLeftWidth: 4,
     borderLeftColor: DfxColors.primary,
   },

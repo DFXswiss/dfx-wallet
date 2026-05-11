@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Redirect, Stack } from 'expo-router';
+import { Redirect, Stack, useSegments } from 'expo-router';
 import { useDeepLink, useDfxAuth, useDfxAutoLink } from '@/hooks';
 import { dfxApi } from '@/services/dfx';
 import { useAuthStore } from '@/store';
@@ -7,18 +7,37 @@ import { DfxColors } from '@/theme';
 
 export default function AuthLayout() {
   useDeepLink();
+  const segments = useSegments();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isAuthRoute = segments[0] === '(auth)';
 
   // Hard auth gate: any entry into (auth)/* — including Metro reloads or
   // deep-link restores of dashboard/settings — must pass through PIN or
   // biometric first. `isAuthenticated` is in-memory only, so it resets on
   // every cold start and every JS reload. Hydration happens in the root
   // layout, so by the time this renders the auth state is already loaded.
-  if (!isAuthenticated) {
+  if (!isAuthenticated && isAuthRoute) {
     return <Redirect href="/(pin)/verify" />;
   }
 
+  if (!isAuthenticated) {
+    return <AuthStack />;
+  }
+
   return <AuthenticatedLayout />;
+}
+
+function AuthStack() {
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: DfxColors.background },
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
+      }}
+    />
+  );
 }
 
 /**
@@ -41,14 +60,5 @@ function AuthenticatedLayout() {
   // once across app launches.
   useDfxAutoLink();
 
-  return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: DfxColors.background },
-        gestureEnabled: true,
-        fullScreenGestureEnabled: true,
-      }}
-    />
-  );
+  return <AuthStack />;
 }

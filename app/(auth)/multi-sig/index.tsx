@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   heroIcon: {
     width: 84,
     height: 84,
-    borderRadius: 42,
+    borderRadius: 22,
     backgroundColor: DfxColors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
@@ -199,8 +199,10 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   summaryCard: {
-    backgroundColor: DfxColors.primaryLight,
-    borderRadius: 14,
+    backgroundColor: 'rgba(220,234,254,0.78)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     padding: 14,
     gap: 4,
   },
@@ -217,8 +219,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   vaultCard: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     padding: 16,
     gap: 12,
   },
@@ -230,7 +234,7 @@ const styles = StyleSheet.create({
   vaultLead: {
     width: 52,
     height: 52,
-    borderRadius: 26,
+    borderRadius: 14,
     backgroundColor: DfxColors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
@@ -270,7 +274,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 10,
     backgroundColor: DfxColors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',

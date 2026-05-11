@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  Alert,
+  ImageBackground,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -252,55 +261,61 @@ export default function SettingsScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
-      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-        <View style={styles.header}>
-          <Pressable
-            onPress={() =>
-              router.canGoBack() ? router.back() : router.replace('/(auth)/(tabs)/dashboard')
-            }
-            hitSlop={12}
-            style={styles.backBtn}
+      <ImageBackground
+        source={require('../../../assets/dashboard-bg.png')}
+        style={styles.container}
+        resizeMode="cover"
+      >
+        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+          <View style={styles.header}>
+            <Pressable
+              onPress={() =>
+                router.canGoBack() ? router.back() : router.replace('/(auth)/(tabs)/dashboard')
+              }
+              hitSlop={12}
+              style={styles.backBtn}
+            >
+              <Icon name="arrow-left" size={24} color={DfxColors.text} />
+            </Pressable>
+            <Text style={styles.headerTitle}>{t('settings.title')}</Text>
+            <View style={styles.headerSpacer} />
+          </View>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={true}
           >
-            <Icon name="arrow-left" size={24} color={DfxColors.text} />
-          </Pressable>
-          <Text style={styles.headerTitle}>{t('settings.title')}</Text>
-          <View style={styles.backBtn} />
-        </View>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={true}
-        >
-          {sections.map((section) => (
-            <View key={section.title} style={styles.section}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-              <View style={styles.sectionCard}>
-                {section.rows.map((row, index) => (
-                  <SettingsRowView
-                    key={row.testID}
-                    row={row}
-                    isLast={index === section.rows.length - 1}
-                    onPress={() => {
-                      if (row.onPress) row.onPress();
-                      else if (row.route) router.push(row.route as never);
-                    }}
-                  />
-                ))}
+            {sections.map((section) => (
+              <View key={section.title} style={styles.section}>
+                <Text style={styles.sectionTitle}>{section.title}</Text>
+                <View style={styles.sectionCard}>
+                  {section.rows.map((row, index) => (
+                    <SettingsRowView
+                      key={row.testID}
+                      row={row}
+                      isLast={index === section.rows.length - 1}
+                      onPress={() => {
+                        if (row.onPress) row.onPress();
+                        else if (row.route) router.push(row.route as never);
+                      }}
+                    />
+                  ))}
+                </View>
               </View>
-            </View>
-          ))}
+            ))}
 
-          <Pressable
-            testID="settings-delete-wallet"
-            style={({ pressed }) => [styles.dangerCard, pressed && styles.pressed]}
-            onPress={handleDeleteWallet}
-          >
-            <Text style={styles.dangerLabel}>{t('settings.deleteWallet')}</Text>
-          </Pressable>
+            <Pressable
+              testID="settings-delete-wallet"
+              style={({ pressed }) => [styles.dangerCard, pressed && styles.pressed]}
+              onPress={handleDeleteWallet}
+            >
+              <Text style={styles.dangerLabel}>{t('settings.deleteWallet')}</Text>
+            </Pressable>
 
-          <Text style={styles.version}>DFX Wallet v0.1.0</Text>
-        </ScrollView>
-      </SafeAreaView>
+            <Text style={styles.version}>DFX Wallet v0.1.0</Text>
+          </ScrollView>
+        </SafeAreaView>
+      </ImageBackground>
     </>
   );
 }
@@ -353,19 +368,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: DfxColors.background,
   },
+  safeArea: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 12,
-    backgroundColor: DfxColors.background,
   },
   backBtn: {
     width: 40,
-    height: 32,
-    alignItems: 'flex-start',
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    borderWidth: 1,
+    borderColor: DfxColors.border,
+    alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerSpacer: {
+    width: 40,
+    height: 40,
   },
   headerTitle: {
     flex: 1,
@@ -380,7 +405,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 120,
-    gap: 20,
+    gap: 18,
   },
   section: {
     gap: 8,
@@ -394,8 +419,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   sectionCard: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     overflow: 'hidden',
     shadowColor: '#0B1426',
     shadowOpacity: 0.04,
@@ -406,7 +433,8 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
+    minHeight: 60,
+    paddingVertical: 12,
     paddingHorizontal: 14,
     gap: 12,
   },
@@ -417,14 +445,14 @@ const styles = StyleSheet.create({
   rowIcon: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 10,
     backgroundColor: DfxColors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
   rowLabel: {
     flex: 1,
-    ...Typography.bodyLarge,
+    ...Typography.bodyMedium,
     color: DfxColors.text,
     fontWeight: '500',
   },
@@ -438,8 +466,10 @@ const styles = StyleSheet.create({
   dangerCard: {
     marginTop: 8,
     paddingVertical: 16,
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     alignItems: 'center',
     shadowColor: '#0B1426',
     shadowOpacity: 0.04,

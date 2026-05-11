@@ -149,11 +149,24 @@
   },
   "hardware": {
     "bitbox": "BitBox02",
+    "bitboxNova": "BitBox02 Nova",
+    "bitboxStandard": "BitBox02 (Standard)",
     "connect": "Connect Hardware Wallet",
     "connectDescription": "Connect your BitBox02 via USB or scan for BitBox02 Nova via Bluetooth.",
     "connectDescriptionIos": "Scan for your BitBox02 Nova via Bluetooth.",
+    "deviceConnect": "Connect",
     "notConnected": "Not connected",
+    "pairingHint": "Please confirm the pairing code on your BitBox02 device.",
+    "scanDevices": "Scan for devices",
     "scanning": "Scanning for devices...",
+    "status": {
+      "connected": "Connected",
+      "connecting": "Connecting...",
+      "detected": "Device found",
+      "disconnected": "Not connected",
+      "scanning": "Scanning for devices...",
+      "verifying": "Verify on device..."
+    },
     "verifyOnDevice": "Please confirm on your device."
   },
   "contact": {
@@ -357,13 +370,16 @@
     "title": "Multi-Sig Setup"
   },
   "onboarding": {
-    "createError": "Could not create wallet. Please try again.",
+    "createError": "Could not create the wallet on this device. Check that your storage is available and try again.",
     "createPasskey": "Create with Passkey",
     "createWallet": "Create with Seed Phrase",
-    "invalidSeed": "Invalid seed phrase. Must be 12 or 24 words.",
-    "restoreError": "Could not restore wallet. Please try again.",
+    "invalidSeed": "This seed phrase is not valid yet. Enter exactly 12 or 24 words in the original order.",
+    "restoreError": "Could not restore this wallet. Check the seed phrase and try again.",
     "restorePasskey": "From Passkey",
     "restoreSeed": "From Seed Phrase",
+    "restoreSeedDescription": "Paste or type the 12 or 24 words from your recovery backup in the original order.",
+    "restoreSeedPlaceholder": "Enter seed phrase",
+    "restoreSeedWarning": "Use a private place. Anyone with these words can access the wallet.",
     "restoreWallet": "Restore Wallet",
     "seedBackupWarning": "DFX cannot recover your seed phrase. Keep it offline and stored safely.",
     "seedCopy": "Copy to clipboard",
@@ -371,20 +387,21 @@
     "seedDescription": "Write down your seed phrase in the correct order. It is the only way to recover your wallet.",
     "seedReveal": "Reveal seed phrase",
     "seedRevealHint": "Make sure nobody can see your screen.",
+    "seedWordCount": "{{count}} / {{total}} words",
     "subtitle": "Buy and sell crypto directly with your wallet",
     "title": "Welcome to DFX",
     "verifySeed": "Verify Seed"
   },
   "passkey": {
-    "backupWarning": "You can export your recovery phrase later in Settings. This is recommended as a backup in case you lose access to your passkey.",
+    "backupWarning": "After setup, export the recovery phrase in Settings and store it offline. It is your fallback if the passkey becomes unavailable.",
     "createButton": "Create Passkey",
     "createDescription": "Your wallet will be secured by a passkey stored in your device's secure element. No seed phrase to write down.",
-    "createError": "Failed to create passkey. Please try again.",
+    "createError": "Could not create the passkey. Check your device passkey settings and try again.",
     "createTitle": "Create with Passkey",
     "prfUnsupported": "Your passkey provider does not support the required encryption feature (PRF). Third-party providers like Bitwarden do not support this yet. Please use {{provider}} as your passkey provider instead.",
     "restoreButton": "Restore with Passkey",
     "restoreDescription": "Use your existing passkey to restore your wallet. The same passkey will derive the same wallet.",
-    "restoreError": "Failed to restore wallet from passkey. Please try again.",
+    "restoreError": "Could not restore a wallet from this passkey. Make sure it is the same passkey used during setup.",
     "restoreInfo": "Make sure you are using the same passkey that was used to create the wallet. If your passkey was synced via iCloud or Google, it should be available on this device.",
     "restoreTitle": "Restore from Passkey",
     "step1": "A passkey is created and stored securely on your device.",
@@ -425,16 +442,20 @@
     "linkedWallets": "Linked DFX wallets",
     "manage": "Manage",
     "manageChains": "Manage networks",
+    "networkCount_one": "{{count}} network",
+    "networkCount_other": "{{count}} networks",
     "optional": "Optional networks",
     "totalValue": "Total value"
   },
   "receive": {
     "buyFromBank": "Buy with your bank account",
     "buyFromBankSubtitle": "Top up via DFX SEPA transfer",
-    "selectAsset": "What do you want to receive?",
     "buyBtcWithEuro": "Buy BTC with Euro",
+    "noAddress": "No address available",
     "onlyCorrectNetwork": "Only send {{asset}} on the {{network}} network to this address.",
+    "selectAsset": "What do you want to receive?",
     "title": "Receive",
+    "walletNotInitialized": "Wallet not initialized",
     "yourAddress": "Your {{chain}} address"
   },
   "seedExport": {
@@ -491,6 +512,7 @@
     "addressPlaceholder": "Address or ENS name",
     "amount": "Amount",
     "confirmTransaction": "Confirm Transaction",
+    "done": "Done",
     "feeEstimating": "Estimating…",
     "feeUnavailable": "Unable to estimate",
     "irreversible": "Transactions are irreversible. Please verify the recipient address and amount.",
@@ -505,7 +527,9 @@
     "sendToCrypto": "Send to a crypto address",
     "sendToCryptoSubtitle": "On-chain transfer to any wallet",
     "sent": "Transaction Sent",
-    "title": "Send"
+    "sentDescription": "{{amount}} {{symbol}} sent to {{recipient}}",
+    "title": "Send",
+    "txHash": "TX: {{hash}}"
   },
   "settings": {
     "biometric": "Face ID / Touch ID",
@@ -560,7 +584,8 @@
     "title": "Transactions",
     "txHash": "Tx hash",
     "venue": "Venue",
-    "viewOnExplorer": "View on block explorer"
+    "viewOnExplorer": "View on block explorer",
+    "walletAddress": "Wallet address"
   },
   "taxReport": {
     "cta": "Download tax report",

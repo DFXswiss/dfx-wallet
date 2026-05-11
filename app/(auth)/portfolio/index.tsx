@@ -304,21 +304,28 @@ export default function PortfolioScreen() {
               </View>
             </View>
 
-            <View style={styles.assetList}>
-              {groups.map((group) => (
-                <PortfolioGroupCard
-                  key={group.canonicalSymbol}
-                  group={group}
-                  currencySymbol={currencySymbol}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/(auth)/portfolio/[symbol]',
-                      params: { symbol: group.canonicalSymbol },
-                    })
-                  }
-                />
-              ))}
-            </View>
+            {groups.length > 0 ? (
+              <View style={styles.assetList}>
+                {groups.map((group) => (
+                  <PortfolioGroupCard
+                    key={group.canonicalSymbol}
+                    group={group}
+                    currencySymbol={currencySymbol}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(auth)/portfolio/[symbol]',
+                        params: { symbol: group.canonicalSymbol },
+                      })
+                    }
+                  />
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyTitle}>{t('portfolio.empty')}</Text>
+                <Text style={styles.emptyDescription}>{t('portfolio.emptyDescription')}</Text>
+              </View>
+            )}
 
             {linkedWallets.length > 0 ? (
               <View style={styles.linkedSection}>
@@ -423,8 +430,13 @@ function LinkedWalletCard({
 }
 
 function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) {
+  const { t } = useTranslation();
   const color = SYMBOL_COLORS.get(group.canonicalSymbol) ?? DfxColors.primary;
   const glyph = SYMBOL_GLYPH.get(group.canonicalSymbol) ?? group.canonicalSymbol.slice(0, 1);
+  const networkLabel =
+    group.networks.size === 1
+      ? t('portfolio.networkCount_one', { count: group.networks.size })
+      : t('portfolio.networkCount_other', { count: group.networks.size });
   return (
     <Pressable
       onPress={onPress}
@@ -440,9 +452,7 @@ function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) 
         <Text style={styles.name} numberOfLines={1}>
           {group.canonicalName}
         </Text>
-        <Text style={styles.chainCountText}>
-          {group.networks.size === 1 ? '1 network' : `${group.networks.size} networks`}
-        </Text>
+        <Text style={styles.chainCountText}>{networkLabel}</Text>
       </View>
       <View style={styles.balanceColumn}>
         <Text style={styles.fiatValue} numberOfLines={1}>
@@ -473,8 +483,9 @@ const styles = StyleSheet.create({
   },
   headerIcon: {
     minWidth: 80,
-    height: 32,
-    alignItems: 'flex-start',
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
@@ -488,16 +499,15 @@ const styles = StyleSheet.create({
     color: DfxColors.primary,
     fontWeight: '600',
     textAlign: 'right',
-    width: 80,
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 80,
+    paddingTop: 48,
     paddingBottom: 48,
-    gap: 12,
+    gap: 16,
   },
   totalCard: {
     paddingTop: 8,
@@ -525,17 +535,36 @@ const styles = StyleSheet.create({
     lineHeight: 50,
     fontWeight: '700',
     color: DfxColors.text,
-    letterSpacing: -1,
   },
   assetList: {
     gap: 8,
-    marginTop: 64,
+    marginTop: 28,
+  },
+  emptyCard: {
+    marginTop: 28,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
+    padding: 18,
+    gap: 6,
+  },
+  emptyTitle: {
+    ...Typography.bodyLarge,
+    fontWeight: '700',
+    color: DfxColors.text,
+  },
+  emptyDescription: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textSecondary,
   },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: DfxColors.surface,
-    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     padding: 14,
     gap: 12,
     shadowColor: '#0B1426',
@@ -550,7 +579,7 @@ const styles = StyleSheet.create({
   iconBubble: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#0B1426',
@@ -592,7 +621,7 @@ const styles = StyleSheet.create({
     color: DfxColors.textSecondary,
   },
   linkedSection: {
-    marginTop: 32,
+    marginTop: 24,
     gap: 10,
   },
   linkedSectionLabel: {

@@ -166,7 +166,7 @@ export default function ReceiveScreen() {
             <QrCode value={address} size={200} />
           ) : (
             <View style={styles.qrPlaceholder}>
-              <Text style={styles.qrPlaceholderText}>No address</Text>
+              <Text style={styles.qrPlaceholderText}>{t('receive.noAddress')}</Text>
             </View>
           )}
         </View>
@@ -176,7 +176,7 @@ export default function ReceiveScreen() {
             {t('receive.yourAddress', { chain: selectedChain })}
           </Text>
           <Text style={styles.address} selectable numberOfLines={2}>
-            {address || 'Wallet not initialized'}
+            {address || t('receive.walletNotInitialized')}
           </Text>
         </View>
 
@@ -252,15 +252,16 @@ const styles = StyleSheet.create({
   assetCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
     padding: 18,
     gap: 14,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: DfxColors.border,
   },
   assetCardActive: {
     borderColor: DfxColors.primary,
+    backgroundColor: 'rgba(220,234,254,0.72)',
   },
   pressed: {
     opacity: 0.7,
@@ -297,7 +298,7 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   chainChip: {
-    backgroundColor: DfxColors.surface,
+    backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 14,
@@ -335,8 +336,10 @@ const styles = StyleSheet.create({
     color: DfxColors.textTertiary,
   },
   addressContainer: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     padding: 20,
     gap: 8,
     alignItems: 'center',
@@ -360,17 +363,17 @@ const styles = StyleSheet.create({
   destinationCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
     padding: 16,
     gap: 14,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: DfxColors.primary,
   },
   destinationIcon: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 12,
     backgroundColor: DfxColors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',

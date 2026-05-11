@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { PrimaryButton, ScreenContainer } from '@/components';
+import { useTranslation } from 'react-i18next';
+import { AppHeader, DfxBackgroundScreen, PrimaryButton } from '@/components';
 import { BitboxProvider, BitboxWasmWebView } from '@/services/hardware-wallet';
 import type { HardwareWalletDevice, HardwareWalletStatus } from '@/services/hardware-wallet';
 import { useHardwareWalletStore } from '@/store';
@@ -9,17 +10,9 @@ import { DfxColors, Typography } from '@/theme';
 
 const provider = new BitboxProvider();
 
-const STATUS_TEXT: Record<HardwareWalletStatus, string> = {
-  disconnected: 'Not connected',
-  scanning: 'Scanning for devices...',
-  detected: 'Device found',
-  connecting: 'Connecting...',
-  verifying: 'Verify on device...',
-  connected: 'Connected',
-};
-
 export default function HardwareConnectScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { status, device, setStatus, setDevice, setAddress, setError, reset } =
     useHardwareWalletStore();
   const [devices, setDevices] = useState<HardwareWalletDevice[]>([]);
@@ -60,15 +53,9 @@ export default function HardwareConnectScreen() {
   }, []);
 
   return (
-    <ScreenContainer>
+    <DfxBackgroundScreen contentStyle={styles.screen} testID="hardware-connect-screen">
       <View style={styles.content}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()}>
-            <Text style={styles.backButton}>{'\u2190'}</Text>
-          </Pressable>
-          <Text style={styles.title}>Hardware Wallet</Text>
-          <View style={styles.backButton} />
-        </View>
+        <AppHeader title={t('hardware.connect')} onBack={() => router.back()} testID="hardware" />
 
         <View style={styles.body}>
           <View style={styles.illustration}>
@@ -77,16 +64,13 @@ export default function HardwareConnectScreen() {
 
           <View style={styles.statusContainer}>
             {status === 'scanning' && <ActivityIndicator color={DfxColors.primary} />}
-            {/* eslint-disable-next-line security/detect-object-injection -- status is a HardwareWalletStatus literal union */}
-            <Text style={styles.statusText}>{STATUS_TEXT[status]}</Text>
+            <Text style={styles.statusText}>{t(`hardware.status.${status}`)}</Text>
           </View>
 
           {status === 'disconnected' && (
             <>
               <Text style={styles.description}>
-                {isAndroid
-                  ? 'Connect your BitBox02 via USB or scan for BitBox02 Nova via Bluetooth.'
-                  : 'Scan for your BitBox02 Nova via Bluetooth.'}
+                {isAndroid ? t('hardware.connectDescription') : t('hardware.connectDescriptionIos')}
               </Text>
               <View style={styles.transportInfo}>
                 {isAndroid && (
@@ -94,14 +78,14 @@ export default function HardwareConnectScreen() {
                     <View style={[styles.transportBadge, styles.usbBadge]}>
                       <Text style={styles.transportBadgeText}>USB</Text>
                     </View>
-                    <Text style={styles.transportLabel}>BitBox02 (Standard)</Text>
+                    <Text style={styles.transportLabel}>{t('hardware.bitboxStandard')}</Text>
                   </View>
                 )}
                 <View style={styles.transportRow}>
                   <View style={[styles.transportBadge, styles.bleBadge]}>
                     <Text style={styles.transportBadgeText}>BLE</Text>
                   </View>
-                  <Text style={styles.transportLabel}>BitBox02 Nova</Text>
+                  <Text style={styles.transportLabel}>{t('hardware.bitboxNova')}</Text>
                 </View>
               </View>
             </>
@@ -126,17 +110,13 @@ export default function HardwareConnectScreen() {
                       <Text style={styles.transportBadgeText}>{dev.transport.toUpperCase()}</Text>
                     </View>
                   </View>
-                  <Text style={styles.connectText}>Connect</Text>
+                  <Text style={styles.connectText}>{t('hardware.deviceConnect')}</Text>
                 </Pressable>
               ))}
             </View>
           )}
 
-          {status === 'verifying' && (
-            <Text style={styles.hint}>
-              Please confirm the pairing code on your BitBox02 device.
-            </Text>
-          )}
+          {status === 'verifying' && <Text style={styles.hint}>{t('hardware.pairingHint')}</Text>}
 
           {status === 'connected' && (
             <View style={styles.successContainer}>
@@ -150,12 +130,14 @@ export default function HardwareConnectScreen() {
 
         <View style={styles.actions}>
           {status === 'disconnected' && (
-            <PrimaryButton title="Scan for devices" onPress={handleScan} />
+            <PrimaryButton title={t('hardware.scanDevices')} onPress={handleScan} />
           )}
-          {status === 'connected' && <PrimaryButton title="Done" onPress={() => router.back()} />}
+          {status === 'connected' && (
+            <PrimaryButton title={t('common.done')} onPress={() => router.back()} />
+          )}
           {(status === 'connecting' || status === 'verifying') && (
             <PrimaryButton
-              title="Cancel"
+              title={t('common.cancel')}
               variant="outlined"
               onPress={() => {
                 void provider.disconnect();
@@ -167,29 +149,18 @@ export default function HardwareConnectScreen() {
       </View>
       {/* Hidden WebView for BitBox WASM — mounted when scanning/connecting */}
       <BitboxWasmWebView bridge={provider.getBridge()} onReady={() => setWasmReady(true)} />
-    </ScreenContainer>
+    </DfxBackgroundScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    paddingTop: 4,
+    paddingBottom: 24,
+  },
   content: {
     flex: 1,
-    paddingVertical: 16,
     gap: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    fontSize: 24,
-    color: DfxColors.text,
-    width: 32,
-  },
-  title: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
   },
   body: {
     flex: 1,
@@ -200,8 +171,10 @@ const styles = StyleSheet.create({
   illustration: {
     width: 200,
     height: 120,
-    borderRadius: 16,
-    backgroundColor: DfxColors.surface,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -264,8 +237,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
-    backgroundColor: DfxColors.surface,
+    backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
   },
   deviceInfo: {
     flexDirection: 'row',

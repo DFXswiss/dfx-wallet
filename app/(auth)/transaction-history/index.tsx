@@ -193,6 +193,7 @@ export default function TransactionHistoryScreen() {
 // Taproot, which the beta wdk-wallet-btc package doesn't expose). Replace
 // once WDK can derive these natively.
 function WalletAddressBar({ network }: { network: string }) {
+  const { t } = useTranslation();
   const { address } = useAccount({ network, accountIndex: 0 });
   const [copied, setCopied] = useState(false);
 
@@ -211,12 +212,12 @@ function WalletAddressBar({ network }: { network: string }) {
       <View style={styles.addressIconCircle}>
         <Icon name="wallet" size={22} color={DfxColors.primary} />
       </View>
-      <Text style={styles.addressLabel}>Wallet-Adresse</Text>
+      <Text style={styles.addressLabel}>{t('transactions.walletAddress')}</Text>
       <Text style={styles.addressText} numberOfLines={1} selectable>
         {short}
       </Text>
       <View style={styles.copyBadge}>
-        <Text style={styles.copyText}>{copied ? 'Kopiert!' : 'Kopieren'}</Text>
+        <Text style={styles.copyText}>{copied ? t('common.copied') : t('common.copy')}</Text>
       </View>
     </Pressable>
   );
@@ -230,6 +231,10 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     paddingHorizontal: 20,
     gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
   },
   addressIconCircle: {
     width: 48,
@@ -284,8 +289,10 @@ const styles = StyleSheet.create({
   },
   segmented: {
     flexDirection: 'row',
-    backgroundColor: DfxColors.surface,
+    backgroundColor: 'rgba(255,255,255,0.9)',
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     padding: 4,
   },
   segment: {

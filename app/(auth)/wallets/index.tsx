@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'rea
 import { Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { AppHeader, Icon, RenameWalletModal, ScreenContainer } from '@/components';
+import { AppHeader, DfxBackgroundScreen, Icon, RenameWalletModal } from '@/components';
 import { dfxAuthService, dfxUserService, DfxApiError } from '@/services/dfx';
 import type { UserAddressDto } from '@/services/dfx/dto';
 import {
@@ -140,7 +140,7 @@ export default function WalletsScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      <ScreenContainer scrollable testID="wallets-screen">
+      <DfxBackgroundScreen scrollable contentStyle={styles.screen} testID="wallets-screen">
         <AppHeader title={t('wallets.title')} testID="wallets" />
 
         <View style={styles.content}>
@@ -293,7 +293,7 @@ export default function WalletsScreen() {
             </>
           )}
         </View>
-      </ScreenContainer>
+      </DfxBackgroundScreen>
       <RenameWalletModal
         visible={renamingWallet !== null}
         initialName={renamingWallet ? (getName(renamingWallet.address) ?? '') : ''}
@@ -313,9 +313,12 @@ export default function WalletsScreen() {
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    paddingTop: 4,
+    paddingBottom: 32,
+  },
   content: {
     paddingTop: 12,
-    paddingBottom: 32,
     gap: 12,
   },
   intro: {
@@ -333,8 +336,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   section: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     overflow: 'hidden',
   },
   loadingRow: {
@@ -367,7 +372,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 10,
     backgroundColor: DfxColors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
@@ -393,7 +398,7 @@ const styles = StyleSheet.create({
   editButton: {
     width: 26,
     height: 26,
-    borderRadius: 13,
+    borderRadius: 8,
     backgroundColor: DfxColors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
@@ -443,8 +448,10 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 16,
     paddingHorizontal: 16,
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
   },
   errorText: {
     ...Typography.bodySmall,

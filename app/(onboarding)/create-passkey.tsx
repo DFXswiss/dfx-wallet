@@ -4,7 +4,12 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { ScreenContainer, PrimaryButton } from '@/components';
+import {
+  AppHeader,
+  DfxBackgroundScreen,
+  OnboardingStepIndicator,
+  PrimaryButton,
+} from '@/components';
 import { createPasskey, setupPasskeyWallet, PasskeyPrfUnsupportedError } from '@/services/passkey';
 import { DfxColors, Typography } from '@/theme';
 
@@ -48,66 +53,71 @@ export default function CreatePasskeyScreen() {
   };
 
   return (
-    <ScreenContainer>
-      <View style={styles.content}>
-        <Text style={styles.title}>{t('passkey.createTitle')}</Text>
-        <Text style={styles.description}>{t('passkey.createDescription')}</Text>
+    <DfxBackgroundScreen scrollable contentStyle={styles.content} testID="create-passkey-screen">
+      <AppHeader
+        title={t('passkey.createTitle')}
+        onBack={() =>
+          router.canGoBack() ? router.back() : router.replace('/(onboarding)/welcome')
+        }
+        testID="create-passkey"
+      />
+      <OnboardingStepIndicator current={1} />
 
-        <View style={styles.infoContainer}>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoIcon}>1</Text>
-            <Text style={styles.infoText}>{t('passkey.step1')}</Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoIcon}>2</Text>
-            <Text style={styles.infoText}>{t('passkey.step2')}</Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoIcon}>3</Text>
-            <Text style={styles.infoText}>{t('passkey.step3')}</Text>
-          </View>
+      <Text style={styles.description}>{t('passkey.createDescription')}</Text>
+
+      <View style={styles.infoContainer}>
+        <View style={styles.infoItem}>
+          <Text style={styles.infoIcon}>1</Text>
+          <Text style={styles.infoText}>{t('passkey.step1')}</Text>
         </View>
-
-        <View style={styles.warningContainer}>
-          <Text style={styles.warningText}>{t('passkey.backupWarning')}</Text>
+        <View style={styles.infoItem}>
+          <Text style={styles.infoIcon}>2</Text>
+          <Text style={styles.infoText}>{t('passkey.step2')}</Text>
         </View>
-
-        <View style={styles.spacer} />
-
-        <PrimaryButton
-          title={isCreating ? t('common.loading') : t('passkey.createButton')}
-          onPress={handleCreate}
-          disabled={isCreating}
-        />
+        <View style={styles.infoItem}>
+          <Text style={styles.infoIcon}>3</Text>
+          <Text style={styles.infoText}>{t('passkey.step3')}</Text>
+        </View>
       </View>
-    </ScreenContainer>
+
+      <View style={styles.warningContainer}>
+        <Text style={styles.warningText}>{t('passkey.backupWarning')}</Text>
+      </View>
+
+      <View style={styles.spacer} />
+
+      <PrimaryButton
+        title={isCreating ? t('common.loading') : t('passkey.createButton')}
+        onPress={handleCreate}
+        disabled={isCreating}
+      />
+    </DfxBackgroundScreen>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    flex: 1,
-    paddingVertical: 24,
+    paddingTop: 4,
+    paddingBottom: 24,
     gap: 24,
-  },
-  title: {
-    ...Typography.headlineMedium,
-    color: DfxColors.text,
   },
   description: {
     ...Typography.bodyLarge,
     color: DfxColors.textSecondary,
+    textAlign: 'center',
   },
   infoContainer: {
-    gap: 16,
+    gap: 10,
   },
   infoItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    backgroundColor: DfxColors.surface,
+    gap: 14,
+    backgroundColor: 'rgba(255,255,255,0.9)',
     borderRadius: 12,
-    padding: 16,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
+    padding: 14,
   },
   infoIcon: {
     ...Typography.headlineSmall,
@@ -126,7 +136,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   warningContainer: {
-    backgroundColor: DfxColors.surface,
+    backgroundColor: 'rgba(255,255,255,0.78)',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: DfxColors.warning,

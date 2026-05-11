@@ -116,8 +116,12 @@ const styles = StyleSheet.create({
   },
   headerIcon: {
     width: 40,
-    height: 32,
-    alignItems: 'flex-start',
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    borderWidth: 1,
+    borderColor: DfxColors.border,
+    alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
@@ -146,8 +150,10 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: DfxColors.surface,
-    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     padding: 14,
     gap: 12,
     shadowColor: '#0B1426',
