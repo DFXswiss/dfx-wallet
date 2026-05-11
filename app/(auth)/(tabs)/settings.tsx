@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import { Icon } from '@/components';
+import { isBiometricAvailable } from '@/services/biometric';
 import { dfxUserService } from '@/services/dfx';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
@@ -19,6 +20,10 @@ type SettingsRow = {
   icon: IconName;
   route?: string;
   onPress?: () => void;
+  /** Optional toggle on the right side of the row. When set, the row
+   *  renders a native `Switch` instead of the chevron and the tap target
+   *  flips the underlying state via the Switch's own onValueChange. */
+  toggle?: { value: boolean; onChange: (next: boolean) => void; disabled?: boolean };
 };
 
 type SettingsSection = {
@@ -29,8 +34,36 @@ type SettingsSection = {
 export default function SettingsScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
-  const { reset, isDfxAuthenticated } = useAuthStore();
+  const { reset, isDfxAuthenticated, biometricEnabled, setBiometricEnabled } = useAuthStore();
   const { selectedCurrency, setSelectedCurrency } = useWalletStore();
+  const [biometricSupported, setBiometricSupported] = useState<boolean | null>(null);
+
+  // Probe the OS for Face ID / Touch ID support so the toggle is greyed
+  // out on devices that can't honour it (older simulators, no enrolled
+  // biometric). Single one-shot check on mount — re-checks not needed
+  // because enrolment changes mid-session are rare and `setBiometricEnabled`
+  // re-validates before persisting anyway.
+  useEffect(() => {
+    let mounted = true;
+    void isBiometricAvailable()
+      .then((avail) => {
+        if (mounted) setBiometricSupported(avail);
+      })
+      .catch(() => {
+        if (mounted) setBiometricSupported(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleBiometricToggle = async (next: boolean) => {
+    if (next && biometricSupported === false) {
+      Alert.alert(t('settings.biometric'), t('settings.biometricUnsupported'));
+      return;
+    }
+    await setBiometricEnabled(next);
+  };
 
   const syncLanguageToDfx = (locale: 'de' | 'en') => {
     if (!isDfxAuthenticated) return;
@@ -107,6 +140,20 @@ export default function SettingsScreen() {
           label: t('settings.dfxWallets'),
           testID: 'settings-dfx-wallets',
           route: '/(auth)/wallets',
+        },
+        // Face ID / Touch ID toggle — the only place the user can flip
+        // `biometricEnabled`, which the lock-screen reads on mount to
+        // auto-prompt the system biometric sheet. Disabled when the OS
+        // reports no enrolled biometric.
+        {
+          icon: 'shield',
+          label: t('settings.biometric'),
+          testID: 'settings-biometric',
+          toggle: {
+            value: biometricEnabled,
+            onChange: (next) => void handleBiometricToggle(next),
+            disabled: biometricSupported === false,
+          },
         },
         {
           icon: 'shield',
@@ -261,6 +308,26 @@ type RowProps = {
 };
 
 function SettingsRowView({ row, isLast, onPress }: RowProps) {
+  // Toggle rows render a Switch instead of the chevron + skip the
+  // surrounding press handler so taps on the row body don't conflict
+  // with the Switch's own gesture recogniser.
+  if (row.toggle) {
+    return (
+      <View testID={row.testID} style={[styles.row, !isLast && styles.rowDivider]}>
+        <View style={styles.rowIcon}>
+          <Icon name={row.icon} size={20} color={DfxColors.primary} />
+        </View>
+        <Text style={styles.rowLabel}>{row.label}</Text>
+        <Switch
+          value={row.toggle.value}
+          onValueChange={row.toggle.onChange}
+          disabled={row.toggle.disabled}
+          trackColor={{ true: DfxColors.primary, false: DfxColors.border }}
+          ios_backgroundColor={DfxColors.border}
+        />
+      </View>
+    );
+  }
   return (
     <Pressable
       testID={row.testID}

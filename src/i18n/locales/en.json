@@ -499,7 +499,8 @@
     "title": "Send"
   },
   "settings": {
-    "biometric": "Biometric",
+    "biometric": "Face ID / Touch ID",
+    "biometricUnsupported": "Biometric unlock isn't available on this device. Enable Face ID or Touch ID in iOS settings first.",
     "contact": "Contact",
     "currencies": "Currencies",
     "deleteWallet": "Delete Wallet",
