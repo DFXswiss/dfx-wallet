@@ -253,7 +253,6 @@
     "note": "Bei jedem Kauf oder Verkauf in eine verknüpfte Wallet erfolgt eine zusätzliche Bestätigung, damit kein Asset auf dem falschen Konto landet.",
     "openOnExplorer": "Auf {{chain}}-Explorer öffnen",
     "txEmpty": "Keine Transaktionen für diese Wallet gefunden.",
-    "txKeyMissing": "Setze EXPO_PUBLIC_ETHERSCAN_API_KEY, um den In-App-Transaktions-Feed zu aktivieren (kostenlose Registrierung auf etherscan.io/apis).",
     "reauthError": {
       "addressMismatch": "Diese Wallet wurde von einem anderen Gerät aus verknüpft und kann von hier nicht verwendet werden.",
       "generic": "Konnte nicht zu dieser Wallet wechseln. Bitte erneut versuchen."

@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getEvmRpcUrl, type ChainId } from '@/config/chains';
 import { DISCOVERABLE_TOKENS_BY_CHAIN, type DiscoverableToken } from '@/config/discoverable-tokens';
 import { formatBalance, toNumeric } from '@/config/portfolio-presentation';
 import { fetchBtcBalance } from '@/services/balances/btc-fetcher';
 import { EvmBalanceFetcher, type EvmAssetSpec } from '@/services/balances/evm-fetcher';
 import type { UserAddressDto } from '@/services/dfx/dto';
-import { getErc20Txs, isEtherscanConfigured } from '@/services/explorer/etherscan';
+import { getTokenList, isBlockscoutSupported } from '@/services/explorer/blockscout';
 import { lookupCoinIds } from '@/services/pricing/coingecko-coins-list';
 import { fetchSimplePrices } from '@/services/pricing/coingecko-simple-price';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
@@ -65,7 +65,12 @@ export type WalletDiscovery = {
   known: boolean;
 };
 
-const STALE_TIME_MS = 30_000;
+// Wallet holdings + prices must read as "minute-fresh". The 60s
+// staleTime lets a brand-new mount short-circuit on an in-cache result
+// (no `—` flash) while still kicking off a background refetch as soon
+// as the cache passes a minute. `refetchInterval` keeps the displayed
+// value live without the user having to pull.
+const STALE_TIME_MS = 60_000;
 const REFETCH_INTERVAL_MS = 60_000;
 const EMPTY = new Map<string, WalletDiscovery>();
 
@@ -142,31 +147,47 @@ export function useLinkedWalletDiscovery(
               anyKnown = true;
               const balanceNum = toNumeric(formatBalance(r.rawBalance, 8));
               if (balanceNum > 0) {
-                const priceUsd = pricingService.getPriceById('bitcoin', fiatCurrency);
-                assets.push({
-                  chain: 'bitcoin',
-                  symbol: 'BTC',
-                  name: 'Bitcoin',
-                  contract: null,
-                  rawBalance: r.rawBalance,
-                  balance: balanceNum,
-                  fiatValue: priceUsd != null ? balanceNum * priceUsd : null,
-                });
+                // Always pull a fresh BTC price for the active fiat
+                // rather than reading the singleton cache — the cache is
+                // primed once at app boot and can be minutes stale.
+                const fresh = await fetchSimplePrices(['bitcoin'], [fiatCurrency]);
+                // eslint-disable-next-line security/detect-object-injection -- fiatCurrency is a typed FiatCurrency enum
+                const priceFresh = fresh.get('bitcoin')?.[fiatCurrency];
+                const priceCached = pricingService.getPriceById('bitcoin', fiatCurrency);
+                const price =
+                  typeof priceFresh === 'number' && priceFresh > 0 ? priceFresh : priceCached;
+                if (price != null && price > 0) {
+                  const fiatValue = balanceNum * price;
+                  if (fiatValue > 0) {
+                    assets.push({
+                      chain: 'bitcoin',
+                      symbol: 'BTC',
+                      name: 'Bitcoin',
+                      contract: null,
+                      rawBalance: r.rawBalance,
+                      balance: balanceNum,
+                      fiatValue,
+                    });
+                  }
+                }
               }
             }
             continue;
           }
 
-          // EVM chain — native gas token + every ERC-20 we can either
-          // (a) discover from the address's `tokentx` history via the
-          // Etherscan-V2 unified API, or (b) fall back to the curated
-          // list if no API key is configured. The dynamic path captures
-          // anything the wallet ever held; the curated fallback covers
-          // the ~50 most popular tokens per chain so users see *something*
-          // even without provisioning a key.
+          // EVM chain — native gas token + every ERC-20 the wallet
+          // currently holds. Primary discovery uses Blockscout's no-key
+          // `tokenlist` endpoint (each chain has its own public host),
+          // which returns every fungible ERC-20 the address holds with
+          // the current balance baked in. That short-circuits the
+          // per-contract JSON-RPC fan-out for those tokens.
+          //
+          // The curated `DISCOVERABLE_TOKENS_BY_CHAIN` list survives as
+          // a safety net for chains Blockscout doesn't index or for the
+          // rare case where the host is unreachable, so a freshly
+          // installed wallet still surfaces popular holdings.
           // eslint-disable-next-line security/detect-object-injection -- `chain` is a literal ChainId; NATIVE_ASSETS is a closed lookup
           const native = NATIVE_ASSETS[chain];
-          const useDynamic = isEtherscanConfigured();
           const curatedTokens: DiscoverableToken[] = DISCOVERABLE_TOKENS_BY_CHAIN.get(chain) ?? [];
 
           /** Per-contract metadata for the EVM scan — keyed by the
@@ -182,51 +203,41 @@ export function useLinkedWalletDiscovery(
           };
           const tokenSpecs: ChainToken[] = [];
 
-          if (useDynamic) {
+          // Primary path: Blockscout `tokenlist` for discovery. We use
+          // it ONLY to find out which contracts the address has ever
+          // touched — Blockscout's own balance index lags actual chain
+          // state by several minutes, so we ignore the balance it
+          // reports and re-read each contract via the JSON-RPC
+          // `balanceOf` fan-out further down (which is always at-head).
+          if (isBlockscoutSupported(chain)) {
             try {
-              const txs = await getErc20Txs(chain, cleanAddress, { offset: 100 });
-              if (txs.ok) {
-                // Unique contracts in tokentx — preserve insertion order
-                // (most recent first per Etherscan's `sort=desc`).
-                const seen = new Set<string>();
-                const ordered: {
-                  contract: string;
-                  symbol: string;
-                  name: string;
-                  decimals: number;
-                }[] = [];
-                for (const t of txs.value) {
-                  const lcContract = t.contractAddress.toLowerCase();
-                  if (seen.has(lcContract)) continue;
-                  seen.add(lcContract);
-                  ordered.push({
-                    contract: t.contractAddress,
-                    symbol: t.tokenSymbol || 'ERC20',
-                    name: t.tokenName || t.tokenSymbol || 'Unknown',
-                    decimals: Number(t.tokenDecimal) || 18,
-                  });
+              const list = await getTokenList(chain, cleanAddress);
+              if (list.ok) {
+                if (list.value.length > 0) {
+                  const coinIdByContract = await lookupCoinIds(
+                    chain,
+                    list.value.map((t) => t.contractAddress),
+                  );
+                  for (const t of list.value) {
+                    const coingeckoId = coinIdByContract.get(t.contractAddress.toLowerCase());
+                    if (!coingeckoId) continue;
+                    tokenSpecs.push({
+                      assetId: `discovery:${chain}:${t.contractAddress.toLowerCase()}`,
+                      symbol: t.symbol || 'ERC20',
+                      name: t.name || t.symbol || 'Unknown',
+                      contract: t.contractAddress,
+                      decimals: t.decimals,
+                      coingeckoId,
+                    });
+                  }
                 }
-                // Filter to tokens that are on CoinGecko (user-spec).
-                const coinIdByContract = await lookupCoinIds(
-                  chain,
-                  ordered.map((o) => o.contract),
-                );
-                for (const t of ordered) {
-                  const coingeckoId = coinIdByContract.get(t.contract.toLowerCase());
-                  if (!coingeckoId) continue;
-                  tokenSpecs.push({
-                    assetId: `discovery:${chain}:${t.contract.toLowerCase()}`,
-                    symbol: t.symbol,
-                    name: t.name,
-                    contract: t.contract,
-                    decimals: t.decimals,
-                    coingeckoId,
-                  });
-                }
+                // A successful Blockscout probe counts the chain as
+                // "known" — drives the `—` placeholder semantics on the
+                // Portfolio card. Empty result is still a known-empty.
+                anyKnown = true;
               }
             } catch {
-              // Dynamic discovery errored — fall through to the curated
-              // path so the user still sees their popular holdings.
+              // Blockscout errored — fall through to the curated path.
             }
           }
 
@@ -243,6 +254,34 @@ export function useLinkedWalletDiscovery(
             }
           }
 
+          // Always hit /simple/price for every discovered token + native
+          // — never trust the singleton pricingService cache here, since
+          // it only refreshes on Portfolio pull-to-refresh and goes
+          // arbitrarily stale (5+ minutes between user gestures). React
+          // Query's staleTime/refetchInterval gives us at-most-60s
+          // freshness for the linked-wallet view this way.
+          const allCoingeckoIds = tokenSpecs.map((t) => t.coingeckoId);
+          if (native) allCoingeckoIds.push(native.coingeckoId);
+          const dynamicPrices = allCoingeckoIds.length
+            ? await fetchSimplePrices(Array.from(new Set(allCoingeckoIds)), [fiatCurrency])
+            : new Map();
+          const priceFor = (coingeckoId: string): number | undefined => {
+            const entry = dynamicPrices.get(coingeckoId);
+            // eslint-disable-next-line security/detect-object-injection -- fiatCurrency is a typed FiatCurrency enum
+            const fresh = entry?.[fiatCurrency];
+            if (typeof fresh === 'number' && Number.isFinite(fresh)) return fresh;
+            // CoinGecko missed this id in the live call — fall back to the
+            // singleton cache. Rare; mostly happens during the brief
+            // window between coins/list discovery and the first /simple/price
+            // batch on a fresh wallet.
+            return pricingService.getPriceById(coingeckoId, fiatCurrency);
+          };
+
+          // Build the EVM spec list: native gas token (when the chain
+          // has one) + every discovered ERC-20. Every balance is read
+          // via JSON-RPC `eth_getBalance` / `balanceOf` so we read
+          // chain-head state, never a Blockscout index that lags by
+          // minutes.
           const specs: EvmAssetSpec[] = [];
           if (native) {
             specs.push({
@@ -263,27 +302,10 @@ export function useLinkedWalletDiscovery(
           if (specs.length === 0) continue;
 
           // Fan out balance reads via JSON-RPC (cheap, no rate-limit pain)
-          // and prime any prices we don't already have in the cache.
+          // for the native + any tokens whose balance Blockscout didn't
+          // already give us. Prices were resolved above.
           try {
             const result = await sharedFetcher.fetch(specs, new Map([[chain, cleanAddress]]));
-
-            // Resolve prices for discovery-derived IDs that aren't in the
-            // pricingService's curated set. We could let `getPriceById`
-            // miss and drop those tokens, but a single batched simple/price
-            // request is cheap and gives the user the live fiat.
-            const dynamicIds = tokenSpecs
-              .map((t) => t.coingeckoId)
-              .filter((id) => pricingService.getPriceById(id, fiatCurrency) === undefined);
-            const dynamicPrices = dynamicIds.length
-              ? await fetchSimplePrices(Array.from(new Set(dynamicIds)), [fiatCurrency])
-              : new Map();
-            const priceFor = (coingeckoId: string): number | undefined => {
-              const cached = pricingService.getPriceById(coingeckoId, fiatCurrency);
-              if (cached != null) return cached;
-              const entry = dynamicPrices.get(coingeckoId);
-              // eslint-disable-next-line security/detect-object-injection -- fiatCurrency is a typed FiatCurrency enum
-              return entry?.[fiatCurrency];
-            };
 
             for (const spec of specs) {
               const r = result.get(spec.assetId);
@@ -295,6 +317,9 @@ export function useLinkedWalletDiscovery(
                 const balanceNum = toNumeric(formatBalance(r.rawBalance, native.decimals));
                 if (balanceNum <= 0) continue;
                 const price = priceFor(native.coingeckoId);
+                if (price == null || price <= 0) continue;
+                const fiatValue = balanceNum * price;
+                if (fiatValue <= 0) continue;
                 assets.push({
                   chain,
                   symbol: native.symbol,
@@ -302,7 +327,7 @@ export function useLinkedWalletDiscovery(
                   contract: null,
                   rawBalance: r.rawBalance,
                   balance: balanceNum,
-                  fiatValue: price != null ? balanceNum * price : null,
+                  fiatValue,
                 });
                 continue;
               }
@@ -312,7 +337,9 @@ export function useLinkedWalletDiscovery(
               const balanceNum = toNumeric(formatBalance(r.rawBalance, token.decimals));
               if (balanceNum <= 0) continue;
               const price = priceFor(token.coingeckoId);
-              if (price == null) continue; // user spec: only CoinGecko-listed tokens
+              if (price == null || price <= 0) continue;
+              const fiatValue = balanceNum * price;
+              if (fiatValue <= 0) continue;
               assets.push({
                 chain,
                 symbol: token.symbol,
@@ -320,7 +347,7 @@ export function useLinkedWalletDiscovery(
                 contract: token.contract,
                 rawBalance: r.rawBalance,
                 balance: balanceNum,
-                fiatValue: balanceNum * price,
+                fiatValue,
               });
             }
           } catch {
@@ -340,6 +367,11 @@ export function useLinkedWalletDiscovery(
     enabled: enabled && pricingReady,
     staleTime: STALE_TIME_MS,
     refetchInterval: REFETCH_INTERVAL_MS,
+    // Show the previous (still-valid) result while a refetch — or a
+    // queryKey change like the pricing service flipping to "ready" —
+    // is in flight. Without this the UI flashed `—` on every linked
+    // wallet card during the seconds it took the new fetch to land.
+    placeholderData: keepPreviousData,
   });
 
   const refetch = useMemo(

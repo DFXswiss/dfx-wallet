@@ -37,8 +37,8 @@ const SAMPLE: CoinGeckoCoin[] = [
 ];
 
 const stubFetch = (payload: unknown): jest.Mock => {
-  return jest.fn(async () =>
-    ({ ok: true, status: 200, json: async () => payload }) as unknown as Response,
+  return jest.fn(
+    async () => ({ ok: true, status: 200, json: async () => payload }) as unknown as Response,
   );
 };
 
@@ -57,11 +57,9 @@ describe('coingecko-coins-list', () => {
 
   it('resolves a contract on ethereum to its CoinGecko coin id', async () => {
     const fetchImpl = stubFetch(SAMPLE) as unknown as typeof fetch;
-    const id = await lookupCoinId(
-      'ethereum',
-      '0xfAbA6f8e4a5E8Ab82F62fe7C39859FA577269BE3',
-      { fetchImpl },
-    );
+    const id = await lookupCoinId('ethereum', '0xfAbA6f8e4a5E8Ab82F62fe7C39859FA577269BE3', {
+      fetchImpl,
+    });
     expect(id).toBe('ondo-finance');
   });
 
@@ -77,11 +75,9 @@ describe('coingecko-coins-list', () => {
 
   it('returns null for a contract that is not on CoinGecko', async () => {
     const fetchImpl = stubFetch(SAMPLE) as unknown as typeof fetch;
-    const id = await lookupCoinId(
-      'ethereum',
-      '0x0000000000000000000000000000000000000000',
-      { fetchImpl },
-    );
+    const id = await lookupCoinId('ethereum', '0x0000000000000000000000000000000000000000', {
+      fetchImpl,
+    });
     expect(id).toBeNull();
   });
 
@@ -141,8 +137,8 @@ describe('coingecko-coins-list', () => {
   });
 
   it('throws when the upstream fails so callers can degrade gracefully', async () => {
-    const fetchImpl = jest.fn(async () =>
-      ({ ok: false, status: 503, json: async () => ({}) }) as unknown as Response,
+    const fetchImpl = jest.fn(
+      async () => ({ ok: false, status: 503, json: async () => ({}) }) as unknown as Response,
     );
     await expect(
       lookupCoinId('ethereum', '0xabc', {

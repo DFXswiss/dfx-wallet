@@ -1,13 +1,14 @@
 import { useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ChainId } from '@/config/chains';
+import { fetchBtcTransactions, type BtcTx } from '@/services/balances/btc-fetcher';
 import {
   getErc20Txs,
   getNormalTxs,
-  isEtherscanConfigured,
-  type NormalErc20Tx,
-  type NormalNativeTx,
-} from '@/services/explorer/etherscan';
+  isBlockscoutSupported,
+  type BlockscoutErc20Tx,
+  type BlockscoutNativeTx,
+} from '@/services/explorer/blockscout';
 import type { UserAddressDto } from '@/services/dfx/dto';
 
 /**
@@ -25,10 +26,12 @@ import type { UserAddressDto } from '@/services/dfx/dto';
  *     contract.
  *   - Sorted by timestamp DESC so the latest activity sits at the top.
  *
- * Etherscan-V2 free-tier rate-limit: 5 calls/sec, 100k/day. Each chain
- * fans out two calls (`txlist` + `tokentx`). React-query's staleTime
- * keeps us well under that ceiling even when several wallets get
- * inspected back-to-back.
+ * Backed by Blockscout's free, no-key `txlist` + `tokentx` endpoints —
+ * one public host per chain. Previously gated behind an Etherscan API
+ * key (`EXPO_PUBLIC_ETHERSCAN_API_KEY`); switching to Blockscout means
+ * the in-app feed Just Works on every wallet without provisioning a
+ * third-party key. React-query's staleTime keeps the fan-out (two
+ * calls per chain) well within Blockscout's public quotas.
  */
 
 export type WalletTxDirection = 'send' | 'receive' | 'self';
@@ -54,7 +57,11 @@ export type WalletTransaction = {
 
 export const WALLET_TX_QUERY_KEY = ['linked-wallet-transactions'] as const;
 
-const STALE_TIME_MS = 30_000;
+// Same minute-fresh contract as the discovery hook — 60s staleTime
+// keeps the screen interactive on remount (no `Loading…` flash, the
+// cached list shows while a refetch lands), refetchInterval keeps
+// the feed live without the user having to pull.
+const STALE_TIME_MS = 60_000;
 const REFETCH_INTERVAL_MS = 60_000;
 
 const CHAIN_KEYS: Record<string, ChainId> = {
@@ -62,6 +69,7 @@ const CHAIN_KEYS: Record<string, ChainId> = {
   Arbitrum: 'arbitrum',
   Polygon: 'polygon',
   Base: 'base',
+  Bitcoin: 'bitcoin',
 };
 
 /**
@@ -101,7 +109,7 @@ function directionFor(fromAddress: string, toAddress: string, walletLc: string):
 function normalizeNative(
   chain: ChainId,
   walletLc: string,
-  tx: NormalNativeTx,
+  tx: BlockscoutNativeTx,
   nativeSymbol: string,
 ): WalletTransaction {
   return {
@@ -116,7 +124,58 @@ function normalizeNative(
   };
 }
 
-function normalizeErc20(chain: ChainId, walletLc: string, tx: NormalErc20Tx): WalletTransaction {
+/**
+ * Convert a mempool.space-style Bitcoin TX into the unified
+ * WalletTransaction shape. The net flow into vs out of the wallet
+ * decides direction: send = wallet appears on the vin side,
+ * receive = wallet appears on the vout side, self = both. The amount
+ * is the absolute net flow in BTC (sat / 1e8) so the renderer can show
+ * a single signed number rather than the full UTXO graph.
+ */
+function normalizeBtcTx(walletLc: string, tx: BtcTx): WalletTransaction {
+  let inSat = 0n;
+  let outSat = 0n;
+  let counterparty = '';
+  for (const v of tx.vin) {
+    const addr = v.prevout?.scriptpubkey_address;
+    const val = v.prevout?.value ?? 0;
+    if (addr && addr.toLowerCase() === walletLc) {
+      outSat += BigInt(val);
+    } else if (addr && !counterparty) {
+      counterparty = addr;
+    }
+  }
+  for (const v of tx.vout) {
+    const addr = v.scriptpubkey_address;
+    if (addr && addr.toLowerCase() === walletLc) {
+      inSat += BigInt(v.value);
+    } else if (addr && !counterparty) {
+      counterparty = addr;
+    }
+  }
+  const net = inSat - outSat;
+  const direction: WalletTxDirection = net > 0n ? 'receive' : net < 0n ? 'send' : 'self';
+  const absSat = net < 0n ? -net : net;
+  // Bitcoin chain id + tx hash uniquely identify the row. The
+  // confirmed flag isn't part of the id because a pending TX becomes
+  // confirmed without changing its hash.
+  return {
+    id: `bitcoin:${tx.txid}:native`,
+    chain: 'bitcoin',
+    hash: tx.txid,
+    timestamp: (tx.status.block_time ?? Math.floor(Date.now() / 1000)) * 1000,
+    symbol: 'BTC',
+    amount: formatTokenAmount(absSat.toString(), 8),
+    direction,
+    counterparty,
+  };
+}
+
+function normalizeErc20(
+  chain: ChainId,
+  walletLc: string,
+  tx: BlockscoutErc20Tx,
+): WalletTransaction {
   const decimals = Number(tx.tokenDecimal) || 18;
   return {
     id: `${chain}:${tx.hash}:${tx.contractAddress.toLowerCase()}`,
@@ -147,9 +206,6 @@ const NATIVE_SYMBOL: Record<ChainId, string> = {
 export function useWalletTransactions(wallet: UserAddressDto | null): {
   data: WalletTransaction[];
   isLoading: boolean;
-  /** True only when the explorer API isn't configured — UI surfaces a
-   *  hint pointing the user at the env var setup. */
-  keyMissing: boolean;
   refetch: () => Promise<void>;
 } {
   const queryClient = useQueryClient();
@@ -163,6 +219,10 @@ export function useWalletTransactions(wallet: UserAddressDto | null): {
       // eslint-disable-next-line security/detect-object-injection -- CHAIN_KEYS is closed
       const c = CHAIN_KEYS[bc];
       if (!c || seen.has(c)) continue;
+      // Bitcoin uses mempool.space, every EVM chain uses Blockscout. Chains
+      // for which neither source is wired up (Lightning, Spark, BSC, …)
+      // get dropped silently — the user still sees the empty-state copy.
+      if (c !== 'bitcoin' && !isBlockscoutSupported(c)) continue;
       seen.add(c);
       out.push(c);
     }
@@ -174,7 +234,7 @@ export function useWalletTransactions(wallet: UserAddressDto | null): {
     return [...WALLET_TX_QUERY_KEY, addr, chains.join(',')] as const;
   }, [wallet, chains]);
 
-  const enabled = wallet !== null && chains.length > 0 && isEtherscanConfigured();
+  const enabled = wallet !== null && chains.length > 0;
 
   const { data, isLoading } = useQuery({
     queryKey,
@@ -182,28 +242,53 @@ export function useWalletTransactions(wallet: UserAddressDto | null): {
       if (!wallet) return [];
       const walletLc = wallet.address.toLowerCase();
 
-      const perChain = await Promise.all(
+      // Per-chain hard timeout so one hung Blockscout / mempool host
+      // doesn't keep the spinner up indefinitely. The free Blockscout
+      // hosts occasionally take >10s to respond under load; 15s leaves
+      // breathing room without making the UI feel dead.
+      const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T | null> =>
+        Promise.race<T | null>([
+          p,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+        ]);
+      const PER_CALL_TIMEOUT_MS = 15_000;
+
+      // `allSettled` so a single chain's failure (or timeout) doesn't
+      // hide every other chain's TX list — the user still sees the rows
+      // that did come back, instead of an infinite spinner.
+      const settled = await Promise.allSettled(
         chains.map(async (chain) => {
-          const [native, erc20] = await Promise.all([
-            getNormalTxs(chain, wallet.address),
-            getErc20Txs(chain, wallet.address),
-          ]);
           const txs: WalletTransaction[] = [];
-          if (native.ok) {
+          if (chain === 'bitcoin') {
+            const btc = await withTimeout(
+              fetchBtcTransactions(wallet.address),
+              PER_CALL_TIMEOUT_MS,
+            );
+            if (btc?.ok) {
+              for (const t of btc.value) txs.push(normalizeBtcTx(walletLc, t));
+            }
+            return txs;
+          }
+          const [native, erc20] = await Promise.all([
+            withTimeout(getNormalTxs(chain, wallet.address), PER_CALL_TIMEOUT_MS),
+            withTimeout(getErc20Txs(chain, wallet.address), PER_CALL_TIMEOUT_MS),
+          ]);
+          if (native?.ok) {
             // eslint-disable-next-line security/detect-object-injection -- closed ChainId map
             const sym = NATIVE_SYMBOL[chain] ?? '?';
             for (const t of native.value) txs.push(normalizeNative(chain, walletLc, t, sym));
           }
-          if (erc20.ok) {
+          if (erc20?.ok) {
             for (const t of erc20.value) txs.push(normalizeErc20(chain, walletLc, t));
           }
           return txs;
         }),
       );
+      const perChain = settled.map((r) => (r.status === 'fulfilled' ? r.value : []));
 
       const flat = perChain.flat();
       flat.sort((a, b) => b.timestamp - a.timestamp);
-      // Etherscan returns one tokentx row per ERC-20 transfer plus one
+      // Blockscout returns one tokentx row per ERC-20 transfer plus one
       // txlist row for the same hash if the wallet was also the native
       // sender (gas payment). Keep both — they read as separate events
       // (e.g. "Sent 100 USDC" + "Gas −0.0002 ETH"). De-duplicate only on
@@ -215,6 +300,7 @@ export function useWalletTransactions(wallet: UserAddressDto | null): {
     enabled,
     staleTime: STALE_TIME_MS,
     refetchInterval: REFETCH_INTERVAL_MS,
+    placeholderData: keepPreviousData,
   });
 
   const refetch = useMemo(
@@ -227,7 +313,6 @@ export function useWalletTransactions(wallet: UserAddressDto | null): {
   return {
     data: data ?? [],
     isLoading: enabled && isLoading,
-    keyMissing: wallet !== null && chains.length > 0 && !isEtherscanConfigured(),
     refetch,
   };
 }

@@ -6,14 +6,18 @@
  * without leaking state across cases.
  */
 
-function withEtherscanKey<T>(key: string | undefined, fn: (mod: typeof import('../../src/services/explorer/etherscan')) => T): T {
+function withEtherscanKey<T>(
+  key: string | undefined,
+  fn: (mod: typeof import('../../src/services/explorer/etherscan')) => T,
+): T {
   const previous = process.env.EXPO_PUBLIC_ETHERSCAN_API_KEY;
   if (key === undefined) delete process.env.EXPO_PUBLIC_ETHERSCAN_API_KEY;
   else process.env.EXPO_PUBLIC_ETHERSCAN_API_KEY = key;
   let result!: T;
   jest.isolateModules(() => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require('../../src/services/explorer/etherscan') as typeof import('../../src/services/explorer/etherscan');
+    const mod =
+      require('../../src/services/explorer/etherscan') as typeof import('../../src/services/explorer/etherscan');
     result = fn(mod);
   });
   if (previous === undefined) delete process.env.EXPO_PUBLIC_ETHERSCAN_API_KEY;
@@ -58,31 +62,34 @@ describe('etherscan explorer service', () => {
   describe('getNormalTxs', () => {
     it('returns the txlist payload on a successful call', async () => {
       await withEtherscanKey('TEST_KEY', async (mod) => {
-        const fetchImpl = jest.fn(async () =>
-          ({
-            ok: true,
-            status: 200,
-            json: async () => ({
-              status: '1',
-              message: 'OK',
-              result: [
-                {
-                  blockNumber: '100',
-                  timeStamp: '1700000000',
-                  hash: '0xabc',
-                  from: '0xfrom',
-                  to: '0xto',
-                  value: '1000000000000000000',
-                  gas: '21000',
-                  gasUsed: '21000',
-                  isError: '0',
-                  contractAddress: '',
-                },
-              ],
-            }),
-          }) as unknown as Response,
+        const fetchImpl = jest.fn(
+          async () =>
+            ({
+              ok: true,
+              status: 200,
+              json: async () => ({
+                status: '1',
+                message: 'OK',
+                result: [
+                  {
+                    blockNumber: '100',
+                    timeStamp: '1700000000',
+                    hash: '0xabc',
+                    from: '0xfrom',
+                    to: '0xto',
+                    value: '1000000000000000000',
+                    gas: '21000',
+                    gasUsed: '21000',
+                    isError: '0',
+                    contractAddress: '',
+                  },
+                ],
+              }),
+            }) as unknown as Response,
         );
-        const r = await mod.getNormalTxs('ethereum', '0xabc', { fetchImpl: fetchImpl as unknown as typeof fetch });
+        const r = await mod.getNormalTxs('ethereum', '0xabc', {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
         expect(r.ok).toBe(true);
         if (r.ok) expect(r.value).toHaveLength(1);
         expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -91,14 +98,17 @@ describe('etherscan explorer service', () => {
 
     it('treats "No transactions found" as an empty success', async () => {
       await withEtherscanKey('TEST_KEY', async (mod) => {
-        const fetchImpl = jest.fn(async () =>
-          ({
-            ok: true,
-            status: 200,
-            json: async () => ({ status: '0', message: 'No transactions found', result: [] }),
-          }) as unknown as Response,
+        const fetchImpl = jest.fn(
+          async () =>
+            ({
+              ok: true,
+              status: 200,
+              json: async () => ({ status: '0', message: 'No transactions found', result: [] }),
+            }) as unknown as Response,
         );
-        const r = await mod.getNormalTxs('ethereum', '0xabc', { fetchImpl: fetchImpl as unknown as typeof fetch });
+        const r = await mod.getNormalTxs('ethereum', '0xabc', {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
         expect(r).toEqual({ ok: true, value: [] });
       });
     });
@@ -106,7 +116,9 @@ describe('etherscan explorer service', () => {
     it('flags missing keys without hitting the network', async () => {
       await withEtherscanKey('', async (mod) => {
         const fetchImpl = jest.fn();
-        const r = await mod.getNormalTxs('ethereum', '0xabc', { fetchImpl: fetchImpl as unknown as typeof fetch });
+        const r = await mod.getNormalTxs('ethereum', '0xabc', {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
         expect(r.ok).toBe(false);
         if (!r.ok) expect(r.error.code).toBe('no-key');
         expect(fetchImpl).not.toHaveBeenCalled();
@@ -116,7 +128,9 @@ describe('etherscan explorer service', () => {
     it('flags non-EVM chains without hitting the network', async () => {
       await withEtherscanKey('TEST_KEY', async (mod) => {
         const fetchImpl = jest.fn();
-        const r = await mod.getNormalTxs('bitcoin', '0xabc', { fetchImpl: fetchImpl as unknown as typeof fetch });
+        const r = await mod.getNormalTxs('bitcoin', '0xabc', {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
         expect(r.ok).toBe(false);
         if (!r.ok) expect(r.error.code).toBe('no-chain');
         expect(fetchImpl).not.toHaveBeenCalled();
@@ -125,14 +139,17 @@ describe('etherscan explorer service', () => {
 
     it('surfaces Etherscan error messages', async () => {
       await withEtherscanKey('TEST_KEY', async (mod) => {
-        const fetchImpl = jest.fn(async () =>
-          ({
-            ok: true,
-            status: 200,
-            json: async () => ({ status: '0', message: 'NOTOK', result: 'Invalid API Key' }),
-          }) as unknown as Response,
+        const fetchImpl = jest.fn(
+          async () =>
+            ({
+              ok: true,
+              status: 200,
+              json: async () => ({ status: '0', message: 'NOTOK', result: 'Invalid API Key' }),
+            }) as unknown as Response,
         );
-        const r = await mod.getNormalTxs('ethereum', '0xabc', { fetchImpl: fetchImpl as unknown as typeof fetch });
+        const r = await mod.getNormalTxs('ethereum', '0xabc', {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
         expect(r.ok).toBe(false);
         if (!r.ok) {
           expect(r.error.code).toBe('error');
@@ -143,10 +160,12 @@ describe('etherscan explorer service', () => {
 
     it('surfaces HTTP failures', async () => {
       await withEtherscanKey('TEST_KEY', async (mod) => {
-        const fetchImpl = jest.fn(async () =>
-          ({ ok: false, status: 503, json: async () => ({}) }) as unknown as Response,
+        const fetchImpl = jest.fn(
+          async () => ({ ok: false, status: 503, json: async () => ({}) }) as unknown as Response,
         );
-        const r = await mod.getNormalTxs('ethereum', '0xabc', { fetchImpl: fetchImpl as unknown as typeof fetch });
+        const r = await mod.getNormalTxs('ethereum', '0xabc', {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
         expect(r.ok).toBe(false);
         if (!r.ok) {
           expect(r.error.code).toBe('http');

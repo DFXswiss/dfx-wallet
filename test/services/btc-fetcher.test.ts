@@ -24,45 +24,48 @@ describe('fetchBtcBalance', () => {
   });
 
   it('ignores mempool_stats — only confirmed balance counts', async () => {
-    const fetchImpl = jest.fn(async () =>
-      ({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          chain_stats: { funded_txo_sum: 1_000, spent_txo_sum: 0 },
-          mempool_stats: { funded_txo_sum: 5_000_000_000, spent_txo_sum: 0 },
-        }),
-      }) as unknown as Response,
+    const fetchImpl = jest.fn(
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            chain_stats: { funded_txo_sum: 1_000, spent_txo_sum: 0 },
+            mempool_stats: { funded_txo_sum: 5_000_000_000, spent_txo_sum: 0 },
+          }),
+        }) as unknown as Response,
     );
     const r = await fetchBtcBalance('addr', { fetchImpl });
     expect(r).toEqual({ rawBalance: '1000' });
   });
 
   it('clamps negative diffs to zero so a quirky response cannot underflow', async () => {
-    const fetchImpl = jest.fn(async () =>
-      ({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          chain_stats: { funded_txo_sum: 100, spent_txo_sum: 500 },
-        }),
-      }) as unknown as Response,
+    const fetchImpl = jest.fn(
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            chain_stats: { funded_txo_sum: 100, spent_txo_sum: 500 },
+          }),
+        }) as unknown as Response,
     );
     const r = await fetchBtcBalance('addr', { fetchImpl });
     expect(r).toEqual({ rawBalance: '0' });
   });
 
   it('reports HTTP failures as a typed error', async () => {
-    const fetchImpl = jest.fn(async () =>
-      ({ ok: false, status: 503, json: async () => ({}) }) as unknown as Response,
+    const fetchImpl = jest.fn(
+      async () => ({ ok: false, status: 503, json: async () => ({}) }) as unknown as Response,
     );
     const r = await fetchBtcBalance('addr', { fetchImpl });
     expect(r).toEqual({ error: 'HTTP 503' });
   });
 
   it('reports schema-mismatch responses', async () => {
-    const fetchImpl = jest.fn(async () =>
-      ({ ok: true, status: 200, json: async () => ({ chain_stats: {} }) }) as unknown as Response,
+    const fetchImpl = jest.fn(
+      async () =>
+        ({ ok: true, status: 200, json: async () => ({ chain_stats: {} }) }) as unknown as Response,
     );
     const r = await fetchBtcBalance('addr', { fetchImpl });
     expect(r).toEqual({ error: 'no chain_stats' });

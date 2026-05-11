@@ -91,10 +91,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   setBiometricEnabled: async (enabled) => {
-    if (enabled) {
-      const available = await isBiometricAvailable();
-      if (!available) return;
-    }
+    // Persist the user's preference unconditionally — the lock screen
+    // already gates `authenticateBiometric` on a live hardware check
+    // before prompting, so saving "enabled = true" on a simulator does
+    // no harm. Silently dropping the write here previously made the
+    // Settings toggle appear broken (it bounced straight back to off).
     await secureStorage.set(BIOMETRIC_KEY, String(enabled));
     set({ biometricEnabled: enabled });
   },

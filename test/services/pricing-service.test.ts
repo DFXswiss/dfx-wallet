@@ -30,8 +30,8 @@ describe('pricingService', () => {
   });
 
   const stubFetch = (payload: Record<string, Record<string, number>>): jest.Mock => {
-    const fn = jest.fn(async () =>
-      ({ ok: true, status: 200, json: async () => payload }) as unknown as Response,
+    const fn = jest.fn(
+      async () => ({ ok: true, status: 200, json: async () => payload }) as unknown as Response,
     );
     globalThis.fetch = fn as unknown as typeof fetch;
     return fn;
@@ -110,8 +110,8 @@ describe('pricingService', () => {
   });
 
   it('initialize throws on upstream failure and stays uninitialised', async () => {
-    const fetchMock = jest.fn(async () =>
-      ({ ok: false, status: 500, json: async () => ({}) }) as unknown as Response,
+    const fetchMock = jest.fn(
+      async () => ({ ok: false, status: 500, json: async () => ({}) }) as unknown as Response,
     );
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     await expect(pricingService.initialize()).rejects.toThrow(/CoinGecko HTTP 500/);

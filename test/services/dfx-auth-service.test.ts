@@ -99,9 +99,9 @@ describe('dfxAuthService.linkLnurlAddress', () => {
 
   it('throws when no session is active', async () => {
     dfxAuthService.adoptStoredToken(null);
-    await expect(
-      dfxAuthService.linkLnurlAddress('lnurl1abc', 'OWNERSHIP_PROOF'),
-    ).rejects.toThrow(/Not authenticated/);
+    await expect(dfxAuthService.linkLnurlAddress('lnurl1abc', 'OWNERSHIP_PROOF')).rejects.toThrow(
+      /Not authenticated/,
+    );
     expect(postSpy).not.toHaveBeenCalled();
   });
 
@@ -132,9 +132,7 @@ describe('dfxAuthService.linkLnurlAddress', () => {
 
   it('restores the previous token when DFX rejects the proof', async () => {
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
-    postSpy.mockRejectedValueOnce(
-      new DfxApiError(400, 'AUTH_FAILED', 'Invalid signature'),
-    );
+    postSpy.mockRejectedValueOnce(new DfxApiError(400, 'AUTH_FAILED', 'Invalid signature'));
 
     await expect(
       dfxAuthService.linkLnurlAddress('lnurl1abc', 'BAD_PROOF', { blockchain: 'Lightning' }),

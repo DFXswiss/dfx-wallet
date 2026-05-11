@@ -11,7 +11,8 @@ import { bundle } from '../.wdk';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { getWdkConfigs } from '@/config/chains';
-import { useAuthStore } from '@/store';
+import { pricingService } from '@/services/pricing-service';
+import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors } from '@/theme';
 import '@/i18n';
 
@@ -43,9 +44,20 @@ export default function RootLayout() {
   // (auth) layout's PIN gate can't detect "not authenticated" and would let
   // a restored deep route bypass PIN entirely.
   const { isHydrated, hydrate } = useAuthStore();
+  const hydrateWallet = useWalletStore((s) => s.hydrate);
   useEffect(() => {
     void hydrate();
-  }, [hydrate]);
+    void hydrateWallet();
+  }, [hydrate, hydrateWallet]);
+
+  // Keep the pricing singleton minute-fresh app-wide. The native EVM
+  // Portfolio cards consult `pricingService.getExchangeRate` instead
+  // of fetching their own `/simple/price`, so without this timer they
+  // showed the same rates from boot until the user pulled to refresh.
+  useEffect(() => {
+    pricingService.startAutoRefresh(60_000);
+    return () => pricingService.stopAutoRefresh();
+  }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

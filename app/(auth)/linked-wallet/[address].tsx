@@ -174,18 +174,25 @@ export default function LinkedWalletDetailScreen() {
     fiatCurrency,
     pricingReady,
   );
-  const walletDiscovery = wallet ? discovery.get(wallet.address.toLowerCase()) : undefined;
+  const rawWalletDiscovery = wallet ? discovery.get(wallet.address.toLowerCase()) : undefined;
+  // Sort the holdings card by fiat value DESC so the most-valuable asset
+  // sits at the top. Tokens missing a CoinGecko price (fiatValue null)
+  // sink to the bottom while keeping their relative order, mirroring the
+  // Portfolio rail's convention.
+  const walletDiscovery = useMemo(() => {
+    if (!rawWalletDiscovery) return undefined;
+    const sortedAssets = [...rawWalletDiscovery.assets].sort(
+      (a, b) => (b.fiatValue ?? -Infinity) - (a.fiatValue ?? -Infinity),
+    );
+    return { ...rawWalletDiscovery, assets: sortedAssets };
+  }, [rawWalletDiscovery]);
   const currencySymbol =
     fiatCurrency === FiatCurrency.CHF ? 'CHF' : fiatCurrency === FiatCurrency.EUR ? '€' : '$';
 
-  // Cross-chain transaction feed. Hidden while the explorer service has
-  // no API key — the UI then shows a hint pointing at the env var setup
-  // instead of an empty list with no explanation.
-  const {
-    data: transactions,
-    isLoading: txLoading,
-    keyMissing: txKeyMissing,
-  } = useWalletTransactions(wallet);
+  // Cross-chain transaction feed backed by Blockscout's free, no-key
+  // `txlist` + `tokentx` endpoints — always live, no env-var setup
+  // required.
+  const { data: transactions, isLoading: txLoading } = useWalletTransactions(wallet);
   // `now` is captured once per render so every relative timestamp in
   // the list anchors on the same reference instant — avoids the visual
   // jitter that comes from each row calling `Date.now()` itself.
@@ -320,16 +327,12 @@ export default function LinkedWalletDetailScreen() {
                   )}
                 </View>
 
-                {/* On-chain transaction feed — Etherscan-V2-unified
-                 *  txlist + tokentx merged chronologically across every
-                 *  chain this wallet lives on. No key configured? The
-                 *  block surfaces a localized hint instead of an empty
-                 *  list so the user knows why. */}
+                {/* On-chain transaction feed — Blockscout `txlist` +
+                 *  `tokentx` merged chronologically across every chain
+                 *  this wallet lives on. No API key required. */}
                 <View style={styles.section}>
                   <Text style={styles.sectionLabel}>{t('linkedWallet.transactions')}</Text>
-                  {txKeyMissing ? (
-                    <Text style={styles.emptyText}>{t('linkedWallet.txKeyMissing')}</Text>
-                  ) : txLoading && transactions.length === 0 ? (
+                  {txLoading && transactions.length === 0 ? (
                     <View style={styles.loadingBlock}>
                       <ActivityIndicator color={DfxColors.primary} />
                     </View>

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAccount, type IAsset } from '@tetherto/wdk-react-native-core';
 import { getEvmRpcUrl, type ChainId } from '@/config/chains';
 import { getAssetMeta } from '@/config/tokens';
@@ -120,6 +120,10 @@ export function useEvmBalances(assets: IAsset[], accountIndex = 0): BalanceSourc
     enabled,
     staleTime: STALE_TIME_MS,
     refetchInterval: REFETCH_INTERVAL_MS,
+    // Keep the previous result visible while a refetch — or a queryKey
+    // change like the currency flipping CHF → EUR — is in flight, so
+    // the Portfolio cards don't briefly drop to `0` or to a spinner.
+    placeholderData: keepPreviousData,
   });
 
   return {
