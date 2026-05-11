@@ -101,6 +101,7 @@ class PricingService {
   private cache: ExchangeRateMap | undefined;
   private isInitialized: boolean = false;
   private inflight: Promise<void> | null = null;
+  private autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
   private constructor() {}
 
@@ -171,6 +172,33 @@ class PricingService {
 
   isReady(): boolean {
     return this.isInitialized;
+  }
+
+  /**
+   * Re-fetch the curated price cache on a fixed interval so the
+   * Portfolio / Dashboard cards stay minute-fresh even when the user
+   * never pulls-to-refresh. Idempotent — multiple calls reuse the
+   * existing timer.
+   *
+   * Wired at the app root so the cache is warm everywhere the
+   * Singleton's `getPriceById` / `getExchangeRate` is consulted (native
+   * EVM cards in particular, since they don't fetch their own prices
+   * the way the linked-wallet discovery does).
+   */
+  startAutoRefresh(intervalMs: number = 60_000): void {
+    if (this.autoRefreshTimer) return;
+    this.autoRefreshTimer = setInterval(() => {
+      // Best-effort — swallow rejections (network blip, CoinGecko 429)
+      // so the timer keeps running and the next tick has a chance.
+      void this.refresh().catch(() => undefined);
+    }, intervalMs);
+  }
+
+  stopAutoRefresh(): void {
+    if (this.autoRefreshTimer) {
+      clearInterval(this.autoRefreshTimer);
+      this.autoRefreshTimer = null;
+    }
   }
 }
 

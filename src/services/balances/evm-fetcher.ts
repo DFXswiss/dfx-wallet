@@ -65,10 +65,17 @@ const chunk = <T>(arr: T[], size: number): T[][] => {
   return out;
 };
 
+/** Per-RPC-batch hard timeout. Public RPC nodes (publicnode, llamarpc, …)
+ *  occasionally stall for tens of seconds; without a ceiling the whole
+ *  portfolio spinner waits on the slowest chain forever. 15s is generous
+ *  enough that no healthy round-trip ever trips it. */
+const DEFAULT_RPC_TIMEOUT_MS = 15_000;
+
 export class EvmBalanceFetcher {
   constructor(
     private readonly resolveRpcUrl: (network: ChainId) => string | undefined,
     private readonly fetchImpl: typeof fetch = fetch,
+    private readonly rpcTimeoutMs: number = DEFAULT_RPC_TIMEOUT_MS,
   ) {}
 
   async fetch(
@@ -83,13 +90,18 @@ export class EvmBalanceFetcher {
       else byChain.set(spec.network, [spec]);
     }
 
-    const chainResults = await Promise.all(
+    // `allSettled` so a single chain rejecting (RPC down, JSON parse
+    // failure) doesn't drop the rest of the wallet's balances. Each
+    // `fetchChain` catches its own errors; we keep the wrapper as a
+    // belt-and-braces against unexpected throws.
+    const chainResults = await Promise.allSettled(
       Array.from(byChain.entries()).map(([network, chainSpecs]) =>
         this.fetchChain(network, chainSpecs, addressByChain.get(network)),
       ),
     );
-    for (const result of chainResults) {
-      for (const [assetId, entry] of result) out.set(assetId, entry);
+    for (const settled of chainResults) {
+      if (settled.status !== 'fulfilled') continue;
+      for (const [assetId, entry] of settled.value) out.set(assetId, entry);
     }
     return out;
   }
@@ -165,13 +177,25 @@ export class EvmBalanceFetcher {
   }
 
   private async postBatch(rpcUrl: string, batch: RpcRequest[]): Promise<RpcResponse[]> {
-    const res = await this.fetchImpl(rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(batch),
-    });
-    if (!res.ok) throw new Error(`rpc http ${res.status}`);
-    const json = (await res.json()) as RpcResponse | RpcResponse[];
-    return Array.isArray(json) ? json : [json];
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.rpcTimeoutMs);
+    try {
+      const res = await this.fetchImpl(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(batch),
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`rpc http ${res.status}`);
+      const json = (await res.json()) as RpcResponse | RpcResponse[];
+      return Array.isArray(json) ? json : [json];
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new Error(`rpc timeout after ${this.rpcTimeoutMs}ms`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }
