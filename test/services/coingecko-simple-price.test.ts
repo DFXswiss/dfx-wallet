@@ -3,15 +3,16 @@ import { FiatCurrency } from '../../src/services/pricing-service';
 
 describe('fetchSimplePrices', () => {
   it('returns the upstream price map keyed by coin id', async () => {
-    const fetchImpl = jest.fn(async () =>
-      ({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          bitcoin: { usd: 80000, chf: 70000 },
-          ethereum: { usd: 3000, chf: 2700 },
-        }),
-      }) as unknown as Response,
+    const fetchImpl = jest.fn(
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            bitcoin: { usd: 80000, chf: 70000 },
+            ethereum: { usd: 3000, chf: 2700 },
+          }),
+        }) as unknown as Response,
     );
     const result = await fetchSimplePrices(
       ['bitcoin', 'ethereum'],
@@ -23,14 +24,15 @@ describe('fetchSimplePrices', () => {
   });
 
   it('drops non-numeric entries silently', async () => {
-    const fetchImpl = jest.fn(async () =>
-      ({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          bitcoin: { usd: 'not-a-number', chf: 70000 },
-        }),
-      }) as unknown as Response,
+    const fetchImpl = jest.fn(
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            bitcoin: { usd: 'not-a-number', chf: 70000 },
+          }),
+        }) as unknown as Response,
     );
     const result = await fetchSimplePrices(['bitcoin'], [FiatCurrency.USD, FiatCurrency.CHF], {
       fetchImpl: fetchImpl as unknown as typeof fetch,
@@ -40,8 +42,8 @@ describe('fetchSimplePrices', () => {
 
   it('chunks long id lists into multiple network calls', async () => {
     const ids = Array.from({ length: 250 }, (_, i) => `coin-${i}`);
-    const fetchImpl = jest.fn(async () =>
-      ({ ok: true, status: 200, json: async () => ({}) }) as unknown as Response,
+    const fetchImpl = jest.fn(
+      async () => ({ ok: true, status: 200, json: async () => ({}) }) as unknown as Response,
     );
     await fetchSimplePrices(ids, [FiatCurrency.USD], {
       fetchImpl: fetchImpl as unknown as typeof fetch,
@@ -63,10 +65,7 @@ describe('fetchSimplePrices', () => {
         json: async () => ({ ethereum: { usd: 3000 } }),
       } as unknown as Response;
     });
-    const ids = [
-      ...Array.from({ length: 100 }, (_, i) => `coin-${i}`),
-      'ethereum',
-    ];
+    const ids = [...Array.from({ length: 100 }, (_, i) => `coin-${i}`), 'ethereum'];
     const result = await fetchSimplePrices(ids, [FiatCurrency.USD], {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });

@@ -246,7 +246,7 @@ export function useWalletTransactions(wallet: UserAddressDto | null): {
       // doesn't keep the spinner up indefinitely. The free Blockscout
       // hosts occasionally take >10s to respond under load; 15s leaves
       // breathing room without making the UI feel dead.
-      const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
+      const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T | null> =>
         Promise.race<T | null>([
           p,
           new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
@@ -260,7 +260,10 @@ export function useWalletTransactions(wallet: UserAddressDto | null): {
         chains.map(async (chain) => {
           const txs: WalletTransaction[] = [];
           if (chain === 'bitcoin') {
-            const btc = await withTimeout(fetchBtcTransactions(wallet.address), PER_CALL_TIMEOUT_MS);
+            const btc = await withTimeout(
+              fetchBtcTransactions(wallet.address),
+              PER_CALL_TIMEOUT_MS,
+            );
             if (btc?.ok) {
               for (const t of btc.value) txs.push(normalizeBtcTx(walletLc, t));
             }
