@@ -260,21 +260,21 @@ export default function SendScreen() {
 
   const renderConfirmStep = () => (
     <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>Confirm Transaction</Text>
+      <Text style={styles.stepTitle}>{t('send.confirmTransaction')}</Text>
 
       <View style={styles.summary}>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Network</Text>
+          <Text style={styles.summaryLabel}>{t('send.network')}</Text>
           <Text style={styles.summaryValue}>{selectedChain}</Text>
         </View>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>To</Text>
+          <Text style={styles.summaryLabel}>{t('send.recipient')}</Text>
           <Text style={styles.summaryValue} numberOfLines={1}>
             {recipient.slice(0, 10)}...{recipient.slice(-6)}
           </Text>
         </View>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Amount</Text>
+          <Text style={styles.summaryLabel}>{t('send.amount')}</Text>
           <Text style={styles.summaryValue}>
             {amount} {symbol}
           </Text>
@@ -292,17 +292,15 @@ export default function SendScreen() {
         </View>
       </View>
 
-      <Text style={styles.warning}>
-        Transactions are irreversible. Please verify the recipient address and amount.
-      </Text>
+      <Text style={styles.warning}>{t('send.irreversible')}</Text>
 
       {error && <Text style={styles.errorText}>{error}</Text>}
 
       <View style={styles.spacer} />
 
-      <PrimaryButton title="Confirm & Send" onPress={handleSend} loading={isLoading} />
+      <PrimaryButton title={t('common.confirm')} onPress={handleSend} loading={isLoading} />
       <PrimaryButton
-        title="Cancel"
+        title={t('common.cancel')}
         variant="outlined"
         onPress={() => {
           reset();
@@ -318,21 +316,25 @@ export default function SendScreen() {
   const renderSuccessStep = () => (
     <View style={styles.stepContent}>
       <View style={styles.successContainer}>
-        <Text style={styles.successIcon}>{'\u2705'}</Text>
-        <Text style={styles.successTitle}>Transaction Sent</Text>
+        <Text style={styles.successIcon}>{'\u2713'}</Text>
+        <Text style={styles.successTitle}>{t('send.sent')}</Text>
         <Text style={styles.successDescription}>
-          {amount} {symbol} sent to {recipient.slice(0, 10)}...{recipient.slice(-6)}
+          {t('send.sentDescription', {
+            amount,
+            symbol,
+            recipient: `${recipient.slice(0, 10)}...${recipient.slice(-6)}`,
+          })}
         </Text>
         {txHash && (
           <Text style={styles.txHash} selectable>
-            TX: {txHash.slice(0, 12)}...{txHash.slice(-8)}
+            {t('send.txHash', { hash: `${txHash.slice(0, 12)}...${txHash.slice(-8)}` })}
           </Text>
         )}
       </View>
 
       <View style={styles.spacer} />
 
-      <PrimaryButton title="Done" onPress={() => router.back()} />
+      <PrimaryButton title={t('common.done')} onPress={() => router.back()} />
     </View>
   );
 
@@ -414,17 +416,17 @@ const styles = StyleSheet.create({
   destinationCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
     padding: 16,
     gap: 14,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: DfxColors.primary,
   },
   destinationIcon: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 12,
     backgroundColor: DfxColors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
@@ -448,15 +450,16 @@ const styles = StyleSheet.create({
   assetCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
     padding: 18,
     gap: 14,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: DfxColors.border,
   },
   assetCardActive: {
     borderColor: DfxColors.primary,
+    backgroundColor: 'rgba(220,234,254,0.72)',
   },
   pressed: {
     opacity: 0.7,
@@ -494,7 +497,7 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   chainChip: {
-    backgroundColor: DfxColors.surface,
+    backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 14,
@@ -526,8 +529,10 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   input: {
-    backgroundColor: DfxColors.surface,
+    backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     padding: 16,
     color: DfxColors.text,
     ...Typography.bodyLarge,
@@ -540,8 +545,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scanButton: {
-    backgroundColor: DfxColors.surface,
+    backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     paddingHorizontal: 16,
     justifyContent: 'center',
   },
@@ -551,8 +558,10 @@ const styles = StyleSheet.create({
     color: DfxColors.primary,
   },
   summary: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     padding: 20,
     gap: 16,
   },
@@ -586,7 +595,15 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   successIcon: {
-    fontSize: 64,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: DfxColors.success,
+    color: DfxColors.white,
+    fontSize: 42,
+    lineHeight: 72,
+    textAlign: 'center',
+    overflow: 'hidden',
   },
   successTitle: {
     ...Typography.headlineMedium,

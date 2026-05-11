@@ -4,7 +4,12 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { ScreenContainer, PrimaryButton } from '@/components';
+import {
+  AppHeader,
+  DfxBackgroundScreen,
+  OnboardingStepIndicator,
+  PrimaryButton,
+} from '@/components';
 import {
   authenticatePasskey,
   setupPasskeyWallet,
@@ -46,45 +51,50 @@ export default function RestorePasskeyScreen() {
   };
 
   return (
-    <ScreenContainer>
-      <View style={styles.content}>
-        <Text style={styles.title}>{t('passkey.restoreTitle')}</Text>
-        <Text style={styles.description}>{t('passkey.restoreDescription')}</Text>
+    <DfxBackgroundScreen scrollable contentStyle={styles.content} testID="restore-passkey-screen">
+      <AppHeader
+        title={t('passkey.restoreTitle')}
+        onBack={() =>
+          router.canGoBack() ? router.back() : router.replace('/(onboarding)/welcome')
+        }
+        testID="restore-passkey"
+      />
+      <OnboardingStepIndicator current={1} />
 
-        <View style={styles.infoContainer}>
-          <Text style={styles.infoText}>{t('passkey.restoreInfo')}</Text>
-        </View>
+      <Text style={styles.description}>{t('passkey.restoreDescription')}</Text>
 
-        <View style={styles.spacer} />
-
-        <PrimaryButton
-          title={isRestoring ? t('common.loading') : t('passkey.restoreButton')}
-          onPress={handleRestore}
-          disabled={isRestoring}
-        />
+      <View style={styles.infoContainer}>
+        <Text style={styles.infoText}>{t('passkey.restoreInfo')}</Text>
       </View>
-    </ScreenContainer>
+
+      <View style={styles.spacer} />
+
+      <PrimaryButton
+        title={isRestoring ? t('common.loading') : t('passkey.restoreButton')}
+        onPress={handleRestore}
+        disabled={isRestoring}
+      />
+    </DfxBackgroundScreen>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    flex: 1,
-    paddingVertical: 24,
+    paddingTop: 4,
+    paddingBottom: 24,
     gap: 24,
-  },
-  title: {
-    ...Typography.headlineMedium,
-    color: DfxColors.text,
   },
   description: {
     ...Typography.bodyLarge,
     color: DfxColors.textSecondary,
+    textAlign: 'center',
   },
   infoContainer: {
-    backgroundColor: DfxColors.surface,
+    backgroundColor: 'rgba(255,255,255,0.9)',
     borderRadius: 12,
-    padding: 16,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
+    padding: 18,
   },
   infoText: {
     ...Typography.bodyMedium,

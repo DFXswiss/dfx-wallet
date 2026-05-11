@@ -37,7 +37,7 @@ export function AppHeader({ title, onBack, rightAction, testID }: Props) {
       <Pressable
         onPress={handleBack}
         hitSlop={12}
-        style={styles.iconSlot}
+        style={[styles.iconSlot, styles.iconButton]}
         accessibilityRole="button"
         accessibilityLabel="Back"
         testID={testID ? `${testID}-back` : undefined}
@@ -49,7 +49,7 @@ export function AppHeader({ title, onBack, rightAction, testID }: Props) {
         {title}
       </Text>
 
-      <View style={styles.iconSlot}>{rightAction}</View>
+      <View style={[styles.iconSlot, styles.iconButton]}>{rightAction}</View>
     </View>
   );
 }
@@ -63,10 +63,16 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   iconSlot: {
-    minWidth: 64,
-    height: 32,
-    alignItems: 'flex-start',
+    width: 40,
+    height: 40,
+    alignItems: 'center',
     justifyContent: 'center',
+  },
+  iconButton: {
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    borderWidth: 1,
+    borderColor: DfxColors.border,
   },
   title: {
     flex: 1,

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { AppHeader, ScreenContainer } from '@/components';
+import { AppHeader, DfxBackgroundScreen } from '@/components';
 import {
   authenticatePasskey,
   deriveMnemonicFromPrf,
@@ -135,7 +135,7 @@ export default function SeedExportScreen() {
   };
 
   return (
-    <ScreenContainer scrollable>
+    <DfxBackgroundScreen scrollable contentStyle={styles.screen} testID="seed-export-screen">
       <AppHeader
         title={t(isPasskey ? 'settings.seed' : 'settings.seedPhrase')}
         onBack={() => router.back()}
@@ -181,14 +181,17 @@ export default function SeedExportScreen() {
           </>
         )}
       </View>
-    </ScreenContainer>
+    </DfxBackgroundScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    paddingTop: 4,
+    paddingBottom: 32,
+  },
   content: {
-    flex: 1,
-    paddingVertical: 24,
+    paddingTop: 24,
     gap: 24,
   },
   title: {
@@ -201,8 +204,8 @@ const styles = StyleSheet.create({
   },
   revealButton: {
     padding: 48,
-    borderRadius: 16,
-    backgroundColor: DfxColors.surface,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.9)',
     borderWidth: 1,
     borderColor: DfxColors.border,
     borderStyle: 'dashed',
@@ -218,7 +221,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   warningContainer: {
-    backgroundColor: DfxColors.surface,
+    backgroundColor: 'rgba(255,255,255,0.9)',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: DfxColors.warning,
@@ -236,8 +239,10 @@ const styles = StyleSheet.create({
   wordCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: DfxColors.surface,
-    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 6,
