@@ -92,7 +92,7 @@ export default function PortfolioScreen() {
     };
   }, [isDfxAuthenticated]);
 
-  const linkedWallets = useMemo(() => {
+  const linkedWalletsUnordered = useMemo(() => {
     const lcActive = activeAddress?.toLowerCase() ?? null;
     return linkedAddresses.filter((a) => {
       const lc = a.address.toLowerCase();
@@ -108,10 +108,21 @@ export default function PortfolioScreen() {
   // out of the sum.
   const fiatCurrencyForLinked = resolveFiatCurrency(selectedCurrency);
   const { data: linkedDiscovery, refetch: refetchDiscovery } = useLinkedWalletDiscovery(
-    linkedWallets,
+    linkedWalletsUnordered,
     fiatCurrencyForLinked,
     pricingReady,
   );
+
+  // Sort the linked-wallet cards by fiat value DESC so the biggest
+  // wallet sits at the top — same convention every portfolio app on the
+  // market uses, and the user explicitly asked for it. Wallets that
+  // haven't reported a fiat sum yet (discovery still loading or
+  // unknown chain) sink to the bottom but keep their relative order.
+  const linkedWallets = useMemo(() => {
+    const fiatOf = (addr: string): number =>
+      linkedDiscovery.get(addr.toLowerCase())?.totalFiat ?? 0;
+    return [...linkedWalletsUnordered].sort((a, b) => fiatOf(b.address) - fiatOf(a.address));
+  }, [linkedWalletsUnordered, linkedDiscovery]);
 
   useEffect(() => {
     if (pricingService.isReady()) {

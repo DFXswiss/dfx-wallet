@@ -174,7 +174,18 @@ export default function LinkedWalletDetailScreen() {
     fiatCurrency,
     pricingReady,
   );
-  const walletDiscovery = wallet ? discovery.get(wallet.address.toLowerCase()) : undefined;
+  const rawWalletDiscovery = wallet ? discovery.get(wallet.address.toLowerCase()) : undefined;
+  // Sort the holdings card by fiat value DESC so the most-valuable asset
+  // sits at the top. Tokens missing a CoinGecko price (fiatValue null)
+  // sink to the bottom while keeping their relative order, mirroring the
+  // Portfolio rail's convention.
+  const walletDiscovery = useMemo(() => {
+    if (!rawWalletDiscovery) return undefined;
+    const sortedAssets = [...rawWalletDiscovery.assets].sort(
+      (a, b) => (b.fiatValue ?? -Infinity) - (a.fiatValue ?? -Infinity),
+    );
+    return { ...rawWalletDiscovery, assets: sortedAssets };
+  }, [rawWalletDiscovery]);
   const currencySymbol =
     fiatCurrency === FiatCurrency.CHF ? 'CHF' : fiatCurrency === FiatCurrency.EUR ? '€' : '$';
 
