@@ -192,11 +192,7 @@ export function useLinkedWalletDiscovery(
 
           /** Per-contract metadata for the EVM scan — keyed by the
            *  EvmBalanceFetcher's synthetic `assetId` so we can look up
-           *  symbol / decimals / coingeckoId after balances come back.
-           *  `prefetchedBalance` is set on the Blockscout path because
-           *  the `tokenlist` response already carries each balance — we
-           *  short-circuit the RPC roundtrip and push directly into
-           *  `assets` further down. */
+           *  symbol / decimals / coingeckoId after balances come back. */
           type ChainToken = {
             assetId: string;
             symbol: string;
@@ -204,13 +200,15 @@ export function useLinkedWalletDiscovery(
             contract: string;
             decimals: number;
             coingeckoId: string;
-            prefetchedBalance: string | null;
           };
           const tokenSpecs: ChainToken[] = [];
 
-          // Primary path: Blockscout `tokenlist`. Captures everything the
-          // wallet currently holds (not just the curated list) and gives
-          // us each balance for free.
+          // Primary path: Blockscout `tokenlist` for discovery. We use
+          // it ONLY to find out which contracts the address has ever
+          // touched — Blockscout's own balance index lags actual chain
+          // state by several minutes, so we ignore the balance it
+          // reports and re-read each contract via the JSON-RPC
+          // `balanceOf` fan-out further down (which is always at-head).
           if (isBlockscoutSupported(chain)) {
             try {
               const list = await getTokenList(chain, cleanAddress);
@@ -230,7 +228,6 @@ export function useLinkedWalletDiscovery(
                       contract: t.contractAddress,
                       decimals: t.decimals,
                       coingeckoId,
-                      prefetchedBalance: t.balance,
                     });
                   }
                 }
@@ -253,7 +250,6 @@ export function useLinkedWalletDiscovery(
                 contract: token.contract,
                 decimals: token.decimals,
                 coingeckoId: token.coingeckoId,
-                prefetchedBalance: null,
               });
             }
           }
@@ -281,35 +277,11 @@ export function useLinkedWalletDiscovery(
             return pricingService.getPriceById(coingeckoId, fiatCurrency);
           };
 
-          // Push prefetched (Blockscout) balances straight into `assets`
-          // — they already include the on-chain balance, so we don't need
-          // a JSON-RPC roundtrip for these tokens. Skip any token whose
-          // CoinGecko price is missing OR ≤ 0 (low-cap / no-liquidity
-          // entries the user doesn't want cluttering the holdings list).
-          const tokensNeedingFetch: ChainToken[] = [];
-          for (const t of tokenSpecs) {
-            if (t.prefetchedBalance == null) {
-              tokensNeedingFetch.push(t);
-              continue;
-            }
-            const balanceNum = toNumeric(formatBalance(t.prefetchedBalance, t.decimals));
-            if (balanceNum <= 0) continue;
-            const price = priceFor(t.coingeckoId);
-            if (price == null || price <= 0) continue;
-            const fiatValue = balanceNum * price;
-            if (fiatValue <= 0) continue;
-            anyKnown = true;
-            assets.push({
-              chain,
-              symbol: t.symbol,
-              name: t.name,
-              contract: t.contract,
-              rawBalance: t.prefetchedBalance,
-              balance: balanceNum,
-              fiatValue,
-            });
-          }
-
+          // Build the EVM spec list: native gas token (when the chain
+          // has one) + every discovered ERC-20. Every balance is read
+          // via JSON-RPC `eth_getBalance` / `balanceOf` so we read
+          // chain-head state, never a Blockscout index that lags by
+          // minutes.
           const specs: EvmAssetSpec[] = [];
           if (native) {
             specs.push({
@@ -319,7 +291,7 @@ export function useLinkedWalletDiscovery(
               tokenAddress: null,
             });
           }
-          for (const t of tokensNeedingFetch) {
+          for (const t of tokenSpecs) {
             specs.push({
               assetId: t.assetId,
               network: chain,
@@ -360,7 +332,7 @@ export function useLinkedWalletDiscovery(
                 continue;
               }
 
-              const token = tokensNeedingFetch.find((t) => t.assetId === spec.assetId);
+              const token = tokenSpecs.find((t) => t.assetId === spec.assetId);
               if (!token) continue;
               const balanceNum = toNumeric(formatBalance(r.rawBalance, token.decimals));
               if (balanceNum <= 0) continue;
