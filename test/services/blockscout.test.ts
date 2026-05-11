@@ -1,4 +1,9 @@
-import { getTokenList, isBlockscoutSupported } from '../../src/services/explorer/blockscout';
+import {
+  getErc20Txs,
+  getNormalTxs,
+  getTokenList,
+  isBlockscoutSupported,
+} from '../../src/services/explorer/blockscout';
 
 describe('blockscout explorer service', () => {
   describe('isBlockscoutSupported', () => {
@@ -115,6 +120,54 @@ describe('blockscout explorer service', () => {
         expect(r.error.code).toBe('error');
         expect(r.error.message).toMatch(/ECONNREFUSED/);
       }
+    });
+  });
+
+  describe('getNormalTxs + getErc20Txs', () => {
+    it('hit the right action + chain host without an API key', async () => {
+      const calls: string[] = [];
+      const fetchImpl = jest.fn(async (url: string) => {
+        calls.push(url);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ status: '1', message: 'OK', result: [] }),
+        } as unknown as Response;
+      });
+      const impl = fetchImpl as unknown as typeof fetch;
+      await getNormalTxs('base', '0xabc', { fetchImpl: impl });
+      await getErc20Txs('base', '0xabc', { fetchImpl: impl });
+      expect(calls[0]).toContain('base.blockscout.com');
+      expect(calls[0]).toContain('action=txlist');
+      expect(calls[1]).toContain('action=tokentx');
+      // No api-key parameter on any call — Blockscout's public endpoints
+      // are key-free, that's the whole point of the switch.
+      for (const url of calls) expect(url).not.toContain('apikey');
+    });
+
+    it('returns an empty list for the "No transactions found" sentinel', async () => {
+      const fetchImpl = jest.fn(
+        async () =>
+          ({
+            ok: true,
+            status: 200,
+            json: async () => ({ status: '0', message: 'No transactions found', result: [] }),
+          }) as unknown as Response,
+      );
+      const r = await getNormalTxs('base', '0xabc', {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      });
+      expect(r).toEqual({ ok: true, value: [] });
+    });
+
+    it('flags non-indexed chains without hitting the network', async () => {
+      const fetchImpl = jest.fn();
+      const r = await getNormalTxs('bitcoin', '0xabc', {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error.code).toBe('no-chain');
+      expect(fetchImpl).not.toHaveBeenCalled();
     });
   });
 });

@@ -7,7 +7,6 @@ import { fetchBtcBalance } from '@/services/balances/btc-fetcher';
 import { EvmBalanceFetcher, type EvmAssetSpec } from '@/services/balances/evm-fetcher';
 import type { UserAddressDto } from '@/services/dfx/dto';
 import { getTokenList, isBlockscoutSupported } from '@/services/explorer/blockscout';
-import { getErc20Txs, isEtherscanConfigured } from '@/services/explorer/etherscan';
 import { lookupCoinIds } from '@/services/pricing/coingecko-coins-list';
 import { fetchSimplePrices } from '@/services/pricing/coingecko-simple-price';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
@@ -158,16 +157,17 @@ export function useLinkedWalletDiscovery(
             continue;
           }
 
-          // EVM chain — native gas token + every ERC-20 we can either
-          // (a) discover from the address's `tokentx` history via the
-          // Etherscan-V2 unified API (needs EXPO_PUBLIC_ETHERSCAN_API_KEY),
-          // (b) discover from Blockscout's no-key `tokenlist` endpoint —
-          // returns the wallet's current ERC-20 holdings with balances
-          // already in hand, so we skip the per-contract RPC fan-out, or
-          // (c) fall back to the curated list if both dynamic paths fail.
-          // The dynamic paths capture anything the wallet ever held and
-          // are what unlocks "every CoinGecko-listed Base token we hold
-          // shows up automatically".
+          // EVM chain — native gas token + every ERC-20 the wallet
+          // currently holds. Primary discovery uses Blockscout's no-key
+          // `tokenlist` endpoint (each chain has its own public host),
+          // which returns every fungible ERC-20 the address holds with
+          // the current balance baked in. That short-circuits the
+          // per-contract JSON-RPC fan-out for those tokens.
+          //
+          // The curated `DISCOVERABLE_TOKENS_BY_CHAIN` list survives as
+          // a safety net for chains Blockscout doesn't index or for the
+          // rare case where the host is unreachable, so a freshly
+          // installed wallet still surfaces popular holdings.
           // eslint-disable-next-line security/detect-object-injection -- `chain` is a literal ChainId; NATIVE_ASSETS is a closed lookup
           const native = NATIVE_ASSETS[chain];
           const curatedTokens: DiscoverableToken[] = DISCOVERABLE_TOKENS_BY_CHAIN.get(chain) ?? [];
@@ -190,84 +190,36 @@ export function useLinkedWalletDiscovery(
           };
           const tokenSpecs: ChainToken[] = [];
 
-          if (isEtherscanConfigured()) {
-            try {
-              const txs = await getErc20Txs(chain, cleanAddress, { offset: 100 });
-              if (txs.ok) {
-                // Unique contracts in tokentx — preserve insertion order
-                // (most recent first per Etherscan's `sort=desc`).
-                const seen = new Set<string>();
-                const ordered: {
-                  contract: string;
-                  symbol: string;
-                  name: string;
-                  decimals: number;
-                }[] = [];
-                for (const t of txs.value) {
-                  const lcContract = t.contractAddress.toLowerCase();
-                  if (seen.has(lcContract)) continue;
-                  seen.add(lcContract);
-                  ordered.push({
-                    contract: t.contractAddress,
-                    symbol: t.tokenSymbol || 'ERC20',
-                    name: t.tokenName || t.tokenSymbol || 'Unknown',
-                    decimals: Number(t.tokenDecimal) || 18,
-                  });
-                }
-                // Filter to tokens that are on CoinGecko (user-spec).
-                const coinIdByContract = await lookupCoinIds(
-                  chain,
-                  ordered.map((o) => o.contract),
-                );
-                for (const t of ordered) {
-                  const coingeckoId = coinIdByContract.get(t.contract.toLowerCase());
-                  if (!coingeckoId) continue;
-                  tokenSpecs.push({
-                    assetId: `discovery:${chain}:${t.contract.toLowerCase()}`,
-                    symbol: t.symbol,
-                    name: t.name,
-                    contract: t.contract,
-                    decimals: t.decimals,
-                    coingeckoId,
-                    prefetchedBalance: null,
-                  });
-                }
-              }
-            } catch {
-              // Dynamic discovery errored — fall through to the curated
-              // path so the user still sees their popular holdings.
-            }
-          }
-
-          // No Etherscan key (or Etherscan failed) — try Blockscout's
-          // key-free token-list endpoint. It returns every ERC-20 the
-          // wallet currently holds with balances baked in, so a CoinGecko
-          // filter gives us the exact superset the user asked for.
-          if (tokenSpecs.length === 0 && isBlockscoutSupported(chain)) {
+          // Primary path: Blockscout `tokenlist`. Captures everything the
+          // wallet currently holds (not just the curated list) and gives
+          // us each balance for free.
+          if (isBlockscoutSupported(chain)) {
             try {
               const list = await getTokenList(chain, cleanAddress);
-              if (list.ok && list.value.length > 0) {
-                const coinIdByContract = await lookupCoinIds(
-                  chain,
-                  list.value.map((t) => t.contractAddress),
-                );
-                for (const t of list.value) {
-                  const coingeckoId = coinIdByContract.get(t.contractAddress.toLowerCase());
-                  if (!coingeckoId) continue;
-                  tokenSpecs.push({
-                    assetId: `discovery:${chain}:${t.contractAddress.toLowerCase()}`,
-                    symbol: t.symbol || 'ERC20',
-                    name: t.name || t.symbol || 'Unknown',
-                    contract: t.contractAddress,
-                    decimals: t.decimals,
-                    coingeckoId,
-                    prefetchedBalance: t.balance,
-                  });
+              if (list.ok) {
+                if (list.value.length > 0) {
+                  const coinIdByContract = await lookupCoinIds(
+                    chain,
+                    list.value.map((t) => t.contractAddress),
+                  );
+                  for (const t of list.value) {
+                    const coingeckoId = coinIdByContract.get(t.contractAddress.toLowerCase());
+                    if (!coingeckoId) continue;
+                    tokenSpecs.push({
+                      assetId: `discovery:${chain}:${t.contractAddress.toLowerCase()}`,
+                      symbol: t.symbol || 'ERC20',
+                      name: t.name || t.symbol || 'Unknown',
+                      contract: t.contractAddress,
+                      decimals: t.decimals,
+                      coingeckoId,
+                      prefetchedBalance: t.balance,
+                    });
+                  }
                 }
-                // Blockscout-reported scans count as a successful chain
-                // probe even when every entry was filtered out by the
-                // CoinGecko gate — drives the `—` placeholder semantics.
-                if (list.value.length > 0) anyKnown = true;
+                // A successful Blockscout probe counts the chain as
+                // "known" — drives the `—` placeholder semantics on the
+                // Portfolio card. Empty result is still a known-empty.
+                anyKnown = true;
               }
             } catch {
               // Blockscout errored — fall through to the curated path.

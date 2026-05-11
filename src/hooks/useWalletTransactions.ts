@@ -4,10 +4,10 @@ import type { ChainId } from '@/config/chains';
 import {
   getErc20Txs,
   getNormalTxs,
-  isEtherscanConfigured,
-  type NormalErc20Tx,
-  type NormalNativeTx,
-} from '@/services/explorer/etherscan';
+  isBlockscoutSupported,
+  type BlockscoutErc20Tx,
+  type BlockscoutNativeTx,
+} from '@/services/explorer/blockscout';
 import type { UserAddressDto } from '@/services/dfx/dto';
 
 /**
@@ -25,10 +25,12 @@ import type { UserAddressDto } from '@/services/dfx/dto';
  *     contract.
  *   - Sorted by timestamp DESC so the latest activity sits at the top.
  *
- * Etherscan-V2 free-tier rate-limit: 5 calls/sec, 100k/day. Each chain
- * fans out two calls (`txlist` + `tokentx`). React-query's staleTime
- * keeps us well under that ceiling even when several wallets get
- * inspected back-to-back.
+ * Backed by Blockscout's free, no-key `txlist` + `tokentx` endpoints —
+ * one public host per chain. Previously gated behind an Etherscan API
+ * key (`EXPO_PUBLIC_ETHERSCAN_API_KEY`); switching to Blockscout means
+ * the in-app feed Just Works on every wallet without provisioning a
+ * third-party key. React-query's staleTime keeps the fan-out (two
+ * calls per chain) well within Blockscout's public quotas.
  */
 
 export type WalletTxDirection = 'send' | 'receive' | 'self';
@@ -101,7 +103,7 @@ function directionFor(fromAddress: string, toAddress: string, walletLc: string):
 function normalizeNative(
   chain: ChainId,
   walletLc: string,
-  tx: NormalNativeTx,
+  tx: BlockscoutNativeTx,
   nativeSymbol: string,
 ): WalletTransaction {
   return {
@@ -116,7 +118,11 @@ function normalizeNative(
   };
 }
 
-function normalizeErc20(chain: ChainId, walletLc: string, tx: NormalErc20Tx): WalletTransaction {
+function normalizeErc20(
+  chain: ChainId,
+  walletLc: string,
+  tx: BlockscoutErc20Tx,
+): WalletTransaction {
   const decimals = Number(tx.tokenDecimal) || 18;
   return {
     id: `${chain}:${tx.hash}:${tx.contractAddress.toLowerCase()}`,
@@ -147,9 +153,6 @@ const NATIVE_SYMBOL: Record<ChainId, string> = {
 export function useWalletTransactions(wallet: UserAddressDto | null): {
   data: WalletTransaction[];
   isLoading: boolean;
-  /** True only when the explorer API isn't configured — UI surfaces a
-   *  hint pointing the user at the env var setup. */
-  keyMissing: boolean;
   refetch: () => Promise<void>;
 } {
   const queryClient = useQueryClient();
@@ -162,7 +165,7 @@ export function useWalletTransactions(wallet: UserAddressDto | null): {
     for (const bc of blockchains) {
       // eslint-disable-next-line security/detect-object-injection -- CHAIN_KEYS is closed
       const c = CHAIN_KEYS[bc];
-      if (!c || seen.has(c)) continue;
+      if (!c || seen.has(c) || !isBlockscoutSupported(c)) continue;
       seen.add(c);
       out.push(c);
     }
@@ -174,7 +177,7 @@ export function useWalletTransactions(wallet: UserAddressDto | null): {
     return [...WALLET_TX_QUERY_KEY, addr, chains.join(',')] as const;
   }, [wallet, chains]);
 
-  const enabled = wallet !== null && chains.length > 0 && isEtherscanConfigured();
+  const enabled = wallet !== null && chains.length > 0;
 
   const { data, isLoading } = useQuery({
     queryKey,
@@ -203,7 +206,7 @@ export function useWalletTransactions(wallet: UserAddressDto | null): {
 
       const flat = perChain.flat();
       flat.sort((a, b) => b.timestamp - a.timestamp);
-      // Etherscan returns one tokentx row per ERC-20 transfer plus one
+      // Blockscout returns one tokentx row per ERC-20 transfer plus one
       // txlist row for the same hash if the wallet was also the native
       // sender (gas payment). Keep both — they read as separate events
       // (e.g. "Sent 100 USDC" + "Gas −0.0002 ETH"). De-duplicate only on
@@ -227,7 +230,6 @@ export function useWalletTransactions(wallet: UserAddressDto | null): {
   return {
     data: data ?? [],
     isLoading: enabled && isLoading,
-    keyMissing: wallet !== null && chains.length > 0 && !isEtherscanConfigured(),
     refetch,
   };
 }
