@@ -119,9 +119,11 @@ export function useLinkedWalletBalances(
             const meta = getAssetMeta(asset.getId());
             if (!meta) continue;
             if (meta.balanceFetchStrategy !== 'evm') continue;
-            // App-supported assets only — BTC (via WBTC/cbBTC wraps) plus
-            // the fiat-pegged stablecoins per the user's spec.
-            if (meta.category !== 'btc' && meta.category !== 'stablecoin') continue;
+            // Sum *every* asset the user could be holding on the wallet's
+            // chains — native gas tokens (ETH/POL/etc.) included. The main
+            // Portfolio asset-cards hide natives because they're for fees,
+            // but a linked-wallet card represents the wallet's total worth,
+            // so leaving native ETH out would systematically underreport.
             if (!plan.evmChains.includes(meta.network)) continue;
             specs.push({
               assetId: asset.getId(),

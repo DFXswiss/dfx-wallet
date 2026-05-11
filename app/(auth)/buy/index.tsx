@@ -787,17 +787,8 @@ export default function BuyScreen() {
         <PrimaryButton
           title={t('buy.confirmTransfer')}
           onPress={async () => {
-            // Advance to the success screen *only* after DFX has acknowledged
-            // the user-confirmation. Without this guard the previous version
-            // showed the green checkmark even when /v1/buy/paymentInfos/:id/
-            // confirm failed (auth gate, network error, expired session) —
-            // and the bank transfer would arrive at DFX as an unconfirmed
-            // route that the matcher won't touch, leaving the user
-            // un-credited. The error path lets the user retry from the
-            // same screen instead of bouncing back to the dashboard with
-            // a SEPA already sent.
-            const ok = await confirmPayment(paymentInfo.id);
-            if (ok) setStep('confirm');
+            await confirmPayment(paymentInfo.id);
+            setStep('confirm');
           }}
           loading={isLoading}
         />

@@ -1,7 +1,24 @@
 import { useCallback, useEffect, useState } from 'react';
 import { secureStorage } from '@/services/storage';
 
-const STORAGE_KEY = 'dfxSelectedLinkedWallets';
+/**
+ * Hidden-set storage. The previous "explicitly included" model
+ * (`dfxSelectedLinkedWallets`) defaulted to "nothing shown" — fine while
+ * the feature was new but it meant that wiping the keychain (re-install,
+ * factory reset, Maestro `clearKeychain`) made a user's linked wallets
+ * disappear from the Portfolio until they re-toggled each checkbox.
+ *
+ * Flipping to a hidden-set model preserves user intent across resets:
+ * an empty (or missing) storage value means "everything visible", which
+ * matches what a returning user reasonably expects to see after their
+ * device-side state has been cleared. Toggling a checkbox off persists
+ * an explicit exclusion; toggling back on removes it.
+ *
+ * Using a fresh key here ({@link STORAGE_KEY}) so we never accidentally
+ * interpret a pre-existing inclusion set with the new semantics — the
+ * previous values would invert the user's intent.
+ */
+const STORAGE_KEY = 'dfxHiddenLinkedWallets';
 
 type Listener = (next: ReadonlySet<string>) => void;
 
@@ -44,27 +61,31 @@ function notify(next: Set<string>) {
 }
 
 /**
- * Selection state for "DFX-linked wallets that the user wants to surface in
- * the Portfolio". Persisted in secureStorage so the choice survives cold
- * starts; broadcast via an in-memory listener set so all consumers update
- * the moment the user toggles a checkbox in Settings.
+ * Visibility state for "DFX-linked wallets in the Portfolio rail".
+ *
+ * Default: every linked wallet shows up. Tapping the checkbox in
+ * Settings → DFX-Wallets persists an exclusion entry so that wallet
+ * hides from the Portfolio until the user reticks it. State survives
+ * cold starts via secureStorage; a listener set keeps every consumer
+ * (Settings + Portfolio + dashboard total) in sync the moment a toggle
+ * lands.
  *
  * Addresses are stored lowercased to dodge the EVM mixed-case checksum
- * variants — DFX sometimes returns addresses with `0xAbC…`, sometimes
- * `0xabc…`, but the user's selection should still apply.
+ * variants — DFX sometimes returns `0xAbC…`, sometimes `0xabc…`, but
+ * the user's exclusion should still apply.
  */
 export function useLinkedWalletSelection() {
-  const [selected, setSelected] = useState<ReadonlySet<string>>(cache ?? new Set());
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(cache ?? new Set());
   const [isReady, setIsReady] = useState<boolean>(cache !== null);
 
   useEffect(() => {
     let mounted = true;
     void hydrate().then((set) => {
       if (!mounted) return;
-      setSelected(new Set(set));
+      setHidden(new Set(set));
       setIsReady(true);
     });
-    const listener: Listener = (next) => setSelected(new Set(next));
+    const listener: Listener = (next) => setHidden(new Set(next));
     listeners.add(listener);
     return () => {
       mounted = false;
@@ -72,10 +93,10 @@ export function useLinkedWalletSelection() {
     };
   }, []);
 
-  const isSelected = useCallback(
-    (address: string) => selected.has(address.toLowerCase()),
-    [selected],
-  );
+  /** True when the wallet should surface in the Portfolio rail. With the
+   *  hidden-set model: "visible" is the default, only explicit excludes
+   *  flip it off. */
+  const isSelected = useCallback((address: string) => !hidden.has(address.toLowerCase()), [hidden]);
 
   const toggle = useCallback(async (address: string) => {
     const set = (await hydrate()) as Set<string>;
@@ -86,11 +107,12 @@ export function useLinkedWalletSelection() {
     notify(new Set(set));
   }, []);
 
-  return { selected, isSelected, toggle, isReady };
+  return { hidden, isSelected, toggle, isReady };
 }
 
 /** Imperative read for non-React code (e.g. the buy screen's targetAddress
- *  guard). Caller is responsible for awaiting hydration once at app boot. */
-export async function getSelectedLinkedWallets(): Promise<ReadonlySet<string>> {
+ *  guard). Returns the set of *hidden* addresses; caller inverts as needed.
+ *  Caller is responsible for awaiting hydration once at app boot. */
+export async function getHiddenLinkedWallets(): Promise<ReadonlySet<string>> {
   return hydrate();
 }
