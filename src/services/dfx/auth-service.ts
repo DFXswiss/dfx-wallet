@@ -129,6 +129,43 @@ export class DfxAuthService {
   }
 
   /**
+   * Switch the active address for the *currently authenticated DFX user*
+   * to another address that's already linked to the same account, without
+   * re-signing.
+   *
+   * Mirrors the path app.dfx.swiss uses: POST /v2/user/change with the
+   * target `address` in the body — the API verifies the address belongs
+   * to the JWT's `userDataId` and returns a fresh JWT scoped to that
+   * address. Downstream `/v1/buy/paymentInfos` then credits the chosen
+   * wallet because the JWT's address claim is what DFX' route matcher
+   * pivots on.
+   *
+   * Key difference from {@link loginAsAddressOwner}: no `signFn`. This
+   * unlocks "buy into another linked wallet" for wallets we cannot sign
+   * for locally (e.g. linked from another device) — the standing Bearer
+   * already proves account ownership.
+   *
+   * On failure restores the previous Bearer so the caller's session
+   * isn't left in a half-flipped state.
+   */
+  async changeActiveAddress(address: string): Promise<string> {
+    const previousToken = this.accessToken;
+    if (!previousToken) {
+      throw new Error('Not authenticated — sign in before switching addresses.');
+    }
+    try {
+      const response = await dfxApi.post<AuthResponseDto>('/v2/user/change', { address });
+      this.accessToken = response.accessToken;
+      dfxApi.setAuthToken(response.accessToken);
+      return response.accessToken;
+    } catch (err) {
+      this.accessToken = previousToken;
+      dfxApi.setAuthToken(previousToken);
+      throw err;
+    }
+  }
+
+  /**
    * LNURL counterpart to `loginAsAddressOwner`. Used when `linkLnurlAddress`
    * returns 409 — the LDS LNURL belongs to another DFX user, so we drop the
    * current Bearer and post /v1/auth with just the LNURL credentials. DFX

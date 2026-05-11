@@ -199,8 +199,7 @@ export default function SellScreen() {
       ? `${targetAddress.slice(0, 10)}…${targetAddress.slice(-6)}`
       : targetAddress
     : '';
-  const { reauthAs, canSignFor } = useLinkedWalletReauth();
-  const targetSignable = hasTargetWallet ? canSignFor(targetAddress!, targetBlockchain!) : true;
+  const { reauthAs } = useLinkedWalletReauth();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
@@ -438,9 +437,6 @@ export default function SellScreen() {
           </View>
         </View>
       ) : null}
-      {hasTargetWallet && !targetSignable ? (
-        <Text style={styles.errorText}>{t('linkedWallet.banner.notSignable')}</Text>
-      ) : null}
       <Text style={styles.stepSubtitle}>{t('sell.selectAsset')}</Text>
       <View style={styles.assetRow}>
         {SELL_ASSETS.map((asset) => (
@@ -632,13 +628,7 @@ export default function SellScreen() {
               }
               setStep('bank');
             }}
-            disabled={
-              !numAmount ||
-              numAmount <= 0 ||
-              belowMin ||
-              aboveMax ||
-              (hasTargetWallet && !targetSignable)
-            }
+            disabled={!numAmount || numAmount <= 0 || belowMin || aboveMax}
           />
         </>
       ) : null}

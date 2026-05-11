@@ -7,20 +7,27 @@ import { useLdsWallet } from './useLdsWallet';
 export type ReauthResult = { ok: true; token: string } | { ok: false; error: string };
 
 /**
- * Switch the DFX session to the owner of a different *linked* wallet.
+ * Switch the DFX session to one of the user's other linked wallets.
  *
- * The DFX `/buy/quote` and `/buy/paymentInfos` endpoints implicitly credit
- * the bank-transfer payout to whichever address the active JWT points at.
- * To buy *into* a different linked wallet (e.g. user's Lightning address
- * after signing in via Bitcoin) we drop the current Bearer and re-auth as
- * the target's owner via {@link DfxAuthService.loginAsAddressOwner} —
- * keeps the user inside the same merged DFX user account but pivots the
- * "active address" so subsequent calls land at the right wallet.
+ * Two paths, tried in that order:
  *
- * Only works for addresses we can sign for locally — i.e. derived from this
- * device's WDK seed (Bitcoin SegWit + EVM family) or the LDS-managed
- * Lightning identity. Returns `{ ok: false }` for non-signable targets so
- * the UI can surface a hint instead of getting stuck on a stale signature.
+ *   1. **`changeActiveAddress` (no signature required).** Mirrors
+ *      app.dfx.swiss: `POST /v2/user/change` with the target address
+ *      lets the DFX backend rotate the JWT to the chosen linked wallet
+ *      because the standing Bearer already proves account ownership.
+ *      This is what unlocks "buy into a wallet linked from another
+ *      device" — we don't need the wallet's private key locally to
+ *      credit a SEPA there.
+ *
+ *   2. **`loginAsAddressOwner` (sign challenge).** Used only when (1)
+ *      fails — typically because the target wallet is on a *different*
+ *      DFX account (409 from `linkAddress`) and we need to drop the
+ *      current session entirely. Works only for addresses derived from
+ *      this device's WDK seed (BTC SegWit, EVM family) or the LDS
+ *      Lightning identity.
+ *
+ * Lightning is special-cased to LDS-LNURL re-auth (the WDK Spark
+ * signature is rejected by DFX' /v1/auth verifier).
  */
 export function useLinkedWalletReauth() {
   const btc = useAccount({ network: 'bitcoin', accountIndex: 0 });
@@ -29,6 +36,22 @@ export function useLinkedWalletReauth() {
 
   const reauthAs = useCallback(
     async (address: string, blockchain: string): Promise<ReauthResult> => {
+      // Path 1: cheap server-side switch via /v2/user/change. Works for
+      // any wallet linked to the same DFX account, regardless of where
+      // it was originally signed in from. We try this first because the
+      // typical case is exactly that — the user linked the wallet
+      // through DFX, so a JWT-rotation suffices and no biometric/sign
+      // prompt fires.
+      try {
+        const token = await dfxAuthService.changeActiveAddress(address);
+        await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
+        return { ok: true, token };
+      } catch {
+        // Falls through to the per-blockchain sign re-auth.
+      }
+
+      // Path 2: full sign re-auth — only viable when the wallet is
+      // locally signable (Bitcoin SegWit, EVM family, LDS Lightning).
       try {
         if (blockchain === 'Lightning') {
           const user = lds.user ?? (await lds.signIn());
@@ -60,10 +83,6 @@ export function useLinkedWalletReauth() {
           return { ok: true, token };
         }
 
-        // The whole EVM family (Ethereum + L2s) shares one local WDK
-        // address — the same signature is accepted by DFX for any of
-        // Ethereum/Arbitrum/Polygon/Base because the verifier checks the
-        // EOA, not the chain id.
         if (
           blockchain === 'Ethereum' ||
           blockchain === 'Arbitrum' ||
@@ -96,26 +115,14 @@ export function useLinkedWalletReauth() {
   );
 
   /**
-   * Quick check whether a given (address, blockchain) is signable on this
-   * device — surfaces the "linked from another device" case without paying
-   * the round-trip of an actual /v1/auth attempt.
+   * Whether a given (address, blockchain) can be activated for buy/sell.
+   * Returns `true` unconditionally now — the `change`-path of `reauthAs`
+   * works for every linked wallet on the same DFX account regardless of
+   * whether we have the private key. The buy/sell UI uses this to keep
+   * the Continue button enabled; failures still surface in the modal's
+   * error path if the server-side switch is rejected.
    */
-  const canSignFor = useCallback(
-    (address: string, blockchain: string): boolean => {
-      const lc = address.toLowerCase();
-      if (blockchain === 'Lightning') return true;
-      if (blockchain === 'Bitcoin') return btc.address?.toLowerCase() === lc;
-      if (
-        blockchain === 'Ethereum' ||
-        blockchain === 'Arbitrum' ||
-        blockchain === 'Polygon' ||
-        blockchain === 'Base'
-      )
-        return eth.address?.toLowerCase() === lc;
-      return false;
-    },
-    [btc.address, eth.address],
-  );
+  const canSignFor = useCallback((_address: string, _blockchain: string): boolean => true, []);
 
   return { reauthAs, canSignFor };
 }

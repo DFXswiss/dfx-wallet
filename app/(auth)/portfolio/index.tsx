@@ -1,6 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ImageBackground,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@/components';
@@ -18,7 +27,7 @@ import {
 import {
   defaultLinkedWalletName,
   useEnabledChains,
-  useLinkedWalletFiat,
+  useLinkedWalletDiscovery,
   useLinkedWalletNames,
   useLinkedWalletSelection,
 } from '@/hooks';
@@ -92,15 +101,14 @@ export default function PortfolioScreen() {
     });
   }, [linkedAddresses, activeAddress, isSelected]);
 
-  // Per-wallet fiat lookup. Uses local WDK balances when the linked
-  // wallet's address matches a local account (fast, no extra round-trip)
-  // and falls back to direct JSON-RPC + mempool.space for wallets linked
-  // from another device. No-op while `linkedWallets` is empty.
+  // Per-wallet on-chain asset discovery. Scans the curated
+  // `DISCOVERABLE_TOKENS` list against each linked wallet's chains so the
+  // card sum reflects what the user is actually holding — not just BTC +
+  // app-supported stablecoins. Filters tokens without a CoinGecko price
+  // out of the sum.
   const fiatCurrencyForLinked = resolveFiatCurrency(selectedCurrency);
-  const { data: linkedBalances } = useLinkedWalletFiat(
+  const { data: linkedDiscovery, refetch: refetchDiscovery } = useLinkedWalletDiscovery(
     linkedWallets,
-    assetConfigs,
-    balances,
     fiatCurrencyForLinked,
     pricingReady,
   );
@@ -179,24 +187,50 @@ export default function PortfolioScreen() {
     });
   }, [assetConfigs, balances, fiatCurrency, pricingReady]);
 
-  // Include the selected DFX-linked wallets in the headline total so the
-  // user reads a single number that matches what's visible on the screen
-  // (asset cards above + linked-wallet cards below). The hook returns
-  // `0` for wallets we couldn't resolve — those simply contribute nothing
-  // instead of erroring or hiding the headline.
+  // Headline total = local WDK groups + selected linked-wallet discovery
+  // fiat. Wallets the discovery couldn't resolve contribute nothing
+  // instead of zeroing the headline.
   const linkedWalletsFiat = useMemo(() => {
     let sum = 0;
     for (const wallet of linkedWallets) {
-      const entry = linkedBalances.get(wallet.address.toLowerCase());
-      if (entry?.known) sum += entry.fiatValue;
+      const entry = linkedDiscovery.get(wallet.address.toLowerCase());
+      if (entry?.known) sum += entry.totalFiat;
     }
     return sum;
-  }, [linkedWallets, linkedBalances]);
+  }, [linkedWallets, linkedDiscovery]);
 
   const totalFiat = useMemo(
     () => groups.reduce((sum, g) => sum + g.totalFiat, 0) + linkedWalletsFiat,
     [groups, linkedWalletsFiat],
   );
+
+  // Pull-to-refresh: invalidates every balance + pricing source so the
+  // user gets a fresh round-trip rather than the staleTime-cached view.
+  const queryClient = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        pricingService.refresh().catch(() => undefined),
+        queryClient.invalidateQueries({ queryKey: ['balances'] }),
+        refetchDiscovery(),
+        // Re-pull the DFX user payload so a newly-linked wallet shows up
+        // immediately after the user adds it on another device.
+        isDfxAuthenticated
+          ? dfxUserService
+              .getUser()
+              .then((user) => {
+                setLinkedAddresses(user.addresses ?? []);
+                setActiveAddress(user.activeAddress?.address ?? null);
+              })
+              .catch(() => undefined)
+          : Promise.resolve(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [isDfxAuthenticated, queryClient, refetchDiscovery]);
 
   return (
     <>
@@ -235,6 +269,14 @@ export default function PortfolioScreen() {
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={DfxColors.primary}
+                colors={[DfxColors.primary]}
+              />
+            }
           >
             <View style={styles.totalCard}>
               <Text style={styles.totalLabel}>{t('portfolio.totalValue')}</Text>
@@ -272,7 +314,7 @@ export default function PortfolioScreen() {
                 <Text style={styles.linkedSectionLabel}>{t('portfolio.linkedWallets')}</Text>
                 <View style={styles.linkedList}>
                   {linkedWallets.map((wallet) => {
-                    const entry = linkedBalances.get(wallet.address.toLowerCase());
+                    const entry = linkedDiscovery.get(wallet.address.toLowerCase());
                     const displayName =
                       getName(wallet.address) ?? defaultLinkedWalletName(wallet.blockchain);
                     return (
@@ -281,7 +323,7 @@ export default function PortfolioScreen() {
                         wallet={wallet}
                         displayName={displayName}
                         currencySymbol={currencySymbol}
-                        fiatValue={entry?.fiatValue ?? 0}
+                        fiatValue={entry?.totalFiat ?? 0}
                         fiatKnown={entry?.known ?? false}
                         onPress={() =>
                           router.push({

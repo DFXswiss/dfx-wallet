@@ -233,8 +233,7 @@ export default function BuyScreen() {
       ? `${targetAddress.slice(0, 10)}…${targetAddress.slice(-6)}`
       : targetAddress
     : '';
-  const { reauthAs, canSignFor } = useLinkedWalletReauth();
-  const targetSignable = hasTargetWallet ? canSignFor(targetAddress!, targetBlockchain!) : true;
+  const { reauthAs } = useLinkedWalletReauth();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
@@ -461,9 +460,6 @@ export default function BuyScreen() {
           </View>
         </View>
       ) : null}
-      {hasTargetWallet && !targetSignable ? (
-        <Text style={styles.errorText}>{t('linkedWallet.banner.notSignable')}</Text>
-      ) : null}
       <Text style={styles.stepSubtitle}>{t('buy.selectAsset')}</Text>
       <View style={styles.assetRow}>
         {BUY_ASSETS.map((asset) => (
@@ -688,14 +684,7 @@ export default function BuyScreen() {
               });
               if (info) setStep('payment');
             }}
-            disabled={
-              !numAmount ||
-              numAmount <= 0 ||
-              belowMin ||
-              aboveMax ||
-              unsupportedChain ||
-              (hasTargetWallet && !targetSignable)
-            }
+            disabled={!numAmount || numAmount <= 0 || belowMin || aboveMax || unsupportedChain}
             loading={isLoading}
           />
         </>

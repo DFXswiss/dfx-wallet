@@ -246,9 +246,14 @@
         "title": "Confirm sale"
       }
     },
+    "assetsEmpty": "No holdings detected yet. Pull to refresh once the scan completes.",
+    "assetsLabel": "Holdings",
     "loadError": "Could not load wallet details.",
     "notFound": "This wallet is not linked to your DFX profile.",
     "note": "Each buy or sell from a linked wallet asks for an extra confirmation so that no asset reaches the wrong account.",
+    "openOnExplorer": "View on {{chain}} explorer",
+    "txEmpty": "No transactions found for this wallet.",
+    "txKeyMissing": "Set EXPO_PUBLIC_ETHERSCAN_API_KEY to enable the in-app transaction feed (free signup at etherscan.io/apis).",
     "reauthError": {
       "addressMismatch": "This wallet was linked from another device, so it can't be used from here.",
       "generic": "Could not switch to this wallet. Please try again."
@@ -259,8 +264,7 @@
       "title": "Rename wallet"
     },
     "title": "DFX Wallet",
-    "transactions": "View all transactions",
-    "transactionsHint": "All DFX transactions for your account"
+    "transactions": "Transactions"
   },
   "multiSig": {
     "backup": {
