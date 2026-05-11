@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { ScreenContainer, PrimaryButton } from '@/components';
+import { DfxBackgroundScreen, Icon, PrimaryButton } from '@/components';
 import { isPasskeySupported } from '@/services/passkey';
 import { DfxColors, Typography } from '@/theme';
 
@@ -12,79 +12,114 @@ export default function WelcomeScreen() {
   const [showRestore, setShowRestore] = useState(false);
   const passkeySupported = isPasskeySupported();
 
+  const handleBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  };
+
   return (
-    <ScreenContainer>
-      <View style={styles.content} testID="welcome-screen">
-        <View style={styles.header}>
-          <Image source={require('../../assets/icon.png')} style={styles.logo} />
-          <Text style={styles.title}>{t('onboarding.title')}</Text>
-          <Text style={styles.subtitle}>{t('onboarding.subtitle')}</Text>
-        </View>
-
-        <View style={styles.actions}>
-          {passkeySupported && (
-            <PrimaryButton
-              title={t('onboarding.createPasskey')}
-              onPress={() => router.push('/(onboarding)/create-passkey')}
-              testID="welcome-create-passkey-button"
-            />
-          )}
-          <PrimaryButton
-            testID="welcome-create-wallet-button"
-            title={t('onboarding.createWallet')}
-            onPress={() => router.push('/(onboarding)/create-wallet')}
-            {...(passkeySupported ? { variant: 'outlined' as const } : {})}
-          />
-
-          <Pressable testID="welcome-restore-toggle" onPress={() => setShowRestore(!showRestore)}>
-            <Text style={styles.restoreToggle}>{t('onboarding.restoreWallet')}</Text>
-          </Pressable>
-
-          {showRestore && (
-            <View style={styles.restoreOptions}>
-              {passkeySupported && (
-                <Pressable
-                  testID="welcome-restore-passkey-button"
-                  style={({ pressed }) => [styles.restoreOption, pressed && styles.pressed]}
-                  onPress={() => router.push('/(onboarding)/restore-passkey')}
-                >
-                  <Text style={styles.restoreOptionText}>{t('onboarding.restorePasskey')}</Text>
-                </Pressable>
-              )}
-              <Pressable
-                testID="welcome-restore-seed-button"
-                style={({ pressed }) => [styles.restoreOption, pressed && styles.pressed]}
-                onPress={() => router.push('/(onboarding)/restore-wallet')}
-              >
-                <Text style={styles.restoreOptionText}>{t('onboarding.restoreSeed')}</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
+    <DfxBackgroundScreen contentStyle={styles.content} testID="welcome-screen">
+      <View style={styles.topBar}>
+        <Pressable
+          onPress={handleBack}
+          hitSlop={12}
+          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          testID="welcome-back-button"
+        >
+          <Icon name="arrow-left" size={24} color={DfxColors.text} />
+        </Pressable>
       </View>
-    </ScreenContainer>
+
+      <View style={styles.header}>
+        <Image
+          source={require('../../assets/dfx-logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <Text style={styles.title}>{t('onboarding.title')}</Text>
+        <Text style={styles.subtitle}>{t('onboarding.subtitle')}</Text>
+      </View>
+
+      <View style={styles.actions}>
+        {passkeySupported && (
+          <PrimaryButton
+            title={t('onboarding.createPasskey')}
+            onPress={() => router.push('/(onboarding)/create-passkey')}
+            testID="welcome-create-passkey-button"
+          />
+        )}
+        <PrimaryButton
+          testID="welcome-create-wallet-button"
+          title={t('onboarding.createWallet')}
+          onPress={() => router.push('/(onboarding)/create-wallet')}
+          {...(passkeySupported ? { variant: 'outlined' as const } : {})}
+        />
+
+        <Pressable testID="welcome-restore-toggle" onPress={() => setShowRestore(!showRestore)}>
+          <Text style={styles.restoreToggle}>{t('onboarding.restoreWallet')}</Text>
+        </Pressable>
+
+        {showRestore && (
+          <View style={styles.restoreOptions}>
+            {passkeySupported && (
+              <Pressable
+                testID="welcome-restore-passkey-button"
+                style={({ pressed }) => [styles.restoreOption, pressed && styles.pressed]}
+                onPress={() => router.push('/(onboarding)/restore-passkey')}
+              >
+                <Text style={styles.restoreOptionText}>{t('onboarding.restorePasskey')}</Text>
+              </Pressable>
+            )}
+            <Pressable
+              testID="welcome-restore-seed-button"
+              style={({ pressed }) => [styles.restoreOption, pressed && styles.pressed]}
+              onPress={() => router.push('/(onboarding)/restore-wallet')}
+            >
+              <Text style={styles.restoreOptionText}>{t('onboarding.restoreSeed')}</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
+    </DfxBackgroundScreen>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    flex: 1,
     justifyContent: 'space-between',
-    paddingVertical: 48,
+    paddingTop: 4,
+    paddingBottom: 16,
+  },
+  topBar: {
+    height: 44,
+    justifyContent: 'center',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    borderWidth: 1,
+    borderColor: DfxColors.border,
   },
   header: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
+    gap: 12,
+    paddingBottom: 24,
   },
   logo: {
-    width: 96,
-    height: 96,
-    marginBottom: 24,
+    width: 172,
+    height: 54,
+    marginBottom: 20,
   },
   title: {
-    ...Typography.headlineLarge,
+    ...Typography.headlineMedium,
     color: DfxColors.text,
     textAlign: 'center',
   },
@@ -94,22 +129,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   actions: {
-    gap: 16,
+    gap: 14,
   },
   restoreToggle: {
     ...Typography.bodyLarge,
     color: DfxColors.primary,
     textAlign: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10,
+    fontWeight: '500',
   },
   restoreOptions: {
     gap: 8,
   },
   restoreOption: {
-    paddingVertical: 14,
+    paddingVertical: 16,
     paddingHorizontal: 16,
-    backgroundColor: DfxColors.surface,
+    backgroundColor: 'rgba(255,255,255,0.9)',
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
   },
   pressed: {
     opacity: 0.7,

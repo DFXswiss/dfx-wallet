@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { ScreenContainer } from '@/components';
+import { DfxBackgroundScreen, OnboardingStepIndicator } from '@/components';
 import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
@@ -12,7 +12,7 @@ type SetupError = 'mismatch' | 'save';
 export default function SetupPinScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { setPin, setOnboarded, setAuthenticated } = useAuthStore();
+  const { setPin, setAuthenticated } = useAuthStore();
   const [pin, setPinValue] = useState('');
   const [step, setStep] = useState<'create' | 'confirm'>('create');
   const [firstPin, setFirstPin] = useState('');
@@ -43,7 +43,6 @@ export default function SetupPinScreen() {
   const completeSetup = async (pinValue: string) => {
     try {
       await setPin(pinValue);
-      await setOnboarded(true);
       setAuthenticated(true);
       router.replace('/(onboarding)/legal-disclaimer');
     } catch (err) {
@@ -62,63 +61,70 @@ export default function SetupPinScreen() {
   };
 
   return (
-    <ScreenContainer>
-      <View
-        style={styles.content}
-        testID={step === 'create' ? 'setup-pin-screen' : 'setup-pin-confirm-screen'}
-      >
-        <Text style={styles.title}>{step === 'create' ? 'Create PIN' : 'Confirm PIN'}</Text>
-        <Text style={styles.description}>
-          {step === 'create'
-            ? 'Choose a 6-digit PIN to secure your wallet.'
-            : 'Enter your PIN again to confirm.'}
+    <DfxBackgroundScreen
+      contentStyle={styles.content}
+      testID={step === 'create' ? 'setup-pin-screen' : 'setup-pin-confirm-screen'}
+    >
+      <Image
+        source={require('../../assets/dfx-logo.png')}
+        style={styles.logo}
+        resizeMode="contain"
+        accessibilityLabel="DFX"
+      />
+      <OnboardingStepIndicator current={2} />
+      <Text style={styles.title}>{step === 'create' ? t('pin.create') : t('pin.confirm')}</Text>
+      <Text style={styles.description}>
+        {step === 'create' ? t('pin.createDescription') : t('pin.confirmDescription')}
+      </Text>
+      {error && (
+        <Text style={styles.error} testID="setup-pin-error">
+          {error === 'save' ? t('pin.saveError') : t('pin.mismatch')}
         </Text>
-        {error && (
-          <Text style={styles.error} testID="setup-pin-error">
-            {error === 'save' ? t('pin.saveError') : t('pin.mismatch')}
-          </Text>
-        )}
+      )}
 
-        <View style={styles.dots} testID="setup-pin-dots">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <View
-              key={i}
-              style={[styles.dot, i < pin.length && styles.dotFilled, error && styles.dotError]}
-            />
-          ))}
-        </View>
-
-        <View style={styles.numpad}>
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((key) => {
-            if (key === '') {
-              return <View key={key} style={styles.numpadKey} />;
-            }
-            return (
-              <Pressable
-                key={key}
-                testID={key === 'del' ? 'pin-key-delete' : `pin-key-${key}`}
-                style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
-                onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
-                android_ripple={{ color: DfxColors.surfaceLight, borderless: false, radius: 36 }}
-                accessibilityRole="button"
-                accessibilityLabel={key === 'del' ? 'Delete' : key}
-              >
-                <Text style={styles.numpadText}>{key === 'del' ? '\u232B' : key}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+      <View style={styles.dots} testID="setup-pin-dots">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <View
+            key={i}
+            style={[styles.dot, i < pin.length && styles.dotFilled, error && styles.dotError]}
+          />
+        ))}
       </View>
-    </ScreenContainer>
+
+      <View style={styles.numpad}>
+        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((key) => {
+          if (key === '') {
+            return <View key={key} style={styles.numpadKey} />;
+          }
+          return (
+            <Pressable
+              key={key}
+              testID={key === 'del' ? 'pin-key-delete' : `pin-key-${key}`}
+              style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
+              onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
+              android_ripple={{ color: DfxColors.surfaceLight, borderless: false, radius: 36 }}
+              accessibilityRole="button"
+              accessibilityLabel={key === 'del' ? 'Delete' : key}
+            >
+              <Text style={styles.numpadText}>{key === 'del' ? '\u232B' : key}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </DfxBackgroundScreen>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    flex: 1,
     alignItems: 'center',
     paddingVertical: 48,
-    gap: 24,
+    gap: 18,
+  },
+  logo: {
+    width: 160,
+    height: 44,
+    marginBottom: 8,
   },
   title: {
     ...Typography.headlineMedium,
@@ -167,7 +173,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   numpadKeyPressed: {
-    backgroundColor: DfxColors.surfaceLight,
+    backgroundColor: 'rgba(255,255,255,0.6)',
   },
   numpadText: {
     color: DfxColors.text,
