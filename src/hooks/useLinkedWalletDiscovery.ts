@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getEvmRpcUrl, type ChainId } from '@/config/chains';
 import { DISCOVERABLE_TOKENS_BY_CHAIN, type DiscoverableToken } from '@/config/discoverable-tokens';
 import { formatBalance, toNumeric } from '@/config/portfolio-presentation';
@@ -65,14 +65,12 @@ export type WalletDiscovery = {
   known: boolean;
 };
 
-// Wallet holdings + prices must read as "minute-fresh" to the user.
-// staleTime = 0 ⇒ every mount triggers a refetch immediately (React
-// Query short-circuits identical in-flight requests via `queryKey`
-// deduplication, so two screens mounting at the same time still share
-// one round-trip).
-// refetchInterval = 60s keeps a long-running screen up to date without
-// the user pulling.
-const STALE_TIME_MS = 0;
+// Wallet holdings + prices must read as "minute-fresh". The 60s
+// staleTime lets a brand-new mount short-circuit on an in-cache result
+// (no `—` flash) while still kicking off a background refetch as soon
+// as the cache passes a minute. `refetchInterval` keeps the displayed
+// value live without the user having to pull.
+const STALE_TIME_MS = 60_000;
 const REFETCH_INTERVAL_MS = 60_000;
 const EMPTY = new Map<string, WalletDiscovery>();
 
@@ -397,10 +395,11 @@ export function useLinkedWalletDiscovery(
     enabled: enabled && pricingReady,
     staleTime: STALE_TIME_MS,
     refetchInterval: REFETCH_INTERVAL_MS,
-    // Always refetch when the screen re-mounts (i.e. user navigates
-    // Portfolio → Wallet-Detail) so they never see balances from the
-    // previous session's cached query result.
-    refetchOnMount: 'always',
+    // Show the previous (still-valid) result while a refetch — or a
+    // queryKey change like the pricing service flipping to "ready" —
+    // is in flight. Without this the UI flashed `—` on every linked
+    // wallet card during the seconds it took the new fetch to land.
+    placeholderData: keepPreviousData,
   });
 
   const refetch = useMemo(

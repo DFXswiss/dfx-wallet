@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ChainId } from '@/config/chains';
 import { fetchBtcTransactions, type BtcTx } from '@/services/balances/btc-fetcher';
 import {
@@ -57,10 +57,11 @@ export type WalletTransaction = {
 
 export const WALLET_TX_QUERY_KEY = ['linked-wallet-transactions'] as const;
 
-// Same minute-fresh contract as the discovery hook — staleTime 0 +
-// `refetchOnMount: 'always'` means navigating back into the screen
-// always pulls a fresh TX list, refetchInterval keeps it warm.
-const STALE_TIME_MS = 0;
+// Same minute-fresh contract as the discovery hook — 60s staleTime
+// keeps the screen interactive on remount (no `Loading…` flash, the
+// cached list shows while a refetch lands), refetchInterval keeps
+// the feed live without the user having to pull.
+const STALE_TIME_MS = 60_000;
 const REFETCH_INTERVAL_MS = 60_000;
 
 const CHAIN_KEYS: Record<string, ChainId> = {
@@ -281,7 +282,7 @@ export function useWalletTransactions(wallet: UserAddressDto | null): {
     enabled,
     staleTime: STALE_TIME_MS,
     refetchInterval: REFETCH_INTERVAL_MS,
-    refetchOnMount: 'always',
+    placeholderData: keepPreviousData,
   });
 
   const refetch = useMemo(
