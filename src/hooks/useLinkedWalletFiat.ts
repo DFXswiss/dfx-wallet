@@ -73,10 +73,11 @@ export function useLinkedWalletFiat(
       for (const asset of assetConfigs) {
         const meta = getAssetMeta(asset.getId());
         if (!meta) continue;
-        // App-supported asset families per the user's spec (BTC + the
-        // fiat-pegged stablecoins). `native` (ETH/MATIC fee tokens) and
-        // anything else stays out of the linked-wallet sum.
-        if (meta.category !== 'btc' && meta.category !== 'stablecoin') continue;
+        // Linked-wallet cards represent the wallet's total worth, so we
+        // include *every* asset on the wallet's chains — native gas
+        // tokens (ETH/POL) included. The dashboard's asset-card filter
+        // still hides natives separately because it's a per-asset rollup,
+        // not a per-wallet sum.
         if (!chainsToCount.includes(meta.network)) continue;
         const raw = getRawBalance(balances, asset.getId());
         const balanceNum = toNumeric(formatBalance(raw, asset.getDecimals()));

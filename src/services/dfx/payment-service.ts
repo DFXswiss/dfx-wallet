@@ -50,6 +50,8 @@ export class DfxPaymentService {
         amount: params.amount,
         currency,
         asset,
+        paymentMethod: 'Bank',
+        exactPrice: false,
       },
       options,
     );
@@ -68,12 +70,23 @@ export class DfxPaymentService {
       buildCurrencyRef(params.currency),
       buildAssetRef(params.asset, params.blockchain),
     ]);
+    // `paymentMethod` and `exactPrice` are marked `@IsNotEmpty()` on DFX'
+    // `GetBuyPaymentInfoDto`. The class has default initializers (`Bank`,
+    // `false`) so the validator passes even when we omit them — but the
+    // downstream `toPaymentInfoDto` branches on these values to decide
+    // which bank info / reference to emit, and routes generated from an
+    // omitted-default payload sometimes land in an indeterminate state
+    // that DFX' SEPA-matcher refuses to pair. Sending them explicitly
+    // mirrors what the @dfx.swiss/react reference SDK does and removes
+    // that ambiguity.
     return dfxApi.put<BuyPaymentInfoDto>(
       '/v1/buy/paymentInfos',
       {
         amount: params.amount,
         currency,
         asset,
+        paymentMethod: 'Bank',
+        exactPrice: false,
       },
       options,
     );
@@ -104,6 +117,7 @@ export class DfxPaymentService {
         amount: params.amount,
         currency,
         asset,
+        exactPrice: false,
       },
       options,
     );
@@ -130,6 +144,7 @@ export class DfxPaymentService {
         currency,
         asset,
         iban: params.iban,
+        exactPrice: false,
       },
       options,
     );

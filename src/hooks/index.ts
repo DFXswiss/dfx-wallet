@@ -5,7 +5,7 @@ export { useDfxAutoLink } from './useDfxAutoLink';
 export { useEnabledChains } from './useEnabledChains';
 export { useKycFlow } from './useKycFlow';
 export { useLdsWallet } from './useLdsWallet';
-export { useLinkedWalletSelection, getSelectedLinkedWallets } from './useLinkedWalletSelection';
+export { useLinkedWalletSelection, getHiddenLinkedWallets } from './useLinkedWalletSelection';
 export { useLinkedWalletBalances } from './useLinkedWalletBalances';
 export type { LinkedWalletBalance } from './useLinkedWalletBalances';
 export { useLinkedWalletFiat } from './useLinkedWalletFiat';
