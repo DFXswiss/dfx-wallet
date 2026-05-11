@@ -15,7 +15,13 @@ import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useAccount, useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import { AppHeader, DfxAuthGate, Icon, PrimaryButton } from '@/components';
+import {
+  AppHeader,
+  ConfirmTargetWalletModal,
+  DfxAuthGate,
+  Icon,
+  PrimaryButton,
+} from '@/components';
 import type { ChainId } from '@/config/chains';
 import {
   formatBalance,
@@ -24,7 +30,7 @@ import {
   toNumeric,
 } from '@/config/portfolio-presentation';
 import { getAssetMeta, getAssets, WDK_SUPPORTED_CHAINS } from '@/config/tokens';
-import { useEnabledChains, useLdsWallet, useSellFlow } from '@/hooks';
+import { useEnabledChains, useLdsWallet, useLinkedWalletReauth, useSellFlow } from '@/hooks';
 import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
 import { dfxAuthService, DfxApiError } from '@/services/dfx';
 import { secureStorage, StorageKeys } from '@/services/storage';
@@ -173,7 +179,31 @@ const SELL_ASSETS: SellAsset[] = [
 export default function SellScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const params = useLocalSearchParams<{ asset?: string; chain?: string }>();
+  const params = useLocalSearchParams<{
+    asset?: string;
+    chain?: string;
+    targetAddress?: string;
+    targetBlockchain?: string;
+  }>();
+  const targetAddress =
+    typeof params.targetAddress === 'string' && params.targetAddress.length > 0
+      ? params.targetAddress
+      : null;
+  const targetBlockchain =
+    typeof params.targetBlockchain === 'string' && params.targetBlockchain.length > 0
+      ? params.targetBlockchain
+      : null;
+  const hasTargetWallet = !!targetAddress && !!targetBlockchain;
+  const targetAddressShort = targetAddress
+    ? targetAddress.length > 18
+      ? `${targetAddress.slice(0, 10)}…${targetAddress.slice(-6)}`
+      : targetAddress
+    : '';
+  const { reauthAs, canSignFor } = useLinkedWalletReauth();
+  const targetSignable = hasTargetWallet ? canSignFor(targetAddress!, targetBlockchain!) : true;
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const { enabledChains } = useEnabledChains();
   const {
     paymentInfo,
@@ -395,6 +425,22 @@ export default function SellScreen() {
 
   const renderAmountStep = () => (
     <View style={styles.stepContent}>
+      {hasTargetWallet ? (
+        <View style={styles.targetBanner} testID="sell-target-wallet-banner">
+          <View style={styles.targetIcon}>
+            <Icon name="wallet" size={18} color={DfxColors.primary} />
+          </View>
+          <View style={styles.targetBody}>
+            <Text style={styles.targetLabel}>{t('linkedWallet.banner.label')}</Text>
+            <Text style={styles.targetAddress} numberOfLines={1}>
+              {targetAddressShort}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+      {hasTargetWallet && !targetSignable ? (
+        <Text style={styles.errorText}>{t('linkedWallet.banner.notSignable')}</Text>
+      ) : null}
       <Text style={styles.stepSubtitle}>{t('sell.selectAsset')}</Text>
       <View style={styles.assetRow}>
         {SELL_ASSETS.map((asset) => (
@@ -578,8 +624,21 @@ export default function SellScreen() {
 
           <PrimaryButton
             title={t('common.continue')}
-            onPress={() => setStep('bank')}
-            disabled={!numAmount || numAmount <= 0 || belowMin || aboveMax}
+            onPress={() => {
+              if (hasTargetWallet) {
+                setConfirmError(null);
+                setConfirmOpen(true);
+                return;
+              }
+              setStep('bank');
+            }}
+            disabled={
+              !numAmount ||
+              numAmount <= 0 ||
+              belowMin ||
+              aboveMax ||
+              (hasTargetWallet && !targetSignable)
+            }
           />
         </>
       ) : null}
@@ -722,6 +781,42 @@ export default function SellScreen() {
         </SafeAreaView>
       </ImageBackground>
       <DfxAuthGate gate={authGate} onClose={dismissAuthGate} onLinkChain={linkChainToDfx} />
+      <ConfirmTargetWalletModal
+        visible={confirmOpen}
+        flow="sell"
+        assetLabel={sellAsset || ''}
+        walletAddressShort={targetAddressShort}
+        walletBlockchain={targetBlockchain ?? ''}
+        loading={confirmLoading}
+        error={confirmError}
+        onCancel={() => {
+          if (confirmLoading) return;
+          setConfirmOpen(false);
+          setConfirmError(null);
+        }}
+        onConfirm={async () => {
+          if (!targetAddress || !targetBlockchain) return;
+          setConfirmLoading(true);
+          setConfirmError(null);
+          try {
+            const reauth = await reauthAs(targetAddress, targetBlockchain);
+            if (!reauth.ok) {
+              setConfirmError(
+                t([`linkedWallet.reauthError.${reauth.error}`, 'linkedWallet.reauthError.generic']),
+              );
+              return;
+            }
+            setConfirmOpen(false);
+            setStep('bank');
+          } catch (err) {
+            setConfirmError(
+              err instanceof Error ? err.message : t('linkedWallet.reauthError.generic'),
+            );
+          } finally {
+            setConfirmLoading(false);
+          }
+        }}
+      />
     </>
   );
 }
@@ -1047,4 +1142,40 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   spacer: { minHeight: 16 },
+  targetBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: DfxColors.surface,
+    borderRadius: 14,
+    borderLeftWidth: 4,
+    borderLeftColor: DfxColors.primary,
+  },
+  targetIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: DfxColors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  targetBody: {
+    flex: 1,
+    gap: 2,
+  },
+  targetLabel: {
+    ...Typography.bodySmall,
+    fontWeight: '700',
+    color: DfxColors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  targetAddress: {
+    ...Typography.bodyMedium,
+    fontWeight: '600',
+    color: DfxColors.text,
+    fontFamily: 'monospace',
+  },
 });

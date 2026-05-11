@@ -8,20 +8,38 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, PrimaryButton, ScreenContainer } from '@/components';
 import { useDfxAuth, useKycFlow } from '@/hooks';
-import { isSafeHttpsUrl } from '@/services/security/safe-url';
+import { isAllowedDfxHost, isSafeHttpsUrl } from '@/services/security/safe-url';
 import { DfxColors, Typography } from '@/theme';
 
 /**
- * Hand a server-supplied URL to the OS only after we've verified it's a
- * proper https:// URL. Anything else (javascript:, data:, http:, malformed)
- * is dropped silently — KYC redirects come from the DFX backend and any
- * non-https value here is a backend mistake or a tampered response.
+ * Try the in-app WebView for KYC URLs whose host is on the DFX-vetted
+ * allow-list (Sumsub, IDnow, lightning.space and DFX itself). Anything
+ * outside that list still goes through the OS browser. Keeping the
+ * verification inside the app means the user comes back to the same
+ * screen with state preserved instead of being yanked to Safari mid-
+ * flow.
+ *
+ * Any non-https or malformed URL is dropped — KYC redirects come from
+ * the DFX backend and a non-https value here is either a backend
+ * mistake or a tampered response.
  */
-async function openExternal(url: string): Promise<void> {
+async function openKycUrl(url: string, openInApp: (u: string) => void): Promise<void> {
   if (!isSafeHttpsUrl(url)) return;
+  try {
+    const host = new URL(url).host;
+    if (isAllowedDfxHost(host)) {
+      openInApp(url);
+      return;
+    }
+  } catch {
+    // Malformed URL — fall through to the OS-handler which will silently
+    // reject it anyway. We don't want to bail entirely because the user
+    // is mid-flow.
+  }
   await Linking.openURL(url);
 }
 
@@ -90,6 +108,7 @@ function isMergedError(err: string | null | undefined): boolean {
 
 export default function KycScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
   const {
     kycLevel,
     currentSession,
@@ -99,13 +118,28 @@ export default function KycScreen() {
     continueKyc,
     submitContactData,
     submitPersonalData,
+    request2fa,
+    verify2fa,
   } = useKycFlow();
 
   const [email, setEmail] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [tfaCode, setTfaCode] = useState('');
+  const [tfaRequested, setTfaRequested] = useState(false);
 
   const { reauthenticateAsOwner, isAuthenticating, error: authError } = useDfxAuth();
+
+  const openInAppWebView = useCallback(
+    (url: string) => {
+      router.push({
+        pathname: '/(auth)/webview',
+        params: { url, title: t('kyc.title') },
+      });
+    },
+    [router, t],
+  );
 
   useEffect(() => {
     void loadKycStatus();
@@ -125,7 +159,11 @@ export default function KycScreen() {
     if (session?.currentStep?.session) {
       const { type, url } = session.currentStep.session;
       if (type === 'Browser') {
-        await openExternal(url);
+        // Prefer the bundled WebView when the URL points at a DFX-vetted
+        // KYC provider (Sumsub, IDnow). Falls through to the OS browser
+        // for anything else so we never silently swallow a malformed or
+        // unexpected destination.
+        await openKycUrl(url, openInAppWebView);
       }
     }
   };
@@ -138,10 +176,32 @@ export default function KycScreen() {
     if (step.name === 'ContactData') {
       success = await submitContactData(step.sequenceNumber, email);
     } else if (step.name === 'PersonalData') {
-      success = await submitPersonalData(step.sequenceNumber, { firstName, lastName });
+      const phoneTrimmed = phone.trim();
+      success = await submitPersonalData(step.sequenceNumber, {
+        firstName,
+        lastName,
+        ...(phoneTrimmed.length > 0 ? { phone: phoneTrimmed } : {}),
+      });
     }
 
     if (success) {
+      // After an API step is submitted, immediately advance — the next
+      // step (Browser/Ident or another API form) shows up without the
+      // user having to tap Continue again.
+      await continueKyc();
+    }
+  };
+
+  const handle2faRequest = async () => {
+    const ok = await request2fa();
+    if (ok) setTfaRequested(true);
+  };
+
+  const handle2faVerify = async () => {
+    const ok = await verify2fa(tfaCode.trim());
+    if (ok) {
+      setTfaCode('');
+      setTfaRequested(false);
       await continueKyc();
     }
   };
@@ -260,22 +320,83 @@ export default function KycScreen() {
                   style={styles.input}
                   value={firstName}
                   onChangeText={setFirstName}
-                  placeholder="First name"
+                  placeholder={t('kyc.firstName')}
                   placeholderTextColor={DfxColors.textTertiary}
                 />
                 <TextInput
                   style={styles.input}
                   value={lastName}
                   onChangeText={setLastName}
-                  placeholder="Last name"
+                  placeholder={t('kyc.lastName')}
                   placeholderTextColor={DfxColors.textTertiary}
+                />
+                <TextInput
+                  style={styles.input}
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder={t('kyc.phone')}
+                  placeholderTextColor={DfxColors.textTertiary}
+                  keyboardType="phone-pad"
+                  autoCorrect={false}
                 />
               </>
             )}
 
-            <PrimaryButton title="Submit" onPress={handleSubmitStep} loading={isLoading} />
+            <PrimaryButton
+              title={t('common.submit')}
+              onPress={handleSubmitStep}
+              loading={isLoading}
+              disabled={
+                (currentStep.name === 'ContactData' && email.trim().length === 0) ||
+                (currentStep.name === 'PersonalData' &&
+                  (firstName.trim().length === 0 || lastName.trim().length === 0))
+              }
+            />
           </View>
         )}
+
+        {/*
+         * 2FA gate — DFX requires phone-OTP verification once before a
+         * sensitive step (KycStepName === 'TfaSetup' on the backend). We
+         * fold it into the same screen as a dedicated form so the user
+         * doesn't get bounced to a Browser step for what's effectively a
+         * 6-digit code entry.
+         */}
+        {!isMerged &&
+          currentStep?.name === 'PhoneChange' &&
+          currentStep.session?.type === 'API' && (
+            <View style={styles.formContainer}>
+              <Text style={styles.formTitle}>{t('kyc.tfaTitle')}</Text>
+              <Text style={styles.formDescription}>
+                {tfaRequested ? t('kyc.tfaCodePrompt') : t('kyc.tfaDescription')}
+              </Text>
+              {tfaRequested ? (
+                <>
+                  <TextInput
+                    style={styles.input}
+                    value={tfaCode}
+                    onChangeText={setTfaCode}
+                    placeholder={t('kyc.tfaCodePlaceholder')}
+                    placeholderTextColor={DfxColors.textTertiary}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                  />
+                  <PrimaryButton
+                    title={t('common.confirm')}
+                    onPress={handle2faVerify}
+                    disabled={tfaCode.trim().length < 4}
+                    loading={isLoading}
+                  />
+                </>
+              ) : (
+                <PrimaryButton
+                  title={t('kyc.tfaRequestCta')}
+                  onPress={handle2faRequest}
+                  loading={isLoading}
+                />
+              )}
+            </View>
+          )}
 
         {!isMerged && currentStep?.session?.type === 'Browser' && (
           <View style={styles.formContainer}>
@@ -286,9 +407,9 @@ export default function KycScreen() {
               This step requires identity verification in your browser.
             </Text>
             <PrimaryButton
-              title="Open Verification"
+              title={t('kyc.openVerification')}
               onPress={() => {
-                void openExternal(currentStep.session!.url);
+                void openKycUrl(currentStep.session!.url, openInAppWebView);
               }}
             />
           </View>

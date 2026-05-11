@@ -15,13 +15,19 @@ import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { AppHeader, DfxAuthGate, Icon, PrimaryButton } from '@/components';
+import {
+  AppHeader,
+  ConfirmTargetWalletModal,
+  DfxAuthGate,
+  Icon,
+  PrimaryButton,
+} from '@/components';
 import type { ChainId } from '@/config/chains';
 import {
   formatFiat as fmtFiat,
   formatCryptoAmount as fmtCrypto,
 } from '@/config/portfolio-presentation';
-import { useBuyFlow, useLdsWallet } from '@/hooks';
+import { useBuyFlow, useLdsWallet, useLinkedWalletReauth } from '@/hooks';
 import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
 import { dfxAuthService, DfxApiError } from '@/services/dfx';
 import { secureStorage, StorageKeys } from '@/services/storage';
@@ -189,7 +195,12 @@ const BUY_ASSETS: BuyAsset[] = [
 export default function BuyScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const params = useLocalSearchParams<{ asset?: string; chain?: string }>();
+  const params = useLocalSearchParams<{
+    asset?: string;
+    chain?: string;
+    targetAddress?: string;
+    targetBlockchain?: string;
+  }>();
   const {
     paymentInfo,
     isLoading,
@@ -202,6 +213,31 @@ export default function BuyScreen() {
     retryLast,
   } = useBuyFlow();
   const [step, setStep] = useState<BuyStep>('amount');
+
+  // When the user opened the buy screen by tapping a linked-wallet card in
+  // Portfolio, both `targetAddress` and `targetBlockchain` are present. The
+  // amount step shows a banner; the Continue button opens a confirmation
+  // modal that re-authenticates as the target wallet's owner before posting
+  // /buy/paymentInfos so the bank wire credits the chosen wallet.
+  const targetAddress =
+    typeof params.targetAddress === 'string' && params.targetAddress.length > 0
+      ? params.targetAddress
+      : null;
+  const targetBlockchain =
+    typeof params.targetBlockchain === 'string' && params.targetBlockchain.length > 0
+      ? params.targetBlockchain
+      : null;
+  const hasTargetWallet = !!targetAddress && !!targetBlockchain;
+  const targetAddressShort = targetAddress
+    ? targetAddress.length > 18
+      ? `${targetAddress.slice(0, 10)}…${targetAddress.slice(-6)}`
+      : targetAddress
+    : '';
+  const { reauthAs, canSignFor } = useLinkedWalletReauth();
+  const targetSignable = hasTargetWallet ? canSignFor(targetAddress!, targetBlockchain!) : true;
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const initialPreselect = useMemo(() => {
     const wantedSymbol = typeof params.asset === 'string' ? params.asset.toUpperCase() : null;
     const wantedChain = typeof params.chain === 'string' ? params.chain : null;
@@ -412,6 +448,22 @@ export default function BuyScreen() {
 
   const renderAmountStep = () => (
     <View style={styles.stepContent}>
+      {hasTargetWallet ? (
+        <View style={styles.targetBanner} testID="buy-target-wallet-banner">
+          <View style={styles.targetIcon}>
+            <Icon name="wallet" size={18} color={DfxColors.primary} />
+          </View>
+          <View style={styles.targetBody}>
+            <Text style={styles.targetLabel}>{t('linkedWallet.banner.label')}</Text>
+            <Text style={styles.targetAddress} numberOfLines={1}>
+              {targetAddressShort}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+      {hasTargetWallet && !targetSignable ? (
+        <Text style={styles.errorText}>{t('linkedWallet.banner.notSignable')}</Text>
+      ) : null}
       <Text style={styles.stepSubtitle}>{t('buy.selectAsset')}</Text>
       <View style={styles.assetRow}>
         {BUY_ASSETS.map((asset) => (
@@ -617,6 +669,16 @@ export default function BuyScreen() {
             title={t('common.continue')}
             onPress={async () => {
               if (!selectedChainSpec) return;
+              if (hasTargetWallet) {
+                // Linked-wallet flow: gate the bank-data step behind a
+                // confirmation modal so the user verifies asset+wallet
+                // pairing once more. The actual /buy/paymentInfos call
+                // fires from the modal's onConfirm after the DFX session
+                // pivots to the target wallet's owner.
+                setConfirmError(null);
+                setConfirmOpen(true);
+                return;
+              }
               const info = await createPaymentInfo({
                 amount: numAmount,
                 currency: selectedCurrency,
@@ -626,7 +688,14 @@ export default function BuyScreen() {
               });
               if (info) setStep('payment');
             }}
-            disabled={!numAmount || numAmount <= 0 || belowMin || aboveMax || unsupportedChain}
+            disabled={
+              !numAmount ||
+              numAmount <= 0 ||
+              belowMin ||
+              aboveMax ||
+              unsupportedChain ||
+              (hasTargetWallet && !targetSignable)
+            }
             loading={isLoading}
           />
         </>
@@ -716,10 +785,19 @@ export default function BuyScreen() {
         <View style={styles.spacer} />
 
         <PrimaryButton
-          title={t('common.confirm')}
+          title={t('buy.confirmTransfer')}
           onPress={async () => {
-            await confirmPayment(paymentInfo.id);
-            setStep('confirm');
+            // Advance to the success screen *only* after DFX has acknowledged
+            // the user-confirmation. Without this guard the previous version
+            // showed the green checkmark even when /v1/buy/paymentInfos/:id/
+            // confirm failed (auth gate, network error, expired session) —
+            // and the bank transfer would arrive at DFX as an unconfirmed
+            // route that the matcher won't touch, leaving the user
+            // un-credited. The error path lets the user retry from the
+            // same screen instead of bouncing back to the dashboard with
+            // a SEPA already sent.
+            const ok = await confirmPayment(paymentInfo.id);
+            if (ok) setStep('confirm');
           }}
           loading={isLoading}
         />
@@ -770,6 +848,51 @@ export default function BuyScreen() {
         </SafeAreaView>
       </ImageBackground>
       <DfxAuthGate gate={authGate} onClose={dismissAuthGate} onLinkChain={linkChainToDfx} />
+      <ConfirmTargetWalletModal
+        visible={confirmOpen}
+        flow="buy"
+        assetLabel={targetAsset || ''}
+        walletAddressShort={targetAddressShort}
+        walletBlockchain={targetBlockchain ?? ''}
+        loading={confirmLoading}
+        error={confirmError}
+        onCancel={() => {
+          if (confirmLoading) return;
+          setConfirmOpen(false);
+          setConfirmError(null);
+        }}
+        onConfirm={async () => {
+          if (!selectedChainSpec || !targetAddress || !targetBlockchain) return;
+          setConfirmLoading(true);
+          setConfirmError(null);
+          try {
+            const reauth = await reauthAs(targetAddress, targetBlockchain);
+            if (!reauth.ok) {
+              setConfirmError(
+                t([`linkedWallet.reauthError.${reauth.error}`, 'linkedWallet.reauthError.generic']),
+              );
+              return;
+            }
+            const info = await createPaymentInfo({
+              amount: numAmount,
+              currency: selectedCurrency,
+              asset: targetAsset,
+              blockchain,
+              chain: selectedChainSpec.chain,
+            });
+            if (info) {
+              setConfirmOpen(false);
+              setStep('payment');
+            }
+          } catch (err) {
+            setConfirmError(
+              err instanceof Error ? err.message : t('linkedWallet.reauthError.generic'),
+            );
+          } finally {
+            setConfirmLoading(false);
+          }
+        }}
+      />
     </>
   );
 }
@@ -1137,5 +1260,41 @@ const styles = StyleSheet.create({
   },
   spacer: {
     minHeight: 16,
+  },
+  targetBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: DfxColors.surface,
+    borderRadius: 14,
+    borderLeftWidth: 4,
+    borderLeftColor: DfxColors.primary,
+  },
+  targetIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: DfxColors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  targetBody: {
+    flex: 1,
+    gap: 2,
+  },
+  targetLabel: {
+    ...Typography.bodySmall,
+    fontWeight: '700',
+    color: DfxColors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  targetAddress: {
+    ...Typography.bodyMedium,
+    fontWeight: '600',
+    color: DfxColors.text,
+    fontFamily: 'monospace',
   },
 });

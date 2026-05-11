@@ -10,12 +10,21 @@ import {
   computeFiatValue,
   formatBalance,
   formatNumber,
+  resolveFiatCurrency,
   SYMBOL_COLORS,
   SYMBOL_GLYPH,
   toNumeric,
 } from '@/config/portfolio-presentation';
-import { useEnabledChains } from '@/hooks';
-import { useWalletStore } from '@/store';
+import {
+  defaultLinkedWalletName,
+  useEnabledChains,
+  useLinkedWalletFiat,
+  useLinkedWalletNames,
+  useLinkedWalletSelection,
+} from '@/hooks';
+import { dfxUserService } from '@/services/dfx';
+import type { UserAddressDto } from '@/services/dfx/dto';
+import { useAuthStore, useWalletStore } from '@/store';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { DfxColors, Typography } from '@/theme';
 
@@ -36,10 +45,65 @@ export default function PortfolioScreen() {
   const router = useRouter();
   const { enabledChains } = useEnabledChains();
   const { selectedCurrency } = useWalletStore();
+  const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
+  const { isSelected } = useLinkedWalletSelection();
+  const { getName } = useLinkedWalletNames();
 
   const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
   const { data: balances } = useBalances(assetConfigs);
   const [pricingReady, setPricingReady] = useState(pricingService.isReady());
+  const [linkedAddresses, setLinkedAddresses] = useState<UserAddressDto[]>([]);
+  const [activeAddress, setActiveAddress] = useState<string | null>(null);
+
+  // Pull the DFX-linked wallet list once whenever the screen mounts with an
+  // authenticated session. The active address is excluded from the
+  // "Linked wallets" rail because the existing portfolio cards above
+  // already represent the user's primary holdings.
+  useEffect(() => {
+    if (!isDfxAuthenticated) {
+      setLinkedAddresses([]);
+      setActiveAddress(null);
+      return;
+    }
+    let cancelled = false;
+    void dfxUserService
+      .getUser()
+      .then((user) => {
+        if (cancelled) return;
+        setLinkedAddresses(user.addresses ?? []);
+        setActiveAddress(user.activeAddress?.address ?? null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLinkedAddresses([]);
+        setActiveAddress(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isDfxAuthenticated]);
+
+  const linkedWallets = useMemo(() => {
+    const lcActive = activeAddress?.toLowerCase() ?? null;
+    return linkedAddresses.filter((a) => {
+      const lc = a.address.toLowerCase();
+      if (lc === lcActive) return false;
+      return isSelected(a.address);
+    });
+  }, [linkedAddresses, activeAddress, isSelected]);
+
+  // Per-wallet fiat lookup. Uses local WDK balances when the linked
+  // wallet's address matches a local account (fast, no extra round-trip)
+  // and falls back to direct JSON-RPC + mempool.space for wallets linked
+  // from another device. No-op while `linkedWallets` is empty.
+  const fiatCurrencyForLinked = resolveFiatCurrency(selectedCurrency);
+  const { data: linkedBalances } = useLinkedWalletFiat(
+    linkedWallets,
+    assetConfigs,
+    balances,
+    fiatCurrencyForLinked,
+    pricingReady,
+  );
 
   useEffect(() => {
     if (pricingService.isReady()) {
@@ -52,8 +116,9 @@ export default function PortfolioScreen() {
       .catch(() => setPricingReady(false));
   }, []);
 
-  const fiatCurrency = selectedCurrency === 'CHF' ? FiatCurrency.CHF : FiatCurrency.USD;
-  const currencySymbol = fiatCurrency === FiatCurrency.CHF ? 'CHF' : '$';
+  const fiatCurrency = resolveFiatCurrency(selectedCurrency);
+  const currencySymbol =
+    fiatCurrency === FiatCurrency.CHF ? 'CHF' : fiatCurrency === FiatCurrency.EUR ? '€' : '$';
 
   const groups = useMemo<PortfolioGroup[]>(() => {
     const byCanonical = new Map<string, PortfolioGroup>();
@@ -114,7 +179,24 @@ export default function PortfolioScreen() {
     });
   }, [assetConfigs, balances, fiatCurrency, pricingReady]);
 
-  const totalFiat = useMemo(() => groups.reduce((sum, g) => sum + g.totalFiat, 0), [groups]);
+  // Include the selected DFX-linked wallets in the headline total so the
+  // user reads a single number that matches what's visible on the screen
+  // (asset cards above + linked-wallet cards below). The hook returns
+  // `0` for wallets we couldn't resolve — those simply contribute nothing
+  // instead of erroring or hiding the headline.
+  const linkedWalletsFiat = useMemo(() => {
+    let sum = 0;
+    for (const wallet of linkedWallets) {
+      const entry = linkedBalances.get(wallet.address.toLowerCase());
+      if (entry?.known) sum += entry.fiatValue;
+    }
+    return sum;
+  }, [linkedWallets, linkedBalances]);
+
+  const totalFiat = useMemo(
+    () => groups.reduce((sum, g) => sum + g.totalFiat, 0) + linkedWalletsFiat,
+    [groups, linkedWalletsFiat],
+  );
 
   return (
     <>
@@ -184,6 +266,35 @@ export default function PortfolioScreen() {
                 />
               ))}
             </View>
+
+            {linkedWallets.length > 0 ? (
+              <View style={styles.linkedSection}>
+                <Text style={styles.linkedSectionLabel}>{t('portfolio.linkedWallets')}</Text>
+                <View style={styles.linkedList}>
+                  {linkedWallets.map((wallet) => {
+                    const entry = linkedBalances.get(wallet.address.toLowerCase());
+                    const displayName =
+                      getName(wallet.address) ?? defaultLinkedWalletName(wallet.blockchain);
+                    return (
+                      <LinkedWalletCard
+                        key={wallet.address}
+                        wallet={wallet}
+                        displayName={displayName}
+                        currencySymbol={currencySymbol}
+                        fiatValue={entry?.fiatValue ?? 0}
+                        fiatKnown={entry?.known ?? false}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/(auth)/linked-wallet/[address]',
+                            params: { address: wallet.address },
+                          })
+                        }
+                      />
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
           </ScrollView>
         </SafeAreaView>
       </ImageBackground>
@@ -196,6 +307,67 @@ type GroupCardProps = {
   currencySymbol: string;
   onPress: () => void;
 };
+
+function LinkedWalletCard({
+  wallet,
+  displayName,
+  currencySymbol,
+  fiatValue,
+  fiatKnown,
+  onPress,
+}: {
+  wallet: UserAddressDto;
+  displayName: string;
+  currencySymbol: string;
+  fiatValue: number;
+  fiatKnown: boolean;
+  onPress: () => void;
+}) {
+  const { t } = useTranslation();
+  const { address } = wallet;
+  const truncated = address.length > 18 ? `${address.slice(0, 10)}…${address.slice(-6)}` : address;
+  const chains = (wallet.blockchains?.length ? wallet.blockchains : [wallet.blockchain]).join(
+    ' · ',
+  );
+  // Fiat is known when at least one of the wallet's chains matches a
+  // local WDK address. Cards for wallets linked from another device
+  // surface a `—` glyph instead of misleading 0.00s.
+  const fiatLabel = fiatKnown
+    ? `${currencySymbol} ${(Math.round(fiatValue * 100) / 100).toLocaleString('de-CH', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`
+    : '—';
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      testID={`portfolio-linked-wallet-${address.slice(0, 8)}`}
+      accessibilityRole="button"
+      accessibilityLabel={t('portfolio.linkedWalletA11y', { address: truncated })}
+    >
+      <View style={[styles.iconBubble, { backgroundColor: DfxColors.primary }]}>
+        <Icon name="wallet" size={20} color={DfxColors.white} />
+      </View>
+      <View style={styles.info}>
+        <Text style={styles.name} numberOfLines={1}>
+          {displayName}
+        </Text>
+        <Text style={styles.chainCountText} numberOfLines={1}>
+          {chains}
+        </Text>
+      </View>
+      <View style={styles.balanceColumn}>
+        <Text style={styles.fiatValue} numberOfLines={1}>
+          {fiatLabel}
+        </Text>
+        <Text style={styles.linkedAddress} numberOfLines={1}>
+          {truncated}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
 
 function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) {
   const color = SYMBOL_COLORS.get(group.canonicalSymbol) ?? DfxColors.primary;
@@ -365,5 +537,26 @@ const styles = StyleSheet.create({
   cryptoBalance: {
     ...Typography.bodySmall,
     color: DfxColors.textSecondary,
+  },
+  linkedSection: {
+    marginTop: 32,
+    gap: 10,
+  },
+  linkedSectionLabel: {
+    ...Typography.bodySmall,
+    fontWeight: '700',
+    color: DfxColors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    paddingHorizontal: 4,
+  },
+  linkedList: {
+    gap: 8,
+  },
+  linkedAddress: {
+    ...Typography.bodyMedium,
+    fontWeight: '600',
+    color: DfxColors.text,
+    fontFamily: 'monospace',
   },
 });

@@ -5,7 +5,8 @@
   },
   "buy": {
     "confirm": "Bestellung bestätigt",
-    "confirmDescription": "Dein Kauf wurde initiiert. Überweise den Betrag mit dem angegebenen Verwendungszweck.",
+    "confirmDescription": "DFX hat deine Bestätigung erhalten und schreibt deine Wallet gut, sobald die Überweisung eingegangen ist — an Werktagen meist innerhalb weniger Stunden.",
+    "confirmTransfer": "Ich habe die Überweisung getätigt",
     "exchangeRate": "Wechselkurs",
     "feeDfx": "DFX-Gebühr",
     "feeFixed": "Fixe Gebühr",
@@ -168,7 +169,9 @@
     "contact": "Kontaktdaten",
     "currentLevel": "Aktuelles Level",
     "financial": "Finanzinformationen",
+    "firstName": "Vorname",
     "ident": "Identitätsprüfung",
+    "lastName": "Nachname",
     "level": {
       "0": {
         "body": "Wallet erstellt — keine Kontaktdaten hinterlegt. Du kannst empfangen und versenden, aber nicht handeln.",
@@ -198,7 +201,9 @@
     "continueCta": "Verifizierung fortsetzen",
     "mergedTitle": "Daten nicht ladbar",
     "nationality": "Nationalität",
+    "openVerification": "Verifizierung öffnen",
     "personal": "Persönliche Daten",
+    "phone": "Telefon (optional)",
     "status": {
       "completed": "Abgeschlossen",
       "failed": "Fehlgeschlagen",
@@ -210,6 +215,11 @@
       "unknown": "{{raw}}"
     },
     "stepsLabel": "Status der Schritte",
+    "tfaCodePlaceholder": "6-stelliger Code",
+    "tfaCodePrompt": "Gib den Code ein, den wir gerade an deine Nummer gesendet haben.",
+    "tfaDescription": "Wir senden dir einen Einmal-Code per SMS, um deine Telefonnummer zu bestätigen.",
+    "tfaRequestCta": "Code senden",
+    "tfaTitle": "Telefon bestätigen",
     "title": "KYC Verifizierung"
   },
   "legal": {
@@ -219,6 +229,38 @@
     "privacy": "Datenschutzerklärung",
     "terms": "Nutzungsbedingungen",
     "title": "Rechtliche Informationen"
+  },
+  "linkedWallet": {
+    "addressLabel": "Wallet-Adresse",
+    "banner": {
+      "label": "Kauf/Verkauf in Wallet",
+      "notSignable": "Diese Wallet wurde von einem anderen Gerät aus verknüpft und kann von hier nicht verwendet werden."
+    },
+    "confirm": {
+      "buy": {
+        "body": "Sobald deine Banküberweisung eingeht, sendet DFX {{asset}} an die unten angezeigte Wallet. Bestätige, um zu den Bankdaten zu gelangen.",
+        "title": "Kauf bestätigen"
+      },
+      "sell": {
+        "body": "Du sendest {{asset}} aus der unten angezeigten Wallet an DFX und erhältst eine Bankauszahlung. Bestätige, um zu den Bankdaten zu gelangen.",
+        "title": "Verkauf bestätigen"
+      }
+    },
+    "loadError": "Wallet-Daten konnten nicht geladen werden.",
+    "notFound": "Diese Wallet ist nicht mit deinem DFX-Profil verknüpft.",
+    "note": "Bei jedem Kauf oder Verkauf in eine verknüpfte Wallet erfolgt eine zusätzliche Bestätigung, damit kein Asset auf dem falschen Konto landet.",
+    "reauthError": {
+      "addressMismatch": "Diese Wallet wurde von einem anderen Gerät aus verknüpft und kann von hier nicht verwendet werden.",
+      "generic": "Konnte nicht zu dieser Wallet wechseln. Bitte erneut versuchen."
+    },
+    "rename": {
+      "body": "Wähle einen Namen, um diese Wallet überall in der App zu erkennen. Leer lassen für den Standardnamen.",
+      "cta": "Wallet umbenennen",
+      "title": "Wallet umbenennen"
+    },
+    "title": "DFX-Wallet",
+    "transactions": "Alle Transaktionen ansehen",
+    "transactionsHint": "Alle DFX-Transaktionen deines Kontos"
   },
   "multiSig": {
     "backup": {
@@ -346,11 +388,15 @@
     "scanToPay": "QR-Code scannen"
   },
   "pin": {
+    "biometricCta": "Mit Face ID entsperren",
     "confirm": "PIN bestätigen",
     "create": "PIN erstellen",
     "createDescription": "Wähle eine 6-stellige PIN zum Schutz deiner Wallet.",
     "enter": "PIN eingeben",
+    "enterTitle": "Willkommen zurück",
     "incorrect": "Falsche PIN.",
+    "incorrectAttemptsLeft_one": "Falsche PIN. Noch {{count}} Versuch übrig.",
+    "incorrectAttemptsLeft_other": "Falsche PIN. Noch {{count}} Versuche übrig.",
     "mismatch": "PINs stimmen nicht überein.",
     "remainingAttempts": "{{count}} Versuche übrig.",
     "saveError": "PIN konnte nicht gespeichert werden. Bitte erneut versuchen.",
@@ -362,6 +408,8 @@
     "empty": "Noch keine Assets",
     "emptyDescription": "Kaufe dein erstes Krypto um zu starten.",
     "holdings": "Bestände nach Netzwerk",
+    "linkedWalletA11y": "DFX-Wallet {{address}}",
+    "linkedWallets": "Verknüpfte DFX-Wallets",
     "manage": "Verwalten",
     "manageChains": "Netzwerke verwalten",
     "optional": "Optionale Netzwerke",
@@ -469,8 +517,7 @@
     "seedPhrase": "Seed Phrase",
     "taxReport": "Steuerreport",
     "title": "Einstellungen",
-    "userData": "Benutzerdaten",
-    "walletAddress": "Wallet-Adresse"
+    "userData": "Benutzerdaten"
   },
   "support": {
     "createError": "Ticket konnte nicht erstellt werden. Bitte erneut versuchen.",
@@ -539,6 +586,7 @@
     "mergedExplanation": "Dein DFX-Konto wurde mit einem anderen Konto zusammengeführt. Bitte erneut anmelden, damit wir das aktuelle Profil laden können.",
     "noAddresses": "Noch keine Adressen verknüpft.",
     "reauthCta": "Erneut bei DFX anmelden",
+    "selectHint": "Hake eine Wallet an, damit sie im Portfolio erscheint und du direkt in sie kaufen oder aus ihr verkaufen kannst.",
     "title": "DFX-Wallets"
   }
 }
