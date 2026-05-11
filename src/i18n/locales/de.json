@@ -224,6 +224,9 @@
   },
   "legal": {
     "accept": "Ich habe die AGB, Datenschutzerklärung und den Haftungsausschluss gelesen und akzeptiere diese.",
+    "bodyKyc": "Für bestimmte Transaktionslimiten ist eine KYC-Prüfung erforderlich, wie es die Schweizer Geldwäschereivorschriften vorsehen.",
+    "bodyTransactions": "Kryptowährungstransaktionen sind unumkehrbar. Prüfe alle Transaktionsdetails sorgfältig, bevor du bestätigst.",
+    "bodyWallet": "DFX Wallet ist non-custodial. Du bist selbst für die Sicherung deiner Seed Phrase und PIN verantwortlich; DFX AG kann deine Wallet bei Verlust nicht wiederherstellen.",
     "disclaimer": "Haftungsausschluss",
     "intro": "Die rechtlichen Dokumente zu DFX werden im Browser geöffnet, damit du sie speichern, teilen oder drucken kannst.",
     "privacy": "Datenschutzerklärung",
@@ -362,6 +365,12 @@
     "restorePasskey": "Mit Passkey",
     "restoreSeed": "Mit Seed Phrase",
     "restoreWallet": "Wallet wiederherstellen",
+    "seedBackupWarning": "DFX kann deine Seed Phrase nicht wiederherstellen. Bewahre sie offline und sicher auf.",
+    "seedCopy": "In Zwischenablage kopieren",
+    "seedCopied": "Kopiert",
+    "seedDescription": "Schreibe deine Seed Phrase in der richtigen Reihenfolge auf. Sie ist der einzige Weg, deine Wallet wiederherzustellen.",
+    "seedReveal": "Seed Phrase anzeigen",
+    "seedRevealHint": "Stelle sicher, dass niemand deinen Bildschirm sieht.",
     "subtitle": "Kaufe und verkaufe Krypto direkt mit deiner Wallet",
     "title": "Willkommen bei DFX",
     "verifySeed": "Seed verifizieren"
@@ -393,6 +402,7 @@
   "pin": {
     "biometricCta": "Mit Face ID entsperren",
     "confirm": "PIN bestätigen",
+    "confirmDescription": "Gib deine PIN erneut ein, um sie zu bestätigen.",
     "create": "PIN erstellen",
     "createDescription": "Wähle eine 6-stellige PIN zum Schutz deiner Wallet.",
     "enter": "PIN eingeben",

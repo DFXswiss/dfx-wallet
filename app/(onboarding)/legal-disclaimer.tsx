@@ -1,114 +1,149 @@
 import { useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { PrimaryButton, ScreenContainer } from '@/components';
+import { useTranslation } from 'react-i18next';
+import {
+  AppHeader,
+  DfxBackgroundScreen,
+  OnboardingStepIndicator,
+  PrimaryButton,
+} from '@/components';
+import { isAllowedDfxHost } from '@/services/security/safe-url';
+import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
 const LEGAL_LINKS = [
-  { label: 'Terms of Service', url: 'https://docs.dfx.swiss/en/tnc.html' },
-  { label: 'Privacy Policy', url: 'https://docs.dfx.swiss/en/privacy.html' },
-  { label: 'Disclaimer', url: 'https://docs.dfx.swiss/en/disclaimer.html' },
+  { labelKey: 'legal.terms', url: 'https://docs.dfx.swiss/de/tnc.html' },
+  { labelKey: 'legal.privacy', url: 'https://docs.dfx.swiss/de/privacy-policy.html' },
+  { labelKey: 'legal.disclaimer', url: 'https://docs.dfx.swiss/de/disclaimer.html' },
 ];
 
 export default function LegalDisclaimerScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
+  const { setAuthenticated, setOnboarded } = useAuthStore();
   const [accepted, setAccepted] = useState(false);
 
+  const openLegalLink = async (url: string) => {
+    if (!isAllowedDfxHost(url)) return;
+    await Linking.openURL(url);
+  };
+
+  const handleContinue = async () => {
+    await setOnboarded(true);
+    setAuthenticated(true);
+    router.replace('/(auth)/(tabs)/dashboard');
+  };
+
   return (
-    <ScreenContainer>
-      <View style={styles.content} testID="legal-disclaimer-screen">
-        <Text style={styles.title}>Legal Information</Text>
+    <DfxBackgroundScreen scrollable contentStyle={styles.content} testID="legal-disclaimer-screen">
+      <AppHeader title={t('legal.title')} testID="legal-disclaimer" />
+      <OnboardingStepIndicator current={3} />
 
-        <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <Text style={styles.paragraph}>
-            DFX AG is a Swiss company regulated by VQF (self-regulatory organization recognized by
-            FINMA). By using this app, you agree to the following terms and conditions.
-          </Text>
+      <View style={styles.card}>
+        <Text style={styles.eyebrow}>{t('legal.intro')}</Text>
+        <Text style={styles.paragraph}>{t('legal.bodyWallet')}</Text>
+        <Text style={styles.paragraph}>{t('legal.bodyTransactions')}</Text>
+        <Text style={styles.paragraph}>{t('legal.bodyKyc')}</Text>
 
-          <Text style={styles.paragraph}>
-            DFX Wallet is a non-custodial wallet. You are solely responsible for securing your seed
-            phrase and PIN. DFX AG has no access to your private keys and cannot recover your wallet
-            if you lose your seed phrase.
-          </Text>
-
-          <Text style={styles.paragraph}>
-            Cryptocurrency transactions are irreversible. Please ensure all transaction details are
-            correct before confirming. DFX AG is not responsible for losses due to user error,
-            including sending assets to incorrect addresses.
-          </Text>
-
-          <Text style={styles.paragraph}>
-            KYC (Know Your Customer) verification is required for certain transaction limits as
-            mandated by Swiss anti-money laundering regulations.
-          </Text>
-
-          <View style={styles.links}>
-            {LEGAL_LINKS.map((link) => (
-              <Pressable key={link.url} onPress={() => Linking.openURL(link.url)}>
-                <Text style={styles.link}>{link.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </ScrollView>
-
-        <Pressable
-          testID="legal-accept-checkbox"
-          style={styles.checkboxRow}
-          onPress={() => setAccepted(!accepted)}
-        >
-          <View style={[styles.checkbox, accepted && styles.checkboxChecked]}>
-            {accepted && <Text style={styles.checkmark}>{'\u2713'}</Text>}
-          </View>
-          <Text style={styles.checkboxLabel}>
-            I have read and agree to the Terms of Service, Privacy Policy, and Disclaimer.
-          </Text>
-        </Pressable>
-
-        <PrimaryButton
-          testID="legal-continue-button"
-          title="Continue"
-          onPress={() => router.replace('/(auth)/(tabs)/dashboard')}
-          disabled={!accepted}
-        />
+        <View style={styles.links}>
+          {LEGAL_LINKS.map((link) => (
+            <Pressable
+              key={link.url}
+              style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
+              onPress={() => void openLegalLink(link.url)}
+            >
+              <Text style={styles.link}>{t(link.labelKey)}</Text>
+              <Text style={styles.linkArrow}>{'\u203A'}</Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
-    </ScreenContainer>
+
+      <Pressable
+        testID="legal-accept-checkbox"
+        style={styles.checkboxRow}
+        onPress={() => setAccepted(!accepted)}
+      >
+        <View style={[styles.checkbox, accepted && styles.checkboxChecked]}>
+          {accepted && <Text style={styles.checkmark}>{'\u2713'}</Text>}
+        </View>
+        <Text style={styles.checkboxLabel}>{t('legal.accept')}</Text>
+      </Pressable>
+
+      <View style={styles.spacer} />
+
+      <PrimaryButton
+        testID="legal-continue-button"
+        title={t('common.continue')}
+        onPress={handleContinue}
+        disabled={!accepted}
+      />
+    </DfxBackgroundScreen>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    flex: 1,
-    paddingVertical: 24,
-    gap: 20,
+    paddingTop: 4,
+    paddingBottom: 24,
+    gap: 22,
   },
-  title: {
-    ...Typography.headlineMedium,
-    color: DfxColors.text,
+  card: {
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
+    padding: 18,
   },
-  scrollContent: {
-    flex: 1,
+  eyebrow: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textSecondary,
+    lineHeight: 22,
+    marginBottom: 18,
   },
   paragraph: {
     ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    marginBottom: 16,
+    color: DfxColors.text,
     lineHeight: 22,
+    marginBottom: 14,
   },
   links: {
-    gap: 12,
-    marginTop: 8,
+    gap: 8,
+    marginTop: 4,
+  },
+  linkRow: {
+    minHeight: 48,
+    borderRadius: 8,
+    backgroundColor: DfxColors.surfaceLight,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   link: {
     ...Typography.bodyMedium,
     color: DfxColors.primary,
     fontWeight: '600',
-    textDecorationLine: 'underline',
+  },
+  linkArrow: {
+    ...Typography.headlineSmall,
+    color: DfxColors.primary,
+  },
+  pressed: {
+    opacity: 0.7,
   },
   checkboxRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    paddingVertical: 8,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
+    padding: 14,
   },
   checkbox: {
     width: 24,
@@ -134,5 +169,8 @@ const styles = StyleSheet.create({
     color: DfxColors.textSecondary,
     flex: 1,
     lineHeight: 20,
+  },
+  spacer: {
+    flex: 1,
   },
 });
