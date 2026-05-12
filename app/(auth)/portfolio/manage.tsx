@@ -54,7 +54,7 @@ export default function ManageChainsScreen() {
               <Icon name="arrow-left" size={26} color={DfxColors.text} />
             </Pressable>
             <Text style={styles.headerTitle}>{t('portfolio.manageChains')}</Text>
-            <View style={styles.headerIcon} />
+            <View style={styles.headerPlaceholder} pointerEvents="none" />
           </View>
 
           <ScrollView
@@ -123,6 +123,10 @@ const styles = StyleSheet.create({
     borderColor: DfxColors.border,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerPlaceholder: {
+    width: 40,
+    height: 40,
   },
   headerTitle: {
     flex: 1,
