@@ -1,4 +1,5 @@
 import { env } from '@/config/env';
+import { dfxAuthService } from './auth-service';
 import type { KycLevelDto, KycSessionDto } from './dto';
 
 export class DfxKycService {
@@ -39,11 +40,11 @@ export class DfxKycService {
   }
 
   async request2fa(): Promise<void> {
-    await this.kycPost('/v2/kyc/2fa', {});
+    await this.kycPost('/v2/kyc/2fa?level=Strict', {});
   }
 
   async verify2fa(code: string): Promise<void> {
-    await this.kycPost('/v2/kyc/2fa/verify', { code });
+    await this.kycPost('/v2/kyc/2fa/verify', { token: code });
   }
 
   private async kycGet<T>(path: string): Promise<T> {
@@ -78,6 +79,10 @@ export class DfxKycService {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
+    const token = dfxAuthService.getAccessToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
     if (this.kycCode) {
       headers['x-kyc-code'] = this.kycCode;
     }

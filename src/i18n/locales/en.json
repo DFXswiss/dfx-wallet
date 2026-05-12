@@ -214,9 +214,11 @@
     "continueCta": "Continue verification",
     "mergedTitle": "Data unavailable",
     "nationality": "Nationality",
+    "noKycTitle": "No KYC",
     "openVerification": "Open verification",
     "personal": "Personal Data",
     "phone": "Phone (optional)",
+    "startCta": "KYC now",
     "status": {
       "completed": "Completed",
       "failed": "Failed",
