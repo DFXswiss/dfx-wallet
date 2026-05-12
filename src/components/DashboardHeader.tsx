@@ -22,7 +22,7 @@ export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
           <Icon name="shield" size={26} color={DfxColors.primary} strokeWidth={2.5} />
         </Pressable>
       ) : (
-        <View style={styles.iconButton} />
+        <View style={styles.iconPlaceholder} pointerEvents="none" />
       )}
       <Image
         source={require('../../assets/dfx-logo.png')}
@@ -61,6 +61,10 @@ const styles = StyleSheet.create({
     borderColor: DfxColors.border,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  iconPlaceholder: {
+    width: 40,
+    height: 40,
   },
   logo: {
     height: 30,

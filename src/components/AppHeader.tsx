@@ -49,7 +49,11 @@ export function AppHeader({ title, onBack, rightAction, testID }: Props) {
         {title}
       </Text>
 
-      <View style={[styles.iconSlot, styles.iconButton]}>{rightAction}</View>
+      {rightAction ? (
+        <View style={[styles.iconSlot, styles.iconButton]}>{rightAction}</View>
+      ) : (
+        <View style={styles.iconSlot} pointerEvents="none" />
+      )}
     </View>
   );
 }
