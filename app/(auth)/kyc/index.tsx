@@ -222,6 +222,7 @@ export default function KycScreen() {
   const steps = kycLevel?.kycSteps ?? [];
   const currentStep = currentSession?.currentStep;
   const currentLevel = kycLevel?.kycLevel ?? 0;
+  const isNoKyc = currentLevel <= 0;
   const matchingTier =
     KYC_TIERS.slice()
       .reverse()
@@ -265,7 +266,9 @@ export default function KycScreen() {
           <View style={styles.levelCard}>
             <Text style={styles.levelLabel}>{t('kyc.currentLevel')}</Text>
             <Text style={styles.levelValue}>{currentLevel}</Text>
-            <Text style={styles.tierTitle}>{t(matchingTier.titleKey)}</Text>
+            <Text style={styles.tierTitle}>
+              {isNoKyc ? t('kyc.noKycTitle') : t(matchingTier.titleKey)}
+            </Text>
             <Text style={styles.tierBody}>{t(matchingTier.bodyKey)}</Text>
           </View>
         )}
@@ -421,9 +424,9 @@ export default function KycScreen() {
          * At Level 50 the user is fully verified and DFX may flag
          * InProgress/Outdated as renewal — pushing them to "Continue
          * Verification" is a misleading nag. */}
-        {!isMerged && !currentStep && steps.length > 0 && currentLevel < 50 && (
+        {!isMerged && !currentStep && currentLevel < 50 && (
           <PrimaryButton
-            title={t('kyc.continueCta')}
+            title={isNoKyc ? t('kyc.startCta') : t('kyc.continueCta')}
             onPress={handleContinue}
             loading={isLoading}
           />
