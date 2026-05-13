@@ -1,92 +1,71 @@
-import { env } from '@/config/env';
-import { dfxAuthService } from './auth-service';
+import { dfxApi } from './api';
+import { dfxUserService } from './user-service';
 import type { KycLevelDto, KycSessionDto } from './dto';
 
+export type RegistrationEmailStatus = 'email_registered' | 'merge_requested';
+
 export class DfxKycService {
-  private kycCode: string | null = null;
-
-  setKycCode(code: string): void {
-    this.kycCode = code;
-  }
-
   async getKycStatus(): Promise<KycLevelDto> {
-    return this.kycGet<KycLevelDto>('/v2/kyc');
+    return dfxApi.get<KycLevelDto>('/v2/kyc', { headers: await this.getKycHeaders() });
   }
 
   async continueKyc(): Promise<KycSessionDto> {
-    return this.kycPut<KycSessionDto>('/v2/kyc', {});
+    return dfxApi.put<KycSessionDto>('/v2/kyc', undefined, {
+      headers: await this.getKycHeaders(),
+    });
   }
 
   async submitContactData(id: number, data: { mail: string }): Promise<void> {
-    await this.kycPut(`/v2/kyc/data/contact/${id}`, data);
+    await dfxApi.put(`/v2/kyc/data/contact/${id}`, data, { headers: await this.getKycHeaders() });
+  }
+
+  async registerEmail(email: string): Promise<RegistrationEmailStatus> {
+    const response = await dfxApi.post<{ status: RegistrationEmailStatus }>(
+      '/v1/realunit/register/email',
+      { email: email.toLowerCase(), wallet: 'DFX Wallet' },
+    );
+    return response.status;
   }
 
   async submitPersonalData(
     id: number,
     data: { firstName: string; lastName: string; phone?: string },
   ): Promise<void> {
-    await this.kycPut(`/v2/kyc/data/personal/${id}`, data);
+    await dfxApi.put(`/v2/kyc/data/personal/${id}`, data, { headers: await this.getKycHeaders() });
   }
 
   async submitNationalityData(
     id: number,
     data: { nationality: string; country: string },
   ): Promise<void> {
-    await this.kycPut(`/v2/kyc/data/nationality/${id}`, data);
+    await dfxApi.put(`/v2/kyc/data/nationality/${id}`, data, {
+      headers: await this.getKycHeaders(),
+    });
   }
 
   async submitFinancialData(id: number, data: Record<string, unknown>): Promise<void> {
-    await this.kycPut(`/v2/kyc/data/financial/${id}`, data);
+    await dfxApi.put(`/v2/kyc/data/financial/${id}`, data, {
+      headers: await this.getKycHeaders(),
+    });
   }
 
   async request2fa(): Promise<void> {
-    await this.kycPost('/v2/kyc/2fa?level=Strict', {});
+    await dfxApi.post('/v2/kyc/2fa?level=Strict', undefined, {
+      headers: await this.getKycHeaders(),
+    });
   }
 
   async verify2fa(code: string): Promise<void> {
-    await this.kycPost('/v2/kyc/2fa/verify', { token: code });
+    await dfxApi.post(
+      '/v2/kyc/2fa/verify',
+      { token: code },
+      { headers: await this.getKycHeaders() },
+    );
   }
 
-  private async kycGet<T>(path: string): Promise<T> {
-    const response = await fetch(`${env.dfxApiUrl}${path}`, {
-      headers: this.getKycHeaders(),
-    });
-    if (!response.ok) throw new Error(`KYC API error: ${response.status}`);
-    return response.json() as Promise<T>;
-  }
-
-  private async kycPut<T>(path: string, body: unknown): Promise<T> {
-    const response = await fetch(`${env.dfxApiUrl}${path}`, {
-      method: 'PUT',
-      headers: this.getKycHeaders(),
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) throw new Error(`KYC API error: ${response.status}`);
-    return response.json() as Promise<T>;
-  }
-
-  private async kycPost<T>(path: string, body: unknown): Promise<T> {
-    const response = await fetch(`${env.dfxApiUrl}${path}`, {
-      method: 'POST',
-      headers: this.getKycHeaders(),
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) throw new Error(`KYC API error: ${response.status}`);
-    return response.json() as Promise<T>;
-  }
-
-  private getKycHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    const token = dfxAuthService.getAccessToken();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-    if (this.kycCode) {
-      headers['x-kyc-code'] = this.kycCode;
-    }
-    return headers;
+  private async getKycHeaders(): Promise<Record<string, string>> {
+    const user = await dfxUserService.getUser();
+    return { 'x-kyc-code': user.kyc.hash };
   }
 }
 

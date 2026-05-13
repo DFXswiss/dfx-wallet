@@ -426,12 +426,12 @@ export const WDK_SUPPORTED_CHAINS: ChainId[] = [
   'sepolia',
 ];
 
-/** Networks that are enabled by default but the user can toggle off. */
+/** Networks that the user can toggle on or off. */
 export const SELECTABLE_CHAINS: ChainId[] = ['arbitrum', 'polygon', 'base'];
 
 /** Initial set of enabled chains for a fresh install. */
 export const DEFAULT_ENABLED_CHAINS: ChainId[] = Array.from(
-  new Set([...ALWAYS_ON_CHAINS, ...IMPLICIT_ENABLED_CHAINS, ...SELECTABLE_CHAINS]),
+  new Set([...ALWAYS_ON_CHAINS, ...IMPLICIT_ENABLED_CHAINS]),
 );
 
 export type AssetMeta = {

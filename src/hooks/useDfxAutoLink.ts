@@ -1,6 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { useAccount } from '@tetherto/wdk-react-native-core';
 import { dfxAuthService, jwtCoversBlockchain } from '@/services/dfx';
+import {
+  EVM_AUTH_ADDRESS_PROBE_MESSAGE,
+  recoverPersonalSignAddress,
+} from '@/services/evm/signature';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
 import { useLdsWallet } from './useLdsWallet';
@@ -82,6 +86,9 @@ export function useDfxAutoLink() {
   const eth = useAccount({ network: 'ethereum', accountIndex: 0 });
   const lds = useLdsWallet();
   const inFlight = useRef(false);
+  const evmAuthAddressCache = useRef<{ accountAddress: string; signerAddress: string } | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!isDfxAuthenticated || inFlight.current) return;
@@ -128,13 +135,29 @@ export function useDfxAutoLink() {
               linked[c.chain] = true;
               cacheChanged = true;
             } else if (c.kind === 'wdk-evm') {
-              // Same address + key as Ethereum — DFX accepts the ETH-signed
-              // payload for any EVM blockchain, so we don't even need a
-              // separate WDK account per chain. Signs silently in the Bare
-              // Worklet, no user prompt.
+              // WDK's EVM account is a Safe/ERC-4337 address, while personal
+              // message signatures come from the owner EOA. DFX verifies the
+              // recovered signer, so link the owner address for every EVM chain.
               if (!eth.address) continue;
+              let evmAddress: string;
+              if (evmAuthAddressCache.current?.accountAddress === eth.address) {
+                evmAddress = evmAuthAddressCache.current.signerAddress;
+              } else {
+                const probe = await eth.sign(EVM_AUTH_ADDRESS_PROBE_MESSAGE);
+                if (!probe.success) {
+                  throw new Error(probe.error ?? 'Failed to sign message');
+                }
+                evmAddress = recoverPersonalSignAddress(
+                  EVM_AUTH_ADDRESS_PROBE_MESSAGE,
+                  probe.signature,
+                );
+                evmAuthAddressCache.current = {
+                  accountAddress: eth.address,
+                  signerAddress: evmAddress,
+                };
+              }
               const newToken = await dfxAuthService.linkAddress(
-                eth.address,
+                evmAddress,
                 async (message) => {
                   const result = await eth.sign(message);
                   if (!result.success) {

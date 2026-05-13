@@ -79,16 +79,26 @@ export class DfxAuthService {
     signFn: (message: string) => Promise<string>,
     options?: { wallet?: string; blockchain?: string; usedRef?: string },
   ): Promise<string> {
-    const { message } = await this.getSignMessage(address);
-    const signature = await this.signWithCache(address, message, signFn);
+    const previousToken = this.accessToken;
+    this.accessToken = null;
+    dfxApi.clearAuthToken();
 
-    return this.authenticate({
-      address,
-      signature,
-      wallet: options?.wallet ?? 'DFX Wallet',
-      ...(options?.blockchain !== undefined ? { blockchain: options.blockchain } : {}),
-      ...(options?.usedRef !== undefined ? { usedRef: options.usedRef } : {}),
-    });
+    try {
+      const { message } = await this.getSignMessage(address);
+      const signature = await this.signWithCache(address, message, signFn);
+
+      return await this.authenticate({
+        address,
+        signature,
+        wallet: options?.wallet ?? 'DFX Wallet',
+        ...(options?.blockchain !== undefined ? { blockchain: options.blockchain } : {}),
+        ...(options?.usedRef !== undefined ? { usedRef: options.usedRef } : {}),
+      });
+    } catch (err) {
+      this.accessToken = previousToken;
+      if (previousToken) dfxApi.setAuthToken(previousToken);
+      throw err;
+    }
   }
 
   /** Refresh auth token (re-sign challenge) */
@@ -115,17 +125,7 @@ export class DfxAuthService {
     signFn: (message: string) => Promise<string>,
     options?: { wallet?: string; blockchain?: string },
   ): Promise<string> {
-    const previousToken = this.accessToken;
-    this.accessToken = null;
-    dfxApi.clearAuthToken();
-    try {
-      const token = await this.login(address, signFn, options);
-      return token;
-    } catch (err) {
-      this.accessToken = previousToken;
-      if (previousToken) dfxApi.setAuthToken(previousToken);
-      throw err;
-    }
+    return this.login(address, signFn, options);
   }
 
   /**

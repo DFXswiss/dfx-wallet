@@ -14,7 +14,7 @@ type Props = {
 export function ShortcutAction({ icon, label, onPress, style, testID }: Props) {
   return (
     <Pressable
-      style={[styles.pill, style]}
+      style={({ pressed }) => [styles.pill, pressed && styles.pressed, style]}
       onPress={onPress}
       testID={testID}
       accessibilityRole="button"
@@ -31,30 +31,37 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: DfxColors.surface,
-    borderRadius: 999,
+    minHeight: 60,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(221,229,240,0.9)',
     paddingVertical: 10,
-    paddingLeft: 8,
-    paddingRight: 16,
-    gap: 12,
+    paddingLeft: 10,
+    paddingRight: 14,
+    gap: 10,
     shadowColor: '#0B1426',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
     elevation: 2,
+  },
+  pressed: {
+    transform: [{ scale: 0.985 }],
+    opacity: 0.9,
   },
   iconBubble: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 13,
     backgroundColor: DfxColors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   label: {
     flex: 1,
-    ...Typography.bodyLarge,
+    ...Typography.bodyMedium,
     color: DfxColors.primary,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

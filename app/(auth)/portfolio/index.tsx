@@ -289,19 +289,17 @@ export default function PortfolioScreen() {
               />
             }
           >
-            <View style={styles.totalCard}>
-              <Text style={styles.totalLabel}>{t('portfolio.totalValue')}</Text>
-              <View style={styles.totalRow}>
-                <Text style={styles.totalCurrency}>{currencySymbol}</Text>
-                <Text style={styles.totalValue}>
-                  {Number.isFinite(totalFiat)
-                    ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })
-                    : '0.00'}
-                </Text>
-              </View>
+            <Text style={styles.totalLabel}>{t('portfolio.totalValue')}</Text>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalCurrency}>{currencySymbol}</Text>
+              <Text style={styles.totalValue}>
+                {Number.isFinite(totalFiat)
+                  ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
+                  : '0.00'}
+              </Text>
             </View>
 
             {groups.length > 0 ? (
@@ -478,13 +476,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 8,
+    paddingTop: 6,
+    paddingBottom: 12,
   },
   headerIcon: {
     minWidth: 80,
-    height: 40,
-    borderRadius: 12,
+    height: 44,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -505,40 +503,37 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 48,
+    paddingTop: 36,
     paddingBottom: 48,
-    gap: 16,
-  },
-  totalCard: {
-    paddingTop: 8,
-    paddingBottom: 24,
-    alignItems: 'center',
-    gap: 6,
+    gap: 14,
   },
   totalLabel: {
     ...Typography.bodyMedium,
     color: DfxColors.textSecondary,
     fontWeight: '500',
+    textAlign: 'center',
   },
   totalRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
+    justifyContent: 'center',
     gap: 6,
   },
   totalCurrency: {
-    fontSize: 24,
+    fontSize: 26,
     color: DfxColors.textTertiary,
     fontWeight: '500',
   },
   totalValue: {
-    fontSize: 44,
-    lineHeight: 50,
+    fontSize: 46,
+    lineHeight: 52,
     fontWeight: '700',
     color: DfxColors.text,
+    flexShrink: 1,
   },
   assetList: {
-    gap: 8,
-    marginTop: 28,
+    gap: 10,
+    marginTop: 22,
   },
   emptyCard: {
     marginTop: 28,
@@ -561,25 +556,26 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: DfxColors.border,
+    borderColor: 'rgba(221,229,240,0.9)',
     padding: 14,
     gap: 12,
     shadowColor: '#0B1426',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.07,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
     elevation: 2,
   },
   cardPressed: {
-    opacity: 0.7,
+    opacity: 0.86,
+    transform: [{ scale: 0.99 }],
   },
   iconBubble: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 46,
+    height: 46,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#0B1426',
@@ -596,6 +592,7 @@ const styles = StyleSheet.create({
   info: {
     flex: 1,
     gap: 4,
+    minWidth: 0,
   },
   name: {
     ...Typography.bodyLarge,
@@ -609,7 +606,8 @@ const styles = StyleSheet.create({
   balanceColumn: {
     alignItems: 'flex-end',
     gap: 2,
-    minWidth: 90,
+    minWidth: 98,
+    maxWidth: '42%',
   },
   fiatValue: {
     ...Typography.bodyLarge,
