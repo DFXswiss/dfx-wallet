@@ -29,7 +29,8 @@ const MAX_ATTEMPTS = 5;
 export default function VerifyPinScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { verifyPin, setAuthenticated, authenticateBiometric, biometricEnabled } = useAuthStore();
+  const { verifyPin, setAuthenticated, authenticateBiometric, biometricEnabled, isAuthenticated } =
+    useAuthStore();
   const { unlock } = useWalletManager();
   const { state } = useWdkApp();
   const [pin, setPinValue] = useState('');
@@ -76,10 +77,10 @@ export default function VerifyPinScreen() {
   }, [biometricEnabled]);
 
   useEffect(() => {
-    if (state.status === 'READY') {
+    if (isAuthenticated && state.status === 'READY') {
       goToDashboard();
     }
-  }, [state.status, goToDashboard]);
+  }, [isAuthenticated, state.status, goToDashboard]);
 
   const handleDigit = (digit: string) => {
     setError(false);
