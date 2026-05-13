@@ -16,8 +16,7 @@ function withEtherscanKey<T>(
   let result!: T;
   jest.isolateModules(() => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod =
-      require('../../src/services/explorer/etherscan') as typeof import('../../src/services/explorer/etherscan');
+    const mod = require('../../src/services/explorer/etherscan') as typeof import('../../src/services/explorer/etherscan');
     result = fn(mod);
   });
   if (previous === undefined) delete process.env.EXPO_PUBLIC_ETHERSCAN_API_KEY;

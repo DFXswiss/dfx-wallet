@@ -1,4 +1,4 @@
-appId: swiss.dfx.wallet
+appId: ${APP_ID}
 name: 01-welcome
 tags:
   - smoke

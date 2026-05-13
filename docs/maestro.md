@@ -15,7 +15,7 @@ The wallet ships native modules that are not Expo Go compatible (`react-native-b
 
 - Maestro CLI: `brew tap mobile-dev-inc/tap && brew install maestro` (or `curl -Ls https://get.maestro.mobile.dev | bash`)
 - iOS: Xcode 16+, an iOS Simulator (run `xcrun simctl list devices`), and Facebook IDB (`brew tap facebook/fb && brew install idb-companion`) — required by Maestro to drive the simulator
-- Android: Android SDK with an emulator image (API 34+, x86_64)
+- Android: Android SDK with an emulator image (API 34+, ARM64 on macOS ARM)
 - Built and installed app:
   - iOS: `npx expo run:ios --configuration Release`
   - Android: `npx expo run:android --variant release`
@@ -37,7 +37,7 @@ npm run e2e:maestro:android
 Both scripts run every flow under `.maestro/`. To run a single flow:
 
 ```bash
-maestro test .maestro/01-welcome.yaml
+maestro test --env APP_ID=wallet.dfx.swiss .maestro/01-welcome.yaml
 ```
 
 To debug interactively:

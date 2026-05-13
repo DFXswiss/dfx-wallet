@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, DfxBackgroundScreen, PrimaryButton } from '@/components';
 import { BitboxProvider, BitboxWasmWebView } from '@/services/hardware-wallet';
-import type { HardwareWalletDevice, HardwareWalletStatus } from '@/services/hardware-wallet';
+import type { HardwareWalletDevice } from '@/services/hardware-wallet';
 import { useHardwareWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 

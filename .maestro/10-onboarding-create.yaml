@@ -1,4 +1,4 @@
-appId: swiss.dfx.wallet
+appId: ${APP_ID}
 name: 10-onboarding-create
 tags:
   - onboarding
@@ -53,9 +53,11 @@ tags:
 - assertVisible:
     id: "dashboard-screen"
 - assertVisible:
-    id: "dashboard-action-buy"
+    id: "dashboard-action-portfolio"
 - assertVisible:
-    id: "dashboard-action-sell"
+    id: "dashboard-action-pay"
+- assertVisible:
+    id: "dashboard-action-transactions"
 - assertVisible:
     id: "dashboard-action-send"
 - assertVisible:

@@ -1,4 +1,4 @@
-appId: swiss.dfx.wallet
+appId: ${APP_ID}
 name: 11-onboarding-restore
 tags:
   - onboarding
