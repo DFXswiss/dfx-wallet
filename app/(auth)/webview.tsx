@@ -2,7 +2,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import { ScreenContainer } from '@/components';
-import { isAllowedDfxHost } from '@/services/security/safe-url';
+import { dfxAuthService } from '@/services/dfx';
+import { isAllowedDfxHost, isDfxOwnedHost } from '@/services/security/safe-url';
 import { DfxColors, Typography } from '@/theme';
 
 /**
@@ -21,6 +22,15 @@ export default function WebViewScreen() {
   const router = useRouter();
   const { url, title } = useLocalSearchParams<{ url: string; title?: string }>();
   const safe = typeof url === 'string' && isAllowedDfxHost(url);
+  const token =
+    typeof url === 'string' && isDfxOwnedHost(url) ? dfxAuthService.getAccessToken() : null;
+  const source =
+    typeof url === 'string'
+      ? {
+          uri: url,
+          ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+        }
+      : undefined;
 
   return (
     <ScreenContainer>
@@ -35,7 +45,7 @@ export default function WebViewScreen() {
       </View>
       {safe ? (
         <WebView
-          source={{ uri: url }}
+          source={source}
           style={styles.webview}
           startInLoadingState
           javaScriptEnabled

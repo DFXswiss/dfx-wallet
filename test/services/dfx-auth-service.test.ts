@@ -1,6 +1,58 @@
 import { dfxApi, DfxApiError } from '../../src/services/dfx/api';
 import { dfxAuthService } from '../../src/services/dfx/auth-service';
 
+describe('dfxAuthService.login', () => {
+  let getSpy: jest.SpyInstance;
+  let postSpy: jest.SpyInstance;
+  let clearAuthTokenSpy: jest.SpyInstance;
+  let setAuthTokenSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    getSpy = jest.spyOn(dfxApi, 'get');
+    postSpy = jest.spyOn(dfxApi, 'post');
+    clearAuthTokenSpy = jest.spyOn(dfxApi, 'clearAuthToken');
+    setAuthTokenSpy = jest.spyOn(dfxApi, 'setAuthToken');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    dfxAuthService.adoptStoredToken(null);
+  });
+
+  it('drops any existing Bearer before doing a fresh signature login', async () => {
+    dfxAuthService.adoptStoredToken('STALE_TOKEN');
+    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    postSpy.mockResolvedValueOnce({ accessToken: 'OWNER_TOKEN' });
+
+    const token = await dfxAuthService.login('0xabc', async () => 'SIG', {
+      wallet: 'DFX Wallet',
+    });
+
+    expect(clearAuthTokenSpy).toHaveBeenCalled();
+    expect(postSpy).toHaveBeenCalledWith('/v1/auth', {
+      address: '0xabc',
+      signature: 'SIG',
+      wallet: 'DFX Wallet',
+    });
+    expect(token).toBe('OWNER_TOKEN');
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('OWNER_TOKEN');
+  });
+
+  it('restores the previous token if a fresh signature login fails', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    postSpy.mockRejectedValueOnce(new DfxApiError(400, 'AUTH_FAILED', 'Invalid signature'));
+
+    await expect(dfxAuthService.login('0xabc', async () => 'BAD')).rejects.toThrow(
+      /Invalid signature/,
+    );
+
+    expect(clearAuthTokenSpy).toHaveBeenCalled();
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('OLD_TOKEN');
+    expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
+  });
+});
+
 describe('dfxAuthService.linkAddress', () => {
   let getSpy: jest.SpyInstance;
   let postSpy: jest.SpyInstance;

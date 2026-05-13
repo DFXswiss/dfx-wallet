@@ -6,6 +6,11 @@ export type ApiError = {
   message: string | string[];
 };
 
+type RequestOptions = {
+  signal?: AbortSignal;
+  headers?: Record<string, string>;
+};
+
 class DfxApi {
   private baseUrl = env.dfxApiUrl;
   private authToken: string | null = null;
@@ -31,7 +36,7 @@ class DfxApi {
     this.onUnauthorized = handler;
   }
 
-  async get<T>(path: string, options?: { signal?: AbortSignal }): Promise<T> {
+  async get<T>(path: string, options?: RequestOptions): Promise<T> {
     return this.request<T>('GET', path, undefined, options);
   }
 
@@ -51,15 +56,15 @@ class DfxApi {
     return this.handleResponse<T>(response);
   }
 
-  async post<T>(path: string, body: unknown, options?: { signal?: AbortSignal }): Promise<T> {
+  async post<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
     return this.request<T>('POST', path, body, options);
   }
 
-  async put<T>(path: string, body: unknown, options?: { signal?: AbortSignal }): Promise<T> {
+  async put<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
     return this.request<T>('PUT', path, body, options);
   }
 
-  async delete<T>(path: string, options?: { signal?: AbortSignal }): Promise<T> {
+  async delete<T>(path: string, options?: RequestOptions): Promise<T> {
     return this.request<T>('DELETE', path, undefined, options);
   }
 
@@ -67,16 +72,16 @@ class DfxApi {
     method: string,
     path: string,
     body?: unknown,
-    options?: { signal?: AbortSignal },
+    options?: RequestOptions,
   ): Promise<T> {
-    const response = await this.fetch(method, path, body, options?.signal);
+    const response = await this.fetch(method, path, body, options);
 
     // Handle 401 — attempt token refresh once
     if (response.status === 401 && this.onUnauthorized) {
       const newToken = await this.onUnauthorized();
       if (newToken) {
         this.authToken = newToken;
-        const retryResponse = await this.fetch(method, path, body, options?.signal);
+        const retryResponse = await this.fetch(method, path, body, options);
         return this.handleResponse<T>(retryResponse);
       }
     }
@@ -88,14 +93,14 @@ class DfxApi {
     method: string,
     path: string,
     body?: unknown,
-    signal?: AbortSignal,
+    options?: RequestOptions,
   ): Promise<Response> {
     const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
     return fetch(url, {
       method,
-      headers: this.getHeaders(),
+      headers: this.getHeaders(options?.headers),
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-      ...(signal ? { signal } : {}),
+      ...(options?.signal ? { signal: options.signal } : {}),
     });
   }
 
@@ -127,9 +132,10 @@ class DfxApi {
     return JSON.parse(text) as T;
   }
 
-  private getHeaders(): Record<string, string> {
+  private getHeaders(extraHeaders?: Record<string, string>): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      ...extraHeaders,
     };
     if (this.authToken) {
       headers['Authorization'] = `Bearer ${this.authToken}`;

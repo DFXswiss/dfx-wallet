@@ -27,6 +27,16 @@ const ALLOWED_HOSTS = new Set([
   'go.idnow.de',
 ]);
 
+const DFX_OWNED_HOSTS = new Set([
+  'dfx.swiss',
+  'app.dfx.swiss',
+  'services.dfx.swiss',
+  'api.dfx.swiss',
+  'docs.dfx.swiss',
+  'lightning.space',
+  'lightning.dfx.swiss',
+]);
+
 function parseUrl(raw: string): URL | null {
   try {
     return new URL(raw);
@@ -54,6 +64,16 @@ export function isAllowedDfxHost(raw: string): boolean {
   if (!parsed || parsed.protocol !== 'https:') return false;
   const host = parsed.hostname.toLowerCase();
   for (const allowed of ALLOWED_HOSTS) {
+    if (host === allowed || host.endsWith(`.${allowed}`)) return true;
+  }
+  return false;
+}
+
+export function isDfxOwnedHost(raw: string): boolean {
+  const parsed = parseUrl(raw);
+  if (!parsed || parsed.protocol !== 'https:') return false;
+  const host = parsed.hostname.toLowerCase();
+  for (const allowed of DFX_OWNED_HOSTS) {
     if (host === allowed || host.endsWith(`.${allowed}`)) return true;
   }
   return false;

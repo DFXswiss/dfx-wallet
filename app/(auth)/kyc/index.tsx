@@ -10,8 +10,9 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader, PrimaryButton, ScreenContainer } from '@/components';
+import { AppHeader, Icon, PrimaryButton, ScreenContainer } from '@/components';
 import { useDfxAuth, useKycFlow } from '@/hooks';
+import { decodeDfxJwt, DfxApiError, dfxApi, dfxAuthService } from '@/services/dfx';
 import { isAllowedDfxHost, isSafeHttpsUrl } from '@/services/security/safe-url';
 import { DfxColors, Typography } from '@/theme';
 
@@ -29,26 +30,19 @@ import { DfxColors, Typography } from '@/theme';
  */
 async function openKycUrl(url: string, openInApp: (u: string) => void): Promise<void> {
   if (!isSafeHttpsUrl(url)) return;
-  try {
-    const host = new URL(url).host;
-    if (isAllowedDfxHost(host)) {
-      openInApp(url);
-      return;
-    }
-  } catch {
-    // Malformed URL — fall through to the OS-handler which will silently
-    // reject it anyway. We don't want to bail entirely because the user
-    // is mid-flow.
+  if (isAllowedDfxHost(url)) {
+    openInApp(url);
+    return;
   }
   await Linking.openURL(url);
 }
 
-const STEP_LABELS: Record<string, string> = {
-  ContactData: 'Contact',
-  PersonalData: 'Personal Data',
-  NationalityData: 'Nationality',
-  FinancialData: 'Financial Info',
-  Ident: 'Identity Check',
+const STEP_LABEL_KEYS: Record<string, string> = {
+  ContactData: 'kyc.contact',
+  PersonalData: 'kyc.personal',
+  NationalityData: 'kyc.nationality',
+  FinancialData: 'kyc.financial',
+  Ident: 'kyc.ident',
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -106,6 +100,22 @@ function isMergedError(err: string | null | undefined): boolean {
   return !!err && /user is merged/i.test(err);
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+type PreKycStep = 'legalRisk' | 'legalTerms' | 'email' | 'emailVerify';
+
+const PRE_KYC_STEPS: PreKycStep[] = ['legalRisk', 'legalTerms', 'email', 'emailVerify'];
+
+const DFX_LEGAL_DOCUMENTS = [
+  { titleKey: 'legal.terms', url: 'https://dfx.swiss/terms-and-conditions' },
+  { titleKey: 'legal.privacy', url: 'https://dfx.swiss/privacy-policy' },
+  { titleKey: 'legal.disclaimer', url: 'https://dfx.swiss/disclaimer' },
+];
+
 export default function KycScreen() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -116,6 +126,7 @@ export default function KycScreen() {
     error,
     loadKycStatus,
     continueKyc,
+    registerEmail,
     submitContactData,
     submitPersonalData,
     request2fa,
@@ -128,8 +139,14 @@ export default function KycScreen() {
   const [phone, setPhone] = useState('');
   const [tfaCode, setTfaCode] = useState('');
   const [tfaRequested, setTfaRequested] = useState(false);
+  const [preKycStep, setPreKycStep] = useState<PreKycStep>('legalRisk');
+  const [mail, setMail] = useState('');
+  const [mailBusy, setMailBusy] = useState(false);
+  const [mailError, setMailError] = useState<string | null>(null);
+  const [preKycAccountId, setPreKycAccountId] = useState<number | null>(null);
+  const [preKycMailRegistered, setPreKycMailRegistered] = useState(false);
 
-  const { reauthenticateAsOwner, isAuthenticating, error: authError } = useDfxAuth();
+  const { authenticate, reauthenticateAsOwner, isAuthenticating, error: authError } = useDfxAuth();
 
   const openInAppWebView = useCallback(
     (url: string) => {
@@ -165,6 +182,80 @@ export default function KycScreen() {
         // unexpected destination.
         await openKycUrl(url, openInAppWebView);
       }
+    }
+  };
+
+  const isValidMail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail.trim());
+
+  const advanceAfterMailRegistration = async () => {
+    setPreKycMailRegistered(true);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await loadKycStatus();
+      const session = await continueKyc();
+      if (session?.currentStep) return;
+      if (attempt < 2) await wait(750);
+    }
+  };
+
+  const refreshAfterAccountMerge = async () => {
+    setPreKycMailRegistered(true);
+    await loadKycStatus();
+  };
+
+  const handleSendKycMail = async () => {
+    setMailBusy(true);
+    setMailError(null);
+    try {
+      let token = dfxAuthService.getAccessToken() ?? (await authenticate());
+      setPreKycAccountId(decodeDfxJwt(token)?.account ?? null);
+      let status;
+      try {
+        status = await registerEmail(mail.trim());
+      } catch (err) {
+        if (!(err instanceof DfxApiError && err.statusCode === 401)) throw err;
+        token = await authenticate();
+        setPreKycAccountId(decodeDfxJwt(token)?.account ?? null);
+        status = await registerEmail(mail.trim());
+      }
+
+      if (status === 'email_registered') {
+        await advanceAfterMailRegistration();
+        return;
+      }
+
+      if (status === 'merge_requested') {
+        setPreKycStep('emailVerify');
+        return;
+      }
+
+      setMailError(t('kyc.mailNoContactStep'));
+    } catch (err) {
+      setMailError(err instanceof Error ? err.message : t('kyc.mailSendError'));
+    } finally {
+      setMailBusy(false);
+    }
+  };
+
+  const handleConfirmKycMail = async () => {
+    setMailBusy(true);
+    setMailError(null);
+    try {
+      dfxAuthService.logout();
+      dfxApi.clearAuthToken();
+      const token = await authenticate();
+      const accountId = decodeDfxJwt(token)?.account ?? null;
+      const merged =
+        accountId !== null && (preKycAccountId === null || accountId !== preKycAccountId);
+      if (!merged) {
+        setMailError(t('kyc.mailNotVerifiedYet'));
+        return;
+      }
+
+      await refreshAfterAccountMerge();
+    } catch (err) {
+      setMailError(err instanceof Error ? err.message : t('kyc.mailVerifyError'));
+    } finally {
+      setMailBusy(false);
     }
   };
 
@@ -207,6 +298,21 @@ export default function KycScreen() {
   };
 
   const isMerged = isMergedError(error);
+  const preKycStepIndex = PRE_KYC_STEPS.indexOf(preKycStep);
+
+  const goToPreviousPreKycStep = () => {
+    if (preKycStepIndex <= 0) {
+      router.back();
+      return;
+    }
+    setMailError(null);
+    setPreKycStep(PRE_KYC_STEPS[preKycStepIndex - 1] ?? 'legalRisk');
+  };
+
+  const goToNextPreKycStep = () => {
+    setMailError(null);
+    setPreKycStep(PRE_KYC_STEPS[preKycStepIndex + 1] ?? 'email');
+  };
 
   if (isLoading && !kycLevel) {
     return (
@@ -223,10 +329,163 @@ export default function KycScreen() {
   const currentStep = currentSession?.currentStep;
   const currentLevel = kycLevel?.kycLevel ?? 0;
   const isNoKyc = currentLevel <= 0;
+  const showPreKycMailFlow = !preKycMailRegistered && !isMerged && isNoKyc && !currentStep;
+  const showApiForm =
+    currentStep?.session?.type === 'API' &&
+    (currentStep.name === 'ContactData' || currentStep.name === 'PersonalData');
   const matchingTier =
     KYC_TIERS.slice()
       .reverse()
       .find((tier) => currentLevel >= tier.threshold) ?? KYC_TIERS[0]!;
+
+  const renderLegalDocuments = () => (
+    <View style={styles.documentList}>
+      {DFX_LEGAL_DOCUMENTS.map((document) => (
+        <Pressable
+          key={document.titleKey}
+          style={({ pressed }) => [styles.documentRow, pressed && styles.pressed]}
+          onPress={() => {
+            void Linking.openURL(document.url);
+          }}
+        >
+          <View style={styles.documentIcon}>
+            <Icon name="document" size={22} color={DfxColors.primary} />
+          </View>
+          <Text style={styles.documentTitle}>{t(document.titleKey)}</Text>
+          <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
+        </Pressable>
+      ))}
+    </View>
+  );
+
+  if (showPreKycMailFlow) {
+    const progress = (preKycStepIndex + 1) / PRE_KYC_STEPS.length;
+
+    return (
+      <ScreenContainer scrollable>
+        <AppHeader title={t('kyc.title')} testID="kyc-screen" />
+        <View style={styles.preKycContent}>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+          </View>
+
+          {preKycStep === 'legalRisk' ? (
+            <View style={styles.preKycStep}>
+              <Text style={styles.preKycTitle}>{t('kyc.legalRiskTitle')}</Text>
+              <Text style={styles.preKycBody}>{t('kyc.legalRiskBody')}</Text>
+            </View>
+          ) : null}
+
+          {preKycStep === 'legalTerms' ? (
+            <View style={styles.preKycStep}>
+              <Text style={styles.preKycTitle}>{t('kyc.legalTermsTitle')}</Text>
+              <Text style={styles.preKycBody}>{t('kyc.legalTermsBody')}</Text>
+              {renderLegalDocuments()}
+            </View>
+          ) : null}
+
+          {preKycStep === 'email' ? (
+            <View style={styles.preKycStep}>
+              <Text style={styles.preKycTitle}>{t('kyc.registerEmailTitle')}</Text>
+              <Text style={styles.preKycBody}>{t('kyc.registerEmailBody')}</Text>
+              <TextInput
+                style={styles.input}
+                value={mail}
+                onChangeText={(value) => {
+                  setMail(value);
+                  setPreKycMailRegistered(false);
+                }}
+                placeholder={t('dfxLogin.mailLabel')}
+                placeholderTextColor={DfxColors.textTertiary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoFocus
+                testID="kyc-mail-input"
+              />
+              {mailError ? <Text style={styles.errorText}>{mailError}</Text> : null}
+            </View>
+          ) : null}
+
+          {preKycStep === 'emailVerify' ? (
+            <View style={styles.preKycStep}>
+              <Text style={styles.preKycTitle}>{t('kyc.mailVerifyTitle')}</Text>
+              <Text style={styles.preKycBody}>
+                {t('kyc.mailVerifyBody', { mail: mail.trim() })}
+              </Text>
+              <Pressable
+                style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}
+                onPress={() => {
+                  setPreKycStep('email');
+                  setMailError(null);
+                }}
+                disabled={mailBusy || isAuthenticating || isLoading}
+                testID="kyc-mail-change"
+              >
+                <Text style={styles.textButtonLabel}>{t('kyc.mailChangeCta')}</Text>
+              </Pressable>
+              {mailError ? <Text style={styles.errorText}>{mailError}</Text> : null}
+            </View>
+          ) : null}
+
+          {preKycStep === 'email' ? (
+            <View style={styles.preKycActions}>
+              <View style={styles.preKycAction}>
+                <PrimaryButton
+                  title={t('common.cancel')}
+                  variant="outlined"
+                  onPress={goToPreviousPreKycStep}
+                  disabled={mailBusy || isAuthenticating}
+                />
+              </View>
+              <View style={styles.preKycAction}>
+                <PrimaryButton
+                  title={t('common.next')}
+                  onPress={handleSendKycMail}
+                  loading={mailBusy || isAuthenticating}
+                  disabled={!isValidMail || mailBusy || isAuthenticating}
+                  testID="kyc-mail-send"
+                />
+              </View>
+            </View>
+          ) : preKycStep === 'emailVerify' ? (
+            <View style={styles.preKycActions}>
+              <View style={styles.preKycAction}>
+                <PrimaryButton
+                  title={t('common.cancel')}
+                  variant="outlined"
+                  onPress={goToPreviousPreKycStep}
+                  disabled={mailBusy || isAuthenticating || isLoading}
+                />
+              </View>
+              <View style={styles.preKycAction}>
+                <PrimaryButton
+                  title={t('kyc.mailVerifyCta')}
+                  onPress={handleConfirmKycMail}
+                  loading={mailBusy || isAuthenticating || isLoading}
+                  disabled={mailBusy || isAuthenticating || isLoading}
+                  testID="kyc-mail-verify"
+                />
+              </View>
+            </View>
+          ) : (
+            <View style={styles.preKycActions}>
+              <View style={styles.preKycAction}>
+                <PrimaryButton
+                  title={t('kyc.legalNo')}
+                  variant="outlined"
+                  onPress={goToPreviousPreKycStep}
+                />
+              </View>
+              <View style={styles.preKycAction}>
+                <PrimaryButton title={t('kyc.legalYes')} onPress={goToNextPreKycStep} />
+              </View>
+            </View>
+          )}
+        </View>
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer scrollable>
@@ -287,7 +546,9 @@ export default function KycScreen() {
                     },
                   ]}
                 />
-                <Text style={styles.stepName}>{STEP_LABELS[step.name] ?? step.name}</Text>
+                <Text style={styles.stepName}>
+                  {t(STEP_LABEL_KEYS[step.name] ?? 'kyc.unknownStep')}
+                </Text>
                 <Text style={styles.stepStatus}>
                   {t([statusLabelKey(step.status, currentLevel), 'kyc.status.unknown'], {
                     raw: step.status,
@@ -299,10 +560,10 @@ export default function KycScreen() {
         ) : null}
 
         {/* Current step form */}
-        {!isMerged && currentStep?.session?.type === 'API' && (
+        {!isMerged && showApiForm && (
           <View style={styles.formContainer}>
             <Text style={styles.formTitle}>
-              {STEP_LABELS[currentStep.name] ?? currentStep.name}
+              {t(STEP_LABEL_KEYS[currentStep.name] ?? 'kyc.unknownStep')}
             </Text>
 
             {currentStep.name === 'ContactData' && (
@@ -310,7 +571,7 @@ export default function KycScreen() {
                 style={styles.input}
                 value={email}
                 onChangeText={setEmail}
-                placeholder="Email address"
+                placeholder={t('dfxLogin.mailLabel')}
                 placeholderTextColor={DfxColors.textTertiary}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -358,6 +619,23 @@ export default function KycScreen() {
           </View>
         )}
 
+        {!isMerged &&
+          currentStep?.session?.type === 'API' &&
+          !showApiForm &&
+          currentStep.name !== 'PhoneChange' && (
+            <View style={styles.formContainer}>
+              <Text style={styles.formTitle}>
+                {t(STEP_LABEL_KEYS[currentStep.name] ?? 'kyc.unknownStep')}
+              </Text>
+              <Text style={styles.formDescription}>{t('kyc.unsupportedApiStep')}</Text>
+              <PrimaryButton
+                title={t('kyc.continueCta')}
+                onPress={handleContinue}
+                loading={isLoading}
+              />
+            </View>
+          )}
+
         {/*
          * 2FA gate — DFX requires phone-OTP verification once before a
          * sensitive step (KycStepName === 'TfaSetup' on the backend). We
@@ -404,11 +682,9 @@ export default function KycScreen() {
         {!isMerged && currentStep?.session?.type === 'Browser' && (
           <View style={styles.formContainer}>
             <Text style={styles.formTitle}>
-              {STEP_LABELS[currentStep.name] ?? currentStep.name}
+              {t(STEP_LABEL_KEYS[currentStep.name] ?? 'kyc.unknownStep')}
             </Text>
-            <Text style={styles.formDescription}>
-              This step requires identity verification in your browser.
-            </Text>
+            <Text style={styles.formDescription}>{t('kyc.browserDescription')}</Text>
             <PrimaryButton
               title={t('kyc.openVerification')}
               onPress={() => {
@@ -424,7 +700,7 @@ export default function KycScreen() {
          * At Level 50 the user is fully verified and DFX may flag
          * InProgress/Outdated as renewal — pushing them to "Continue
          * Verification" is a misleading nag. */}
-        {!isMerged && !currentStep && currentLevel < 50 && (
+        {!isMerged && !showPreKycMailFlow && !currentStep && currentLevel < 50 && (
           <PrimaryButton
             title={isNoKyc ? t('kyc.startCta') : t('kyc.continueCta')}
             onPress={handleContinue}
@@ -441,6 +717,72 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 32,
     gap: 16,
+  },
+  preKycContent: {
+    flex: 1,
+    paddingTop: 12,
+    paddingBottom: 28,
+    gap: 20,
+  },
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: DfxColors.borderLight,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: DfxColors.primary,
+  },
+  preKycStep: {
+    flex: 1,
+    gap: 16,
+  },
+  preKycTitle: {
+    ...Typography.headlineSmall,
+    color: DfxColors.text,
+  },
+  preKycBody: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textSecondary,
+    lineHeight: 22,
+  },
+  preKycActions: {
+    flexDirection: 'row',
+    gap: 14,
+  },
+  preKycAction: {
+    flex: 1,
+    minWidth: 0,
+  },
+  documentList: {
+    gap: 10,
+  },
+  documentRow: {
+    minHeight: 58,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
+    backgroundColor: DfxColors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+  },
+  documentIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: DfxColors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  documentTitle: {
+    flex: 1,
+    ...Typography.bodyMedium,
+    color: DfxColors.text,
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,
@@ -530,11 +872,23 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   input: {
-    backgroundColor: DfxColors.background,
+    backgroundColor: DfxColors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: DfxColors.border,
     borderRadius: 12,
     padding: 14,
     color: DfxColors.text,
     ...Typography.bodyLarge,
+  },
+  textButton: {
+    alignSelf: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  textButtonLabel: {
+    ...Typography.bodyMedium,
+    color: DfxColors.primary,
+    fontWeight: '600',
   },
   errorText: {
     ...Typography.bodySmall,

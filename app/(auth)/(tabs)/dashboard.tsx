@@ -38,10 +38,10 @@ const splitBalance = (value: string): { whole: string; fraction: string } => {
 export default function DashboardScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { totalBalanceFiat, selectedCurrency } = useWalletStore();
+  const { selectedCurrency } = useWalletStore();
   const { isDfxAuthenticated } = useAuthStore();
   const { authenticate, isAuthenticating } = useDfxAuth();
-  useTotalPortfolioFiat();
+  const totalPortfolioFiat = useTotalPortfolioFiat();
 
   const [balanceVisible, setBalanceVisible] = useState(true);
 
@@ -55,7 +55,10 @@ export default function DashboardScreen() {
   }, [isDfxAuthenticated, isAuthenticating, authenticate]);
 
   const symbol = CURRENCY_SYMBOLS.get(selectedCurrency) ?? selectedCurrency;
-  const { whole, fraction } = splitBalance(totalBalanceFiat);
+  const displayBalance = Number.isFinite(totalPortfolioFiat)
+    ? String(Math.round(totalPortfolioFiat * 100) / 100)
+    : '0';
+  const { whole, fraction } = splitBalance(displayBalance);
 
   return (
     <ImageBackground
@@ -164,19 +167,20 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
   },
   balanceSection: {
     marginTop: 'auto',
     alignItems: 'center',
-    paddingTop: 8,
-    paddingBottom: 24,
+    paddingTop: 16,
+    paddingBottom: 28,
   },
   balanceLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
   },
   balanceLabel: {
     ...Typography.bodyMedium,
@@ -186,20 +190,20 @@ const styles = StyleSheet.create({
   balanceValueRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginTop: 4,
+    marginTop: 8,
     maxWidth: '100%',
   },
   balanceSymbol: {
-    fontSize: 36,
-    lineHeight: 56,
-    fontWeight: '300',
-    color: DfxColors.textTertiary,
-    marginRight: 4,
+    fontSize: 32,
+    lineHeight: 54,
+    fontWeight: '500',
+    color: DfxColors.primary,
+    marginRight: 6,
   },
   balanceWhole: {
-    fontSize: 52,
-    lineHeight: 56,
-    fontWeight: '600',
+    fontSize: 54,
+    lineHeight: 58,
+    fontWeight: '700',
     color: DfxColors.text,
     flexShrink: 1,
   },
@@ -218,7 +222,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
   actionPill: {
     flex: 1,
@@ -228,8 +232,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    paddingVertical: 18,
-    marginTop: 8,
+    minHeight: 54,
+    paddingVertical: 14,
+    marginTop: 10,
   },
   transactionsLabel: {
     ...Typography.bodyLarge,
@@ -239,23 +244,23 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 'auto',
     alignItems: 'center',
-    paddingBottom: 24,
+    paddingBottom: 22,
   },
   bottomPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: DfxColors.border,
-    paddingHorizontal: 8,
-    paddingVertical: 10,
+    borderColor: 'rgba(221,229,240,0.9)',
+    paddingHorizontal: 6,
+    paddingVertical: 8,
     width: '100%',
-    maxWidth: 320,
+    maxWidth: 336,
     shadowColor: '#0B1426',
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
     elevation: 3,
   },
   bottomPillItem: {
@@ -263,7 +268,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    paddingVertical: 6,
+    minHeight: 58,
+    paddingVertical: 8,
+    borderRadius: 18,
   },
   bottomPillSeparator: {
     width: StyleSheet.hairlineWidth,
@@ -273,6 +280,6 @@ const styles = StyleSheet.create({
   bottomPillLabel: {
     ...Typography.bodyMedium,
     color: DfxColors.text,
-    fontWeight: '500',
+    fontWeight: '600',
   },
 });

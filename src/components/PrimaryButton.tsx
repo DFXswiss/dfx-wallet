@@ -45,24 +45,30 @@ export function PrimaryButton({
 const styles = StyleSheet.create({
   button: {
     height: 56,
-    borderRadius: 16,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
   filled: {
     backgroundColor: DfxColors.primary,
+    shadowColor: DfxColors.primaryDark,
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 3,
   },
   outlined: {
-    backgroundColor: DfxColors.transparent,
+    backgroundColor: 'rgba(255,255,255,0.72)',
     borderWidth: 1,
-    borderColor: DfxColors.primary,
+    borderColor: DfxColors.border,
   },
   disabled: {
     opacity: 0.5,
   },
   pressed: {
-    opacity: 0.8,
+    opacity: 0.88,
+    transform: [{ scale: 0.99 }],
   },
   text: {
     ...Typography.bodyLarge,
