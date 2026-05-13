@@ -94,7 +94,7 @@ export default function PayScreen() {
         <View style={[styles.cutout, cutoutStyle]}>
           {permission?.granted && (
             <CameraView
-              style={StyleSheet.absoluteFill}
+              style={styles.cameraScanner}
               barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
               onBarcodeScanned={handleScan}
             />
@@ -126,7 +126,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     overflow: 'hidden',
     borderRadius: 16,
-    backgroundColor: 'rgba(11, 20, 38, 0.18)',
+    backgroundColor: 'transparent',
+  },
+  cameraScanner: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.01,
   },
   header: {
     flexDirection: 'row',
