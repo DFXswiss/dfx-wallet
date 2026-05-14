@@ -70,8 +70,8 @@ export default function DashboardScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.content} testID="dashboard-screen">
           <DashboardHeader
-            onMenuPress={() => router.push('/settings')}
-            onShieldPress={() => router.push('/(auth)/multi-sig')}
+            onMenuPress={FEATURES.SETTINGS ? () => router.push('/settings') : undefined}
+            onShieldPress={FEATURES.MULTISIG ? () => router.push('/(auth)/multi-sig') : undefined}
           />
 
           <View style={styles.balanceSection}>
