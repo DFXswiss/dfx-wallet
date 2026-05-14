@@ -256,7 +256,7 @@ describe('SendScreen', () => {
 
     it('renders the in-flow error message when useSendFlow exposes one', async () => {
       flowState.error = 'insufficient funds';
-      const { getByText, getByPlaceholderText, findByText } = render(<SendScreen />);
+      const { getByText, findByText } = render(<SendScreen />);
       fireEvent.press(getByText('BTC'));
       // The input step renders the error too.
       expect(await findByText('insufficient funds')).toBeTruthy();
