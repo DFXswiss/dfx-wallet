@@ -128,7 +128,7 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            cd android && ./gradlew :app:assembleRelease && cd ..
+            cd android && ./gradlew :app:assembleRelease -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m" && cd ..
             adb install -r android/app/build/outputs/apk/release/app-release.apk
             maestro --platform android test --env APP_ID=swiss.dfx.wallet .maestro/
 

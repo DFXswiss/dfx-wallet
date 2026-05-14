@@ -25,7 +25,11 @@ env:
 - tapOn:
     id: "restore-wallet-seed-input"
 - inputText: ${TEST_MNEMONIC}
-- hideKeyboard
+- tapOn: "return"
+- scrollUntilVisible:
+    element:
+      id: "restore-wallet-continue-button"
+    direction: DOWN
 - tapOn:
     id: "restore-wallet-continue-button"
 
@@ -52,6 +56,10 @@ env:
     id: "legal-disclaimer-screen"
 - tapOn:
     id: "legal-accept-checkbox"
+- scrollUntilVisible:
+    element:
+      id: "legal-continue-button"
+    direction: DOWN
 - tapOn:
     id: "legal-continue-button"
 

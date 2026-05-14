@@ -87,6 +87,8 @@ export default function RestoreWalletScreen() {
           placeholder={t('onboarding.restoreSeedPlaceholder')}
           placeholderTextColor={DfxColors.textTertiary}
           multiline
+          blurOnSubmit
+          returnKeyType="done"
           autoCapitalize="none"
           autoCorrect={false}
           autoComplete="off"
