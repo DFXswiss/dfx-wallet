@@ -1,5 +1,5 @@
-import { dfxApi, DfxApiError } from '../../src/services/dfx/api';
-import { dfxAuthService } from '../../src/services/dfx/auth-service';
+import { dfxApi, DfxApiError } from '../../src/features/dfx-backend/services/api';
+import { dfxAuthService } from '../../src/features/dfx-backend/services/auth-service';
 
 describe('dfxAuthService.login', () => {
   let getSpy: jest.SpyInstance;

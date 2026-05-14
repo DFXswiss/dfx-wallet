@@ -3,8 +3,8 @@ import { Icon } from './Icon';
 import { DfxColors } from '@/theme';
 
 type Props = {
-  onMenuPress: () => void;
-  onShieldPress?: () => void;
+  onMenuPress?: (() => void) | undefined;
+  onShieldPress?: (() => void) | undefined;
 };
 
 export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
@@ -30,16 +30,20 @@ export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
         resizeMode="contain"
         accessibilityLabel="DFX"
       />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Menu"
-        hitSlop={12}
-        onPress={onMenuPress}
-        style={styles.iconButton}
-        testID="dashboard-menu-button"
-      >
-        <Icon name="menu" size={26} color={DfxColors.primary} strokeWidth={2.5} />
-      </Pressable>
+      {onMenuPress ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Menu"
+          hitSlop={12}
+          onPress={onMenuPress}
+          style={styles.iconButton}
+          testID="dashboard-menu-button"
+        >
+          <Icon name="menu" size={26} color={DfxColors.primary} strokeWidth={2.5} />
+        </Pressable>
+      ) : (
+        <View style={styles.iconPlaceholder} pointerEvents="none" />
+      )}
     </View>
   );
 }

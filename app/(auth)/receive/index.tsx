@@ -8,6 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { useAccount } from '@tetherto/wdk-react-native-core';
 import { AppHeader, Icon, PrimaryButton, QrCode } from '@/components';
 import type { ChainId } from '@/config/chains';
+import { FEATURES } from '@/config/features';
 import { useLdsWallet } from '@/hooks';
 import { DfxColors, Typography } from '@/theme';
 
@@ -22,15 +23,21 @@ type AssetOption = {
 // Bitcoin offers three receive layers — Native on-chain, Lightning, and EVM
 // (wrapped). Stablecoins only ship over EVM; rather than asking the user to
 // pick between identical EVM chains, we default to Ethereum and skip the chain
-// selector entirely.
+// selector entirely. The Taproot/Lightning option resolves a DFX-managed
+// Lightning address via the LDS service, so it is hidden when
+// `FEATURES.DFX_BACKEND` is off — without it the QR would be blank.
 const RECEIVE_ASSETS: AssetOption[] = [
   {
     symbol: 'BTC',
     label: 'Bitcoin',
     chains: [
       { chain: 'bitcoin', label: 'SegWit' },
-      { chain: 'bitcoin-taproot', label: 'Taproot' },
-      { chain: 'spark', label: 'Lightning' },
+      ...(FEATURES.DFX_BACKEND
+        ? ([
+            { chain: 'bitcoin-taproot', label: 'Taproot' },
+            { chain: 'spark', label: 'Lightning' },
+          ] as const)
+        : []),
       { chain: 'ethereum', label: 'EVM' },
     ],
   },
@@ -112,22 +119,24 @@ export default function ReceiveScreen() {
         ))}
       </View>
 
-      <Pressable
-        style={({ pressed }) => [styles.destinationCard, pressed && styles.pressed]}
-        onPress={() => router.push('/(auth)/buy')}
-        testID="receive-destination-bank"
-        accessibilityRole="button"
-        accessibilityLabel={t('receive.buyFromBank')}
-      >
-        <View style={styles.destinationIcon}>
-          <Icon name="document" size={20} color={DfxColors.primary} strokeWidth={2.2} />
-        </View>
-        <View style={styles.destinationText}>
-          <Text style={styles.destinationTitle}>{t('receive.buyFromBank')}</Text>
-          <Text style={styles.destinationSubtitle}>{t('receive.buyFromBankSubtitle')}</Text>
-        </View>
-        <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
-      </Pressable>
+      {FEATURES.BUY_SELL && (
+        <Pressable
+          style={({ pressed }) => [styles.destinationCard, pressed && styles.pressed]}
+          onPress={() => router.push('/(auth)/buy')}
+          testID="receive-destination-bank"
+          accessibilityRole="button"
+          accessibilityLabel={t('receive.buyFromBank')}
+        >
+          <View style={styles.destinationIcon}>
+            <Icon name="document" size={20} color={DfxColors.primary} strokeWidth={2.2} />
+          </View>
+          <View style={styles.destinationText}>
+            <Text style={styles.destinationTitle}>{t('receive.buyFromBank')}</Text>
+            <Text style={styles.destinationSubtitle}>{t('receive.buyFromBankSubtitle')}</Text>
+          </View>
+          <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
+        </Pressable>
+      )}
     </View>
   );
 

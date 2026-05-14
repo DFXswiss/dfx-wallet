@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { DfxBackgroundScreen, Icon, PrimaryButton } from '@/components';
 import { FEATURES } from '@/config/features';
-import { isPasskeySupported } from '@/services/passkey';
+import { isPasskeyOsSupported } from '@/config/platform';
 import { DfxColors, Typography } from '@/theme';
 
 export default function WelcomeScreen() {
@@ -13,7 +13,7 @@ export default function WelcomeScreen() {
   const [showRestore, setShowRestore] = useState(false);
   // Passkey support is the AND of an OS gate (iOS 18+ / Android 14+)
   // and the build-time flag — either being off removes the affordance.
-  const passkeySupported = isPasskeySupported() && FEATURES.PASSKEY;
+  const passkeySupported = FEATURES.PASSKEY && isPasskeyOsSupported();
   // The restore toggle is the gateway to both seed-restore and
   // passkey-restore; hide it when neither flag is on, so users do not
   // see a control that opens an empty menu.

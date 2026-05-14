@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'rea
 import { useTranslation } from 'react-i18next';
 import { Directory, File, Paths } from 'expo-file-system';
 import { AppHeader, PrimaryButton, ScreenContainer } from '@/components';
-import { dfxTransactionService, type TaxReportType } from '@/services/dfx';
+import { dfxTransactionService, type TaxReportType } from '@/features/dfx-backend/services';
 import { DfxColors, Typography } from '@/theme';
 
 /**

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { DashboardHeader, Icon, ShortcutAction } from '@/components';
+import { FEATURES } from '@/config/features';
 import { useDfxAuth, useTotalPortfolioFiat } from '@/hooks';
 import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
@@ -69,8 +70,8 @@ export default function DashboardScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.content} testID="dashboard-screen">
           <DashboardHeader
-            onMenuPress={() => router.push('/settings')}
-            onShieldPress={() => router.push('/(auth)/multi-sig')}
+            onMenuPress={FEATURES.SETTINGS ? () => router.push('/settings') : undefined}
+            onShieldPress={FEATURES.MULTISIG ? () => router.push('/(auth)/multi-sig') : undefined}
           />
 
           <View style={styles.balanceSection}>
@@ -99,32 +100,40 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          <View style={styles.actions}>
-            <ShortcutAction
-              icon={<Icon name="wallet" size={18} color={DfxColors.white} strokeWidth={2.2} />}
-              label={t('dashboard.portfolio')}
-              testID="dashboard-action-portfolio"
-              onPress={() => router.push('/(auth)/portfolio')}
-              style={styles.actionPill}
-            />
-            <ShortcutAction
-              icon={<Icon name="grid" size={18} color={DfxColors.white} strokeWidth={2.2} />}
-              label={t('dashboard.pay')}
-              testID="dashboard-action-pay"
-              onPress={() => router.push('/(auth)/pay')}
-              style={styles.actionPill}
-            />
-          </View>
+          {(FEATURES.PORTFOLIO || FEATURES.PAY) && (
+            <View style={styles.actions}>
+              {FEATURES.PORTFOLIO && (
+                <ShortcutAction
+                  icon={<Icon name="wallet" size={18} color={DfxColors.white} strokeWidth={2.2} />}
+                  label={t('dashboard.portfolio')}
+                  testID="dashboard-action-portfolio"
+                  onPress={() => router.push('/(auth)/portfolio')}
+                  style={styles.actionPill}
+                />
+              )}
+              {FEATURES.PAY && (
+                <ShortcutAction
+                  icon={<Icon name="grid" size={18} color={DfxColors.white} strokeWidth={2.2} />}
+                  label={t('dashboard.pay')}
+                  testID="dashboard-action-pay"
+                  onPress={() => router.push('/(auth)/pay')}
+                  style={styles.actionPill}
+                />
+              )}
+            </View>
+          )}
 
-          <Pressable
-            style={styles.transactions}
-            onPress={() => router.push('/(auth)/transaction-history')}
-            testID="dashboard-action-transactions"
-            accessibilityRole="button"
-          >
-            <Icon name="swap" size={18} color={DfxColors.primary} />
-            <Text style={styles.transactionsLabel}>{t('dashboard.transactions')}</Text>
-          </Pressable>
+          {FEATURES.TX_HISTORY && (
+            <Pressable
+              style={styles.transactions}
+              onPress={() => router.push('/(auth)/transaction-history')}
+              testID="dashboard-action-transactions"
+              accessibilityRole="button"
+            >
+              <Icon name="swap" size={18} color={DfxColors.primary} />
+              <Text style={styles.transactionsLabel}>{t('dashboard.transactions')}</Text>
+            </Pressable>
+          )}
 
           <View style={styles.footer}>
             <View style={styles.bottomPill}>

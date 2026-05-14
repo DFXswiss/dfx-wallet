@@ -5,8 +5,10 @@ export { ChainSelector } from './ChainSelector';
 export { ConfirmTargetWalletModal } from './ConfirmTargetWalletModal';
 export { DashboardHeader } from './DashboardHeader';
 export { DfxBackgroundScreen } from './DfxBackgroundScreen';
-export { DfxAuthGate } from './DfxAuthGate';
 export { ErrorBoundary } from './ErrorBoundary';
+// `DfxAuthGate` lives in `@/features/dfx-backend/DfxAuthGate` — it is
+// deferred behind `EXPO_PUBLIC_ENABLE_DFX_BACKEND` and must not be
+// re-exported from the shared components barrel.
 export { Icon } from './Icon';
 export { MenuModal } from './MenuModal';
 export { OfflineBanner } from './OfflineBanner';

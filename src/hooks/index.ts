@@ -1,21 +1,14 @@
-export { useBuyFlow } from './useBuyFlow';
 export { useDeepLink } from './useDeepLink';
 export { useDfxAuth } from './useDfxAuth';
 export { useDfxAutoLink } from './useDfxAutoLink';
-export { useEnabledChains } from './useEnabledChains';
-export { useKycFlow } from './useKycFlow';
 export { useLdsWallet } from './useLdsWallet';
-export { useLinkedWalletSelection, getHiddenLinkedWallets } from './useLinkedWalletSelection';
-export { useLinkedWalletBalances } from './useLinkedWalletBalances';
-export type { LinkedWalletBalance } from './useLinkedWalletBalances';
-export { useLinkedWalletDiscovery, LINKED_WALLET_DISCOVERY_KEY } from './useLinkedWalletDiscovery';
-export type { DiscoveredAsset, WalletDiscovery } from './useLinkedWalletDiscovery';
-export { useWalletTransactions, WALLET_TX_QUERY_KEY } from './useWalletTransactions';
-export type { WalletTransaction, WalletTxDirection } from './useWalletTransactions';
-export { useLinkedWalletFiat } from './useLinkedWalletFiat';
-export { useLinkedWalletNames, defaultLinkedWalletName } from './useLinkedWalletNames';
-export { useLinkedWalletReauth } from './useLinkedWalletReauth';
-export type { ReauthResult } from './useLinkedWalletReauth';
-export { useSellFlow } from './useSellFlow';
 export { useSendFlow } from './useSendFlow';
 export { useTotalPortfolioFiat } from './useTotalPortfolioFiat';
+// `useKycFlow` lives in `@/features/dfx-backend/useKycFlow` — KYC is
+// gated by the DFX-backend flag and must not be re-exported here.
+// `useEnabledChains` lives in `@/features/portfolio/`; the linked-wallet
+// hook family (`useLinkedWalletBalances`, `useLinkedWalletDiscovery`,
+// `useLinkedWalletFiat`, `useLinkedWalletNames`, `useLinkedWalletReauth`,
+// `useLinkedWalletSelection`, `useWalletTransactions`) lives in
+// `@/features/linked-wallets/`. They are deferred behind their own
+// flags and must not be re-exported from the shared `@/hooks` barrel.

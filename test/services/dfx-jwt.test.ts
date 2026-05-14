@@ -1,4 +1,4 @@
-import { decodeDfxJwt } from '../../src/services/dfx/jwt';
+import { decodeDfxJwt } from '../../src/features/dfx-backend/services/jwt';
 
 const base64UrlEncode = (input: string): string =>
   Buffer.from(input).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');

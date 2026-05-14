@@ -1,14 +1,15 @@
 import { FEATURES } from '../../src/config/features';
 
 describe('FEATURES', () => {
-  it('reports every flag as false when no EXPO_PUBLIC_ENABLE_* env var is set', () => {
-    // Jest does not run through Expo's build-time inlining of
-    // `process.env.EXPO_PUBLIC_*`, so this smoke test only validates the
-    // "unset → false" default that every Node runtime sees. The actual
-    // build-time DCE behavior is verified separately by inspecting the
-    // Metro bundle output (no `XScreenImpl` symbols when the flag is off).
+  it('reports every flag as true under the test runtime', () => {
+    // `test/setup-globals.ts` sets every `EXPO_PUBLIC_ENABLE_*` env var
+    // to `'true'` before any module loads, so the conditional `require()`
+    // wrappers around deferred services resolve to the real
+    // implementation under unit-test conditions. This asserts that
+    // mapping holds — if a new flag is added to FEATURES and forgotten
+    // in the env-key list, this test catches it.
     for (const value of Object.values(FEATURES)) {
-      expect(value).toBe(false);
+      expect(value).toBe(true);
     }
   });
 

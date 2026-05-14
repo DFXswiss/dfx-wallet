@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Redirect, Stack, useSegments } from 'expo-router';
 import { useDeepLink, useDfxAuth, useDfxAutoLink } from '@/hooks';
-import { dfxApi } from '@/services/dfx';
+import { dfxApi } from '@/features/dfx-backend/services';
 import { useAuthStore } from '@/store';
 import { DfxColors } from '@/theme';
 
