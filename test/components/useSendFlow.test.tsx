@@ -1,11 +1,11 @@
 import React from 'react';
 import { act, renderHook } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useSendFlow } from '../../src/hooks/useSendFlow';
 
-// Mocks must be defined before importing the hook so jest's hoisting picks
-// them up. `useAccount` and `useRefreshBalance` are the only WDK touchpoints
-// the hook has — both are stubbed here so the test never reaches a Bare
-// worklet or a real RPC.
+// `useAccount` and `useRefreshBalance` are the only WDK touchpoints the hook
+// has — both are stubbed here so the test never reaches a Bare worklet or a
+// real RPC. The mock factory is hoisted by jest above the import order.
 const mockSend = jest.fn();
 const mockEstimateFee = jest.fn();
 const mockRefreshWdkMutate = jest.fn();
@@ -20,20 +20,13 @@ jest.mock('@tetherto/wdk-react-native-core', () => ({
   })),
 }));
 
-// The hook imports `@/services/balances/useRefreshBalances`, which in turn
-// pulls in the EVM-balances query-key prefix and TanStack's `useQueryClient`.
-// Both work fine under the real implementation as long as the test renders
-// inside a `QueryClientProvider`.
-import { useSendFlow } from '../../src/hooks/useSendFlow';
-
 // Minimal IAsset stand-in. Only `getDecimals()` is exercised by the hook;
 // `getId()` is included because the WDK type checks it at compile time even
 // though our mock `send` never looks at the actual instance.
 const fakeAsset = {
   getId: () => 'usdt-eth',
   getDecimals: () => 6,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-} as any;
+} as unknown as Parameters<ReturnType<typeof useSendFlow>['send']>[0]['asset'];
 
 function wrap({ children }: { children: React.ReactNode }) {
   const client = new QueryClient({
