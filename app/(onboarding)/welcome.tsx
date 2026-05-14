@@ -3,6 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { DfxBackgroundScreen, Icon, PrimaryButton } from '@/components';
+import { FEATURES } from '@/config/features';
 import { isPasskeySupported } from '@/services/passkey';
 import { DfxColors, Typography } from '@/theme';
 
@@ -10,7 +11,13 @@ export default function WelcomeScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const [showRestore, setShowRestore] = useState(false);
-  const passkeySupported = isPasskeySupported();
+  // Passkey support is the AND of an OS gate (iOS 18+ / Android 14+)
+  // and the build-time flag — either being off removes the affordance.
+  const passkeySupported = isPasskeySupported() && FEATURES.PASSKEY;
+  // The restore toggle is the gateway to both seed-restore and
+  // passkey-restore; hide it when neither flag is on, so users do not
+  // see a control that opens an empty menu.
+  const showRestoreToggle = FEATURES.RESTORE || passkeySupported;
 
   const handleBack = () => {
     if (router.canGoBack()) router.back();
@@ -57,29 +64,35 @@ export default function WelcomeScreen() {
           {...(passkeySupported ? { variant: 'outlined' as const } : {})}
         />
 
-        <Pressable testID="welcome-restore-toggle" onPress={() => setShowRestore(!showRestore)}>
-          <Text style={styles.restoreToggle}>{t('onboarding.restoreWallet')}</Text>
-        </Pressable>
-
-        {showRestore && (
-          <View style={styles.restoreOptions}>
-            {passkeySupported && (
-              <Pressable
-                testID="welcome-restore-passkey-button"
-                style={({ pressed }) => [styles.restoreOption, pressed && styles.pressed]}
-                onPress={() => router.push('/(onboarding)/restore-passkey')}
-              >
-                <Text style={styles.restoreOptionText}>{t('onboarding.restorePasskey')}</Text>
-              </Pressable>
-            )}
-            <Pressable
-              testID="welcome-restore-seed-button"
-              style={({ pressed }) => [styles.restoreOption, pressed && styles.pressed]}
-              onPress={() => router.push('/(onboarding)/restore-wallet')}
-            >
-              <Text style={styles.restoreOptionText}>{t('onboarding.restoreSeed')}</Text>
+        {showRestoreToggle && (
+          <>
+            <Pressable testID="welcome-restore-toggle" onPress={() => setShowRestore(!showRestore)}>
+              <Text style={styles.restoreToggle}>{t('onboarding.restoreWallet')}</Text>
             </Pressable>
-          </View>
+
+            {showRestore && (
+              <View style={styles.restoreOptions}>
+                {passkeySupported && (
+                  <Pressable
+                    testID="welcome-restore-passkey-button"
+                    style={({ pressed }) => [styles.restoreOption, pressed && styles.pressed]}
+                    onPress={() => router.push('/(onboarding)/restore-passkey')}
+                  >
+                    <Text style={styles.restoreOptionText}>{t('onboarding.restorePasskey')}</Text>
+                  </Pressable>
+                )}
+                {FEATURES.RESTORE && (
+                  <Pressable
+                    testID="welcome-restore-seed-button"
+                    style={({ pressed }) => [styles.restoreOption, pressed && styles.pressed]}
+                    onPress={() => router.push('/(onboarding)/restore-wallet')}
+                  >
+                    <Text style={styles.restoreOptionText}>{t('onboarding.restoreSeed')}</Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+          </>
         )}
       </View>
     </DfxBackgroundScreen>
