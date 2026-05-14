@@ -80,6 +80,37 @@ describe('Visual Regression', () => {
     });
   });
 
+  // Continues from the Create-wallet-MVP block above without a fresh
+  // launch — re-onboarding doubles the WDK init cost (~120s) and the
+  // existing "PIN unlock" block below already relies on the same
+  // describe-to-describe state carry-over.
+  describe('Dashboard navigation (MVP)', () => {
+    it('shows receive screen', async () => {
+      await element(by.id('dashboard-action-receive')).tap();
+      await waitFor(element(by.id('receive-screen')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause();
+      await expectScreenToMatchBaseline('receive');
+    });
+
+    it('returns to the dashboard from receive', async () => {
+      await element(by.id('receive-screen-back')).tap();
+      await waitFor(element(by.id('dashboard-screen')))
+        .toBeVisible()
+        .withTimeout(30_000);
+    });
+
+    it('shows send screen', async () => {
+      await element(by.id('dashboard-action-send')).tap();
+      await waitFor(element(by.id('send-screen')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause();
+      await expectScreenToMatchBaseline('send');
+    });
+  });
+
   describePinLegal('Create wallet flow with PIN + legal', () => {
     beforeAll(async () => {
       await launchAndWaitForWelcome();
