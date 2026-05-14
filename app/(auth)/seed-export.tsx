@@ -10,7 +10,7 @@ import {
   authenticatePasskey,
   deriveMnemonicFromPrf,
   PasskeyPrfUnsupportedError,
-} from '@/services/passkey';
+} from '@/features/passkey/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { seedToWords } from '@/services/wallet';
 import { DfxColors, Typography } from '@/theme';
