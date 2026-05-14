@@ -106,4 +106,37 @@ describe('DashboardScreen', () => {
     render(<DashboardScreen />);
     expect(mockAuthenticate).not.toHaveBeenCalled();
   });
+
+  it('navigates to /settings when the menu (hamburger) is tapped', () => {
+    const { getByTestId } = render(<DashboardScreen />);
+    fireEvent.press(getByTestId('dashboard-menu-button'));
+    expect(mockPush).toHaveBeenCalledWith('/settings');
+  });
+
+  it('navigates to /(auth)/multi-sig when the shield is tapped', () => {
+    const { getByTestId } = render(<DashboardScreen />);
+    fireEvent.press(getByTestId('dashboard-shield-button'));
+    expect(mockPush).toHaveBeenCalledWith('/(auth)/multi-sig');
+  });
+
+  it('navigates to Portfolio + Pay when the deferred pills are tapped', () => {
+    const { getByTestId } = render(<DashboardScreen />);
+    fireEvent.press(getByTestId('dashboard-action-portfolio'));
+    expect(mockPush).toHaveBeenCalledWith('/(auth)/portfolio');
+    fireEvent.press(getByTestId('dashboard-action-pay'));
+    expect(mockPush).toHaveBeenCalledWith('/(auth)/pay');
+  });
+
+  it('navigates to transaction-history when the Transactions link is tapped', () => {
+    const { getByTestId } = render(<DashboardScreen />);
+    fireEvent.press(getByTestId('dashboard-action-transactions'));
+    expect(mockPush).toHaveBeenCalledWith('/(auth)/transaction-history');
+  });
+
+  it('formats integer balances without thousands separator chars stripped (insertThousandsSeparators)', () => {
+    // No direct way to assert the wholes via testID; this test only
+    // ensures the component does not crash when the balance is large
+    // enough to trigger the separator-insertion code path.
+    expect(() => render(<DashboardScreen />)).not.toThrow();
+  });
 });

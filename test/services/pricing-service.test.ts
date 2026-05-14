@@ -129,4 +129,65 @@ describe('pricingService', () => {
     const value = await pricingService.getFiatValue(2, 'btc', FiatCurrency.USD);
     expect(value).toBe(0);
   });
+
+  it('refresh() wraps a non-Error throw into a generic Error', async () => {
+    globalThis.fetch = jest.fn(async () => {
+      throw 'connection lost';
+    }) as unknown as typeof fetch;
+    await expect(pricingService.refresh()).rejects.toThrow(
+      'Failed to refresh pricing service',
+    );
+  });
+
+  it('refresh() re-throws Error instances unchanged (preserves the original message)', async () => {
+    globalThis.fetch = jest.fn(async () => {
+      throw new Error('rate-limited');
+    }) as unknown as typeof fetch;
+    await expect(pricingService.refresh()).rejects.toThrow('rate-limited');
+  });
+
+  it('startAutoRefresh / stopAutoRefresh round-trip wires + tears down the interval', () => {
+    jest.useFakeTimers();
+    const refreshSpy = jest
+      .spyOn(pricingService, 'refresh')
+      .mockResolvedValue(undefined);
+
+    pricingService.startAutoRefresh(60_000);
+    // Calling start twice must not double-schedule.
+    pricingService.startAutoRefresh(60_000);
+
+    jest.advanceTimersByTime(120_000);
+    // 2 ticks at 60s.
+    expect(refreshSpy).toHaveBeenCalledTimes(2);
+
+    pricingService.stopAutoRefresh();
+    // After stop, the timer must be cleared — calling stop a second time
+    // is a no-op (no `clearInterval(null)` crash).
+    pricingService.stopAutoRefresh();
+
+    jest.advanceTimersByTime(60_000);
+    expect(refreshSpy).toHaveBeenCalledTimes(2);
+
+    refreshSpy.mockRestore();
+    jest.useRealTimers();
+  });
+
+  it('startAutoRefresh swallows refresh failures so the timer keeps running', async () => {
+    jest.useFakeTimers();
+    const refreshSpy = jest
+      .spyOn(pricingService, 'refresh')
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce(undefined);
+
+    pricingService.startAutoRefresh(60_000);
+    jest.advanceTimersByTime(60_000);
+    await Promise.resolve();
+    jest.advanceTimersByTime(60_000);
+    await Promise.resolve();
+
+    expect(refreshSpy).toHaveBeenCalledTimes(2);
+    pricingService.stopAutoRefresh();
+    refreshSpy.mockRestore();
+    jest.useRealTimers();
+  });
 });

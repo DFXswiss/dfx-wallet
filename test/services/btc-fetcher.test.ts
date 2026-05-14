@@ -97,16 +97,21 @@ describe('fetchBtcBalance', () => {
   });
 
   it('forwards an AbortSignal when provided', async () => {
-    const fetchImpl = jest.fn(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({ chain_stats: { funded_txo_sum: 100, spent_txo_sum: 0 } }),
-    } as unknown as Response));
-    const controller = new AbortController();
-    await fetchBtcBalance('addr', { fetchImpl, signal: controller.signal });
-    expect(fetchImpl.mock.calls[0]?.[1]).toEqual(
-      expect.objectContaining({ signal: controller.signal }),
+    const fetchImpl = jest.fn<Promise<Response>, [string, RequestInit?]>(
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => ({ chain_stats: { funded_txo_sum: 100, spent_txo_sum: 0 } }),
+        }) as unknown as Response,
     );
+    const controller = new AbortController();
+    await fetchBtcBalance('addr', {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      signal: controller.signal,
+    });
+    const init = fetchImpl.mock.calls[0]?.[1];
+    expect(init).toEqual(expect.objectContaining({ signal: controller.signal }));
   });
 
   it('falls back to a generic message when the thrown error is not an Error instance', async () => {

@@ -101,4 +101,12 @@ describe('WelcomeScreen', () => {
     expect(mockReplace).toHaveBeenCalledWith('/');
     expect(mockBack).not.toHaveBeenCalled();
   });
+
+  it('navigates to /(onboarding)/restore-passkey when restore-passkey button is pressed', () => {
+    mockOsSupport.mockReturnValue(true);
+    const { getByTestId } = render(<WelcomeScreen />);
+    fireEvent.press(getByTestId('welcome-restore-toggle'));
+    fireEvent.press(getByTestId('welcome-restore-passkey-button'));
+    expect(mockPush).toHaveBeenCalledWith('/(onboarding)/restore-passkey');
+  });
 });

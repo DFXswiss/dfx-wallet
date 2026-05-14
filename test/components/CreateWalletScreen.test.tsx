@@ -116,4 +116,19 @@ describe('CreateWalletScreen', () => {
     expect(mockPush).not.toHaveBeenCalled();
     consoleSpy.mockRestore();
   });
+
+  it('back-button falls back to router.replace(welcome) when no history exists', () => {
+    mockCanGoBack.mockReturnValue(false);
+    const { getByLabelText } = render(<CreateWalletScreen />);
+    fireEvent.press(getByLabelText('Back'));
+    expect(mockReplace).toHaveBeenCalledWith('/(onboarding)/welcome');
+    expect(mockBack).not.toHaveBeenCalled();
+  });
+
+  it('back-button uses router.back() when history is available', () => {
+    mockCanGoBack.mockReturnValue(true);
+    const { getByLabelText } = render(<CreateWalletScreen />);
+    fireEvent.press(getByLabelText('Back'));
+    expect(mockBack).toHaveBeenCalled();
+  });
 });
