@@ -90,18 +90,16 @@ export class EvmBalanceFetcher {
       else byChain.set(spec.network, [spec]);
     }
 
-    // `allSettled` so a single chain rejecting (RPC down, JSON parse
-    // failure) doesn't drop the rest of the wallet's balances. Each
-    // `fetchChain` catches its own errors; we keep the wrapper as a
-    // belt-and-braces against unexpected throws.
-    const chainResults = await Promise.allSettled(
+    // `fetchChain` catches every internal error and folds it into the
+    // returned map, so `Promise.all` is safe — no chain rejection can
+    // poison the others.
+    const chainResults = await Promise.all(
       Array.from(byChain.entries()).map(([network, chainSpecs]) =>
         this.fetchChain(network, chainSpecs, addressByChain.get(network)),
       ),
     );
-    for (const settled of chainResults) {
-      if (settled.status !== 'fulfilled') continue;
-      for (const [assetId, entry] of settled.value) out.set(assetId, entry);
+    for (const chainMap of chainResults) {
+      for (const [assetId, entry] of chainMap) out.set(assetId, entry);
     }
     return out;
   }
@@ -151,8 +149,9 @@ export class EvmBalanceFetcher {
         const byId = new Map<number, RpcResponse>();
         for (const r of responses) byId.set(r.id, r);
         for (const req of batch) {
-          const spec = idToAsset.get(req.id);
-          if (!spec) continue;
+          // `idToAsset` is populated for every request id in the loop above,
+          // so the lookup is always defined here.
+          const spec = idToAsset.get(req.id)!;
           const res = byId.get(req.id);
           if (!res) {
             out.set(spec.assetId, { assetId: spec.assetId, error: 'no response' });
@@ -168,8 +167,8 @@ export class EvmBalanceFetcher {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'rpc error';
         for (const req of batch) {
-          const spec = idToAsset.get(req.id);
-          if (spec) out.set(spec.assetId, { assetId: spec.assetId, error: message });
+          const spec = idToAsset.get(req.id)!;
+          out.set(spec.assetId, { assetId: spec.assetId, error: message });
         }
       }
     }

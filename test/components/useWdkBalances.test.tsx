@@ -86,6 +86,21 @@ describe('useWdkBalances', () => {
     expect(entry?.rawBalance).toBe('0');
   });
 
+  it('drops the error field when WDK reports failure without an error string', () => {
+    // `r.error` undefined → the error entry is still returned but without
+    // an `error` field. Exercises the `if (r.error)` false branch.
+    mockWdkResult.current = {
+      data: [{ success: false, assetId: 'bitcoin-native' }],
+      isLoading: false,
+      error: null,
+    };
+    const { result } = renderHook(() => useWdkBalances(getAssets(['bitcoin'])));
+    const entry = result.current.data.get('bitcoin-native');
+    expect(entry?.status).toBe('error');
+    expect(entry?.error).toBeUndefined();
+    expect(entry?.rawBalance).toBe('0');
+  });
+
   it('forwards isLoading + error from the underlying WDK hook', () => {
     const someErr = new Error('worklet not ready');
     mockWdkResult.current = { data: undefined, isLoading: true, error: someErr };

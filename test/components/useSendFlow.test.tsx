@@ -197,6 +197,30 @@ describe('useSendFlow', () => {
 
       expect(fee).toEqual({ success: false, error: 'node unreachable' });
     });
+
+    it('falls back to "estimate-failed" when the failure result has no error string', async () => {
+      mockEstimateFee.mockResolvedValueOnce({ success: false });
+      const { result } = renderHook(() => useSendFlow('ethereum'), { wrapper: wrap });
+
+      let fee: Awaited<ReturnType<typeof result.current.estimate>> | undefined;
+      await act(async () => {
+        fee = await result.current.estimate({ asset: fakeAsset, to: '0xabc', amount: '1' });
+      });
+
+      expect(fee).toEqual({ success: false, error: 'estimate-failed' });
+    });
+
+    it('falls back to "estimate-failed" when the throw value is not an Error instance', async () => {
+      mockEstimateFee.mockRejectedValueOnce('socket reset');
+      const { result } = renderHook(() => useSendFlow('ethereum'), { wrapper: wrap });
+
+      let fee: Awaited<ReturnType<typeof result.current.estimate>> | undefined;
+      await act(async () => {
+        fee = await result.current.estimate({ asset: fakeAsset, to: '0xabc', amount: '1' });
+      });
+
+      expect(fee).toEqual({ success: false, error: 'estimate-failed' });
+    });
   });
 
   describe('reset', () => {

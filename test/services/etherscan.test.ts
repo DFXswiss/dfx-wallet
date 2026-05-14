@@ -201,6 +201,91 @@ describe('etherscan explorer service', () => {
         if (!r.ok) expect(r.error.message).toBe('Etherscan fetch failed');
       });
     });
+
+    it('surfaces a real Error.message from the catch path (non-Abort Error)', async () => {
+      await withEtherscanKey('TEST_KEY', async (mod) => {
+        const fetchImpl = jest.fn(async () => {
+          throw new Error('socket hang up');
+        });
+        const r = await mod.getNormalTxs('ethereum', '0xabc', {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.error.message).toMatch(/socket hang up/);
+      });
+    });
+
+    it('falls back to result/default-string when status="0" lacks a message', async () => {
+      // L124 has two nullish-coalescing fallbacks: json.message ??
+      // json.result ?? 'Etherscan error'. Drive each side.
+      await withEtherscanKey('TEST_KEY', async (mod) => {
+        // (1) `status: '0'` with only `result` populated — falls back to
+        // the result string.
+        const fetchResult = jest.fn(
+          async () =>
+            ({
+              ok: true,
+              status: 200,
+              json: async () => ({ status: '0', result: 'NOTOK rate-limited' }),
+            }) as unknown as Response,
+        );
+        const r1 = await mod.getNormalTxs('ethereum', '0xabc', {
+          fetchImpl: fetchResult as unknown as typeof fetch,
+        });
+        if (!r1.ok) expect(r1.error.message).toBe('NOTOK rate-limited');
+
+        // (2) `status: '0'` with neither — fall back to the static default.
+        const fetchEmpty = jest.fn(
+          async () =>
+            ({ ok: true, status: 200, json: async () => ({ status: '0' }) }) as unknown as Response,
+        );
+        const r2 = await mod.getNormalTxs('ethereum', '0xabc', {
+          fetchImpl: fetchEmpty as unknown as typeof fetch,
+        });
+        if (!r2.ok) expect(r2.error.message).toBe('Etherscan error');
+      });
+    });
+
+    it('forwards the AbortSignal through to fetch when one is supplied', async () => {
+      await withEtherscanKey('TEST_KEY', async (mod) => {
+        const seen: { signal?: AbortSignal | undefined } = {};
+        const fetchImpl = jest.fn(async (_url: string, init?: RequestInit) => {
+          seen.signal = init?.signal ?? undefined;
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ status: '1', message: 'OK', result: [] }),
+          } as unknown as Response;
+        });
+        const controller = new AbortController();
+        await mod.getNormalTxs('ethereum', '0xabc', {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+          signal: controller.signal,
+        });
+        expect(seen.signal).toBe(controller.signal);
+      });
+    });
+
+    it('falls back to global fetch when no fetchImpl is provided', async () => {
+      await withEtherscanKey('TEST_KEY', async (mod) => {
+        const originalFetch = globalThis.fetch;
+        try {
+          globalThis.fetch = jest.fn(
+            async () =>
+              ({
+                ok: true,
+                status: 200,
+                json: async () => ({ status: '1', message: 'OK', result: [] }),
+              }) as unknown as Response,
+          ) as unknown as typeof fetch;
+          const r = await mod.getNormalTxs('ethereum', '0xabc');
+          expect(r.ok).toBe(true);
+          expect(globalThis.fetch).toHaveBeenCalled();
+        } finally {
+          globalThis.fetch = originalFetch;
+        }
+      });
+    });
   });
 
   describe('getErc20Txs + getTokenBalance + getNativeBalance', () => {

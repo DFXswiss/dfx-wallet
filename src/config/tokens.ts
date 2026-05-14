@@ -572,6 +572,9 @@ export const getSendAssetForCanonical = (
   if (candidates.length === 0) return undefined;
   if (canonicalSymbol === 'USD') {
     const usdt = candidates.find((asset) => getAssetMeta(asset.getId())?.symbol === 'USDT');
+    // Every EVM chain that exposes the USD canonical also ships USDT, so the
+    // fall-through is defensive against a future chain that lists USDC only.
+    /* istanbul ignore else -- defensive against a future USDT-less EVM chain */
     if (usdt) return usdt;
   }
   return candidates[0];

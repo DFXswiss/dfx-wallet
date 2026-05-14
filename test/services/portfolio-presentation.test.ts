@@ -96,6 +96,13 @@ describe('parseUnits', () => {
   it('preserves precision via BigInt past Number.MAX_SAFE_INTEGER', () => {
     expect(parseUnits('1000000000000', 18)).toBe('1000000000000000000000000000000');
   });
+
+  it('returns the whole-part unchanged for decimals=0 (no fractional unit)', () => {
+    // With `decimals=0` the fractional buffer is empty (`padEnd(0, '0')` →
+    // ""), and the implementation must short-circuit `BigInt('')`.
+    expect(parseUnits('7', 0)).toBe('7');
+    expect(parseUnits('123', 0)).toBe('123');
+  });
 });
 
 describe('formatNumber', () => {

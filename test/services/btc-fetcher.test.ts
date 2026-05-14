@@ -209,4 +209,43 @@ describe('fetchBtcTransactions', () => {
     expect(r).toEqual({ ok: false, error: 'no address' });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
+
+  it('forwards an AbortSignal when provided', async () => {
+    let seenInit: RequestInit | undefined;
+    const fetchImpl = jest.fn(async (_url: string, init?: RequestInit) => {
+      seenInit = init;
+      return { ok: true, status: 200, json: async () => [] } as unknown as Response;
+    });
+    const controller = new AbortController();
+    await fetchBtcTransactions('bc1qaddr', {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      signal: controller.signal,
+    });
+    expect(seenInit?.signal).toBe(controller.signal);
+  });
+});
+
+describe('btc-fetcher default fetch fallback', () => {
+  it('uses global fetch when neither call site provides fetchImpl', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = jest.fn(
+        async (url: RequestInfo | URL) =>
+          String(url).endsWith('/txs')
+            ? ({ ok: true, status: 200, json: async () => [] } as unknown as Response)
+            : ({
+                ok: true,
+                status: 200,
+                json: async () => ({ chain_stats: { funded_txo_sum: 1, spent_txo_sum: 0 } }),
+              } as unknown as Response),
+      ) as unknown as typeof fetch;
+      const balance = await fetchBtcBalance('bc1qaddr');
+      const txs = await fetchBtcTransactions('bc1qaddr');
+      expect(balance).toEqual({ rawBalance: '1' });
+      expect(txs).toEqual({ ok: true, value: [] });
+      expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

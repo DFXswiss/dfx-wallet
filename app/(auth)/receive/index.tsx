@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -20,13 +20,18 @@ type AssetOption = {
   chains: { chain: ChainId; label: string }[];
 };
 
-// Bitcoin offers three receive layers — Native on-chain, Lightning, and EVM
-// (wrapped). Stablecoins only ship over EVM; rather than asking the user to
-// pick between identical EVM chains, we default to Ethereum and skip the chain
-// selector entirely. The Taproot/Lightning option resolves a DFX-managed
-// Lightning address via the LDS service, so it is hidden when
-// `FEATURES.DFX_BACKEND` is off — without it the QR would be blank.
-const RECEIVE_ASSETS: AssetOption[] = [
+/**
+ * Bitcoin offers three receive layers — Native on-chain, Lightning, and EVM
+ * (wrapped). Stablecoins only ship over EVM; rather than asking the user to
+ * pick between identical EVM chains, we default to Ethereum and skip the chain
+ * selector entirely. The Taproot/Lightning option resolves a DFX-managed
+ * Lightning address via the LDS service, so it is hidden when
+ * `FEATURES.DFX_BACKEND` is off — without it the QR would be blank.
+ *
+ * Computed at render time so a test can flip `FEATURES.DFX_BACKEND` between
+ * mounts and exercise both layer combinations.
+ */
+const buildReceiveAssets = (): AssetOption[] => [
   {
     symbol: 'BTC',
     label: 'Bitcoin',
@@ -41,26 +46,15 @@ const RECEIVE_ASSETS: AssetOption[] = [
       { chain: 'ethereum', label: 'EVM' },
     ],
   },
-  {
-    symbol: 'CHF',
-    label: 'CHF',
-    chains: [{ chain: 'ethereum', label: 'Ethereum' }],
-  },
-  {
-    symbol: 'EUR',
-    label: 'Euro',
-    chains: [{ chain: 'ethereum', label: 'Ethereum' }],
-  },
-  {
-    symbol: 'USD',
-    label: 'Dollar',
-    chains: [{ chain: 'ethereum', label: 'Ethereum' }],
-  },
+  { symbol: 'CHF', label: 'CHF', chains: [{ chain: 'ethereum', label: 'Ethereum' }] },
+  { symbol: 'EUR', label: 'Euro', chains: [{ chain: 'ethereum', label: 'Ethereum' }] },
+  { symbol: 'USD', label: 'Dollar', chains: [{ chain: 'ethereum', label: 'Ethereum' }] },
 ];
 
 export default function ReceiveScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const receiveAssets = useMemo(buildReceiveAssets, []);
   const [step, setStep] = useState<ReceiveStep>('asset');
   // Start unselected so no card has a border on first render — the active
   // border appears only after the user explicitly picks an asset.
@@ -85,7 +79,8 @@ export default function ReceiveScreen() {
   };
 
   const handleCopy = async () => {
-    if (!address) return;
+    // The Copy button is gated on `address` via its `disabled` prop, so by
+    // the time we land here the string is guaranteed to be non-empty.
     await Clipboard.setStringAsync(address);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setCopied(true);
@@ -96,7 +91,7 @@ export default function ReceiveScreen() {
     <View style={styles.stepContent}>
       <Text style={styles.stepSubtitle}>{t('receive.selectAsset')}</Text>
       <View style={styles.assetList}>
-        {RECEIVE_ASSETS.map((asset) => (
+        {receiveAssets.map((asset) => (
           <Pressable
             key={asset.symbol}
             style={({ pressed }) => [
@@ -140,18 +135,17 @@ export default function ReceiveScreen() {
     </View>
   );
 
-  const renderQrStep = () => {
-    if (!selectedAsset) return null;
+  const renderQrStep = (asset: AssetOption) => {
     return (
       <View style={styles.stepContent}>
         <Pressable style={styles.selectedAssetPill} onPress={() => setStep('asset')}>
-          <Text style={styles.selectedAssetText}>{selectedAsset.symbol}</Text>
+          <Text style={styles.selectedAssetText}>{asset.symbol}</Text>
           <Icon name="chevron-right" size={14} color={DfxColors.textTertiary} />
         </Pressable>
 
-        {selectedAsset.chains.length > 1 && (
+        {asset.chains.length > 1 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
-            {selectedAsset.chains.map((c) => (
+            {asset.chains.map((c) => (
               <Pressable
                 key={c.chain}
                 style={[styles.chainChip, selectedChain === c.chain && styles.chainChipActive]}
@@ -222,7 +216,7 @@ export default function ReceiveScreen() {
             showsVerticalScrollIndicator={false}
           >
             {step === 'asset' && renderAssetStep()}
-            {step === 'qr' && renderQrStep()}
+            {step === 'qr' && selectedAsset && renderQrStep(selectedAsset)}
           </ScrollView>
         </SafeAreaView>
       </ImageBackground>

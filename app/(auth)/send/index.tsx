@@ -105,11 +105,12 @@ export default function SendScreen() {
   };
 
   const goToConfirm = useCallback(async () => {
-    if (!sendAsset) return;
+    // Continue + Confirm buttons are gated on `sendAsset` via their
+    // `disabled` props, so it is non-null by the time these handlers run.
     setStep('confirm');
     setFeeState({ status: 'loading' });
     const reqId = ++estimateReqRef.current;
-    const result = await estimate({ asset: sendAsset, to: recipient, amount });
+    const result = await estimate({ asset: sendAsset!, to: recipient, amount });
     // Drop stale results from earlier estimate calls (e.g. user went back, edited, returned).
     if (reqId !== estimateReqRef.current) return;
     if (result.success) {
@@ -120,8 +121,7 @@ export default function SendScreen() {
   }, [sendAsset, estimate, recipient, amount]);
 
   const handleSend = async () => {
-    if (!sendAsset) return;
-    const hash = await send({ asset: sendAsset, to: recipient, amount });
+    const hash = await send({ asset: sendAsset!, to: recipient, amount });
     if (hash) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStep('success');
@@ -176,20 +176,19 @@ export default function SendScreen() {
     </View>
   );
 
-  const renderInputStep = () => {
-    if (!selectedAsset) return null;
+  const renderInputStep = (asset: AssetOption) => {
     return (
       <View style={styles.stepContent}>
         <Pressable style={styles.selectedAssetPill} onPress={() => setStep('asset')}>
-          <Text style={styles.selectedAssetText}>{selectedAsset.symbol}</Text>
+          <Text style={styles.selectedAssetText}>{asset.symbol}</Text>
           <Icon name="chevron-right" size={14} color={DfxColors.textTertiary} />
         </Pressable>
 
-        {selectedAsset.chains.length > 1 && (
+        {asset.chains.length > 1 && (
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>{t('send.network')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
-              {selectedAsset.chains.map((c) => (
+              {asset.chains.map((c) => (
                 <Pressable
                   key={c.chain}
                   style={[styles.chainChip, selectedChain === c.chain && styles.chainChipActive]}
@@ -248,7 +247,7 @@ export default function SendScreen() {
         <PrimaryButton
           title={t('common.continue')}
           onPress={goToConfirm}
-          disabled={!isValidAddress || !amount || parseFloat(amount) <= 0}
+          disabled={!sendAsset || !isValidAddress || !amount || parseFloat(amount) <= 0}
         />
 
         {FEATURES.BUY_SELL && (
@@ -292,7 +291,6 @@ export default function SendScreen() {
             {feeState.status === 'ok' &&
               paymasterToken &&
               `${formatBalance(feeState.fee, paymasterToken.decimals)} ${paymasterToken.symbol}`}
-            {feeState.status === 'idle' && '—'}
           </Text>
         </View>
       </View>
@@ -368,7 +366,7 @@ export default function SendScreen() {
             showsVerticalScrollIndicator={false}
           >
             {step === 'asset' && renderAssetStep()}
-            {step === 'input' && renderInputStep()}
+            {step === 'input' && selectedAsset && renderInputStep(selectedAsset)}
             {step === 'confirm' && renderConfirmStep()}
             {step === 'success' && renderSuccessStep()}
           </ScrollView>

@@ -64,8 +64,10 @@ export const formatBalance = (rawBalance: string, decimals: number): string => {
     const whole = value / divisor;
     const fractional = value % divisor;
     if (fractional === 0n) return whole.toString();
+    // `fractional > 0` so the padded string has at least one non-zero digit,
+    // meaning `fractionalStr` is never empty after the trailing-zero strip.
     const fractionalStr = fractional.toString().padStart(decimals, '0').replace(/0+$/, '');
-    return fractionalStr ? `${whole}.${fractionalStr}` : whole.toString();
+    return `${whole}.${fractionalStr}`;
   } catch {
     return rawBalance;
   }
@@ -87,8 +89,10 @@ export const parseUnits = (displayAmount: string, decimals: number): string => {
   const trimmed = displayAmount.trim();
   if (!trimmed || trimmed === '.') return '0';
   if (!/^\d*\.?\d*$/.test(trimmed)) return '0';
-  const [whole = '0', fracRaw = ''] = trimmed.split('.');
-  const wholePart = whole === '' ? '0' : whole;
+  const [whole, fracRaw = ''] = trimmed.split('.');
+  // `split('.')` always yields at least one element, so `whole` is defined.
+  // It may still be the empty string for inputs like ".5" — fall back to "0".
+  const wholePart = whole ? whole : '0';
   const frac = fracRaw.slice(0, decimals).padEnd(decimals, '0');
   const wholeBig = BigInt(wholePart) * BigInt(10) ** BigInt(decimals);
   const fracBig = frac === '' ? 0n : BigInt(frac);

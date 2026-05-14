@@ -70,6 +70,16 @@ describe('getAssetsForCanonicalSymbol', () => {
   it('returns [] for an unknown canonical symbol', () => {
     expect(getAssetsForCanonicalSymbol('JPY')).toEqual([]);
   });
+
+  it('exposes address=null for native assets that have no contract address', () => {
+    // Native BTC variants intentionally omit `address`; the mapper folds
+    // them to `null` so the consumer sees a single canonical "no contract"
+    // shape rather than `undefined`.
+    const btcs = getAssetsForCanonicalSymbol('BTC');
+    const nativeBtc = btcs.find((a) => a.isNative && a.network === 'bitcoin');
+    expect(nativeBtc).toBeDefined();
+    expect(nativeBtc!.address).toBeNull();
+  });
 });
 
 describe('getCanonicalForSymbol', () => {

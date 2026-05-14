@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import * as Clipboard from 'expo-clipboard';
 
 // react-i18next's `t()` returns the key verbatim when no i18n instance is
@@ -20,14 +20,25 @@ jest.mock('expo-router', () => ({
 }));
 
 // WDK + LDS — match the same return-shape the disabled wrappers use.
-// The `mockAccountAddress` ref lets per-test cases override the address
-// (e.g. to "" so the noAddress placeholder branch is exercised).
-const mockAccountAddress = { current: '0x1111222233334444555566667777888899990000' };
+// `mockAccountAddress` / `mockLdsUser` let per-test cases override the
+// address shape so we can drive every branch of the address picker (empty
+// WDK address, taproot via LDS, plain ETH).
+const mockAccountAddress: { current: string | null | undefined } = {
+  current: '0x1111222233334444555566667777888899990000',
+};
+const mockLdsUser: {
+  current: { lightning: { address: string } } | null;
+} = { current: null };
 jest.mock('@tetherto/wdk-react-native-core', () => ({
   useAccount: jest.fn(() => ({ address: mockAccountAddress.current })),
 }));
 jest.mock('@/hooks', () => ({
-  useLdsWallet: () => ({ user: null, isLoading: false, error: null, signIn: jest.fn() }),
+  useLdsWallet: () => ({
+    user: mockLdsUser.current,
+    isLoading: false,
+    error: null,
+    signIn: jest.fn(),
+  }),
 }));
 
 // Render-only stubs for native primitives so the test doesn't try to render
@@ -45,12 +56,16 @@ jest.mock('react-native-safe-area-context', () => {
 
 import ReceiveScreen from '../../app/(auth)/receive/index';
 
+beforeEach(() => {
+  mockPush.mockReset();
+  mockBack.mockReset();
+  mockLdsUser.current = null;
+  mockAccountAddress.current = '0x1111222233334444555566667777888899990000';
+  jest.restoreAllMocks();
+  jest.spyOn(Clipboard, 'setStringAsync').mockResolvedValue(true);
+});
+
 describe('ReceiveScreen', () => {
-  beforeEach(() => {
-    mockPush.mockReset();
-    mockBack.mockReset();
-    jest.spyOn(Clipboard, 'setStringAsync').mockResolvedValue(true);
-  });
 
   it('renders the asset picker with the static RECEIVE_ASSETS list', () => {
     const { getAllByText, getByText } = render(<ReceiveScreen />);
@@ -180,13 +195,88 @@ describe('ReceiveScreen', () => {
 describe('ReceiveScreen — empty address path', () => {
   it('shows the noAddress placeholder + walletNotInitialized label when address is empty', () => {
     mockAccountAddress.current = '';
+    const { getByText } = render(<ReceiveScreen />);
+    fireEvent.press(getByText('BTC'));
+    expect(getByText('receive.noAddress')).toBeTruthy();
+    expect(getByText('receive.walletNotInitialized')).toBeTruthy();
+  });
+
+  it('falls back to empty when useAccount returns an undefined address', () => {
+    // `?? ''` only fires for nullish — `''` is not nullish. Pass undefined
+    // explicitly so the right side of the coalesce evaluates.
+    mockAccountAddress.current = undefined;
+    const { getByText } = render(<ReceiveScreen />);
+    fireEvent.press(getByText('BTC'));
+    expect(getByText('receive.noAddress')).toBeTruthy();
+  });
+
+  it('renders the LDS lightning address when the Taproot chain is selected', () => {
+    mockLdsUser.current = { lightning: { address: 'lnbc1taprootaddress' } };
+    const { getByText } = render(<ReceiveScreen />);
+    fireEvent.press(getByText('BTC'));
+    fireEvent.press(getByText('Taproot'));
+    expect(getByText('lnbc1taprootaddress')).toBeTruthy();
+  });
+
+  it('falls back to empty when the Taproot chain is selected but LDS has no user', () => {
+    mockLdsUser.current = null;
+    const { getByText } = render(<ReceiveScreen />);
+    fireEvent.press(getByText('BTC'));
+    fireEvent.press(getByText('Taproot'));
+    // Without an LDS user the lightning address is "" → noAddress placeholder.
+    expect(getByText('receive.noAddress')).toBeTruthy();
+  });
+
+  it('does not write to the clipboard when there is no address (button is disabled)', async () => {
+    mockAccountAddress.current = '';
+    const { getByText } = render(<ReceiveScreen />);
+    fireEvent.press(getByText('BTC'));
+    fireEvent.press(getByText('common.copy'));
+    await Promise.resolve();
+    // The `disabled` prop on the Copy PrimaryButton blocks onPress, so
+    // handleCopy never runs and Clipboard stays untouched.
+    expect(Clipboard.setStringAsync).not.toHaveBeenCalled();
+  });
+
+  it('resets the "copied" label after the 2-second timeout fires', async () => {
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'queueMicrotask'] });
     try {
-      const { getByText } = render(<ReceiveScreen />);
+      const { getByText, queryByText } = render(<ReceiveScreen />);
       fireEvent.press(getByText('BTC'));
-      expect(getByText('receive.noAddress')).toBeTruthy();
-      expect(getByText('receive.walletNotInitialized')).toBeTruthy();
+      await act(async () => {
+        fireEvent.press(getByText('common.copy'));
+        // Drain microtasks so handleCopy's `await Clipboard.setStringAsync`
+        // resolves and setCopied(true) commits. With `queueMicrotask`
+        // unfaked above, plain `Promise.resolve()` still flushes correctly.
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(getByText('common.copied')).toBeTruthy();
+      await act(async () => {
+        jest.advanceTimersByTime(2000);
+      });
+      expect(queryByText('common.copied')).toBeNull();
     } finally {
-      mockAccountAddress.current = '0x1111222233334444555566667777888899990000';
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe('ReceiveScreen (DFX backend OFF — MVP build)', () => {
+  it('omits the Taproot + Lightning chain chips when FEATURES.DFX_BACKEND is off', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const features = require('@/config/features');
+    const r = jest.replaceProperty(features.FEATURES, 'DFX_BACKEND', false);
+    try {
+      const { getByText, queryByText } = render(<ReceiveScreen />);
+      fireEvent.press(getByText('BTC'));
+      // SegWit + EVM stay, Taproot + Lightning are gone.
+      expect(getByText('SegWit')).toBeTruthy();
+      expect(queryByText('Taproot')).toBeNull();
+      expect(queryByText('Lightning')).toBeNull();
+    } finally {
+      r.restore();
     }
   });
 });

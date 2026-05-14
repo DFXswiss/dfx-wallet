@@ -173,6 +173,30 @@ describe('EvmBalanceFetcher', () => {
     expect(result.get('x')).toEqual({ assetId: 'x', error: 'no response' });
   });
 
+  it('hexToDecimalString returns "0" for the literal "0x" sentinel', async () => {
+    const fetchImpl = jest.fn(async () =>
+      mockOkResponse([{ jsonrpc: '2.0', id: 1, result: '0x' }]),
+    ) as unknown as FetchMock;
+    const fetcher = new EvmBalanceFetcher(resolveRpc, fetchImpl);
+    const result = await fetcher.fetch(
+      [{ assetId: 'x', network: 'ethereum', isNative: true, tokenAddress: null }],
+      new Map([['ethereum', '0xaaaa']]),
+    );
+    expect(result.get('x')).toEqual({ assetId: 'x', rawBalance: '0' });
+  });
+
+  it('reports "rpc error" when the underlying fetch throws a non-Error value', async () => {
+    const fetchImpl = jest.fn(async () => {
+      throw 'connection dropped';
+    }) as unknown as FetchMock;
+    const fetcher = new EvmBalanceFetcher(resolveRpc, fetchImpl);
+    const result = await fetcher.fetch(
+      [{ assetId: 'x', network: 'ethereum', isNative: true, tokenAddress: null }],
+      new Map([['ethereum', '0xaaaa']]),
+    );
+    expect(result.get('x')).toEqual({ assetId: 'x', error: 'rpc error' });
+  });
+
   it('hexToDecimalString returns "0" for an unparseable hex result', async () => {
     const fetchImpl = jest.fn(async () =>
       mockOkResponse([{ jsonrpc: '2.0', id: 1, result: 'not-hex' }]),
@@ -229,6 +253,24 @@ describe('EvmBalanceFetcher', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     for (let i = 0; i < NUM; i += 1) {
       expect(result.get(`asset-${i}`)).toEqual({ assetId: `asset-${i}`, rawBalance: '1' });
+    }
+  });
+
+  it('falls back to the global fetch when no fetchImpl is provided to the constructor', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = jest.fn(async () =>
+        mockOkResponse([{ jsonrpc: '2.0', id: 1, result: '0x07' }]),
+      ) as unknown as typeof fetch;
+      const fetcher = new EvmBalanceFetcher(resolveRpc);
+      const result = await fetcher.fetch(
+        [{ assetId: 'x', network: 'ethereum', isNative: true, tokenAddress: null }],
+        new Map([['ethereum', '0xaaaa']]),
+      );
+      expect(result.get('x')).toEqual({ assetId: 'x', rawBalance: '7' });
+      expect(globalThis.fetch).toHaveBeenCalled();
+    } finally {
+      globalThis.fetch = originalFetch;
     }
   });
 

@@ -67,16 +67,37 @@ describe('CreateWalletScreen', () => {
   });
 
   it('copies the seed phrase as a space-joined string when "copy" is pressed', async () => {
-    const { getByTestId } = render(<CreateWalletScreen />);
-    fireEvent.press(getByTestId('create-wallet-reveal-button'));
-    await act(async () => {
-      fireEvent.press(getByTestId('create-wallet-copy-button'));
-    });
-    expect(Clipboard.setStringAsync).toHaveBeenCalledTimes(1);
-    const arg = (Clipboard.setStringAsync as jest.Mock).mock.calls[0]![0];
-    expect(typeof arg).toBe('string');
-    // 12-word BIP-39 mnemonic — 11 spaces separating the words.
-    expect(arg.split(' ')).toHaveLength(12);
+    let scheduled: (() => void) | undefined;
+    const realSetTimeout = globalThis.setTimeout;
+    const setTimeoutSpy = jest
+      .spyOn(globalThis, 'setTimeout')
+      .mockImplementation(((cb: () => void, ms?: number, ...rest: unknown[]) => {
+        if (ms === 2000) {
+          scheduled = cb;
+          return 0 as unknown as ReturnType<typeof setTimeout>;
+        }
+        return realSetTimeout.call(globalThis, cb, ms, ...rest);
+      }) as unknown as typeof setTimeout);
+    try {
+      const { getByTestId } = render(<CreateWalletScreen />);
+      fireEvent.press(getByTestId('create-wallet-reveal-button'));
+      await act(async () => {
+        fireEvent.press(getByTestId('create-wallet-copy-button'));
+      });
+      expect(Clipboard.setStringAsync).toHaveBeenCalledTimes(1);
+      const arg = (Clipboard.setStringAsync as jest.Mock).mock.calls[0]![0];
+      expect(typeof arg).toBe('string');
+      // 12-word BIP-39 mnemonic — 11 spaces separating the words.
+      expect(arg.split(' ')).toHaveLength(12);
+      // Fire the captured "copied → not copied" reset callback (simulates
+      // the 2 s timer firing) so the inner arrow gets coverage.
+      expect(scheduled).toBeDefined();
+      await act(async () => {
+        scheduled!();
+      });
+    } finally {
+      setTimeoutSpy.mockRestore();
+    }
   });
 
   it('restores a wallet and routes to setup-pin on successful create', async () => {
