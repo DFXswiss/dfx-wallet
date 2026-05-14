@@ -107,4 +107,33 @@ describe('useEvmBalances', () => {
     expect(entry?.status).toBe('idle');
     expect(entry?.rawBalance).toBe('0');
   });
+
+  it('sorts the query-key chain entries deterministically (multiple addresses)', async () => {
+    // With every EVM chain resolving an address, both the sort comparator
+    // *and* every per-chain `if (account.address) map.set(…)` branch fire.
+    (useAccount as jest.Mock).mockImplementation(({ network }: { network: string }) =>
+      ({
+        ethereum: { address: '0xeth' },
+        arbitrum: { address: '0xarb' },
+        polygon: { address: '0xpoly' },
+        base: { address: '0xbase' },
+        plasma: { address: '0xplasma' },
+        sepolia: { address: '0xsep' },
+      }[network] ?? { address: null }),
+    );
+    mockFetcherResult.current.set('ethereum-native', {
+      assetId: 'ethereum-native',
+      rawBalance: '1',
+    });
+    mockFetcherResult.current.set('arbitrum-native', {
+      assetId: 'arbitrum-native',
+      rawBalance: '2',
+    });
+    const assets = [
+      getAssets(['ethereum']).find((a) => a.getId() === 'ethereum-native')!,
+      getAssets(['arbitrum']).find((a) => a.getId() === 'arbitrum-native')!,
+    ];
+    const { result } = renderHook(() => useEvmBalances(assets), { wrapper: wrap });
+    await waitFor(() => expect(result.current.data.size).toBe(2));
+  });
 });

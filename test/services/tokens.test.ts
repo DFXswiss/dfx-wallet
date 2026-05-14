@@ -7,6 +7,9 @@ import {
   getCategoryForAsset,
   getCategoryForCanonicalSymbol,
   getNativeAsset,
+  getSendAssetForCanonical,
+  assetIncludedInWdkBalanceQuery,
+  assetIncludedInEvmBalanceQuery,
   ALWAYS_ON_CHAINS,
   SELECTABLE_CHAINS,
   DEFAULT_ENABLED_CHAINS,
@@ -127,6 +130,80 @@ describe('getNativeAsset', () => {
 
   it('returns undefined for an unknown network', () => {
     expect(getNativeAsset('not-a-chain')).toBeUndefined();
+  });
+});
+
+describe('assetIncludedInWdkBalanceQuery', () => {
+  it('returns true for native BTC (wdk strategy on a WDK-supported chain)', () => {
+    const btc = getAssets(['bitcoin']).find((a) => a.isNative());
+    expect(btc).toBeDefined();
+    expect(assetIncludedInWdkBalanceQuery(btc!)).toBe(true);
+  });
+
+  it('returns false for an unknown asset (no metadata)', () => {
+    // Fabricate an IAsset-shaped object whose getId() does not match any
+    // entry in the token registry. The lookup returns undefined and the
+    // function bails out.
+    const fakeAsset = {
+      getId: () => 'unknown-fake-asset',
+      getNetwork: () => 'ethereum',
+      isNative: () => false,
+    } as unknown as Parameters<typeof assetIncludedInWdkBalanceQuery>[0];
+    expect(assetIncludedInWdkBalanceQuery(fakeAsset)).toBe(false);
+  });
+
+  it('returns false for an EVM ERC-20 (its strategy is "evm", not "wdk")', () => {
+    // USDT on Ethereum uses the EVM JSON-RPC fetcher, not WDK.
+    const usdtMeta = getAssetsForCanonicalSymbol('USD').find(
+      (m) => m.network === 'ethereum' && m.symbol === 'USDT',
+    );
+    expect(usdtMeta).toBeDefined();
+    const usdt = getAssets(['ethereum']).find((a) => a.getId() === usdtMeta!.id);
+    expect(usdt).toBeDefined();
+    expect(assetIncludedInWdkBalanceQuery(usdt!)).toBe(false);
+  });
+});
+
+describe('assetIncludedInEvmBalanceQuery', () => {
+  it('returns true for an EVM ERC-20 like USDT on Ethereum', () => {
+    const usdtMeta = getAssetsForCanonicalSymbol('USD').find(
+      (m) => m.network === 'ethereum' && m.symbol === 'USDT',
+    );
+    expect(usdtMeta).toBeDefined();
+    const usdt = getAssets(['ethereum']).find((a) => a.getId() === usdtMeta!.id);
+    expect(assetIncludedInEvmBalanceQuery(usdt!)).toBe(true);
+  });
+
+  it('returns false for native BTC (wdk strategy)', () => {
+    const btc = getAssets(['bitcoin']).find((a) => a.isNative());
+    expect(assetIncludedInEvmBalanceQuery(btc!)).toBe(false);
+  });
+
+  it('returns false for an unknown asset (no metadata)', () => {
+    const fakeAsset = {
+      getId: () => 'unknown-fake-asset',
+      getNetwork: () => 'ethereum',
+      isNative: () => false,
+    } as unknown as Parameters<typeof assetIncludedInEvmBalanceQuery>[0];
+    expect(assetIncludedInEvmBalanceQuery(fakeAsset)).toBe(false);
+  });
+});
+
+describe('getSendAssetForCanonical', () => {
+  it('returns USDT first when the canonical symbol is USD on an EVM chain', () => {
+    const asset = getSendAssetForCanonical('USD', 'ethereum');
+    expect(asset).toBeDefined();
+    expect(getAssetMeta(asset!.getId())?.symbol).toBe('USDT');
+  });
+
+  it('returns the only candidate when the canonical symbol resolves to one asset', () => {
+    const asset = getSendAssetForCanonical('BTC', 'bitcoin');
+    expect(asset).toBeDefined();
+    expect(getAssetMeta(asset!.getId())?.canonicalSymbol).toBe('BTC');
+  });
+
+  it('returns undefined when no asset exists for the (canonical, chain) pair', () => {
+    expect(getSendAssetForCanonical('BTC', 'sepolia')).toBeUndefined();
   });
 });
 
