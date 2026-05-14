@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { HardwareWalletDevice, HardwareWalletStatus } from '@/services/hardware-wallet';
+import type { HardwareWalletDevice, HardwareWalletStatus } from './services';
 
 type HardwareWalletState = {
   status: HardwareWalletStatus;
