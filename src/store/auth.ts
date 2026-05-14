@@ -1,8 +1,23 @@
 import { create } from 'zustand';
+import { FEATURES } from '@/config/features';
 import { hashPin, verifyPin as verifyPinHash } from '@/services/pin';
-import { authenticateWithBiometric, isBiometricAvailable } from '@/services/biometric';
 import { dfxApi, dfxAuthService } from '@/services/dfx';
 import { secureStorage, StorageKeys } from '@/services/storage';
+
+/**
+ * Lazy handle to the biometric service. Resolved through a conditional
+ * `require()` so a build with `EXPO_PUBLIC_ENABLE_BIOMETRIC` off does
+ * not load `expo-local-authentication` (the only thing the biometric
+ * module imports) into the MVP bundle. `authenticateBiometric` below
+ * checks the same flag and short-circuits when the module is absent.
+ */
+const biometricModule: {
+  authenticateWithBiometric: () => Promise<boolean>;
+  isBiometricAvailable: () => Promise<boolean>;
+} | null = FEATURES.BIOMETRIC
+  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('@/features/biometric/biometric')
+  : null;
 
 type AuthState = {
   isOnboarded: boolean;
@@ -83,11 +98,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   authenticateBiometric: async () => {
+    if (!biometricModule) return false;
     const { biometricEnabled } = get();
     if (!biometricEnabled) return false;
-    const available = await isBiometricAvailable();
+    const available = await biometricModule.isBiometricAvailable();
     if (!available) return false;
-    return authenticateWithBiometric();
+    return biometricModule.authenticateWithBiometric();
   },
 
   setBiometricEnabled: async (enabled) => {

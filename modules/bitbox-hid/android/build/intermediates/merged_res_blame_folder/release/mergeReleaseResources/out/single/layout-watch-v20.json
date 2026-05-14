@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/layout-watch-v20/abc_alert_dialog_button_bar_material.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-appcompat-1.7.0-12:/layout-watch-v20/abc_alert_dialog_button_bar_material.xml"
+    },
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/layout-watch-v20/abc_alert_dialog_title_material.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-appcompat-1.7.0-12:/layout-watch-v20/abc_alert_dialog_title_material.xml"
+    }
+]
