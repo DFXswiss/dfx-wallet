@@ -176,7 +176,7 @@ describe('computeFiatValue', () => {
   });
 
   it('returns 0 if the pricing service has no rate for the ticker', () => {
-    jest.spyOn(pricingService, 'getExchangeRate').mockReturnValue(null);
+    jest.spyOn(pricingService, 'getExchangeRate').mockReturnValue(undefined);
     expect(computeFiatValue(2, 'BTC', FiatCurrency.USD, true)).toBe(0);
   });
 

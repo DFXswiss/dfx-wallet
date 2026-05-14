@@ -62,6 +62,12 @@ module.exports = {
       testMatch: ['<rootDir>/test/components/**/*.test.tsx'],
       moduleNameMapper: {
         ...sharedNameMapper,
+        // The WDK package ships TypeScript source on npm and Jest's transform
+        // chain does not handle `export type {…}` inside node_modules without
+        // help. The local mock under `test/__mocks__/wdk.ts` exposes the
+        // surface our hooks touch (BaseAsset, useAccount, useRefreshBalance,
+        // …) without dragging in the Bare worklet.
+        '^@tetherto/wdk-react-native-core$': '<rootDir>/test/__mocks__/wdk.ts',
       },
       // jest-expo's defaults already cover react-native; add overrides for
       // wallet-specific dependencies that should not run their native bridge
