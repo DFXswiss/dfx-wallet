@@ -119,9 +119,16 @@ describe('formatNumber', () => {
   });
 });
 
+// The CH thousands separator differs between ICU versions: macOS / recent
+// glibc returns U+2019 (’), older ICU on the Linux CI runner returns the
+// ASCII apostrophe ('). We match either so the test stays stable across
+// runtimes.
+const CH_THOUSANDS_RE = /^1['’]234/;
+
 describe('formatFiat', () => {
   it('always emits two decimals with CH thousands separator', () => {
-    expect(formatFiat(1234.56)).toBe('1’234.56');
+    expect(formatFiat(1234.56)).toMatch(CH_THOUSANDS_RE);
+    expect(formatFiat(1234.56).endsWith('234.56')).toBe(true);
     expect(formatFiat(0)).toBe('0.00');
   });
 
@@ -134,7 +141,8 @@ describe('formatFiat', () => {
 describe('formatCryptoAmount', () => {
   it('emits up to 8 fractional digits with CH thousands separator', () => {
     expect(formatCryptoAmount(0.12345678)).toBe('0.12345678');
-    expect(formatCryptoAmount(1234.5)).toBe('1’234.5');
+    expect(formatCryptoAmount(1234.5)).toMatch(CH_THOUSANDS_RE);
+    expect(formatCryptoAmount(1234.5).endsWith('234.5')).toBe(true);
   });
 
   it('returns "0" for non-finite input', () => {

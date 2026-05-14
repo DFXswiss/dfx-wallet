@@ -60,6 +60,11 @@ module.exports = {
       preset: 'jest-expo',
       transform: sharedTransform,
       testMatch: ['<rootDir>/test/components/**/*.test.tsx'],
+      // Same global flag setup as the unit project: pin every
+      // EXPO_PUBLIC_ENABLE_* to "true" before any feature wrapper loads,
+      // so `FEATURES.X` resolves to the real implementation in the
+      // components project's screen tests as well.
+      setupFiles: ['<rootDir>/test/setup-globals.ts'],
       moduleNameMapper: {
         ...sharedNameMapper,
         // The WDK package ships TypeScript source on npm and Jest's transform
