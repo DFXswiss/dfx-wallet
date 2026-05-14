@@ -88,4 +88,42 @@ describe('ReceiveScreen', () => {
     expect(queryByText('receive.selectAsset')).toBeNull();
     expect(getByText('BTC')).toBeTruthy();
   });
+
+  it('renders the chain bar for multi-chain assets in the QR step', () => {
+    const { getByText, getAllByText } = render(<ReceiveScreen />);
+    // BTC has multiple receive layers (SegWit, Taproot, Lightning, EVM).
+    fireEvent.press(getByText('BTC'));
+    expect(getByText('SegWit')).toBeTruthy();
+    // Taproot + Lightning are only rendered when FEATURES.DFX_BACKEND is on
+    // — and setup-globals.ts forces all flags on under jest.
+    expect(getByText('Taproot')).toBeTruthy();
+    expect(getByText('Lightning')).toBeTruthy();
+    expect(getAllByText('EVM').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('switches the chain when a different chip is tapped', () => {
+    const { getByText } = render(<ReceiveScreen />);
+    fireEvent.press(getByText('BTC'));
+    fireEvent.press(getByText('SegWit'));
+    // We are still in the QR step; the copy CTA is visible.
+    expect(getByText('common.copy')).toBeTruthy();
+  });
+
+  it('renders the QR + address when an address is available', () => {
+    const { getByText } = render(<ReceiveScreen />);
+    fireEvent.press(getByText('BTC'));
+    // useAccount mock returns the same address regardless of chain.
+    expect(getByText('0x1111222233334444555566667777888899990000')).toBeTruthy();
+  });
+
+  it('copies the address to clipboard when "Copy" is pressed', async () => {
+    const { getByText } = render(<ReceiveScreen />);
+    fireEvent.press(getByText('BTC'));
+    fireEvent.press(getByText('common.copy'));
+    // Allow the async setStringAsync to flush.
+    await Promise.resolve();
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
+      '0x1111222233334444555566667777888899990000',
+    );
+  });
 });
