@@ -1,0 +1,37 @@
+appId: ${APP_ID}
+name: 21-send
+tags:
+  - smoke
+  - dashboard
+  - mvp
+---
+# Walks an MVP user from a fresh install to the Send screen via the
+# dashboard. Same SetupPinDisabled bridge as the rest of the MVP flows
+# (Create -> Dashboard without PIN or legal). The Send flow itself
+# ships in the MVP build.
+- launchApp:
+    clearState: true
+    clearKeychain: true
+
+- assertVisible:
+    id: "welcome-screen"
+- tapOn:
+    id: "welcome-create-wallet-button"
+
+- assertVisible:
+    id: "create-wallet-screen"
+- tapOn:
+    id: "create-wallet-reveal-button"
+- assertVisible:
+    id: "create-wallet-seed-container"
+- tapOn:
+    id: "create-wallet-continue-button"
+
+# Dashboard -> Send
+- assertVisible:
+    id: "dashboard-screen"
+- tapOn:
+    id: "dashboard-action-send"
+
+- assertVisible:
+    id: "send-screen"

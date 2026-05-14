@@ -1,0 +1,38 @@
+appId: ${APP_ID}
+name: 20-receive
+tags:
+  - smoke
+  - dashboard
+  - mvp
+---
+# Walks an MVP user from a fresh install to the Receive screen via the
+# create-wallet shortcut on the dashboard. With EXPO_PUBLIC_ENABLE_PIN +
+# EXPO_PUBLIC_ENABLE_LEGAL off, SetupPinDisabled bridges Create -> Dashboard
+# without a PIN or legal step (see 10-onboarding-create.yaml for the same
+# bridge). The Receive flow itself ships in the MVP build.
+- launchApp:
+    clearState: true
+    clearKeychain: true
+
+- assertVisible:
+    id: "welcome-screen"
+- tapOn:
+    id: "welcome-create-wallet-button"
+
+- assertVisible:
+    id: "create-wallet-screen"
+- tapOn:
+    id: "create-wallet-reveal-button"
+- assertVisible:
+    id: "create-wallet-seed-container"
+- tapOn:
+    id: "create-wallet-continue-button"
+
+# Dashboard -> Receive
+- assertVisible:
+    id: "dashboard-screen"
+- tapOn:
+    id: "dashboard-action-receive"
+
+- assertVisible:
+    id: "receive-screen"
