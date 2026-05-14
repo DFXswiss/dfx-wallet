@@ -5,20 +5,11 @@ on:
   pull_request:
     branches: [develop]
     types: [opened, synchronize, reopened, ready_for_review]
-    # Allow-list of paths that can affect runtime behavior. Doc-only,
-    # workflow-only, and CI-config-only PRs skip the native build entirely.
-    paths:
-      - 'src/**'
-      - 'app/**'
-      - 'assets/**'
-      - 'modules/**'
-      - 'plugins/**'
-      - '.maestro/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'app.json'
-      - 'eas.json'
-      - '.github/workflows/maestro-e2e.yml'
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
 
 # Cancel superseded runs on the same PR / branch.
 concurrency:

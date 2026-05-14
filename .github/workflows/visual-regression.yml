@@ -10,16 +10,11 @@ on:
     # `synchronize` removed on purpose — iterative pushes don't run visual
     # regression. Re-trigger via `ready_for_review` or the `needs-visual` label.
     types: [opened, reopened, ready_for_review, labeled]
-    paths:
-      - 'src/**'
-      - 'app/**'
-      - 'assets/**'
-      - 'modules/**'
-      - 'plugins/**'
-      - 'e2e/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/visual-regression.yml'
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
 
 concurrency:
   group: visual-regression-${{ github.event.pull_request.number || github.ref }}
