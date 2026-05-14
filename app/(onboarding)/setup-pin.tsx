@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { DfxBackgroundScreen, OnboardingStepIndicator } from '@/components';
+import { FEATURES } from '@/config/features';
 import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
@@ -44,7 +45,12 @@ export default function SetupPinScreen() {
     try {
       await setPin(pinValue);
       setAuthenticated(true);
-      router.replace('/(onboarding)/legal-disclaimer');
+      // With `EXPO_PUBLIC_ENABLE_LEGAL` off, the disclaimer step is
+      // not part of the onboarding flow; skip straight to the
+      // dashboard so the user does not bounce through a redirect stub.
+      router.replace(
+        FEATURES.LEGAL ? '/(onboarding)/legal-disclaimer' : '/(auth)/(tabs)/dashboard',
+      );
     } catch (err) {
       console.warn('setup-pin: failed to persist PIN', err);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
