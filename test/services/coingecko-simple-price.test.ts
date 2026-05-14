@@ -95,4 +95,21 @@ describe('fetchSimplePrices', () => {
     });
     expect(result.size).toBe(0);
   });
+
+  it('skips a batch whose response.json() rejects (malformed JSON)', async () => {
+    const fetchImpl = jest.fn(
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => {
+            throw new Error('unexpected token');
+          },
+        }) as unknown as Response,
+    );
+    const result = await fetchSimplePrices(['bitcoin'], [FiatCurrency.USD], {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(result.size).toBe(0);
+  });
 });

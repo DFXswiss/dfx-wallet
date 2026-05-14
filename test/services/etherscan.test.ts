@@ -173,6 +173,34 @@ describe('etherscan explorer service', () => {
         }
       });
     });
+
+    it('flags AbortError as a typed cancellation', async () => {
+      await withEtherscanKey('TEST_KEY', async (mod) => {
+        const fetchImpl = jest.fn(async () => {
+          const e = new Error('aborted');
+          e.name = 'AbortError';
+          throw e;
+        });
+        const r = await mod.getNormalTxs('ethereum', '0xabc', {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.error.message).toBe('aborted');
+      });
+    });
+
+    it('returns a generic error for non-Error throws', async () => {
+      await withEtherscanKey('TEST_KEY', async (mod) => {
+        const fetchImpl = jest.fn(async () => {
+          throw 'reset';
+        });
+        const r = await mod.getNormalTxs('ethereum', '0xabc', {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.error.message).toBe('Etherscan fetch failed');
+      });
+    });
   });
 
   describe('getErc20Txs + getTokenBalance + getNativeBalance', () => {
