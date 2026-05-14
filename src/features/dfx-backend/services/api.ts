@@ -11,8 +11,12 @@ type RequestOptions = {
   headers?: Record<string, string>;
 };
 
+export function normalizeDfxApiBaseUrl(url: string): string {
+  return url.replace(/\/+$/, '').replace(/\/v1$/i, '');
+}
+
 class DfxApi {
-  private baseUrl = env.dfxApiUrl;
+  private baseUrl = normalizeDfxApiBaseUrl(env.dfxApiUrl);
   private authToken: string | null = null;
   private onUnauthorized: (() => Promise<string | null>) | null = null;
 

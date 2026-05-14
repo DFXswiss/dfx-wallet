@@ -1,4 +1,4 @@
-import { DfxApiError } from '../../src/features/dfx-backend/services/api';
+import { DfxApiError, normalizeDfxApiBaseUrl } from '../../src/features/dfx-backend/services/api';
 
 describe('DfxApiError', () => {
   it('should create error with correct properties', () => {
@@ -33,5 +33,19 @@ describe('DfxApiError', () => {
     const error = new DfxApiError(500, 'SERVER_ERROR', 'Internal server error');
     expect(error).toBeInstanceOf(Error);
     expect(error).toBeInstanceOf(DfxApiError);
+  });
+});
+
+describe('normalizeDfxApiBaseUrl', () => {
+  it('keeps origin-only API URLs unchanged', () => {
+    expect(normalizeDfxApiBaseUrl('https://api.dfx.swiss')).toBe('https://api.dfx.swiss');
+  });
+
+  it('removes a trailing v1 path because request paths include their API version', () => {
+    expect(normalizeDfxApiBaseUrl('https://api.dfx.swiss/v1')).toBe('https://api.dfx.swiss');
+  });
+
+  it('normalizes trailing slashes before versioned requests are appended', () => {
+    expect(normalizeDfxApiBaseUrl('https://api.dfx.swiss/v1/')).toBe('https://api.dfx.swiss');
   });
 });
