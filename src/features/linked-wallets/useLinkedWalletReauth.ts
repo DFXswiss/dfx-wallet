@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useAccount } from '@tetherto/wdk-react-native-core';
 import { dfxAuthService } from '@/services/dfx';
 import { secureStorage, StorageKeys } from '@/services/storage';
-import { useLdsWallet } from './useLdsWallet';
+import { useLdsWallet } from '@/hooks';
 
 export type ReauthResult = { ok: true; token: string } | { ok: false; error: string };
 

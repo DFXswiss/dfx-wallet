@@ -6,12 +6,12 @@ import { useAccount } from '@tetherto/wdk-react-native-core';
 import { AppHeader, DfxBackgroundScreen, Icon, RenameWalletModal } from '@/components';
 import { dfxAuthService, dfxUserService, DfxApiError } from '@/services/dfx';
 import type { UserAddressDto } from '@/services/dfx/dto';
+import { useDfxAuth } from '@/hooks';
 import {
   defaultLinkedWalletName,
-  useDfxAuth,
   useLinkedWalletNames,
-  useLinkedWalletSelection,
-} from '@/hooks';
+} from '@/features/linked-wallets/useLinkedWalletNames';
+import { useLinkedWalletSelection } from '@/features/linked-wallets/useLinkedWalletSelection';
 import { DfxColors, Typography } from '@/theme';
 
 type LinkableChain = {

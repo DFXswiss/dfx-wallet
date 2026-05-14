@@ -30,7 +30,9 @@ import {
   toNumeric,
 } from '@/config/portfolio-presentation';
 import { getAssetMeta, getAssets, WDK_SUPPORTED_CHAINS } from '@/config/tokens';
-import { useEnabledChains, useLdsWallet, useLinkedWalletReauth } from '@/hooks';
+import { useLdsWallet } from '@/hooks';
+import { useEnabledChains } from '@/features/portfolio/useEnabledChains';
+import { useLinkedWalletReauth } from '@/features/linked-wallets/useLinkedWalletReauth';
 import { useSellFlow } from './useSellFlow';
 import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
 import { dfxAuthService, DfxApiError } from '@/services/dfx';

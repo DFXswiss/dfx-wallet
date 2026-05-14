@@ -100,22 +100,28 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          <View style={styles.actions}>
-            <ShortcutAction
-              icon={<Icon name="wallet" size={18} color={DfxColors.white} strokeWidth={2.2} />}
-              label={t('dashboard.portfolio')}
-              testID="dashboard-action-portfolio"
-              onPress={() => router.push('/(auth)/portfolio')}
-              style={styles.actionPill}
-            />
-            <ShortcutAction
-              icon={<Icon name="grid" size={18} color={DfxColors.white} strokeWidth={2.2} />}
-              label={t('dashboard.pay')}
-              testID="dashboard-action-pay"
-              onPress={() => router.push('/(auth)/pay')}
-              style={styles.actionPill}
-            />
-          </View>
+          {(FEATURES.PORTFOLIO || FEATURES.PAY) && (
+            <View style={styles.actions}>
+              {FEATURES.PORTFOLIO && (
+                <ShortcutAction
+                  icon={<Icon name="wallet" size={18} color={DfxColors.white} strokeWidth={2.2} />}
+                  label={t('dashboard.portfolio')}
+                  testID="dashboard-action-portfolio"
+                  onPress={() => router.push('/(auth)/portfolio')}
+                  style={styles.actionPill}
+                />
+              )}
+              {FEATURES.PAY && (
+                <ShortcutAction
+                  icon={<Icon name="grid" size={18} color={DfxColors.white} strokeWidth={2.2} />}
+                  label={t('dashboard.pay')}
+                  testID="dashboard-action-pay"
+                  onPress={() => router.push('/(auth)/pay')}
+                  style={styles.actionPill}
+                />
+              )}
+            </View>
+          )}
 
           {FEATURES.TX_HISTORY && (
             <Pressable

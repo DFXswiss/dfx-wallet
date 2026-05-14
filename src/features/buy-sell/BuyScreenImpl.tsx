@@ -27,7 +27,8 @@ import {
   formatFiat as fmtFiat,
   formatCryptoAmount as fmtCrypto,
 } from '@/config/portfolio-presentation';
-import { useLdsWallet, useLinkedWalletReauth } from '@/hooks';
+import { useLdsWallet } from '@/hooks';
+import { useLinkedWalletReauth } from '@/features/linked-wallets/useLinkedWalletReauth';
 import { useBuyFlow } from './useBuyFlow';
 import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
 import { dfxAuthService, DfxApiError } from '@/services/dfx';
