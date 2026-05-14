@@ -83,6 +83,7 @@ describe('opencryptopay service', () => {
           ok: true,
           status: 200,
           json: async () => ({
+            // eslint-disable-next-line no-secrets/no-secrets -- ERC-20 payment URI test fixture
             uri: 'ethereum:0x1f9840a85d5af5bf1d1762f925bdaddc4201f984@1/transfer?address=0xab1234567890ABCDEFabcdef1234567890ABCDEF&uint256=12500000000000000000',
             expiryDate: 1700000000000,
           }),
@@ -180,6 +181,7 @@ describe('opencryptopay service', () => {
 
     it('parses an ERC-20 transfer URI', () => {
       const r = parsePaymentUri(
+        // eslint-disable-next-line no-secrets/no-secrets -- ERC-20 payment URI test fixture
         'ethereum:0x1f9840a85d5af5bf1d1762f925bdaddc4201f984@1/transfer?address=0xab1234567890ABCDEFabcdef1234567890ABCDEF&uint256=12500000000000000000',
       );
       expect(r.chainSlug).toBe('ethereum');

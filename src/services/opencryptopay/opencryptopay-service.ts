@@ -326,8 +326,8 @@ export function parsePaymentUri(uri: string): {
   amount: string;
 } {
   // chain:address[@chainId][/function]?params
-  // eslint-disable-next-line security/detect-unsafe-regex -- alternation is anchored + bounded character classes
   const match = uri.match(
+    // eslint-disable-next-line security/detect-unsafe-regex -- alternation is anchored + bounded character classes
     /^([a-z0-9-]+):(0x[0-9a-fA-F]+)(?:@(\d+))?(?:\/([a-zA-Z0-9]+))?(?:\?(.*))?$/,
   );
   if (!match) {
