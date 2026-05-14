@@ -264,7 +264,7 @@
     "bodyTransactions": "Cryptocurrency transactions are irreversible. Please check all transaction details before confirming.",
     "bodyWallet": "DFX Wallet is non-custodial. You are responsible for securing your seed phrase and PIN; DFX AG cannot recover your wallet if you lose them.",
     "disclaimer": "Disclaimer",
-    "intro": "The legal documents open in your browser so you can save, share or print them.",
+    "intro": "Tap a document to open it inside the app.",
     "privacy": "Privacy Policy",
     "terms": "Terms of Service",
     "title": "Legal Information"
@@ -581,10 +581,14 @@
     "userData": "User Data"
   },
   "support": {
+    "chatPlaceholder": "Type a message…",
     "createError": "Ticket could not be created. Please try again.",
     "createTicket": "Create Ticket",
-    "noTickets": "No support tickets",
+    "messagePlaceholder": "Describe your issue…",
+    "noTickets": "No support tickets yet",
+    "send": "Send",
     "sendError": "Message could not be sent. Please try again.",
+    "subjectPlaceholder": "Subject",
     "title": "Support"
   },
   "transactions": {
@@ -616,6 +620,7 @@
     "formatLabel": "Format",
     "generating": "Generating …",
     "intro": "Download your transaction journal for a given year as CSV — ready to import into CoinTracking, Blockpit & Co.",
+    "noAddress": "No active wallet address. Please sign in to DFX again.",
     "savedAt": "File saved: {{uri}}",
     "shareTitle": "DFX tax report",
     "title": "Tax report",

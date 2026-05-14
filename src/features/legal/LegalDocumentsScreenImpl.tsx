@@ -1,15 +1,16 @@
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useRouter } from 'expo-router';
 import { AppHeader, Icon, ScreenContainer } from '@/components';
 import { isAllowedDfxHost } from '@/services/security/safe-url';
 import { DfxColors, Typography } from '@/theme';
 
 /**
  * Native legal-documents index. Mirrors realunit-app's `legal_documents_config.dart`:
- * the screen lists the agreements/notices and hands the user off to the
- * system browser (or PDF viewer) for the actual document — no in-app
- * WebView wrap. Keeps the wallet's WebView surface tight and gives the
- * user the OS' built-in copy/share/save controls.
+ * the screen lists the agreements/notices and opens each in the in-app
+ * WebView so the user never leaves the wallet shell. The WebView wrap
+ * also keeps the visual continuity (no jarring system browser tab) and
+ * preserves the lock-screen / app-state guarantees.
  *
  * URLs go through `isAllowedDfxHost` so a future config change can never
  * point a "Privacy" tile at an attacker-controlled host.
@@ -35,10 +36,11 @@ const LEGAL_LINKS: { id: string; titleKey: string; url: string }[] = [
 
 export default function LegalIndexScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
 
-  const open = async (url: string) => {
+  const open = (url: string, title: string) => {
     if (!isAllowedDfxHost(url)) return;
-    await Linking.openURL(url);
+    router.push({ pathname: '/(auth)/webview', params: { url, title } });
   };
 
   return (
@@ -55,9 +57,7 @@ export default function LegalIndexScreen() {
                 idx < LEGAL_LINKS.length - 1 && styles.rowDivider,
                 pressed && styles.pressed,
               ]}
-              onPress={() => {
-                void open(entry.url);
-              }}
+              onPress={() => open(entry.url, t(entry.titleKey))}
               testID={`legal-${entry.id}`}
             >
               <View style={styles.iconBubble}>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
@@ -9,6 +9,7 @@ import {
   DfxBackgroundScreen,
   OnboardingStepIndicator,
   PrimaryButton,
+  useAppAlert,
 } from '@/components';
 import {
   authenticatePasskey,
@@ -20,6 +21,7 @@ import { DfxColors, Typography } from '@/theme';
 export default function RestorePasskeyScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { show } = useAppAlert();
   const { restoreWallet } = useWalletManager();
   const [isRestoring, setIsRestoring] = useState(false);
 
@@ -41,9 +43,9 @@ export default function RestorePasskeyScreen() {
           ios: 'iCloud Keychain',
           default: 'Google Password Manager',
         });
-        Alert.alert(t('common.error'), t('passkey.prfUnsupported', { provider }));
+        show({ title: t('common.error'), message: t('passkey.prfUnsupported', { provider }) });
       } else {
-        Alert.alert(t('common.error'), t('passkey.restoreError'));
+        show({ title: t('common.error'), message: t('passkey.restoreError') });
       }
     } finally {
       setIsRestoring(false);

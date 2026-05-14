@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { AppHeader, DfxBackgroundScreen } from '@/components';
+import { AppHeader, DfxBackgroundScreen, useAppAlert } from '@/components';
 import {
   authenticatePasskey,
   deriveMnemonicFromPrf,
@@ -38,6 +38,7 @@ try {
 export default function SeedExportScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { show } = useAppAlert();
   const [walletOrigin, setWalletOrigin] = useState<string | null>(null);
   const [seedWords, setSeedWords] = useState<string[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -84,9 +85,9 @@ export default function SeedExportScreen() {
             ios: 'iCloud Keychain',
             default: 'Google Password Manager',
           });
-          Alert.alert(t('common.error'), t('passkey.prfUnsupported', { provider }));
+          show({ title: t('common.error'), message: t('passkey.prfUnsupported', { provider }) });
         } else {
-          Alert.alert(t('common.error'), t('seedExport.deriveFailed'));
+          show({ title: t('common.error'), message: t('seedExport.deriveFailed') });
         }
       } finally {
         setIsLoading(false);
@@ -114,12 +115,12 @@ export default function SeedExportScreen() {
             setSeedWords(seedToWords(seed));
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           } else {
-            Alert.alert(t('common.error'), t('seedExport.deriveFailed'));
+            show({ title: t('common.error'), message: t('seedExport.deriveFailed') });
           }
         }
       } catch {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert(t('common.error'), t('seedExport.deriveFailed'));
+        show({ title: t('common.error'), message: t('seedExport.deriveFailed') });
       } finally {
         setIsLoading(false);
       }

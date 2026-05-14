@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  Alert,
   ImageBackground,
   Pressable,
   ScrollView,
@@ -13,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { AppHeader, Icon, PrimaryButton } from '@/components';
+import { AppHeader, Icon, PrimaryButton, useAppAlert } from '@/components';
 import { useMultiSigStore } from './store';
 import { DfxColors, Typography } from '@/theme';
 
@@ -34,6 +33,7 @@ const MAX_TOTAL = 9;
 export default function MultiSigSetupScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { show } = useAppAlert();
   const addVault = useMultiSigStore((s) => s.addVault);
   const [step, setStep] = useState<Step>('intro');
   const [quorumIdx, setQuorumIdx] = useState<number>(0);
@@ -359,17 +359,17 @@ export default function MultiSigSetupScreen() {
                 <PrimaryButton
                   title={t('multiSig.backup.cta')}
                   onPress={() => {
-                    Alert.alert(
-                      t('multiSig.backup.alertTitle'),
-                      t('multiSig.backup.alertBody', {
+                    show({
+                      title: t('multiSig.backup.alertTitle'),
+                      message: t('multiSig.backup.alertBody', {
                         required: quorum.required,
                         total: quorum.total,
                       }),
-                      [
+                      buttons: [
                         { text: t('common.cancel'), style: 'cancel' },
                         { text: t('multiSig.backup.cta'), onPress: finish },
                       ],
-                    );
+                    });
                   }}
                   disabled={!backupConfirmed}
                 />

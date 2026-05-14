@@ -103,7 +103,7 @@ export default function SupportScreen() {
         </View>
       ) : issues.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No support tickets</Text>
+          <Text style={styles.emptyText}>{t('support.noTickets')}</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.ticketList} showsVerticalScrollIndicator={false}>
@@ -147,7 +147,7 @@ export default function SupportScreen() {
         style={styles.input}
         value={subject}
         onChangeText={setSubject}
-        placeholder="Subject"
+        placeholder={t('support.subjectPlaceholder')}
         placeholderTextColor={DfxColors.textTertiary}
       />
 
@@ -155,7 +155,7 @@ export default function SupportScreen() {
         style={[styles.input, styles.messageInput]}
         value={message}
         onChangeText={setMessage}
-        placeholder="Describe your issue..."
+        placeholder={t('support.messagePlaceholder')}
         placeholderTextColor={DfxColors.textTertiary}
         multiline
         textAlignVertical="top"
@@ -199,11 +199,11 @@ export default function SupportScreen() {
           style={[styles.input, styles.chatInput]}
           value={chatMessage}
           onChangeText={setChatMessage}
-          placeholder="Type a message..."
+          placeholder={t('support.chatPlaceholder')}
           placeholderTextColor={DfxColors.textTertiary}
         />
         <Pressable style={styles.sendButton} onPress={handleSendMessage}>
-          <Text style={styles.sendText}>Send</Text>
+          <Text style={styles.sendText}>{t('support.send')}</Text>
         </Pressable>
       </View>
     </View>

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  Alert,
   ImageBackground,
   Pressable,
   ScrollView,
@@ -13,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { Icon } from '@/components';
+import { Icon, useAppAlert } from '@/components';
 import { isBiometricAvailable } from '@/services/biometric';
 import { dfxUserService } from '@/services/dfx';
 import { secureStorage, StorageKeys } from '@/services/storage';
@@ -43,6 +42,7 @@ type SettingsSection = {
 export default function SettingsScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
+  const { show } = useAppAlert();
   const { reset, isDfxAuthenticated, biometricEnabled, setBiometricEnabled } = useAuthStore();
   const { selectedCurrency, setSelectedCurrency } = useWalletStore();
   const [biometricSupported, setBiometricSupported] = useState<boolean | null>(null);
@@ -74,7 +74,8 @@ export default function SettingsScreen() {
     // enrol biometrics. We surface a one-shot hint when they switch it
     // on without hardware so it's obvious why no Face ID prompt fires.
     if (next && biometricSupported === false) {
-      Alert.alert(t('settings.biometric'), t('settings.biometricUnsupported'));
+      show({ title: t('settings.biometric'), message: t('settings.biometricUnsupported') });
+      return;
     }
     await setBiometricEnabled(next);
   };
@@ -105,22 +106,26 @@ export default function SettingsScreen() {
       ? t('settings.deleteWalletConfirmPasskey')
       : t('settings.deleteWalletConfirm');
 
-    Alert.alert(t('settings.deleteWallet'), message, [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('settings.deleteWallet'),
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteWallet('default');
-          } catch {
-            // Wallet may not exist; reset auth state regardless.
-          }
-          await reset();
-          router.replace('/');
+    show({
+      title: t('settings.deleteWallet'),
+      message,
+      buttons: [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('settings.deleteWallet'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteWallet('default');
+            } catch {
+              // Wallet may not exist; reset auth state regardless.
+            }
+            await reset();
+            router.replace('/');
+          },
         },
-      },
-    ]);
+      ],
+    });
   };
 
   const sections: SettingsSection[] = [
