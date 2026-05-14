@@ -7,10 +7,11 @@ jest.mock('expo-router', () => {
     return <View testID="stack-rendered">{children}</View>;
   }
   // The TabsLayout passes children as <Stack.Screen> declarations.
-  Stack.Screen = ({ name }: { name?: string }) => {
+  function Screen({ name }: { name?: string }) {
     const { Text } = jest.requireActual('react-native');
     return <Text testID={`stack-screen-${name ?? 'unknown'}`}>{name}</Text>;
-  };
+  }
+  Stack.Screen = Screen;
   return { Stack };
 });
 
