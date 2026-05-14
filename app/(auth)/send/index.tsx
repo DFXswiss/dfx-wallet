@@ -17,6 +17,7 @@ import { QrScanner } from '@/components/QrScanner';
 import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
 import { getPaymasterTokenInfo } from '@/config/chains';
+import { FEATURES } from '@/config/features';
 import { formatBalance } from '@/config/portfolio-presentation';
 import { getSendAssetForCanonical } from '@/config/tokens';
 import { DfxColors, Typography } from '@/theme';
@@ -154,22 +155,24 @@ export default function SendScreen() {
         ))}
       </View>
 
-      <Pressable
-        style={({ pressed }) => [styles.destinationCard, pressed && styles.pressed]}
-        onPress={() => router.push('/(auth)/sell')}
-        testID="send-destination-bank"
-        accessibilityRole="button"
-        accessibilityLabel={t('send.sendToBank')}
-      >
-        <View style={styles.destinationIcon}>
-          <Icon name="document" size={20} color={DfxColors.primary} strokeWidth={2.2} />
-        </View>
-        <View style={styles.destinationText}>
-          <Text style={styles.destinationTitle}>{t('send.sendToBank')}</Text>
-          <Text style={styles.destinationSubtitle}>{t('send.sendToBankSubtitle')}</Text>
-        </View>
-        <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
-      </Pressable>
+      {FEATURES.BUY_SELL && (
+        <Pressable
+          style={({ pressed }) => [styles.destinationCard, pressed && styles.pressed]}
+          onPress={() => router.push('/(auth)/sell')}
+          testID="send-destination-bank"
+          accessibilityRole="button"
+          accessibilityLabel={t('send.sendToBank')}
+        >
+          <View style={styles.destinationIcon}>
+            <Icon name="document" size={20} color={DfxColors.primary} strokeWidth={2.2} />
+          </View>
+          <View style={styles.destinationText}>
+            <Text style={styles.destinationTitle}>{t('send.sendToBank')}</Text>
+            <Text style={styles.destinationSubtitle}>{t('send.sendToBankSubtitle')}</Text>
+          </View>
+          <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
+        </Pressable>
+      )}
     </View>
   );
 
@@ -248,12 +251,14 @@ export default function SendScreen() {
           disabled={!isValidAddress || !amount || parseFloat(amount) <= 0}
         />
 
-        <ShortcutAction
-          icon={<Icon name="swap" size={18} color={DfxColors.white} strokeWidth={2.2} />}
-          label={t('send.sellInstead')}
-          onPress={() => router.push('/(auth)/sell')}
-          testID="send-action-sell"
-        />
+        {FEATURES.BUY_SELL && (
+          <ShortcutAction
+            icon={<Icon name="swap" size={18} color={DfxColors.white} strokeWidth={2.2} />}
+            label={t('send.sellInstead')}
+            onPress={() => router.push('/(auth)/sell')}
+            testID="send-action-sell"
+          />
+        )}
       </View>
     );
   };

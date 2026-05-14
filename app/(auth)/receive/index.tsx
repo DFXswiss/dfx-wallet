@@ -8,6 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { useAccount } from '@tetherto/wdk-react-native-core';
 import { AppHeader, Icon, PrimaryButton, QrCode } from '@/components';
 import type { ChainId } from '@/config/chains';
+import { FEATURES } from '@/config/features';
 import { useLdsWallet } from '@/hooks';
 import { DfxColors, Typography } from '@/theme';
 
@@ -112,22 +113,24 @@ export default function ReceiveScreen() {
         ))}
       </View>
 
-      <Pressable
-        style={({ pressed }) => [styles.destinationCard, pressed && styles.pressed]}
-        onPress={() => router.push('/(auth)/buy')}
-        testID="receive-destination-bank"
-        accessibilityRole="button"
-        accessibilityLabel={t('receive.buyFromBank')}
-      >
-        <View style={styles.destinationIcon}>
-          <Icon name="document" size={20} color={DfxColors.primary} strokeWidth={2.2} />
-        </View>
-        <View style={styles.destinationText}>
-          <Text style={styles.destinationTitle}>{t('receive.buyFromBank')}</Text>
-          <Text style={styles.destinationSubtitle}>{t('receive.buyFromBankSubtitle')}</Text>
-        </View>
-        <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
-      </Pressable>
+      {FEATURES.BUY_SELL && (
+        <Pressable
+          style={({ pressed }) => [styles.destinationCard, pressed && styles.pressed]}
+          onPress={() => router.push('/(auth)/buy')}
+          testID="receive-destination-bank"
+          accessibilityRole="button"
+          accessibilityLabel={t('receive.buyFromBank')}
+        >
+          <View style={styles.destinationIcon}>
+            <Icon name="document" size={20} color={DfxColors.primary} strokeWidth={2.2} />
+          </View>
+          <View style={styles.destinationText}>
+            <Text style={styles.destinationTitle}>{t('receive.buyFromBank')}</Text>
+            <Text style={styles.destinationSubtitle}>{t('receive.buyFromBankSubtitle')}</Text>
+          </View>
+          <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
+        </Pressable>
+      )}
     </View>
   );
 
