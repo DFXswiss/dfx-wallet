@@ -1,8 +1,10 @@
-appId: swiss.dfx.wallet
-name: 12-pin-unlock
+appId: ${APP_ID}
+name: 13-pin-unlock
 tags:
   - pin
   - onboarding
+  - feature-pin
+  - feature-legal
 ---
 # Onboard a fresh wallet so secureStorage holds a PIN hash and the
 # `isOnboarded` flag. We duplicate the onboarding steps inline rather
@@ -46,6 +48,10 @@ tags:
     id: "legal-disclaimer-screen"
 - tapOn:
     id: "legal-accept-checkbox"
+- scrollUntilVisible:
+    element:
+      id: "legal-continue-button"
+    direction: DOWN
 - tapOn:
     id: "legal-continue-button"
 

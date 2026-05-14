@@ -70,7 +70,12 @@ jobs:
         run: npx expo run:ios --configuration Release --device "$SIM_DEVICE_ID" --no-bundler
 
       - name: Run Maestro tests
-        run: maestro --platform ios test .maestro/
+        # MVP build ships every EXPO_PUBLIC_ENABLE_* flag off — restrict
+        # to the `mvp` tag so the gated-feature flows (restore wallet,
+        # PIN unlock, full create-with-pin-legal) don't run against
+        # disabled stubs. Drop `--include-tags` once the corresponding
+        # features land.
+        run: maestro --platform ios test --include-tags mvp --env APP_ID=wallet.dfx.swiss .maestro/
 
       - name: Upload Maestro artifacts
         if: always()
@@ -83,7 +88,7 @@ jobs:
   android:
     name: Android Emulator
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft != true
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 75
     strategy:
       fail-fast: false
@@ -99,6 +104,16 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      # GitHub's macos-latest runners disable Hypervisor.framework, so any
+      # Android AVD (x86_64 via Rosetta or arm64-v8a via HVF) fails to boot.
+      # Linux runners ship with /dev/kvm; enabling user-level access lets the
+      # emulator drop into native KVM acceleration and boot reliably.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
 
       - name: Install JS dependencies
         run: |
@@ -122,15 +137,17 @@ jobs:
         with:
           api-level: 34
           target: google_apis
-          arch: arm64-v8a
+          arch: x86_64
           profile: pixel_6
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            cd android && ./gradlew :app:assembleRelease && cd ..
+            cd android && ./gradlew :app:assembleRelease -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m" && cd ..
             adb install -r android/app/build/outputs/apk/release/app-release.apk
-            maestro --platform android test .maestro/
+            # MVP-only — see the iOS step for why; drop --include-tags
+            # once the gated features ship.
+            maestro --platform android test --include-tags mvp --env APP_ID=swiss.dfx.wallet .maestro/
 
       - name: Upload Maestro artifacts
         if: always()
