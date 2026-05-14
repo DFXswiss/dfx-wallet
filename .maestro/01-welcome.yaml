@@ -3,6 +3,7 @@ name: 01-welcome
 tags:
   - smoke
   - onboarding
+  - mvp
 ---
 - launchApp:
     clearState: true
@@ -11,5 +12,3 @@ tags:
     id: "welcome-screen"
 - assertVisible:
     id: "welcome-create-wallet-button"
-- assertVisible:
-    id: "welcome-restore-toggle"

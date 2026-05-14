@@ -1,0 +1,18 @@
+appId: ${APP_ID}
+name: 02-welcome-restore-toggle
+tags:
+  - smoke
+  - onboarding
+  - feature-restore
+---
+# welcome-restore-toggle is only rendered when EXPO_PUBLIC_ENABLE_RESTORE
+# or EXPO_PUBLIC_ENABLE_PASSKEY is set. With both off (the MVP build),
+# the welcome screen has the Create-Wallet button only; this flow runs
+# whenever restore-style onboarding gets shipped.
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- assertVisible:
+    id: "welcome-screen"
+- assertVisible:
+    id: "welcome-restore-toggle"

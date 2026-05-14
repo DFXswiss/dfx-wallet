@@ -1,10 +1,13 @@
 appId: ${APP_ID}
-name: 11-onboarding-restore
+name: 12-onboarding-restore
 tags:
   - onboarding
+  - feature-restore
+  - feature-pin
+  - feature-legal
 env:
   # Standard 12-word BIP39 test mnemonic. Override via:
-  #   maestro test --env "TEST_MNEMONIC=word1 word2 ..." .maestro/11-onboarding-restore.yaml
+  #   maestro test --env "TEST_MNEMONIC=word1 word2 ..." .maestro/12-onboarding-restore.yaml
   TEST_MNEMONIC: "test test test test test test test test test test test junk"
 ---
 - launchApp:

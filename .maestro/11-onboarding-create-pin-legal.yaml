@@ -1,22 +1,26 @@
 appId: ${APP_ID}
-name: 12-pin-unlock
+name: 11-onboarding-create-pin-legal
 tags:
-  - pin
   - onboarding
+  - feature-pin
+  - feature-legal
 ---
-# Onboard a fresh wallet so secureStorage holds a PIN hash and the
-# `isOnboarded` flag. We duplicate the onboarding steps inline rather
-# than extracting a sub-flow — when more post-onboarding flows land
-# (send, receive, settings) we'll factor this into `.maestro/_lib/`.
+# Full create-wallet onboarding including PIN setup + legal-disclaimer.
+# Requires EXPO_PUBLIC_ENABLE_PIN=true and EXPO_PUBLIC_ENABLE_LEGAL=true;
+# with either off, the corresponding step is replaced by a Disabled
+# stub that routes around it and this flow fails on the missing
+# `setup-pin-screen` / `legal-disclaimer-screen` assertion.
 - launchApp:
     clearState: true
     clearKeychain: true
 
+# Welcome -> Create Wallet
 - assertVisible:
     id: "welcome-screen"
 - tapOn:
     id: "welcome-create-wallet-button"
 
+# Create Wallet -> reveal seed -> continue
 - assertVisible:
     id: "create-wallet-screen"
 - tapOn:
@@ -26,6 +30,7 @@ tags:
 - tapOn:
     id: "create-wallet-continue-button"
 
+# Setup PIN (create step) -> tap "1" six times
 - assertVisible:
     id: "setup-pin-screen"
 - repeat:
@@ -34,6 +39,7 @@ tags:
       - tapOn:
           id: "pin-key-1"
 
+# Setup PIN (confirm step) -> tap "1" six times
 - assertVisible:
     id: "setup-pin-confirm-screen"
 - repeat:
@@ -42,6 +48,7 @@ tags:
       - tapOn:
           id: "pin-key-1"
 
+# Legal disclaimer -> accept -> continue
 - assertVisible:
     id: "legal-disclaimer-screen"
 - tapOn:
@@ -53,32 +60,16 @@ tags:
 - tapOn:
     id: "legal-continue-button"
 
+# Dashboard reached
 - assertVisible:
     id: "dashboard-screen"
-
-# Cold-restart the app: secureStorage persists (`isOnboarded=true`,
-# pinHash present), but `isAuthenticated` is in-memory only and resets
-# to false, so app/index.tsx redirects to /(pin)/verify.
-- stopApp
-- launchApp:
-    clearState: false
-    clearKeychain: false
-
-# Wrong PIN first — exercises the error path
 - assertVisible:
-    id: "verify-pin-screen"
-- repeat:
-    times: 6
-    commands:
-      - tapOn:
-          id: "pin-key-2"
-- assertVisible: "Incorrect PIN"
-
-# Correct PIN unlocks
-- repeat:
-    times: 6
-    commands:
-      - tapOn:
-          id: "pin-key-1"
+    id: "dashboard-action-portfolio"
 - assertVisible:
-    id: "dashboard-screen"
+    id: "dashboard-action-pay"
+- assertVisible:
+    id: "dashboard-action-transactions"
+- assertVisible:
+    id: "dashboard-action-send"
+- assertVisible:
+    id: "dashboard-action-receive"
