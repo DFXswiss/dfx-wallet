@@ -169,5 +169,29 @@ describe('blockscout explorer service', () => {
       if (!r.ok) expect(r.error.code).toBe('no-chain');
       expect(fetchImpl).not.toHaveBeenCalled();
     });
+
+    it('flags AbortError as a typed cancellation', async () => {
+      const fetchImpl = jest.fn(async () => {
+        const e = new Error('aborted');
+        e.name = 'AbortError';
+        throw e;
+      });
+      const r = await getNormalTxs('ethereum', '0xabc', {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error.message).toBe('aborted');
+    });
+
+    it('returns a generic error for non-Error throws', async () => {
+      const fetchImpl = jest.fn(async () => {
+        throw 'connection dropped';
+      });
+      const r = await getNormalTxs('ethereum', '0xabc', {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error.message).toBe('Blockscout fetch failed');
+    });
   });
 });

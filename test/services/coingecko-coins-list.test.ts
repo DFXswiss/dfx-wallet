@@ -146,4 +146,69 @@ describe('coingecko-coins-list', () => {
       }),
     ).rejects.toThrow(/HTTP 503/);
   });
+
+  it('throws when the upstream returns a non-array payload', async () => {
+    __resetCoingeckoCoinsList();
+    const fetchImpl = jest.fn(
+      async () =>
+        ({ ok: true, status: 200, json: async () => ({ oops: true }) }) as unknown as Response,
+    );
+    await expect(
+      lookupCoinId('ethereum', '0xabc', {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow(/not an array/);
+  });
+
+  it('returns null for an unsupported chain (no COINGECKO_PLATFORM entry)', async () => {
+    __resetCoingeckoCoinsList();
+    const fetchImpl = jest.fn();
+    const result = await lookupCoinId('bitcoin', '0xabc', {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(result).toBeNull();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('lookupCoinIds returns empty for an unsupported chain', async () => {
+    __resetCoingeckoCoinsList();
+    const fetchImpl = jest.fn();
+    const result = await lookupCoinIds('bitcoin', ['0xabc'], {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(result.size).toBe(0);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('lookupCoinIds returns empty when no contracts match the platform index', async () => {
+    __resetCoingeckoCoinsList();
+    const fetchImpl = jest.fn(
+      async () => ({ ok: true, status: 200, json: async () => SAMPLE }) as unknown as Response,
+    );
+    const result = await lookupCoinIds('ethereum', ['0x0000000000000000000000000000000000000000'], {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(result.size).toBe(0);
+  });
+
+  it('buildIndex skips coins with empty platform contract strings', async () => {
+    __resetCoingeckoCoinsList();
+    const fetchImpl = jest.fn(
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => [
+            { id: 'a', symbol: 'a', name: 'A', platforms: { ethereum: '' } },
+            { id: 'b', symbol: 'b', name: 'B', platforms: null },
+            { id: 'c', symbol: 'c', name: 'C', platforms: { ethereum: '0xCAFE' } },
+          ],
+        }) as unknown as Response,
+    );
+    expect(
+      await lookupCoinId('ethereum', '0xcafe', {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      }),
+    ).toBe('c');
+  });
 });
