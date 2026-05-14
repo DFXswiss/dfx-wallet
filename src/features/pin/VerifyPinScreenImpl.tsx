@@ -122,14 +122,14 @@ export default function VerifyPinScreen() {
 
   return (
     <ImageBackground
-      source={require('../../assets/dashboard-bg.png')}
+      source={require('../../../assets/dashboard-bg.png')}
       style={styles.bg}
       resizeMode="cover"
     >
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.content} testID="verify-pin-screen">
           <Image
-            source={require('../../assets/dfx-logo.png')}
+            source={require('../../../assets/dfx-logo.png')}
             style={styles.logo}
             resizeMode="contain"
             accessibilityLabel="DFX"

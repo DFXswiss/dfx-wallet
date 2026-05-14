@@ -72,7 +72,7 @@ export default function SetupPinScreen() {
       testID={step === 'create' ? 'setup-pin-screen' : 'setup-pin-confirm-screen'}
     >
       <Image
-        source={require('../../assets/dfx-logo.png')}
+        source={require('../../../assets/dfx-logo.png')}
         style={styles.logo}
         resizeMode="contain"
         accessibilityLabel="DFX"
