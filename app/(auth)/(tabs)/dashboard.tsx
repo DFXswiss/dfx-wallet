@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { DashboardHeader, Icon, ShortcutAction } from '@/components';
+import { FEATURES } from '@/config/features';
 import { useDfxAuth, useTotalPortfolioFiat } from '@/hooks';
 import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
@@ -116,15 +117,17 @@ export default function DashboardScreen() {
             />
           </View>
 
-          <Pressable
-            style={styles.transactions}
-            onPress={() => router.push('/(auth)/transaction-history')}
-            testID="dashboard-action-transactions"
-            accessibilityRole="button"
-          >
-            <Icon name="swap" size={18} color={DfxColors.primary} />
-            <Text style={styles.transactionsLabel}>{t('dashboard.transactions')}</Text>
-          </Pressable>
+          {FEATURES.TX_HISTORY && (
+            <Pressable
+              style={styles.transactions}
+              onPress={() => router.push('/(auth)/transaction-history')}
+              testID="dashboard-action-transactions"
+              accessibilityRole="button"
+            >
+              <Icon name="swap" size={18} color={DfxColors.primary} />
+              <Text style={styles.transactionsLabel}>{t('dashboard.transactions')}</Text>
+            </Pressable>
+          )}
 
           <View style={styles.footer}>
             <View style={styles.bottomPill}>
