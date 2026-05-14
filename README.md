@@ -23,12 +23,24 @@ tests are written.
 `src/features/<feature>/` and is loaded through a conditional
 `require()` against a `FEATURES.X` constant from `src/config/features.ts`.
 Expo's `babel-preset-expo` inlines `process.env.EXPO_PUBLIC_*` at build
-time, so each `FEATURES.X` reduces to a boolean literal and Metro's
-dead-code elimination drops the unused module from the bundle. That
-means a production build with the flag off does not _load, parse, or
-execute_ the deferred code: a bug in a deferred feature cannot crash
-the MVP, and a compromised dependency in a deferred feature cannot
-reach the MVP runtime.
+time, so each `FEATURES.X` resolves to a boolean literal inside
+`features.ts` itself.
+
+At the call site (`const Screen = FEATURES.X ? require('A') : require('B')`)
+Metro keeps both `require()` calls — the boolean is read at runtime
+from a separate module, so the bundler cannot fold the ternary
+across module boundaries. The effect:
+
+- A build with the flag off **never evaluates** the deferred module's
+  top-level code (no `new BitboxProvider()`, no service-singleton
+  bootstrap, no fetch interceptors), because the `require()` for the
+  real implementation is unreachable. This is the crash- and
+  exfiltration-isolation property the matrix relies on.
+- The deferred module's source **does** still ship in the JavaScript
+  bundle as an unevaluated factory. Surface-isolation (symbol absent
+  from the binary) is a stronger property and is a known limitation;
+  closing it requires a babel-plugin that folds `FEATURES.X` across
+  modules. Tracked separately.
 
 **Status legend**
 
