@@ -81,4 +81,13 @@ describe('isDfxOwnedHost', () => {
   it('rejects unrelated hosts', () => {
     expect(isDfxOwnedHost('https://example.com')).toBe(false);
   });
+
+  it('rejects non-https schemes even on owned hosts', () => {
+    expect(isDfxOwnedHost('http://dfx.swiss')).toBe(false);
+  });
+
+  it('rejects malformed input', () => {
+    expect(isDfxOwnedHost('not-a-url')).toBe(false);
+    expect(isDfxOwnedHost('')).toBe(false);
+  });
 });

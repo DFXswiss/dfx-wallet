@@ -126,4 +126,13 @@ describe('ReceiveScreen', () => {
       '0x1111222233334444555566667777888899990000',
     );
   });
+
+  it('back button on the QR step returns to the asset picker', () => {
+    const { getByText, getByLabelText, queryByText } = render(<ReceiveScreen />);
+    fireEvent.press(getByText('BTC'));
+    expect(queryByText('receive.selectAsset')).toBeNull();
+
+    fireEvent.press(getByLabelText('Back'));
+    expect(getByText('receive.selectAsset')).toBeTruthy();
+  });
 });
