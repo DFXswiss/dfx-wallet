@@ -19,6 +19,17 @@ dedicated test coverage. A function being marked `deferred` is a
 flows already exist and work; they are simply held back until their
 tests are written.
 
+**Code isolation.** Every deferred feature lives in
+`src/features/<feature>/` and is loaded through a conditional
+`require()` against a `FEATURES.X` constant from `src/config/features.ts`.
+Expo's `babel-preset-expo` inlines `process.env.EXPO_PUBLIC_*` at build
+time, so each `FEATURES.X` reduces to a boolean literal and Metro's
+dead-code elimination drops the unused module from the bundle. That
+means a production build with the flag off does not _load, parse, or
+execute_ the deferred code: a bug in a deferred feature cannot crash
+the MVP, and a compromised dependency in a deferred feature cannot
+reach the MVP runtime.
+
 **Status legend**
 
 - `always` — MVP function, wired up on every build, no flag to turn off

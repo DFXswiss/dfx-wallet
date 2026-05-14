@@ -23,15 +23,21 @@ type AssetOption = {
 // Bitcoin offers three receive layers — Native on-chain, Lightning, and EVM
 // (wrapped). Stablecoins only ship over EVM; rather than asking the user to
 // pick between identical EVM chains, we default to Ethereum and skip the chain
-// selector entirely.
+// selector entirely. The Taproot/Lightning option resolves a DFX-managed
+// Lightning address via the LDS service, so it is hidden when
+// `FEATURES.DFX_BACKEND` is off — without it the QR would be blank.
 const RECEIVE_ASSETS: AssetOption[] = [
   {
     symbol: 'BTC',
     label: 'Bitcoin',
     chains: [
       { chain: 'bitcoin', label: 'SegWit' },
-      { chain: 'bitcoin-taproot', label: 'Taproot' },
-      { chain: 'spark', label: 'Lightning' },
+      ...(FEATURES.DFX_BACKEND
+        ? ([
+            { chain: 'bitcoin-taproot', label: 'Taproot' },
+            { chain: 'spark', label: 'Lightning' },
+          ] as const)
+        : []),
       { chain: 'ethereum', label: 'EVM' },
     ],
   },
