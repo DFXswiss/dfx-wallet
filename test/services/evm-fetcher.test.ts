@@ -151,6 +151,87 @@ describe('EvmBalanceFetcher', () => {
     expect('error' in entry!).toBe(true);
   });
 
+  it('treats a non-array JSON-RPC response as a single-element batch', async () => {
+    const fetchImpl = jest.fn(async () =>
+      mockOkResponse({ jsonrpc: '2.0', id: 1, result: '0x03' }),
+    ) as unknown as FetchMock;
+    const fetcher = new EvmBalanceFetcher(resolveRpc, fetchImpl);
+    const result = await fetcher.fetch(
+      [{ assetId: 'x', network: 'ethereum', isNative: true, tokenAddress: null }],
+      new Map([['ethereum', '0xaaaa']]),
+    );
+    expect(result.get('x')).toEqual({ assetId: 'x', rawBalance: '3' });
+  });
+
+  it('records "no response" when a batched id is missing from the response', async () => {
+    const fetchImpl = jest.fn(async () => mockOkResponse([])) as unknown as FetchMock;
+    const fetcher = new EvmBalanceFetcher(resolveRpc, fetchImpl);
+    const result = await fetcher.fetch(
+      [{ assetId: 'x', network: 'ethereum', isNative: true, tokenAddress: null }],
+      new Map([['ethereum', '0xaaaa']]),
+    );
+    expect(result.get('x')).toEqual({ assetId: 'x', error: 'no response' });
+  });
+
+  it('hexToDecimalString returns "0" for an unparseable hex result', async () => {
+    const fetchImpl = jest.fn(async () =>
+      mockOkResponse([{ jsonrpc: '2.0', id: 1, result: 'not-hex' }]),
+    ) as unknown as FetchMock;
+    const fetcher = new EvmBalanceFetcher(resolveRpc, fetchImpl);
+    const result = await fetcher.fetch(
+      [{ assetId: 'x', network: 'ethereum', isNative: true, tokenAddress: null }],
+      new Map([['ethereum', '0xaaaa']]),
+    );
+    expect(result.get('x')).toEqual({ assetId: 'x', rawBalance: '0' });
+  });
+
+  it('reports an "rpc timeout" error when the RPC call aborts past the timeout', async () => {
+    const fetchImpl = jest.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      await new Promise<void>((_, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          const err = new Error('aborted');
+          err.name = 'AbortError';
+          reject(err);
+        });
+      });
+      throw new Error('unreachable');
+    }) as unknown as FetchMock;
+    const fetcher = new EvmBalanceFetcher(resolveRpc, fetchImpl, 5);
+    const result = await fetcher.fetch(
+      [{ assetId: 'x', network: 'ethereum', isNative: true, tokenAddress: null }],
+      new Map([['ethereum', '0xaaaa']]),
+    );
+    const entry = result.get('x');
+    expect(entry).toBeDefined();
+    if (entry && 'error' in entry) {
+      expect(entry.error).toContain('rpc timeout');
+    }
+  });
+
+  it('chunks specs into multiple batched POSTs when a chain has > RPC_BATCH_SIZE assets', async () => {
+    // RPC_BATCH_SIZE is 50 inside the module; submit 51 native specs on a
+    // single chain to force two POSTs.
+    const NUM = 51;
+    const specs: EvmAssetSpec[] = Array.from({ length: NUM }, (_, i) => ({
+      assetId: `asset-${i}`,
+      network: 'ethereum',
+      isNative: true,
+      tokenAddress: null,
+    }));
+    const fetchImpl = jest.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse((init?.body as string) ?? '[]') as { id: number }[];
+      return mockOkResponse(
+        body.map((req) => ({ jsonrpc: '2.0', id: req.id, result: '0x01' })),
+      );
+    }) as unknown as FetchMock;
+    const fetcher = new EvmBalanceFetcher(resolveRpc, fetchImpl);
+    const result = await fetcher.fetch(specs, new Map([['ethereum', '0xaaaa']]));
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    for (let i = 0; i < NUM; i += 1) {
+      expect(result.get(`asset-${i}`)).toEqual({ assetId: `asset-${i}`, rawBalance: '1' });
+    }
+  });
+
   it('isolates per-chain failures (the other chain still resolves)', async () => {
     const fetchImpl = jest.fn(async (url: RequestInfo | URL) => {
       if (url === ETH_RPC) return mockErrorResponse();

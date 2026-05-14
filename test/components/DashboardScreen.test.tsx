@@ -174,4 +174,73 @@ describe('DashboardScreen', () => {
     // press handler does not throw.
     expect(() => fireEvent.press(getByTestId('dashboard-balance-toggle'))).not.toThrow();
   });
+
+  it('returns the whole part untouched when ≤ 3 digits (insertThousandsSeparators short-circuit)', () => {
+    mockPortfolioFiat.current = 50.25;
+    const { getByText } = render(<DashboardScreen />);
+    expect(getByText('50')).toBeTruthy();
+    expect(getByText('.25')).toBeTruthy();
+    mockPortfolioFiat.current = 1234.56;
+  });
+
+  it('renders "0" when the portfolio total is not finite', () => {
+    mockPortfolioFiat.current = Number.NaN;
+    const { getByText } = render(<DashboardScreen />);
+    expect(getByText('0')).toBeTruthy();
+    mockPortfolioFiat.current = 1234.56;
+  });
+
+  it('hides menu + shield buttons when SETTINGS and MULTISIG are off', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const features = require('@/config/features');
+    const r1 = jest.replaceProperty(features.FEATURES, 'SETTINGS', false);
+    const r2 = jest.replaceProperty(features.FEATURES, 'MULTISIG', false);
+    try {
+      const { queryByTestId } = render(<DashboardScreen />);
+      // The header gates the menu/shield buttons on the handler being
+      // defined. With SETTINGS + MULTISIG off the dashboard passes
+      // undefined for both, so neither testID is rendered.
+      expect(queryByTestId('dashboard-menu-button')).toBeNull();
+      expect(queryByTestId('dashboard-shield-button')).toBeNull();
+    } finally {
+      r1.restore();
+      r2.restore();
+    }
+  });
+
+  it('hides the actions row entirely when PORTFOLIO + PAY are both off', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const features = require('@/config/features');
+    const r1 = jest.replaceProperty(features.FEATURES, 'PORTFOLIO', false);
+    const r2 = jest.replaceProperty(features.FEATURES, 'PAY', false);
+    try {
+      const { queryByTestId } = render(<DashboardScreen />);
+      expect(queryByTestId('dashboard-action-portfolio')).toBeNull();
+      expect(queryByTestId('dashboard-action-pay')).toBeNull();
+    } finally {
+      r1.restore();
+      r2.restore();
+    }
+  });
+
+  it('swallows DFX auth rejections silently (catch handler exists)', async () => {
+    mockAuthenticate.mockRejectedValueOnce(new Error('network unavailable'));
+    render(<DashboardScreen />);
+    // Wait a microtask so the catch callback resolves before assertions.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mockAuthenticate).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the Transactions link when TX_HISTORY is off', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const features = require('@/config/features');
+    const r = jest.replaceProperty(features.FEATURES, 'TX_HISTORY', false);
+    try {
+      const { queryByTestId } = render(<DashboardScreen />);
+      expect(queryByTestId('dashboard-action-transactions')).toBeNull();
+    } finally {
+      r.restore();
+    }
+  });
 });

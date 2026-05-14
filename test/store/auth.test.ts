@@ -285,3 +285,32 @@ describe('useAuthStore', () => {
     });
   });
 });
+
+describe('useAuthStore (biometric + DFX backend OFF — MVP build)', () => {
+  it('authenticateBiometric short-circuits to false when the biometric module is absent', async () => {
+    // Re-require the store with FEATURES.BIOMETRIC disabled so the
+    // `require('@/features/biometric/biometric')` is replaced with
+    // null. This validates the MVP-mode build behaviour where the
+    // module is not bundled at all.
+    await jest.isolateModulesAsync(async () => {
+      jest.doMock('@/config/features', () => ({
+        FEATURES: { BIOMETRIC: false, DFX_BACKEND: false },
+      }));
+      const mod = await import('../../src/store/auth');
+      const ok = await mod.useAuthStore.getState().authenticateBiometric();
+      expect(ok).toBe(false);
+    });
+  });
+
+  it('hydrate() skips the DFX token rearm path when the DFX module is absent', async () => {
+    await jest.isolateModulesAsync(async () => {
+      jest.doMock('@/config/features', () => ({
+        FEATURES: { BIOMETRIC: false, DFX_BACKEND: false },
+      }));
+      const mod = await import('../../src/store/auth');
+      // Should complete without touching any DFX module (none is loaded).
+      await mod.useAuthStore.getState().hydrate();
+      expect(mod.useAuthStore.getState().isHydrated).toBe(true);
+    });
+  });
+});

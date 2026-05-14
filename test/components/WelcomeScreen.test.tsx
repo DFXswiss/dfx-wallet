@@ -109,4 +109,41 @@ describe('WelcomeScreen', () => {
     fireEvent.press(getByTestId('welcome-restore-passkey-button'));
     expect(mockPush).toHaveBeenCalledWith('/(onboarding)/restore-passkey');
   });
+
+  it('hides the restore toggle when both RESTORE and passkey support are off', () => {
+    // Both operands of `FEATURES.RESTORE || passkeySupported` false.
+    mockOsSupport.mockReturnValue(false);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const features = require('@/config/features');
+    const restored = jest.replaceProperty(features.FEATURES, 'RESTORE', false);
+    try {
+      const { queryByTestId } = render(<WelcomeScreen />);
+      expect(queryByTestId('welcome-restore-toggle')).toBeNull();
+      expect(queryByTestId('welcome-create-passkey-button')).toBeNull();
+    } finally {
+      restored.restore();
+    }
+  });
+
+  it('drives the pressed-state style fn on back / restore-passkey / restore-seed buttons', () => {
+    mockOsSupport.mockReturnValue(true);
+    const { getByTestId, UNSAFE_root } = render(<WelcomeScreen />);
+    fireEvent.press(getByTestId('welcome-restore-toggle'));
+    // Walk the rendered tree to find each Pressable's style fn and invoke
+    // it with `pressed: true` so the second arm of each
+    // `[base, pressed && styles.pressed]` ternary is exercised.
+    const testIds = [
+      'welcome-back-button',
+      'welcome-restore-passkey-button',
+      'welcome-restore-seed-button',
+    ];
+    for (const id of testIds) {
+      const node = UNSAFE_root.findByProps({ testID: id });
+      const style = node.props.style;
+      if (typeof style === 'function') {
+        const result = style({ pressed: true });
+        expect(result).toBeTruthy();
+      }
+    }
+  });
 });

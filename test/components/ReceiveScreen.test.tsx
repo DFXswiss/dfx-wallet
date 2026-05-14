@@ -13,14 +13,18 @@ jest.mock('react-i18next', () => ({
 // runtime. `Stack.Screen` is rendered as a no-op so the screen's options
 // hook never tries to reach into a real navigator.
 const mockPush = jest.fn();
+const mockBack = jest.fn();
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush, back: jest.fn(), replace: jest.fn(), canGoBack: () => true }),
+  useRouter: () => ({ push: mockPush, back: mockBack, replace: jest.fn(), canGoBack: () => true }),
   Stack: { Screen: () => null },
 }));
 
 // WDK + LDS — match the same return-shape the disabled wrappers use.
+// The `mockAccountAddress` ref lets per-test cases override the address
+// (e.g. to "" so the noAddress placeholder branch is exercised).
+const mockAccountAddress = { current: '0x1111222233334444555566667777888899990000' };
 jest.mock('@tetherto/wdk-react-native-core', () => ({
-  useAccount: jest.fn(() => ({ address: '0x1111222233334444555566667777888899990000' })),
+  useAccount: jest.fn(() => ({ address: mockAccountAddress.current })),
 }));
 jest.mock('@/hooks', () => ({
   useLdsWallet: () => ({ user: null, isLoading: false, error: null, signIn: jest.fn() }),
@@ -44,6 +48,7 @@ import ReceiveScreen from '../../app/(auth)/receive/index';
 describe('ReceiveScreen', () => {
   beforeEach(() => {
     mockPush.mockReset();
+    mockBack.mockReset();
     jest.spyOn(Clipboard, 'setStringAsync').mockResolvedValue(true);
   });
 
@@ -134,5 +139,54 @@ describe('ReceiveScreen', () => {
 
     fireEvent.press(getByLabelText('Back'));
     expect(getByText('receive.selectAsset')).toBeTruthy();
+  });
+
+  it('back button on the asset step calls router.back()', () => {
+    const { getByLabelText } = render(<ReceiveScreen />);
+    fireEvent.press(getByLabelText('Back'));
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('pressing the selected-asset pill on the QR step returns to the asset picker', () => {
+    const { getByText, queryByText } = render(<ReceiveScreen />);
+    fireEvent.press(getByText('BTC'));
+    // Now on QR step — the asset-list subtitle is gone and only the pill
+    // shows "BTC". Press it: should re-show the asset picker.
+    expect(queryByText('receive.selectAsset')).toBeNull();
+    fireEvent.press(getByText('BTC'));
+    expect(getByText('receive.selectAsset')).toBeTruthy();
+  });
+
+  it('exercises the pressed-state style fn on every function-style Pressable', () => {
+    const { UNSAFE_root } = render(<ReceiveScreen />);
+    // Walk the entire tree, find any Pressable whose `style` is a function
+    // and invoke it with pressed=true so each `pressed && styles.pressed`
+    // branch evaluates.
+    let invoked = 0;
+    const walk = (node: { props?: { style?: unknown }; children?: unknown[] }) => {
+      if (typeof node.props?.style === 'function') {
+        node.props.style({ pressed: true });
+        invoked += 1;
+      }
+      for (const child of node.children ?? []) {
+        if (typeof child === 'object' && child) walk(child as typeof node);
+      }
+    };
+    walk(UNSAFE_root);
+    expect(invoked).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('ReceiveScreen — empty address path', () => {
+  it('shows the noAddress placeholder + walletNotInitialized label when address is empty', () => {
+    mockAccountAddress.current = '';
+    try {
+      const { getByText } = render(<ReceiveScreen />);
+      fireEvent.press(getByText('BTC'));
+      expect(getByText('receive.noAddress')).toBeTruthy();
+      expect(getByText('receive.walletNotInitialized')).toBeTruthy();
+    } finally {
+      mockAccountAddress.current = '0x1111222233334444555566667777888899990000';
+    }
   });
 });

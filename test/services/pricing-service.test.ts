@@ -1,5 +1,11 @@
 import { FiatCurrency, pricingService } from '../../src/services/pricing-service';
 
+// We need the class itself (not just the singleton instance) for one branch
+// — the `if (!PricingService.instance)` false-side. Re-import the module
+// raw and reach the class through the singleton's prototype.
+const PricingServiceCtor = (pricingService as unknown as { constructor: unknown })
+  .constructor as { getInstance: () => unknown };
+
 describe('pricingService', () => {
   const originalFetch = globalThis.fetch;
 
@@ -168,6 +174,64 @@ describe('pricingService', () => {
     jest.advanceTimersByTime(60_000);
     expect(refreshSpy).toHaveBeenCalledTimes(2);
 
+    refreshSpy.mockRestore();
+    jest.useRealTimers();
+  });
+
+  it('skips entries whose CoinGecko payload is null/undefined', async () => {
+    // CoinGecko occasionally returns `null` for a coin id that has been
+    // delisted — the `if (!entry) continue;` guard prevents a downstream
+    // crash.
+    stubFetch({
+      bitcoin: { usd: 80000 },
+      'dead-coin': null as unknown as Record<string, number>,
+    });
+    await pricingService.initialize();
+    expect(pricingService.getPriceById('bitcoin', FiatCurrency.USD)).toBe(80000);
+    expect(pricingService.getPriceById('dead-coin', FiatCurrency.USD)).toBeUndefined();
+  });
+
+  it('getInstance returns the existing singleton on subsequent calls', () => {
+    // First call already happened at module load (`pricingService` is the
+    // exported singleton). The second call here exercises the false-side
+    // of the `if (!PricingService.instance)` branch.
+    expect(PricingServiceCtor.getInstance()).toBe(pricingService);
+    expect(PricingServiceCtor.getInstance()).toBe(pricingService);
+  });
+
+  it('initialize() wraps a non-Error throw into the dedicated init message', async () => {
+    globalThis.fetch = jest.fn(async () => {
+      throw 'flaky network';
+    }) as unknown as typeof fetch;
+    await expect(pricingService.initialize()).rejects.toThrow(
+      'Failed to initialize pricing service',
+    );
+  });
+
+  it('getFiatValue skips re-init when both isInitialized and cache are set', async () => {
+    // Boot the service first so isInitialized=true and cache is populated.
+    const fetchMock = stubFetch({ bitcoin: { usd: 50000 } });
+    await pricingService.initialize();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Now getFiatValue must NOT re-fetch (left + right operands of the
+    // `!this.isInitialized || !this.cache` guard both falsy).
+    const value = await pricingService.getFiatValue(2, 'btc', FiatCurrency.USD);
+    expect(value).toBeCloseTo(100000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('startAutoRefresh defaults to a 60s cadence when called without an argument', () => {
+    jest.useFakeTimers();
+    const refreshSpy = jest
+      .spyOn(pricingService, 'refresh')
+      .mockResolvedValue(undefined);
+
+    pricingService.startAutoRefresh();
+    jest.advanceTimersByTime(60_000);
+    expect(refreshSpy).toHaveBeenCalledTimes(1);
+
+    pricingService.stopAutoRefresh();
     refreshSpy.mockRestore();
     jest.useRealTimers();
   });

@@ -96,6 +96,60 @@ describe('fetchSimplePrices', () => {
     expect(result.size).toBe(0);
   });
 
+  it('falls back to global fetch when no options.fetchImpl is provided', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = jest.fn(
+        async () =>
+          ({
+            ok: true,
+            status: 200,
+            json: async () => ({ bitcoin: { usd: 50000 } }),
+          }) as unknown as Response,
+      ) as unknown as typeof fetch;
+      const result = await fetchSimplePrices(['bitcoin'], [FiatCurrency.USD]);
+      expect(result.get('bitcoin')?.[FiatCurrency.USD]).toBe(50000);
+      expect(globalThis.fetch).toHaveBeenCalled();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('forwards the AbortSignal through to fetch when one is provided', async () => {
+    const seen: { signal?: AbortSignal | undefined } = {};
+    const fetchImpl = jest.fn(async (_url: string, init?: RequestInit) => {
+      seen.signal = init?.signal ?? undefined;
+      return { ok: true, status: 200, json: async () => ({}) } as unknown as Response;
+    });
+    const controller = new AbortController();
+    await fetchSimplePrices(['bitcoin'], [FiatCurrency.USD], {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      signal: controller.signal,
+    });
+    expect(seen.signal).toBe(controller.signal);
+  });
+
+  it('skips coin-id entries whose payload value is null', async () => {
+    const fetchImpl = jest.fn(
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            bitcoin: { usd: 80000 },
+            'dead-coin': null,
+          }),
+        }) as unknown as Response,
+    );
+    const result = await fetchSimplePrices(
+      ['bitcoin', 'dead-coin'],
+      [FiatCurrency.USD],
+      { fetchImpl: fetchImpl as unknown as typeof fetch },
+    );
+    expect(result.get('bitcoin')?.[FiatCurrency.USD]).toBe(80000);
+    expect(result.has('dead-coin')).toBe(false);
+  });
+
   it('skips a batch whose response.json() rejects (malformed JSON)', async () => {
     const fetchImpl = jest.fn(
       async () =>

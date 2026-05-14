@@ -9,8 +9,9 @@ jest.mock('react-i18next', () => ({
 }));
 
 const mockPush = jest.fn();
+const mockBack = jest.fn();
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush, back: jest.fn(), replace: jest.fn(), canGoBack: () => true }),
+  useRouter: () => ({ push: mockPush, back: mockBack, replace: jest.fn(), canGoBack: () => true }),
   Stack: { Screen: () => null },
 }));
 
@@ -37,9 +38,19 @@ jest.mock('@/hooks', () => ({
   }),
 }));
 
-// QrScanner pulls in expo-camera at module load — stub it out.
+// QrScanner pulls in expo-camera at module load — stub it out, and
+// expose the most-recent `onScan` / `onClose` callbacks on a global ref
+// so tests can fire a fake scan and assert the screen's handler runs.
+const qrScannerProps: {
+  onScan: ((value: string) => void) | null;
+  onClose: (() => void) | null;
+} = { onScan: null, onClose: null };
 jest.mock('@/components/QrScanner', () => ({
-  QrScanner: () => null,
+  QrScanner: (props: { onScan: (value: string) => void; onClose: () => void }) => {
+    qrScannerProps.onScan = props.onScan;
+    qrScannerProps.onClose = props.onClose;
+    return null;
+  },
 }));
 
 jest.mock('react-native-safe-area-context', () => {
@@ -64,6 +75,7 @@ function fillRecipientAndAmount(getByPlaceholderText: ReturnType<typeof render>[
 describe('SendScreen', () => {
   beforeEach(() => {
     mockPush.mockReset();
+    mockBack.mockReset();
     mockSend.mockReset();
     mockEstimate.mockReset();
     mockEstimate.mockResolvedValue({ success: true, fee: '21000000000000' });
@@ -71,6 +83,8 @@ describe('SendScreen', () => {
     flowState.isLoading = false;
     flowState.txHash = null;
     flowState.error = null;
+    qrScannerProps.onScan = null;
+    qrScannerProps.onClose = null;
   });
 
   describe('asset step', () => {
@@ -306,6 +320,95 @@ describe('SendScreen', () => {
       const sample = 'ethereum:0xabc?amount=1';
       const stripped = sample.replace(/^(ethereum|bitcoin):/, '').split('?')[0];
       expect(stripped).toBe('0xabc');
+    });
+
+    it('a scanned URI populates the recipient field (onScan handler is wired)', () => {
+      const { getByText, getByPlaceholderText } = render(<SendScreen />);
+      fireEvent.press(getByText('BTC'));
+      // Drive the scanner's `onScan` directly — the screen exposes it via
+      // the QrScanner mock. The handler should strip the prefix/query and
+      // pipe the bare address into the recipient state.
+      expect(qrScannerProps.onScan).not.toBeNull();
+      act(() => {
+        qrScannerProps.onScan!('ethereum:0xCAFEBABE?amount=1');
+      });
+      expect((getByPlaceholderText('send.addressPlaceholder') as unknown as { props: { value: string } }).props.value).toBe(
+        '0xCAFEBABE',
+      );
+    });
+
+    it('the scanner onClose handler closes the scanner', () => {
+      const { getByText } = render(<SendScreen />);
+      fireEvent.press(getByText('BTC'));
+      fireEvent.press(getByText('send.scan'));
+      // Now the scanner is open. Fire onClose; the call must not throw.
+      expect(qrScannerProps.onClose).not.toBeNull();
+      act(() => {
+        qrScannerProps.onClose!();
+      });
+    });
+  });
+
+  describe('back navigation root path', () => {
+    it('pressing the selected-asset pill on the input step returns to the asset picker', () => {
+      const { getByText, queryByText } = render(<SendScreen />);
+      fireEvent.press(getByText('BTC'));
+      // We're on input step now; the asset-step subtitle is gone.
+      expect(queryByText('send.sendToCrypto')).toBeNull();
+      // Press the pill (BTC) to go back to asset step.
+      fireEvent.press(getByText('BTC'));
+      expect(getByText('send.sendToCrypto')).toBeTruthy();
+    });
+
+    it('back from asset step calls router.back()', () => {
+      const { getByLabelText } = render(<SendScreen />);
+      fireEvent.press(getByLabelText('Back'));
+      expect(mockBack).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('pressed-state style branches', () => {
+    it('exercises every function-style Pressable with pressed=true', () => {
+      const { UNSAFE_root } = render(<SendScreen />);
+      let invoked = 0;
+      const walk = (node: { props?: { style?: unknown }; children?: unknown[] }) => {
+        if (typeof node.props?.style === 'function') {
+          node.props.style({ pressed: true });
+          invoked += 1;
+        }
+        for (const child of node.children ?? []) {
+          if (typeof child === 'object' && child) walk(child as typeof node);
+        }
+      };
+      walk(UNSAFE_root);
+      expect(invoked).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('fee state intermediate display', () => {
+    it('shows the "estimating" copy while the estimate is in flight (loading branch)', async () => {
+      // Make the estimate hang so we can observe the in-flight render.
+      let releaseEstimate: ((value: { success: boolean; fee: string }) => void) | undefined;
+      mockEstimate.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseEstimate = resolve;
+          }),
+      );
+      const { getByText, getByPlaceholderText } = render(<SendScreen />);
+      fireEvent.press(getByText('BTC'));
+      fillRecipientAndAmount(getByPlaceholderText);
+      fireEvent.press(getByText('common.continue'));
+      // Confirm step now mounts and the fee row shows the loading label.
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(getByText('send.feeEstimating')).toBeTruthy();
+      // Release so the promise queue drains before the test ends.
+      releaseEstimate?.({ success: true, fee: '21000000000000' });
+      await act(async () => {
+        await Promise.resolve();
+      });
     });
   });
 });

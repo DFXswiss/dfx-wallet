@@ -85,7 +85,7 @@ async function fetchAndIndex(fetchImpl: typeof fetch): Promise<CacheState> {
   return { byPlatform: buildIndex(coins), fetchedAt: Date.now() };
 }
 
-async function getCache(fetchImpl: typeof fetch = fetch): Promise<CacheState> {
+async function getCache(fetchImpl: typeof fetch): Promise<CacheState> {
   if (cache && Date.now() - cache.fetchedAt < STALE_AFTER_MS) return cache;
   if (inflight) return inflight;
   inflight = (async () => {

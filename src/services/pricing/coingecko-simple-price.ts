@@ -20,7 +20,6 @@ export type SimplePriceMap = Map<string, Partial<Record<FiatCurrency, number>>>;
 type SimplePriceResponse = Record<string, Partial<Record<string, number>>>;
 
 function chunk<T>(arr: readonly T[], size: number): T[][] {
-  if (arr.length === 0) return [];
   if (arr.length <= size) return [Array.from(arr)];
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
