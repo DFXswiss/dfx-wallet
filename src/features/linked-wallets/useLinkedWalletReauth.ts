@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { dfxAuthService } from '@/services/dfx';
+import { dfxAuthService } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useLdsWallet } from '@/hooks';
 

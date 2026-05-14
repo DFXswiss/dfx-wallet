@@ -5,7 +5,7 @@ import { DISCOVERABLE_TOKENS_BY_CHAIN, type DiscoverableToken } from '@/config/d
 import { formatBalance, toNumeric } from '@/config/portfolio-presentation';
 import { fetchBtcBalance } from '@/services/balances/btc-fetcher';
 import { EvmBalanceFetcher, type EvmAssetSpec } from '@/services/balances/evm-fetcher';
-import type { UserAddressDto } from '@/services/dfx/dto';
+import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { getTokenList, isBlockscoutSupported } from '@/services/explorer/blockscout';
 import { lookupCoinIds } from '@/services/pricing/coingecko-coins-list';
 import { fetchSimplePrices } from '@/services/pricing/coingecko-simple-price';

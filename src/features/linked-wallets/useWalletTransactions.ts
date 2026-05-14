@@ -9,7 +9,7 @@ import {
   type BlockscoutErc20Tx,
   type BlockscoutNativeTx,
 } from '@/services/explorer/blockscout';
-import type { UserAddressDto } from '@/services/dfx/dto';
+import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 
 /**
  * Block-explorer-driven transaction feed for a single linked wallet,

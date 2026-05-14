@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import { ScreenContainer } from '@/components';
-import { dfxAuthService } from '@/services/dfx';
+import { dfxAuthService } from '@/features/dfx-backend/services';
 import { isAllowedDfxHost, isDfxOwnedHost } from '@/services/security/safe-url';
 import { DfxColors, Typography } from '@/theme';
 

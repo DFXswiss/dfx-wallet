@@ -159,7 +159,7 @@ describe('useAuthStore', () => {
 
     it('rearms dfxAuthService with the stored JWT so cold-start linkAddress works', async () => {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { dfxAuthService } = require('../../src/services/dfx');
+      const { dfxAuthService } = require('../../src/features/dfx-backend/services');
       getItemMock.mockImplementation(async (key: string) =>
         key === 'dfxAuthToken' ? 'jwt-from-keychain' : null,
       );
@@ -175,7 +175,7 @@ describe('useAuthStore', () => {
 
     it('clears the dfxAuthService token when no JWT is stored', async () => {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { dfxAuthService } = require('../../src/services/dfx');
+      const { dfxAuthService } = require('../../src/features/dfx-backend/services');
       dfxAuthService.adoptStoredToken('residual');
 
       await useAuthStore.getState().hydrate();

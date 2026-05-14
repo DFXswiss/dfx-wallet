@@ -5,7 +5,7 @@ import { computeFiatValue, formatBalance, toNumeric } from '@/config/portfolio-p
 import { getAssets, getAssetMeta } from '@/config/tokens';
 import { fetchBtcBalance } from '@/services/balances/btc-fetcher';
 import { EvmBalanceFetcher, type EvmAssetSpec } from '@/services/balances/evm-fetcher';
-import type { UserAddressDto } from '@/services/dfx/dto';
+import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import type { FiatCurrency } from '@/services/pricing-service';
 
 const sharedFetcher = new EvmBalanceFetcher(getEvmRpcUrl);

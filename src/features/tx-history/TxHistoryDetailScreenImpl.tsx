@@ -14,7 +14,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, Icon } from '@/components';
 import { CHAIN_LABELS } from '@/config/portfolio-presentation';
-import { dfxTransactionService, type TransactionDto } from '@/services/dfx';
+import { dfxTransactionService, type TransactionDto } from '@/features/dfx-backend/services';
 import { DfxColors, Typography } from '@/theme';
 
 const STATE_COLORS = new Map<string, string>([

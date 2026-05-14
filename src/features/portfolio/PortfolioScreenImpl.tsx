@@ -31,8 +31,8 @@ import {
 } from '@/features/linked-wallets/useLinkedWalletNames';
 import { useLinkedWalletDiscovery } from '@/features/linked-wallets/useLinkedWalletDiscovery';
 import { useLinkedWalletSelection } from '@/features/linked-wallets/useLinkedWalletSelection';
-import { dfxUserService } from '@/services/dfx';
-import type { UserAddressDto } from '@/services/dfx/dto';
+import { dfxUserService } from '@/features/dfx-backend/services';
+import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { useAuthStore, useWalletStore } from '@/store';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { DfxColors, Typography } from '@/theme';

@@ -18,8 +18,8 @@ import { formatCryptoAmount, resolveFiatCurrency } from '@/config/portfolio-pres
 import { defaultLinkedWalletName, useLinkedWalletNames } from './useLinkedWalletNames';
 import { useLinkedWalletDiscovery } from './useLinkedWalletDiscovery';
 import { useWalletTransactions, type WalletTransaction } from './useWalletTransactions';
-import { dfxUserService } from '@/services/dfx';
-import type { UserAddressDto } from '@/services/dfx/dto';
+import { dfxUserService } from '@/features/dfx-backend/services';
+import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';

@@ -7,8 +7,8 @@ import {
 } from '@/config/portfolio-presentation';
 import { getAssetMeta, getAssets } from '@/config/tokens';
 import { getRawBalance, useBalances } from '@/services/balances';
-import { dfxUserService } from '@/services/dfx';
-import type { UserAddressDto } from '@/services/dfx/dto';
+import { dfxUserService } from '@/features/dfx-backend/services';
+import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { pricingService } from '@/services/pricing-service';
 import { useAuthStore, useWalletStore } from '@/store';
 import { useEnabledChains } from './useEnabledChains';

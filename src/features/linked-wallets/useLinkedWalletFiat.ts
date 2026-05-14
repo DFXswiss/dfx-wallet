@@ -5,7 +5,7 @@ import { getAssetMeta } from '@/config/tokens';
 import type { ChainId } from '@/config/chains';
 import { getRawBalance } from '@/services/balances';
 import type { BalanceMap } from '@/services/balances/types';
-import type { UserAddressDto } from '@/services/dfx/dto';
+import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import type { FiatCurrency } from '@/services/pricing-service';
 import { useLinkedWalletBalances } from './useLinkedWalletBalances';
 

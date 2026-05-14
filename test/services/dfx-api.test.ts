@@ -1,4 +1,4 @@
-import { DfxApiError } from '../../src/services/dfx/api';
+import { DfxApiError } from '../../src/features/dfx-backend/services/api';
 
 describe('DfxApiError', () => {
   it('should create error with correct properties', () => {

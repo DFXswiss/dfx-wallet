@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { FEATURES } from '@/config/features';
 import { hashPin, verifyPin as verifyPinHash } from '@/services/pin';
-import { dfxApi, dfxAuthService } from '@/services/dfx';
 import { secureStorage, StorageKeys } from '@/services/storage';
 
 /**
@@ -17,6 +16,25 @@ const biometricModule: {
 } | null = FEATURES.BIOMETRIC
   ? // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('@/features/biometric/biometric')
+  : null;
+
+/**
+ * Lazy handle to the DFX API client and auth service. The store needs
+ * them only when rehydrating a persisted DFX session token; when
+ * `EXPO_PUBLIC_ENABLE_DFX_BACKEND` is off there is no DFX session, so
+ * the import is elided entirely and the rehydrate path is a no-op.
+ */
+const dfxModule: {
+  dfxApi: {
+    setAuthToken: (token: string) => void;
+    clearAuthToken: () => void;
+  };
+  dfxAuthService: {
+    adoptStoredToken: (token: string | null) => void;
+  };
+} | null = FEATURES.DFX_BACKEND
+  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('@/features/dfx-backend/services')
   : null;
 
 type AuthState = {
@@ -59,13 +77,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Re-arm both the API client and the auth service with the persisted
     // token so authenticated requests work after a cold start, and so the
     // service's `linkAddress` / `isAuthenticated` checks see the same token
-    // the API client is sending out.
-    if (dfxToken) {
-      dfxApi.setAuthToken(dfxToken);
-      dfxAuthService.adoptStoredToken(dfxToken);
-    } else {
-      dfxApi.clearAuthToken();
-      dfxAuthService.adoptStoredToken(null);
+    // the API client is sending out. With the DFX backend deferred there is
+    // no client to arm — the persisted token can stay where it is in secure
+    // storage until a build with the flag on picks it up.
+    if (dfxModule) {
+      if (dfxToken) {
+        dfxModule.dfxApi.setAuthToken(dfxToken);
+        dfxModule.dfxAuthService.adoptStoredToken(dfxToken);
+      } else {
+        dfxModule.dfxApi.clearAuthToken();
+        dfxModule.dfxAuthService.adoptStoredToken(null);
+      }
     }
 
     set({

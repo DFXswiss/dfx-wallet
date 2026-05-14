@@ -4,7 +4,7 @@ import { Icon } from './Icon';
 import { computeFiatValue, resolveFiatCurrency } from '@/config/portfolio-presentation';
 import { getCanonicalForSymbol } from '@/config/tokens';
 import { pricingService } from '@/services/pricing-service';
-import type { TransactionDto } from '@/services/dfx';
+import type { TransactionDto } from '@/features/dfx-backend/services';
 import { useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 

@@ -3,10 +3,10 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import type { ChainId } from '@/config/chains';
-import type { DfxAuthGateState } from '@/services/dfx';
+import type { DfxAuthGateState } from '@/features/dfx-backend/services';
 import { DfxColors, Typography } from '@/theme';
-import { Icon } from './Icon';
-import { PrimaryButton } from './PrimaryButton';
+import { Icon } from '@/components/Icon';
+import { PrimaryButton } from '@/components/PrimaryButton';
 
 type Props = {
   /** Non-null state means the modal is visible. */

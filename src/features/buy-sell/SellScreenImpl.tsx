@@ -15,13 +15,8 @@ import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useAccount, useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import {
-  AppHeader,
-  ConfirmTargetWalletModal,
-  DfxAuthGate,
-  Icon,
-  PrimaryButton,
-} from '@/components';
+import { AppHeader, ConfirmTargetWalletModal, Icon, PrimaryButton } from '@/components';
+import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
 import type { ChainId } from '@/config/chains';
 import {
   formatBalance,
@@ -34,8 +29,8 @@ import { useLdsWallet } from '@/hooks';
 import { useEnabledChains } from '@/features/portfolio/useEnabledChains';
 import { useLinkedWalletReauth } from '@/features/linked-wallets/useLinkedWalletReauth';
 import { useSellFlow } from './useSellFlow';
-import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
-import { dfxAuthService, DfxApiError } from '@/services/dfx';
+import { markChainLinkedInAutoLinkCache } from '@/features/dfx-backend/useDfxAutoLinkImpl';
+import { dfxAuthService, DfxApiError } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';

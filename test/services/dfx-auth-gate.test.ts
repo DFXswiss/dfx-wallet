@@ -1,5 +1,5 @@
-import { DfxApiError } from '../../src/services/dfx/api';
-import { interpretDfxAuthError } from '../../src/services/dfx/auth-gate';
+import { DfxApiError } from '../../src/features/dfx-backend/services/api';
+import { interpretDfxAuthError } from '../../src/features/dfx-backend/services/auth-gate';
 
 describe('interpretDfxAuthError', () => {
   it('returns null for non-DfxApiError values', () => {

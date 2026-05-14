@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import { Icon } from '@/components';
 import { isBiometricAvailable } from '@/features/biometric/biometric';
-import { dfxUserService } from '@/services/dfx';
+import { dfxUserService } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';

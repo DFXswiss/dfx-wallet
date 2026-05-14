@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
-import { DfxApiError, dfxKycService } from '@/services/dfx';
-import type { KycLevelDto, KycSessionDto, KycStepDto } from '@/services/dfx/dto';
+import { DfxApiError, dfxKycService } from '@/features/dfx-backend/services';
+import type { KycLevelDto, KycSessionDto, KycStepDto } from '@/features/dfx-backend/services/dto';
 
 type KycState = {
   isLoading: boolean;

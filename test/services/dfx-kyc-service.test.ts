@@ -1,5 +1,5 @@
-import { dfxApi } from '../../src/services/dfx/api';
-import { dfxKycService } from '../../src/services/dfx/kyc-service';
+import { dfxApi } from '../../src/features/dfx-backend/services/api';
+import { dfxKycService } from '../../src/features/dfx-backend/services/kyc-service';
 
 describe('dfxKycService.registerEmail', () => {
   afterEach(() => {

@@ -17,7 +17,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useAccount } from '@tetherto/wdk-react-native-core';
 import { AppHeader, AssetActions, Icon, TransactionRow } from '@/components';
 import { CHAIN_LABELS } from '@/config/portfolio-presentation';
-import { dfxTransactionService, type TransactionDto } from '@/services/dfx';
+import { dfxTransactionService, type TransactionDto } from '@/features/dfx-backend/services';
 import { DfxColors, Typography } from '@/theme';
 
 type FilterType = 'all' | 'in' | 'out' | 'pay';

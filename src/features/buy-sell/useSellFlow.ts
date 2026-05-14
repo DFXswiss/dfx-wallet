@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChainId } from '@/config/chains';
-import { dfxPaymentService, interpretDfxAuthError } from '@/services/dfx';
-import type { DfxAuthGateState } from '@/services/dfx';
-import type { SellPaymentInfoDto } from '@/services/dfx/dto';
+import { dfxPaymentService, interpretDfxAuthError } from '@/features/dfx-backend/services';
+import type { DfxAuthGateState } from '@/features/dfx-backend/services';
+import type { SellPaymentInfoDto } from '@/features/dfx-backend/services/dto';
 
 type QuoteParams = {
   amount: number;
