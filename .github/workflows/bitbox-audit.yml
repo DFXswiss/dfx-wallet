@@ -70,9 +70,13 @@ jobs:
           # intentionally — audit semantics can shift between releases.
           # Override to "main" during local debugging if you want the
           # bleeding edge.
-          # Use just the version number — Go automatically resolves the
-          # "go/v0.1.0" subdirectory tag because the import path ends in /go.
-          TESTKIT_REF: 'v0.1.0'
+          # Tracks the testkit's main branch with GOPROXY=direct to bypass
+          # proxy.golang.org's cache so pushes propagate immediately.
+          # Pinning to a tagged release awaits a proxy-indexing fix for
+          # the go-submodule tag convention.
+          TESTKIT_REF: 'main'
+          GOPROXY: 'direct'
+          GOSUMDB: 'off'
         run: |
           go install "github.com/joshuakrueger-dfx/bitbox-testkit/go/cmd/bitbox-audit@${TESTKIT_REF}"
           go install "github.com/joshuakrueger-dfx/bitbox-testkit/go/cmd/bitbox-audit-explain@${TESTKIT_REF}"
