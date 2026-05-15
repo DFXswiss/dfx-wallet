@@ -196,20 +196,20 @@ const styles = StyleSheet.create({
   balanceLine: {
     fontSize: 27,
     lineHeight: 34,
-    color: 'rgba(35,64,106,0.82)',
-    fontWeight: '500',
+    color: 'rgba(18,44,78,0.92)',
+    fontWeight: '600',
     letterSpacing: 0,
     textAlign: 'center',
-    textShadowColor: 'rgba(255,255,255,0.82)',
+    textShadowColor: 'rgba(255,255,255,0.92)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 7,
+    textShadowRadius: 5,
   },
   balanceSeparator: {
-    color: 'rgba(35,64,106,0.36)',
+    color: 'rgba(18,44,78,0.42)',
   },
   balanceValue: {
-    fontWeight: '600',
-    color: DfxColors.text,
+    fontWeight: '700',
+    color: '#071A2D',
   },
   permissionFallback: {
     alignItems: 'center',
