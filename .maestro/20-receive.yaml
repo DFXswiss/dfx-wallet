@@ -1,20 +1,24 @@
 appId: ${APP_ID}
-name: 10-onboarding-create
+name: 20-receive
 tags:
-  - onboarding
+  - smoke
+  - dashboard
   - mvp
 ---
+# Walks an MVP user from a fresh install to the Receive screen. With
+# EXPO_PUBLIC_ENABLE_PIN + EXPO_PUBLIC_ENABLE_LEGAL off, SetupPinDisabled
+# bridges Create -> Dashboard without a PIN or legal step (see
+# 10-onboarding-create.yaml for the same bridge). The Receive flow
+# itself ships in the MVP build.
 - launchApp:
     clearState: true
     clearKeychain: true
 
-# Welcome -> Create Wallet
 - assertVisible:
     id: "welcome-screen"
 - tapOn:
     id: "welcome-create-wallet-button"
 
-# Create Wallet -> reveal seed -> continue
 - assertVisible:
     id: "create-wallet-screen"
 - tapOn:
@@ -24,14 +28,11 @@ tags:
 - tapOn:
     id: "create-wallet-continue-button"
 
-# With EXPO_PUBLIC_ENABLE_PIN + EXPO_PUBLIC_ENABLE_LEGAL off (the MVP
-# build), SetupPinDisabled flips `isOnboarded` + `isAuthenticated` and
-# routes straight to the dashboard. The full PIN + legal-disclaimer
-# variant of this flow lives in 11-onboarding-create-pin-legal.yaml
-# and runs once those features ship.
+# Dashboard -> Receive
 - assertVisible:
     id: "dashboard-screen"
-- assertVisible:
+- tapOn:
     id: "dashboard-action-receive"
+
 - assertVisible:
-    id: "dashboard-action-send"
+    id: "receive-screen"
