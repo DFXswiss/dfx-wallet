@@ -71,7 +71,7 @@
     "seeAll": "Alle anzeigen",
     "title": "Dashboard",
     "toggleBalance": "Guthaben ein-/ausblenden",
-    "totalBalance": "Verfügbares Guthaben",
+    "totalBalance": "Gesamtguthaben",
     "transactions": "Transaktionen"
   },
   "dfxAuthGate": {
@@ -433,6 +433,7 @@
     "useSeedInstead": "Seed Phrase verwenden"
   },
   "pay": {
+    "availableBalance": "Verfügbares Guthaben",
     "cameraPermission": "Kamerazugriff ist nötig, um QR-Codes zu scannen.",
     "comingSoonMessage": "Zahlungen sind noch nicht verfügbar. Gescannt: {{data}}",
     "comingSoonTitle": "Coming soon",
@@ -468,7 +469,7 @@
     "networkCount_one": "{{count}} Netzwerk",
     "networkCount_other": "{{count}} Netzwerke",
     "optional": "Optionale Netzwerke",
-    "totalValue": "Verfügbares Guthaben"
+    "totalValue": "Gesamtwert"
   },
   "receive": {
     "buyFromBank": "Mit deinem Bankkonto kaufen",

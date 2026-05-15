@@ -71,7 +71,7 @@
     "seeAll": "See all",
     "title": "Dashboard",
     "toggleBalance": "Toggle balance visibility",
-    "totalBalance": "Available Balance",
+    "totalBalance": "Total Wallet Balance",
     "transactions": "Transactions"
   },
   "dfxAuthGate": {
@@ -433,6 +433,7 @@
     "useSeedInstead": "Use Seed Phrase"
   },
   "pay": {
+    "availableBalance": "Available Balance",
     "cameraPermission": "Camera access is needed to scan QR codes.",
     "comingSoonMessage": "Payments are not yet available. Scanned: {{data}}",
     "comingSoonTitle": "Coming soon",
@@ -468,7 +469,7 @@
     "networkCount_one": "{{count}} network",
     "networkCount_other": "{{count}} networks",
     "optional": "Optional networks",
-    "totalValue": "Available Balance"
+    "totalValue": "Total value"
   },
   "receive": {
     "buyFromBank": "Buy with your bank account",

@@ -14,7 +14,15 @@ import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Icon } from '@/components';
+import { useTotalPortfolioFiat } from '@/hooks';
+import { useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
+
+const CURRENCY_SYMBOLS = new Map<string, string>([
+  ['USD', '$'],
+  ['EUR', '€'],
+  ['CHF', 'CHF'],
+]);
 
 const CUTOUT_PCT = {
   left: 0.0925,
@@ -29,6 +37,8 @@ export default function PayScreen() {
   const { width, height } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  const { selectedCurrency } = useWalletStore();
+  const availableFiat = useTotalPortfolioFiat();
 
   useEffect(() => {
     if (!permission?.granted) void requestPermission();
@@ -48,6 +58,13 @@ export default function PayScreen() {
     width: width * CUTOUT_PCT.width,
     height: height * CUTOUT_PCT.height,
   };
+  const currencySymbol = CURRENCY_SYMBOLS.get(selectedCurrency) ?? selectedCurrency;
+  const availableLabel = Number.isFinite(availableFiat)
+    ? (Math.round(availableFiat * 100) / 100).toLocaleString('de-CH', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    : '0.00';
 
   return (
     <>
@@ -88,7 +105,19 @@ export default function PayScreen() {
             </Pressable>
           </View>
 
-          <View style={{ flex: 1 }} />
+          <View style={styles.payContent}>
+            <View
+              style={styles.balancePanel}
+              testID="pay-available-balance"
+              accessibilityLabel={`${t('pay.availableBalance')} ${currencySymbol} ${availableLabel}`}
+            >
+              <Text style={styles.balanceLabel}>{t('pay.availableBalance')}</Text>
+              <View style={styles.balanceRow}>
+                <Text style={styles.balanceCurrency}>{currencySymbol}</Text>
+                <Text style={styles.balanceValue}>{availableLabel}</Text>
+              </View>
+            </View>
+          </View>
         </SafeAreaView>
 
         <View style={[styles.cutout, cutoutStyle]}>
@@ -151,6 +180,51 @@ const styles = StyleSheet.create({
   logo: {
     height: 30,
     width: 110,
+  },
+  payContent: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingBottom: 26,
+  },
+  balancePanel: {
+    alignSelf: 'center',
+    minWidth: 228,
+    maxWidth: '100%',
+    alignItems: 'center',
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.86)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.72)',
+    shadowColor: '#0B1426',
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  balanceLabel: {
+    ...Typography.bodySmall,
+    color: DfxColors.textSecondary,
+    fontWeight: '600',
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 3,
+  },
+  balanceCurrency: {
+    ...Typography.bodyLarge,
+    color: DfxColors.primary,
+    fontWeight: '600',
+  },
+  balanceValue: {
+    fontSize: 30,
+    lineHeight: 36,
+    fontWeight: '700',
+    color: DfxColors.text,
   },
   permissionFallback: {
     alignItems: 'center',
