@@ -6,12 +6,15 @@
  *   export {
  *     scenarioRegressionUmlautEIP712,
  *     scenarioPanicMidQuery,
+ *     scenarioErrInvalidInput,
+ *     scenarioSlowResponse,
+ *     scenarioChannelHashEarly,
+ *     scenarioUnknownNetwork,
  *     ErrInvalidInput101,
+ *     ErrUserAbort,
  *   } from '@joshuakrueger-dfx/bitbox-testkit/scenarios';
  *
- * Until then, the inline copies below let the tests run without a separate
- * package install. Drift between this file and the testkit's TS source is
- * checked by tooling planned in Chunk 3.
+ * Inline copies let the tests run without a separate package install.
  */
 
 export class FirmwareError extends Error {
@@ -23,53 +26,108 @@ export class FirmwareError extends Error {
   }
 }
 
-/** ErrInvalidInput101 — firmware's "invalid input" response (quirk E1, B*, etc.) */
+/** Wire-level firmware response for malformed input. Most BitBox quirks. */
 export const ErrInvalidInput101 = new FirmwareError(101, 'firmware: invalid input (101)');
 
+/** User cancelled on-device. */
+export const ErrUserAbort = new FirmwareError(104, 'firmware: user abort (104)');
+
+/** Bridge handler shape: takes a method name and its args, returns/rejects. */
+export type BridgeHandler = (method: string, args: readonly unknown[]) => Promise<unknown>;
+
+/** Successful 65-byte signature shape used by ETH sign methods. */
+const dummySignature = () => ({
+  r: Array.from(new Uint8Array(32)),
+  s: Array.from(new Uint8Array(32)),
+  v: [0],
+});
+
 /**
- * scenarioRegressionUmlautEIP712 — firmware rejects non-ASCII payloads in
- * EIP-712 / signMessage flows. Returns a bridge.call replacement that
- * mirrors firmware behaviour.
- *
- * Quirk E1: BitBox firmware rejects EIP-712 string values containing bytes
- * >= 0x80 with ErrInvalidInput (code 101). Clients must transliterate
- * (e.g. NFKD + ASCII fallback) before signing.
+ * Quirk E1: firmware rejects EIP-712 / signMessage payloads containing
+ * non-ASCII bytes. Pure-ASCII payloads succeed; anything with byte >= 0x80
+ * surfaces ErrInvalidInput101.
  */
-export function scenarioRegressionUmlautEIP712() {
-  return async (_method: string, args: readonly unknown[]) => {
-    // signMessage args: [chainId, derivationPath, msgArrayLike]
-    // ethSignTypedMessage args: [chainId, keypath, typedData] — typedData
-    // is a structured object; we just check args recursively for non-ASCII.
-    if (containsNonAscii(args)) {
-      throw ErrInvalidInput101;
-    }
-    // Dummy successful signature payload (65 bytes split into r/s/v).
-    return {
-      r: Array.from(new Uint8Array(32)),
-      s: Array.from(new Uint8Array(32)),
-      v: [0],
-    };
+export function scenarioRegressionUmlautEIP712(): BridgeHandler {
+  return async (_method, args) => {
+    if (containsNonAscii(args)) throw ErrInvalidInput101;
+    return dummySignature();
   };
 }
 
 /**
- * scenarioPanicMidQuery — bridge throws synchronously on the n-th call. Used
- * to assert dfx-wallet's promise chain stays well-behaved when the WebView
- * bridge surfaces unexpected exceptions (quirk A1 — every gomobile export
- * needs panic recovery; in the WebView world, the bridge needs catch+reject).
+ * Quirk A1: bridge throws synchronously on the n-th call. Used to assert
+ * the consumer's promise chain stays well-behaved when the WebView bridge
+ * surfaces unexpected exceptions.
  */
-export function scenarioPanicMidQuery(n = 1, value: unknown = 'simulated panic'): (m: string, a: readonly unknown[]) => Promise<unknown> {
+export function scenarioPanicMidQuery(n = 1, value: unknown = 'simulated panic'): BridgeHandler {
   let seen = 0;
   return async () => {
     seen += 1;
-    if (seen === n) {
-      throw value;
+    if (seen === n) throw value;
+    return dummySignature();
+  };
+}
+
+/**
+ * Generic firmware-reject scenario: every call rejects with ErrInvalidInput101.
+ * Use for quirks E2..E10, B1..B7, C1..C4, M1, M3 where the wire-level
+ * shape is identical — the only thing that varies is which CLIENT input
+ * trips the rejection (which is what your test asserts).
+ */
+export function scenarioErrInvalidInput(): BridgeHandler {
+  return async () => {
+    throw ErrInvalidInput101;
+  };
+}
+
+/**
+ * Quirk A2: every call resolves only after `delayMs`. Use to prove the
+ * client's timeouts are context-driven (long user-confirm flows succeed).
+ */
+export function scenarioSlowResponse(delayMs = 15_000, payload: unknown = dummySignature()): BridgeHandler {
+  return () => new Promise((resolve) => setTimeout(() => resolve(payload), delayMs));
+}
+
+/**
+ * Quirk P1: pairing race. The first `hashRepeats` calls return a fake
+ * channel-hash payload; subsequent calls reject with "awaiting confirm"
+ * until signalConfirm() is invoked. Mirrors the production race where
+ * the channel hash is observable BEFORE the user has confirmed on-device.
+ */
+export function scenarioChannelHashEarly(hashRepeats = 2): {
+  handler: BridgeHandler;
+  signalConfirm: () => void;
+} {
+  let hashCount = 0;
+  let confirmed = false;
+  const handler: BridgeHandler = async () => {
+    if (hashCount < hashRepeats) {
+      hashCount++;
+      return { channelHash: [0xde, 0xad, 0xbe, 0xef] };
     }
-    return {
-      r: Array.from(new Uint8Array(32)),
-      s: Array.from(new Uint8Array(32)),
-      v: [0],
-    };
+    if (!confirmed) {
+      throw new Error('awaiting user confirmation');
+    }
+    return dummySignature();
+  };
+  return { handler, signalConfirm: () => { confirmed = true; } };
+}
+
+/**
+ * Quirk E10: firmware on older versions doesn't recognise a chain ID.
+ * Returns ErrInvalidInput101 only when the first call argument matches
+ * a "known unknown" chain (HYPE=999, SONIC=146 — these are placeholders;
+ * the firmware-side allowlist is more elaborate). ASCII payloads on
+ * known chains succeed.
+ */
+export function scenarioUnknownNetwork(unknownChainIds: number[] = [999, 146]): BridgeHandler {
+  const set = new Set(unknownChainIds);
+  return async (_method, args) => {
+    const chainId = args[0];
+    if (typeof chainId === 'number' && set.has(chainId)) {
+      throw ErrInvalidInput101;
+    }
+    return dummySignature();
   };
 }
 
@@ -89,9 +147,6 @@ function containsNonAscii(value: unknown): boolean {
     return false;
   }
   if (Array.isArray(value)) {
-    // Production code passes Uint8Array.from-style byte arrays as
-    // `Array.from(uint8array)`, i.e. plain Array<number>. Recognise that
-    // shape and treat the values as bytes.
     const looksLikeBytes =
       value.length > 0 &&
       value.every((v) => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 255);
