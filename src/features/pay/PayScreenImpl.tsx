@@ -60,7 +60,7 @@ export default function PayScreen() {
   };
   const balanceStyle = {
     left: width * CUTOUT_PCT.left,
-    top: height * (CUTOUT_PCT.top + CUTOUT_PCT.height) + 30,
+    top: height * (CUTOUT_PCT.top + CUTOUT_PCT.height) + 34,
     width: width * CUTOUT_PCT.width,
   };
   const currencySymbol = CURRENCY_SYMBOLS.get(selectedCurrency) ?? selectedCurrency;
@@ -136,11 +136,12 @@ export default function PayScreen() {
           testID="pay-available-balance"
           accessibilityLabel={`${t('pay.availableBalance')} ${currencySymbol} ${availableLabel}`}
         >
-          <Text style={styles.balanceLabel} numberOfLines={1}>
-            {t('pay.availableBalance')}
-          </Text>
-          <Text style={styles.balanceValue} numberOfLines={1}>
-            {currencySymbol} {availableLabel}
+          <Text style={styles.balanceLine} numberOfLines={1} adjustsFontSizeToFit>
+            <Text>{t('pay.availableBalance')}</Text>
+            <Text style={styles.balanceSeparator}>  ·  </Text>
+            <Text style={styles.balanceValue}>
+              {currencySymbol} {availableLabel}
+            </Text>
           </Text>
         </View>
       </ImageBackground>
@@ -190,30 +191,25 @@ const styles = StyleSheet.create({
   balanceBlock: {
     position: 'absolute',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
   },
-  balanceLabel: {
+  balanceLine: {
     fontSize: 27,
-    lineHeight: 33,
-    color: 'rgba(35,64,106,0.78)',
+    lineHeight: 34,
+    color: 'rgba(35,64,106,0.82)',
     fontWeight: '500',
-    letterSpacing: 0,
-    textAlign: 'center',
-    textShadowColor: 'rgba(255,255,255,0.72)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
-  },
-  balanceValue: {
-    marginTop: 4,
-    fontSize: 31,
-    lineHeight: 37,
-    fontWeight: '600',
-    color: DfxColors.text,
     letterSpacing: 0,
     textAlign: 'center',
     textShadowColor: 'rgba(255,255,255,0.82)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 7,
+  },
+  balanceSeparator: {
+    color: 'rgba(35,64,106,0.36)',
+  },
+  balanceValue: {
+    fontWeight: '600',
+    color: DfxColors.text,
   },
   permissionFallback: {
     alignItems: 'center',
