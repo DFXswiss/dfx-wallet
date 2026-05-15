@@ -106,25 +106,22 @@ export default function PayScreen() {
           </View>
 
           <View
-            style={[
-              styles.payContent,
-              {
-                paddingTop: Math.max(28, height * 0.075),
-              },
-            ]}
+            style={styles.balanceRail}
+            testID="pay-available-balance"
+            accessibilityLabel={`${t('pay.availableBalance')} ${currencySymbol} ${availableLabel}`}
           >
-            <View
-              style={styles.balanceBlock}
-              testID="pay-available-balance"
-              accessibilityLabel={`${t('pay.availableBalance')} ${currencySymbol} ${availableLabel}`}
-            >
-              <Text style={styles.balanceLabel}>{t('pay.availableBalance')}</Text>
-              <View style={styles.balanceRow}>
-                <Text style={styles.balanceCurrency}>{currencySymbol}</Text>
-                <Text style={styles.balanceValue}>{availableLabel}</Text>
-              </View>
+            <Text style={styles.balanceLabel} numberOfLines={1}>
+              {t('pay.availableBalance')}
+            </Text>
+            <View style={styles.balanceAmount} accessibilityElementsHidden>
+              <Text style={styles.balanceCurrency}>{currencySymbol}</Text>
+              <Text style={styles.balanceValue} numberOfLines={1}>
+                {availableLabel}
+              </Text>
             </View>
           </View>
+
+          <View style={{ flex: 1 }} />
         </SafeAreaView>
 
         <View style={[styles.cutout, cutoutStyle]}>
@@ -188,44 +185,44 @@ const styles = StyleSheet.create({
     height: 30,
     width: 110,
   },
-  payContent: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  balanceBlock: {
-    alignItems: 'center',
-    maxWidth: '92%',
+  balanceRail: {
+    minHeight: 54,
+    marginTop: 18,
+    marginHorizontal: 2,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(37,67,111,0.16)',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 18,
   },
   balanceLabel: {
     ...Typography.bodyMedium,
-    color: 'rgba(37,67,111,0.74)',
+    color: 'rgba(37,67,111,0.72)',
     fontWeight: '700',
     letterSpacing: 0,
+    flexShrink: 1,
   },
-  balanceRow: {
+  balanceAmount: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    justifyContent: 'center',
-    gap: 7,
-    marginTop: 2,
+    justifyContent: 'flex-end',
+    gap: 6,
+    maxWidth: '58%',
   },
   balanceCurrency: {
-    fontSize: 20,
-    lineHeight: 30,
+    fontSize: 16,
+    lineHeight: 25,
     color: DfxColors.primary,
     fontWeight: '700',
-    textShadowColor: 'rgba(255,255,255,0.82)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 5,
   },
   balanceValue: {
-    fontSize: 34,
-    lineHeight: 40,
+    fontSize: 26,
+    lineHeight: 31,
     fontWeight: '800',
     color: DfxColors.text,
-    textShadowColor: 'rgba(255,255,255,0.88)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
+    flexShrink: 1,
   },
   permissionFallback: {
     alignItems: 'center',
