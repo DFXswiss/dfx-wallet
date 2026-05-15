@@ -5,10 +5,18 @@ tags:
   - dashboard
   - mvp
 ---
-# Walks an MVP user from a fresh install to the Send screen. Same
-# SetupPinDisabled bridge as the rest of the MVP flows (Create ->
-# Dashboard without PIN or legal). The Send flow itself ships in the
-# MVP build.
+# Walks an MVP user from a fresh install through the Send flow:
+# Dashboard -> Send (asset list) -> tap BTC -> input step -> back to
+# asset list. We deliberately stop at the input step:
+#
+# - The Confirm step is tested in the Detox visual-regression suite
+#   (e2e/visual/onboarding.test.ts), where we have programmatic
+#   control over the keyboard. Maestro's `tapOn: "return"` works on
+#   the iOS keyboard but not the Android one, and `hideKeyboard`
+#   fails on iOS with "Couldn't hide the keyboard" on the custom
+#   send recipient input.
+# - The actual Confirm tap is intentionally never exercised — it
+#   calls handleSend() which broadcasts a real transaction.
 - launchApp:
     clearState: true
     clearKeychain: true
@@ -27,7 +35,7 @@ tags:
 - tapOn:
     id: "create-wallet-continue-button"
 
-# Dashboard -> Send
+# Dashboard -> Send (asset step)
 - assertVisible:
     id: "dashboard-screen"
 - tapOn:
@@ -35,3 +43,27 @@ tags:
 
 - assertVisible:
     id: "send-screen"
+- assertVisible:
+    id: "send-asset-list"
+- assertVisible:
+    id: "send-asset-btc"
+- assertVisible:
+    id: "send-asset-chf"
+
+# Asset -> Input step
+- tapOn:
+    id: "send-asset-btc"
+- assertVisible:
+    id: "send-input-step"
+- assertVisible:
+    id: "send-recipient-input"
+- assertVisible:
+    id: "send-amount-input"
+- assertVisible:
+    id: "send-continue-button"
+
+# Back to asset step via the selected-asset pill
+- tapOn:
+    id: "send-selected-asset-pill"
+- assertVisible:
+    id: "send-asset-list"

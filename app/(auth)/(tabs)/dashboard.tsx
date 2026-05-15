@@ -91,11 +91,15 @@ export default function DashboardScreen() {
               <Text style={styles.balanceSymbol}>{symbol}</Text>
               {balanceVisible ? (
                 <>
-                  <Text style={styles.balanceWhole}>{whole}</Text>
+                  <Text testID="dashboard-balance-value" style={styles.balanceWhole}>
+                    {whole}
+                  </Text>
                   <Text style={styles.balanceFraction}>.{fraction}</Text>
                 </>
               ) : (
-                <Text style={styles.balanceHidden}>••••</Text>
+                <Text testID="dashboard-balance-hidden" style={styles.balanceHidden}>
+                  ••••
+                </Text>
               )}
             </View>
           </View>

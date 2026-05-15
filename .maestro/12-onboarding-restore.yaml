@@ -28,7 +28,7 @@ env:
 - tapOn:
     id: "restore-wallet-seed-input"
 - inputText: ${TEST_MNEMONIC}
-- tapOn: "return"
+- hideKeyboard
 - scrollUntilVisible:
     element:
       id: "restore-wallet-continue-button"

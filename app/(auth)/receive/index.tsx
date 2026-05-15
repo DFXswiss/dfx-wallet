@@ -90,10 +90,11 @@ export default function ReceiveScreen() {
   const renderAssetStep = () => (
     <View style={styles.stepContent}>
       <Text style={styles.stepSubtitle}>{t('receive.selectAsset')}</Text>
-      <View style={styles.assetList}>
+      <View style={styles.assetList} testID="receive-asset-list">
         {receiveAssets.map((asset) => (
           <Pressable
             key={asset.symbol}
+            testID={`receive-asset-${asset.symbol.toLowerCase()}`}
             style={({ pressed }) => [
               styles.assetCard,
               selectedAsset?.symbol === asset.symbol && styles.assetCardActive,
@@ -138,16 +139,26 @@ export default function ReceiveScreen() {
   const renderQrStep = (asset: AssetOption) => {
     return (
       <View style={styles.stepContent}>
-        <Pressable style={styles.selectedAssetPill} onPress={() => setStep('asset')}>
+        <Pressable
+          testID="receive-selected-asset-pill"
+          style={styles.selectedAssetPill}
+          onPress={() => setStep('asset')}
+        >
           <Text style={styles.selectedAssetText}>{asset.symbol}</Text>
           <Icon name="chevron-right" size={14} color={DfxColors.textTertiary} />
         </Pressable>
 
         {asset.chains.length > 1 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
+          <ScrollView
+            testID="receive-chain-bar"
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chainBar}
+          >
             {asset.chains.map((c) => (
               <Pressable
                 key={c.chain}
+                testID={`receive-chain-${c.chain}`}
                 style={[styles.chainChip, selectedChain === c.chain && styles.chainChipActive]}
                 onPress={() => setSelectedChain(c.chain)}
               >
@@ -164,7 +175,7 @@ export default function ReceiveScreen() {
           </ScrollView>
         )}
 
-        <View style={styles.qrContainer}>
+        <View style={styles.qrContainer} testID="receive-qr">
           {address ? (
             <QrCode value={address} size={200} />
           ) : (
@@ -178,12 +189,13 @@ export default function ReceiveScreen() {
           <Text style={styles.addressLabel}>
             {t('receive.yourAddress', { chain: selectedChain })}
           </Text>
-          <Text style={styles.address} selectable numberOfLines={2}>
+          <Text testID="receive-address" style={styles.address} selectable numberOfLines={2}>
             {address || t('receive.walletNotInitialized')}
           </Text>
         </View>
 
         <PrimaryButton
+          testID="receive-copy-button"
           title={copied ? t('common.copied') : t('common.copy')}
           onPress={handleCopy}
           disabled={!address}
