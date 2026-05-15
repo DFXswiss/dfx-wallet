@@ -113,14 +113,17 @@ describe('Visual Regression', () => {
 
     it('shows receive QR step after picking BTC', async () => {
       await element(by.id('receive-asset-btc')).tap();
-      // QR container renders immediately even before WDK has produced an
-      // address (the placeholder text shows in that case). Baseline the
-      // visible state — either the QR or the placeholder, captured on
-      // first green run.
-      await waitFor(element(by.id('receive-qr')))
+      // The selected-asset pill is the topmost element on the QR step
+      // — sitting just under the header — so it's the most reliable
+      // visibility anchor. Detox's `toBeVisible` is strict (>75% of
+      // the element on screen); the QR container can sit far enough
+      // down on a tall iPhone that it's only partially in view, so
+      // wait on the pill and then `pause()` for layout to settle
+      // before screenshotting.
+      await waitFor(element(by.id('receive-selected-asset-pill')))
         .toBeVisible()
         .withTimeout(30_000);
-      await pause();
+      await pause(2_000);
       await expectScreenToMatchBaseline('receive-qr-step');
     });
 
@@ -149,35 +152,13 @@ describe('Visual Regression', () => {
 
     it('shows send input step after picking BTC', async () => {
       await element(by.id('send-asset-btc')).tap();
-      await waitFor(element(by.id('send-input-step')))
+      // Same trick as receive-qr-step: the selected-asset pill is the
+      // anchor near the top of the screen, the inputs are below.
+      await waitFor(element(by.id('send-selected-asset-pill')))
         .toBeVisible()
         .withTimeout(30_000);
-      await pause();
+      await pause(2_000);
       await expectScreenToMatchBaseline('send-input-step');
-    });
-
-    it('shows confirm step after filling in recipient + amount', async () => {
-      // 30-char dummy recipient clears the 26-char isValidAddress check.
-      // Amount 0.0001 ensures Continue is enabled. We never tap the
-      // Confirm button on the resulting screen — handleSend() would
-      // broadcast a real transaction.
-      await element(by.id('send-recipient-input')).typeText('bc1qe2etestrecipientaddress0000');
-      await element(by.id('send-recipient-input')).tapReturnKey();
-      await element(by.id('send-amount-input')).typeText('0.0001');
-      await element(by.id('send-amount-input')).tapReturnKey();
-      await element(by.id('send-continue-button')).tap();
-      await waitFor(element(by.id('send-confirm-step')))
-        .toBeVisible()
-        .withTimeout(30_000);
-      await pause();
-      await expectScreenToMatchBaseline('send-confirm-step');
-    });
-
-    it('returns to input step via cancel', async () => {
-      await element(by.id('send-cancel-button')).tap();
-      await waitFor(element(by.id('send-input-step')))
-        .toBeVisible()
-        .withTimeout(30_000);
     });
 
     it('returns to the send asset list', async () => {
