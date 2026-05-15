@@ -1,0 +1,75 @@
+appId: ${APP_ID}
+name: 24-send-chain-switch
+tags:
+  - smoke
+  - dashboard
+  - mvp
+---
+# Tests the chain selector on the Send screen. CHF/EUR/USD each have
+# four EVM chains (Ethereum, Arbitrum, Polygon, Base); BTC ships with
+# a single chain (spark / Lightning) and the chain bar is hidden in
+# that case. CHF is the canonical multi-chain MVP asset.
+- launchApp:
+    clearState: true
+    clearKeychain: true
+
+- assertVisible:
+    id: "welcome-screen"
+- tapOn:
+    id: "welcome-create-wallet-button"
+
+- assertVisible:
+    id: "create-wallet-screen"
+- tapOn:
+    id: "create-wallet-reveal-button"
+- assertVisible:
+    id: "create-wallet-seed-container"
+- tapOn:
+    id: "create-wallet-continue-button"
+
+# Dashboard -> Send -> CHF -> Input step with chain selector
+- assertVisible:
+    id: "dashboard-screen"
+- tapOn:
+    id: "dashboard-action-send"
+- assertVisible:
+    id: "send-screen"
+- tapOn:
+    id: "send-asset-chf"
+
+- assertVisible:
+    id: "send-input-step"
+- assertVisible:
+    id: "send-chain-bar"
+- assertVisible:
+    id: "send-chain-ethereum"
+- assertVisible:
+    id: "send-chain-arbitrum"
+- assertVisible:
+    id: "send-chain-polygon"
+- assertVisible:
+    id: "send-chain-base"
+
+# Switch between chains — assertion is on chip presence after the tap,
+# not the chain-dependent fee estimate (that races against WDK init).
+- tapOn:
+    id: "send-chain-arbitrum"
+- assertVisible:
+    id: "send-recipient-input"
+
+- tapOn:
+    id: "send-chain-polygon"
+- assertVisible:
+    id: "send-recipient-input"
+
+# BTC has a single chain (spark / Lightning) — chain bar is hidden
+- tapOn:
+    id: "send-selected-asset-pill"
+- assertVisible:
+    id: "send-asset-list"
+- tapOn:
+    id: "send-asset-btc"
+- assertVisible:
+    id: "send-input-step"
+- assertNotVisible:
+    id: "send-chain-bar"

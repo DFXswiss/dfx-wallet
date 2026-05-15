@@ -190,12 +190,13 @@ export default function SendScreen() {
         </Pressable>
 
         {asset.chains.length > 1 && (
-          <View style={styles.inputGroup}>
+          <View style={styles.inputGroup} testID="send-chain-bar">
             <Text style={styles.inputLabel}>{t('send.network')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
               {asset.chains.map((c) => (
                 <Pressable
                   key={c.chain}
+                  testID={`send-chain-${c.chain}`}
                   style={[styles.chainChip, selectedChain === c.chain && styles.chainChipActive]}
                   onPress={() => setSelectedChain(c.chain)}
                 >

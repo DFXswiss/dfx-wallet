@@ -1,0 +1,79 @@
+appId: ${APP_ID}
+name: 23-receive-chain-switch
+tags:
+  - smoke
+  - dashboard
+  - mvp
+---
+# Tests the chain selector on the Receive screen. BTC ships with two
+# layers in the MVP build (DFX_BACKEND off): SegWit (chain=bitcoin) and
+# EVM (chain=ethereum); the Taproot + Lightning layers only appear with
+# DFX_BACKEND on. Stablecoin assets (CHF/EUR/USD) all have a single
+# chain so the bar is hidden — BTC is the only MVP asset that
+# exercises the multi-chain path.
+- launchApp:
+    clearState: true
+    clearKeychain: true
+
+- assertVisible:
+    id: "welcome-screen"
+- tapOn:
+    id: "welcome-create-wallet-button"
+
+- assertVisible:
+    id: "create-wallet-screen"
+- tapOn:
+    id: "create-wallet-reveal-button"
+- assertVisible:
+    id: "create-wallet-seed-container"
+- tapOn:
+    id: "create-wallet-continue-button"
+
+# Dashboard -> Receive -> BTC -> QR step with chain selector
+- assertVisible:
+    id: "dashboard-screen"
+- tapOn:
+    id: "dashboard-action-receive"
+- assertVisible:
+    id: "receive-screen"
+- tapOn:
+    id: "receive-asset-btc"
+
+- assertVisible:
+    id: "receive-qr"
+- assertVisible:
+    id: "receive-chain-bar"
+- assertVisible:
+    id: "receive-chain-bitcoin"
+- assertVisible:
+    id: "receive-chain-ethereum"
+
+# Switch to the EVM layer — the chain chips themselves are stateful;
+# we just confirm the chips remain reachable after the tap rather
+# than assert a particular address string (WDK may still be deriving
+# it in CI).
+- tapOn:
+    id: "receive-chain-ethereum"
+- assertVisible:
+    id: "receive-chain-ethereum"
+- assertVisible:
+    id: "receive-address"
+
+- tapOn:
+    id: "receive-chain-bitcoin"
+- assertVisible:
+    id: "receive-chain-bitcoin"
+- assertVisible:
+    id: "receive-address"
+
+# Stablecoins (single-chain) - chain bar is hidden entirely
+- tapOn:
+    id: "receive-selected-asset-pill"
+- assertVisible:
+    id: "receive-asset-list"
+- tapOn:
+    id: "receive-asset-chf"
+- assertVisible:
+    id: "receive-qr"
+- assertNotVisible:
+    id: "receive-chain-bar"

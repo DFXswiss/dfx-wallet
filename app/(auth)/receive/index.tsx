@@ -149,7 +149,12 @@ export default function ReceiveScreen() {
         </Pressable>
 
         {asset.chains.length > 1 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
+          <ScrollView
+            testID="receive-chain-bar"
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chainBar}
+          >
             {asset.chains.map((c) => (
               <Pressable
                 key={c.chain}
