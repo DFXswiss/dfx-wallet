@@ -14,7 +14,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Icon } from '@/components';
-import { useTotalPortfolioFiat } from '@/hooks';
+import { useInternalWalletFiat } from '@/features/portfolio/useInternalWalletFiat';
 import { useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
@@ -38,7 +38,7 @@ export default function PayScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const { selectedCurrency } = useWalletStore();
-  const availableFiat = useTotalPortfolioFiat();
+  const availableFiat = useInternalWalletFiat();
 
   useEffect(() => {
     if (!permission?.granted) void requestPermission();
@@ -105,9 +105,16 @@ export default function PayScreen() {
             </Pressable>
           </View>
 
-          <View style={styles.payContent}>
+          <View
+            style={[
+              styles.payContent,
+              {
+                paddingTop: Math.max(28, height * 0.075),
+              },
+            ]}
+          >
             <View
-              style={styles.balancePanel}
+              style={styles.balanceBlock}
               testID="pay-available-balance"
               accessibilityLabel={`${t('pay.availableBalance')} ${currencySymbol} ${availableLabel}`}
             >
@@ -183,48 +190,42 @@ const styles = StyleSheet.create({
   },
   payContent: {
     flex: 1,
-    justifyContent: 'flex-end',
-    paddingBottom: 26,
-  },
-  balancePanel: {
-    alignSelf: 'center',
-    minWidth: 228,
-    maxWidth: '100%',
     alignItems: 'center',
-    paddingHorizontal: 22,
-    paddingVertical: 14,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.86)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.72)',
-    shadowColor: '#0B1426',
-    shadowOpacity: 0.1,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+  },
+  balanceBlock: {
+    alignItems: 'center',
+    maxWidth: '92%',
   },
   balanceLabel: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    fontWeight: '600',
+    ...Typography.bodyMedium,
+    color: 'rgba(37,67,111,0.74)',
+    fontWeight: '700',
+    letterSpacing: 0,
   },
   balanceRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'center',
-    gap: 6,
-    marginTop: 3,
+    gap: 7,
+    marginTop: 2,
   },
   balanceCurrency: {
-    ...Typography.bodyLarge,
+    fontSize: 20,
+    lineHeight: 30,
     color: DfxColors.primary,
-    fontWeight: '600',
+    fontWeight: '700',
+    textShadowColor: 'rgba(255,255,255,0.82)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 5,
   },
   balanceValue: {
-    fontSize: 30,
-    lineHeight: 36,
-    fontWeight: '700',
+    fontSize: 34,
+    lineHeight: 40,
+    fontWeight: '800',
     color: DfxColors.text,
+    textShadowColor: 'rgba(255,255,255,0.88)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
   permissionFallback: {
     alignItems: 'center',
