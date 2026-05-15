@@ -63,9 +63,6 @@ export default function PayScreen() {
     top: height * (CUTOUT_PCT.top + CUTOUT_PCT.height) + 34,
     width: width * CUTOUT_PCT.width,
   };
-  const scanTitleStyle = {
-    top: height * CUTOUT_PCT.top - 74,
-  };
   const currencySymbol = CURRENCY_SYMBOLS.get(selectedCurrency) ?? selectedCurrency;
   const availableLabel = Number.isFinite(availableFiat)
     ? (Math.round(availableFiat * 100) / 100).toLocaleString('de-CH', {
@@ -134,13 +131,6 @@ export default function PayScreen() {
           )}
         </View>
 
-        <View style={[styles.scanTitleBlock, scanTitleStyle]} pointerEvents="none">
-          <View style={styles.scanTitleBackdrop} />
-          <Text style={styles.scanTitle} numberOfLines={1}>
-            {t('pay.scanToPay')}
-          </Text>
-        </View>
-
         <View
           style={[styles.balanceBlock, balanceStyle]}
           testID="pay-available-balance"
@@ -198,53 +188,28 @@ const styles = StyleSheet.create({
     height: 30,
     width: 110,
   },
-  scanTitleBlock: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    alignItems: 'center',
-  },
-  scanTitleBackdrop: {
-    position: 'absolute',
-    top: -5,
-    width: 230,
-    height: 44,
-    backgroundColor: 'rgba(246,250,255,0.74)',
-    borderRadius: 22,
-  },
-  scanTitle: {
-    fontSize: 27,
-    lineHeight: 34,
-    color: 'rgba(18,44,78,0.92)',
-    fontWeight: '600',
-    letterSpacing: 0,
-    textAlign: 'center',
-    textShadowColor: 'rgba(255,255,255,0.92)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 5,
-  },
   balanceBlock: {
     position: 'absolute',
     alignItems: 'center',
     paddingHorizontal: 6,
   },
   balanceLine: {
-    fontSize: 27,
-    lineHeight: 34,
-    color: 'rgba(18,44,78,0.92)',
-    fontWeight: '600',
+    fontSize: 25,
+    lineHeight: 32,
+    color: 'rgba(52,83,125,0.84)',
+    fontWeight: '500',
     letterSpacing: 0,
     textAlign: 'center',
-    textShadowColor: 'rgba(255,255,255,0.92)',
+    textShadowColor: 'rgba(255,255,255,0.78)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 5,
   },
   balanceSeparator: {
-    color: 'rgba(18,44,78,0.42)',
+    color: 'rgba(52,83,125,0.34)',
   },
   balanceValue: {
-    fontWeight: '700',
-    color: '#071A2D',
+    fontWeight: '600',
+    color: 'rgba(11,30,52,0.9)',
   },
   permissionFallback: {
     alignItems: 'center',
