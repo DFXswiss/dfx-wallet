@@ -129,21 +129,30 @@ describe('Visual Regression', () => {
 
     it('returns to the receive asset list', async () => {
       await element(by.id('receive-selected-asset-pill')).tap();
-      await waitFor(element(by.id('receive-asset-list')))
+      // After the pill tap the screen re-mounts the asset-step body;
+      // wait on the top BTC card (visible, anchored near the top of
+      // the scroll view) rather than the wrapper View, which can sit
+      // outside Detox's strict viewport heuristic.
+      await waitFor(element(by.id('receive-asset-btc')))
         .toBeVisible()
         .withTimeout(30_000);
+      await pause();
     });
 
     it('returns to the dashboard from receive', async () => {
       await element(by.id('receive-screen-back')).tap();
-      await waitFor(element(by.id('dashboard-screen')))
+      await waitFor(element(by.id('dashboard-balance-toggle')))
         .toBeVisible()
         .withTimeout(30_000);
+      await pause();
     });
 
     it('shows send screen (asset list)', async () => {
       await element(by.id('dashboard-action-send')).tap();
-      await waitFor(element(by.id('send-screen')))
+      // Asset cards are the top content on the Send screen — they're
+      // a more reliable visibility anchor than the header View, which
+      // sits behind the safe-area inset on tall iPhones.
+      await waitFor(element(by.id('send-asset-btc')))
         .toBeVisible()
         .withTimeout(30_000);
       await pause();
@@ -163,7 +172,7 @@ describe('Visual Regression', () => {
 
     it('returns to the send asset list', async () => {
       await element(by.id('send-selected-asset-pill')).tap();
-      await waitFor(element(by.id('send-asset-list')))
+      await waitFor(element(by.id('send-asset-btc')))
         .toBeVisible()
         .withTimeout(30_000);
     });
