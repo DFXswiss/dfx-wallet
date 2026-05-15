@@ -6,13 +6,17 @@ tags:
   - mvp
 ---
 # Walks an MVP user from a fresh install through the Send flow:
-# Dashboard -> Send (asset list) -> tap BTC -> input step -> fill in a
-# dummy recipient + amount -> tap Continue -> Confirm step -> Cancel
-# back to input -> back to asset list.
+# Dashboard -> Send (asset list) -> tap BTC -> input step -> back to
+# asset list. We deliberately stop at the input step:
 #
-# We deliberately do NOT tap the Confirm button on the confirm step:
-# that calls `handleSend()` which broadcasts a transaction. The Cancel
-# path exercises the round-trip without touching the WDK signer.
+# - The Confirm step is tested in the Detox visual-regression suite
+#   (e2e/visual/onboarding.test.ts), where we have programmatic
+#   control over the keyboard. Maestro's `tapOn: "return"` works on
+#   the iOS keyboard but not the Android one, and `hideKeyboard`
+#   fails on iOS with "Couldn't hide the keyboard" on the custom
+#   send recipient input.
+# - The actual Confirm tap is intentionally never exercised — it
+#   calls handleSend() which broadcasts a real transaction.
 - launchApp:
     clearState: true
     clearKeychain: true
@@ -57,35 +61,6 @@ tags:
     id: "send-amount-input"
 - assertVisible:
     id: "send-continue-button"
-
-# Fill in a long dummy recipient (>=26 chars to clear isValidAddress)
-# and a non-zero amount, then continue to the confirm screen.
-# `hideKeyboard` instead of `tapOn: "return"` — the Android soft
-# keyboard doesn't expose a "return" text element.
-- tapOn:
-    id: "send-recipient-input"
-- inputText: "bc1qe2etestrecipientaddress0000"
-- hideKeyboard
-- tapOn:
-    id: "send-amount-input"
-- inputText: "0.0001"
-- hideKeyboard
-- tapOn:
-    id: "send-continue-button"
-
-# Confirm step renders — never tap send-confirm-button (it broadcasts).
-- assertVisible:
-    id: "send-confirm-step"
-- assertVisible:
-    id: "send-confirm-button"
-- assertVisible:
-    id: "send-cancel-button"
-
-# Cancel returns to the input step
-- tapOn:
-    id: "send-cancel-button"
-- assertVisible:
-    id: "send-input-step"
 
 # Back to asset step via the selected-asset pill
 - tapOn:
