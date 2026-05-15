@@ -5,10 +5,12 @@ tags:
   - dashboard
   - mvp
 ---
-# Walks an MVP user from a fresh install to the Send screen. Same
-# SetupPinDisabled bridge as the rest of the MVP flows (Create ->
-# Dashboard without PIN or legal). The Send flow itself ships in the
-# MVP build.
+# Walks an MVP user from a fresh install through the Send flow:
+# Dashboard -> Send (asset list) -> tap BTC -> input step (recipient
+# + amount + continue) -> back to assets. We deliberately do NOT tap
+# Continue — that would require a valid recipient + a non-zero amount,
+# both side-effects the smoke test should not produce on testnet, and
+# Continue lives behind a `disabled` prop that ignores the tap anyway.
 - launchApp:
     clearState: true
     clearKeychain: true
@@ -27,7 +29,7 @@ tags:
 - tapOn:
     id: "create-wallet-continue-button"
 
-# Dashboard -> Send
+# Dashboard -> Send (asset step)
 - assertVisible:
     id: "dashboard-screen"
 - tapOn:
@@ -35,3 +37,27 @@ tags:
 
 - assertVisible:
     id: "send-screen"
+- assertVisible:
+    id: "send-asset-list"
+- assertVisible:
+    id: "send-asset-btc"
+- assertVisible:
+    id: "send-asset-chf"
+
+# Asset -> Input step
+- tapOn:
+    id: "send-asset-btc"
+- assertVisible:
+    id: "send-input-step"
+- assertVisible:
+    id: "send-recipient-input"
+- assertVisible:
+    id: "send-amount-input"
+- assertVisible:
+    id: "send-continue-button"
+
+# Back to asset step via the selected-asset pill
+- tapOn:
+    id: "send-selected-asset-pill"
+- assertVisible:
+    id: "send-asset-list"

@@ -85,13 +85,33 @@ describe('Visual Regression', () => {
   // existing "PIN unlock" block below already relies on the same
   // describe-to-describe state carry-over.
   describe('Dashboard navigation (MVP)', () => {
-    it('shows receive screen', async () => {
+    it('shows receive screen (asset list)', async () => {
       await element(by.id('dashboard-action-receive')).tap();
       await waitFor(element(by.id('receive-screen')))
         .toBeVisible()
         .withTimeout(30_000);
       await pause();
       await expectScreenToMatchBaseline('receive');
+    });
+
+    it('shows receive QR step after picking BTC', async () => {
+      await element(by.id('receive-asset-btc')).tap();
+      // QR container renders immediately even before WDK has produced an
+      // address (the placeholder text shows in that case). Baseline the
+      // visible state — either the QR or the placeholder, captured on
+      // first green run.
+      await waitFor(element(by.id('receive-qr')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause();
+      await expectScreenToMatchBaseline('receive-qr-step');
+    });
+
+    it('returns to the receive asset list', async () => {
+      await element(by.id('receive-selected-asset-pill')).tap();
+      await waitFor(element(by.id('receive-asset-list')))
+        .toBeVisible()
+        .withTimeout(30_000);
     });
 
     it('returns to the dashboard from receive', async () => {
@@ -101,13 +121,29 @@ describe('Visual Regression', () => {
         .withTimeout(30_000);
     });
 
-    it('shows send screen', async () => {
+    it('shows send screen (asset list)', async () => {
       await element(by.id('dashboard-action-send')).tap();
       await waitFor(element(by.id('send-screen')))
         .toBeVisible()
         .withTimeout(30_000);
       await pause();
       await expectScreenToMatchBaseline('send');
+    });
+
+    it('shows send input step after picking BTC', async () => {
+      await element(by.id('send-asset-btc')).tap();
+      await waitFor(element(by.id('send-input-step')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause();
+      await expectScreenToMatchBaseline('send-input-step');
+    });
+
+    it('returns to the send asset list', async () => {
+      await element(by.id('send-selected-asset-pill')).tap();
+      await waitFor(element(by.id('send-asset-list')))
+        .toBeVisible()
+        .withTimeout(30_000);
     });
   });
 

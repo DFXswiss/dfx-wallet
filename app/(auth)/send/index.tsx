@@ -131,10 +131,11 @@ export default function SendScreen() {
   const renderAssetStep = () => (
     <View style={styles.stepContent}>
       <Text style={styles.stepSubtitle}>{t('send.sendToCrypto')}</Text>
-      <View style={styles.assetList}>
+      <View style={styles.assetList} testID="send-asset-list">
         {SEND_ASSETS.map((asset) => (
           <Pressable
             key={asset.symbol}
+            testID={`send-asset-${asset.symbol.toLowerCase()}`}
             style={({ pressed }) => [
               styles.assetCard,
               selectedAsset?.symbol === asset.symbol && styles.assetCardActive,
@@ -178,8 +179,12 @@ export default function SendScreen() {
 
   const renderInputStep = (asset: AssetOption) => {
     return (
-      <View style={styles.stepContent}>
-        <Pressable style={styles.selectedAssetPill} onPress={() => setStep('asset')}>
+      <View style={styles.stepContent} testID="send-input-step">
+        <Pressable
+          testID="send-selected-asset-pill"
+          style={styles.selectedAssetPill}
+          onPress={() => setStep('asset')}
+        >
           <Text style={styles.selectedAssetText}>{asset.symbol}</Text>
           <Icon name="chevron-right" size={14} color={DfxColors.textTertiary} />
         </Pressable>
@@ -212,6 +217,7 @@ export default function SendScreen() {
           <Text style={styles.inputLabel}>{t('send.recipient')}</Text>
           <View style={styles.recipientRow}>
             <TextInput
+              testID="send-recipient-input"
               style={[styles.input, styles.recipientInput]}
               value={recipient}
               onChangeText={setRecipient}
@@ -220,7 +226,11 @@ export default function SendScreen() {
               autoCapitalize="none"
               autoCorrect={false}
             />
-            <Pressable style={styles.scanButton} onPress={() => setScannerVisible(true)}>
+            <Pressable
+              testID="send-recipient-scan-button"
+              style={styles.scanButton}
+              onPress={() => setScannerVisible(true)}
+            >
               <Text style={styles.scanText}>{t('send.scan')}</Text>
             </Pressable>
           </View>
@@ -231,6 +241,7 @@ export default function SendScreen() {
             {t('send.amount')} ({symbol})
           </Text>
           <TextInput
+            testID="send-amount-input"
             style={styles.input}
             value={amount}
             onChangeText={setAmount}
@@ -245,6 +256,7 @@ export default function SendScreen() {
         <View style={styles.spacer} />
 
         <PrimaryButton
+          testID="send-continue-button"
           title={t('common.continue')}
           onPress={goToConfirm}
           disabled={!sendAsset || !isValidAddress || !amount || parseFloat(amount) <= 0}
