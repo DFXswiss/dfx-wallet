@@ -1,0 +1,95 @@
+name: bitbox-audit
+
+# Runs the BitBox firmware-quirk audit (https://github.com/joshuakrueger-dfx/bitbox-testkit)
+# against every PR that touches BitBox-relevant code. Findings (if any) are
+# posted as a single PR comment; clean runs leave no noise.
+
+on:
+  pull_request:
+    paths:
+      - 'src/features/hardware-wallet/**'
+      - 'modules/bitbox-hid/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/bitbox-audit.yml'
+
+permissions:
+  contents: read
+  pull-requests: write   # to post the findings comment
+
+concurrency:
+  group: bitbox-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: scan for known firmware quirks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: false   # no go.mod in this repo, nothing to cache
+
+      - name: Install bitbox-audit CLIs
+        # Pinned to a specific testkit version for reproducibility. Bump
+        # intentionally; the audit semantics may shift between releases.
+        env:
+          TESTKIT_REF: 'main'
+        run: |
+          go install "github.com/joshuakrueger-dfx/bitbox-testkit/go/cmd/bitbox-audit@${TESTKIT_REF}"
+          go install "github.com/joshuakrueger-dfx/bitbox-testkit/go/cmd/bitbox-audit-explain@${TESTKIT_REF}"
+
+      - name: Run audit
+        id: audit
+        run: |
+          set -o pipefail
+          bitbox-audit --repo . --format json --output findings.json || rc=$?
+          # bitbox-audit exits 0 (clean) or 2 (findings); both are valid for us.
+          # Anything else is an actual failure.
+          rc=${rc:-0}
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
+            echo "::error::bitbox-audit failed with exit code $rc"
+            exit "$rc"
+          fi
+          # Surface the summary in the job log
+          jq '.summary' findings.json
+          # Make findings.json available to later steps
+          echo "had_findings=$([ "$rc" -eq 2 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Render Markdown report
+        if: steps.audit.outputs.had_findings == 'true'
+        run: |
+          bitbox-audit --repo . --format markdown --output report.md || true
+          # First line of report is the header — keep it but trim the repo path
+          # to look nicer in the PR comment.
+          sed -i 's|/home/runner/work/[^"]*|.|' report.md
+
+      - name: Comment on PR
+        if: steps.audit.outputs.had_findings == 'true'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: bitbox-audit
+          path: report.md
+
+      - name: Remove stale comment when clean
+        if: steps.audit.outputs.had_findings == 'false'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: bitbox-audit
+          delete: true
+
+      - name: Upload findings artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitbox-audit-findings
+          path: findings.json
+          if-no-files-found: ignore
+          retention-days: 14
