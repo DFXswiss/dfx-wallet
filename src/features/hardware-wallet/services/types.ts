@@ -15,7 +15,12 @@ export type HardwareWalletStatus =
   | 'detected'
   | 'connecting'
   | 'verifying'
+  | 'pairing'
   | 'connected';
+
+export type HardwareWalletPairing = {
+  pairingCode: string | null;
+};
 
 export interface HardwareWalletProvider {
   /** Scan for devices via USB or BLE */

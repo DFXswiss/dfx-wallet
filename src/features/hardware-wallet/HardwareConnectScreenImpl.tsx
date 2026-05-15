@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, DfxBackgroundScreen, PrimaryButton } from '@/components';
 import { BitboxProvider, BitboxWasmWebView } from './services';
-import type { HardwareWalletDevice, HardwareWalletStatus } from './services';
+import type { HardwareWalletDevice } from './services';
 import { useHardwareWalletStore } from './store';
 import { DfxColors, Typography } from '@/theme';
 
@@ -13,44 +13,98 @@ const provider = new BitboxProvider();
 export default function HardwareConnectScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { status, device, setStatus, setDevice, setAddress, setError, reset } =
-    useHardwareWalletStore();
+  const {
+    status,
+    device,
+    pairingCode,
+    error,
+    setStatus,
+    setDevice,
+    setAddress,
+    setPairingCode,
+    setError,
+    reset,
+  } = useHardwareWalletStore();
   const [devices, setDevices] = useState<HardwareWalletDevice[]>([]);
+  const [wasmReady, setWasmReady] = useState(false);
 
   const isAndroid = Platform.OS === 'android';
 
-  const handleScan = async () => {
-    setStatus('scanning');
-    try {
-      const found = await provider.scanDevices();
-      setDevices(found);
-      setStatus(found.length > 0 ? 'detected' : 'disconnected');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Scan failed');
-    }
-  };
+  const handleConnect = useCallback(
+    async (dev: HardwareWalletDevice) => {
+      setDevice(dev);
+      setPairingCode(null);
+      setStatus('connecting');
+      try {
+        const pairing = await provider.beginPairing(dev);
+        setPairingCode(pairing.pairingCode);
+        setStatus('verifying');
+      } catch (err) {
+        void provider.disconnect();
+        setError(err instanceof Error ? err.message : 'Connection failed');
+      }
+    },
+    [setDevice, setError, setPairingCode, setStatus],
+  );
 
-  const handleConnect = async (dev: HardwareWalletDevice) => {
-    setDevice(dev);
-    setStatus('connecting');
+  const handleScan = useCallback(
+    async (autoConnect = false) => {
+      setStatus('scanning');
+      try {
+        const found = await provider.scanDevices();
+        setDevices(found);
+        if (autoConnect && found[0]) {
+          await handleConnect(found[0]);
+        } else {
+          setStatus(found.length > 0 ? 'detected' : 'disconnected');
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Scan failed');
+      }
+    },
+    [handleConnect, setError, setStatus],
+  );
+
+  const handleConfirmPairing = async () => {
+    setStatus('pairing');
     try {
-      await provider.connect(dev);
-      setStatus('verifying');
+      await provider.confirmPairing();
       const address = await provider.getEthAddress();
       setAddress(address);
       setStatus('connected');
     } catch (err) {
+      void provider.disconnect();
       setError(err instanceof Error ? err.message : 'Connection failed');
     }
   };
-
-  const [, setWasmReady] = useState(false);
 
   useEffect(() => {
     return () => {
       void provider.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    if (!wasmReady) return;
+
+    let cancelled = false;
+    let scanning = false;
+
+    const scan = async () => {
+      if (cancelled || scanning || provider.isConnected()) return;
+      scanning = true;
+      await handleScan(true);
+      scanning = false;
+    };
+
+    void scan();
+    const timer = setInterval(scan, 500);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [handleScan, wasmReady]);
 
   return (
     <DfxBackgroundScreen contentStyle={styles.screen} testID="hardware-connect-screen">
@@ -118,6 +172,22 @@ export default function HardwareConnectScreen() {
 
           {status === 'verifying' && <Text style={styles.hint}>{t('hardware.pairingHint')}</Text>}
 
+          {status === 'verifying' && (
+            <View style={styles.pairingPanel}>
+              <Text style={styles.pairingLabel}>{t('hardware.pairingCodeLabel')}</Text>
+              <Text style={styles.pairingCode}>{pairingCode ?? t('hardware.pairingKnown')}</Text>
+            </View>
+          )}
+
+          {status === 'pairing' && (
+            <View style={styles.statusContainer}>
+              <ActivityIndicator color={DfxColors.primary} />
+              <Text style={styles.statusText}>{t('hardware.confirmingPairing')}</Text>
+            </View>
+          )}
+
+          {error && <Text style={styles.errorText}>{error}</Text>}
+
           {status === 'connected' && (
             <View style={styles.successContainer}>
               <Text style={styles.successIcon}>{'\u2705'}</Text>
@@ -130,12 +200,15 @@ export default function HardwareConnectScreen() {
 
         <View style={styles.actions}>
           {status === 'disconnected' && (
-            <PrimaryButton title={t('hardware.scanDevices')} onPress={handleScan} />
+            <PrimaryButton title={t('hardware.scanDevices')} onPress={() => void handleScan()} />
           )}
           {status === 'connected' && (
             <PrimaryButton title={t('common.done')} onPress={() => router.back()} />
           )}
-          {(status === 'connecting' || status === 'verifying') && (
+          {status === 'verifying' && (
+            <PrimaryButton title={t('hardware.confirmPairing')} onPress={handleConfirmPairing} />
+          )}
+          {(status === 'connecting' || status === 'verifying' || status === 'pairing') && (
             <PrimaryButton
               title={t('common.cancel')}
               variant="outlined"
@@ -260,6 +333,34 @@ const styles = StyleSheet.create({
   hint: {
     ...Typography.bodyMedium,
     color: DfxColors.warning,
+    textAlign: 'center',
+    paddingHorizontal: 32,
+  },
+  pairingPanel: {
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+    paddingHorizontal: 32,
+  },
+  pairingLabel: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textSecondary,
+    textAlign: 'center',
+  },
+  pairingCode: {
+    ...Typography.headlineSmall,
+    color: DfxColors.text,
+    textAlign: 'center',
+    backgroundColor: 'rgba(47,124,247,0.10)',
+    borderRadius: 12,
+    overflow: 'hidden',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    minWidth: 180,
+  },
+  errorText: {
+    ...Typography.bodyMedium,
+    color: DfxColors.error,
     textAlign: 'center',
     paddingHorizontal: 32,
   },

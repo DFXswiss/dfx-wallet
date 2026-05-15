@@ -1,5 +1,10 @@
 import { Platform } from 'react-native';
-import type { BitboxTransport, HardwareWalletDevice, HardwareWalletProvider } from './types';
+import type {
+  BitboxTransport,
+  HardwareWalletDevice,
+  HardwareWalletPairing,
+  HardwareWalletProvider,
+} from './types';
 import { scanUsbDevices, UsbTransport } from './transport-usb';
 import { BleTransport, scanBleDevices } from './transport-ble';
 import { WasmBridge } from './wasm-bridge';
@@ -18,6 +23,7 @@ import { ethSignatureToHex } from './bitbox-protocol';
 export class BitboxProvider implements HardwareWalletProvider {
   private transport: BitboxTransport | null = null;
   private connectedDevice: HardwareWalletDevice | null = null;
+  private pairingDevice: HardwareWalletDevice | null = null;
   private bridge: WasmBridge;
 
   constructor() {
@@ -39,6 +45,11 @@ export class BitboxProvider implements HardwareWalletProvider {
   }
 
   async connect(device: HardwareWalletDevice): Promise<void> {
+    await this.beginPairing(device);
+    await this.confirmPairing();
+  }
+
+  async beginPairing(device: HardwareWalletDevice): Promise<HardwareWalletPairing> {
     if (device.transport === 'usb' && Platform.OS !== 'android') {
       throw new Error('USB connection is only available on Android');
     }
@@ -67,10 +78,19 @@ export class BitboxProvider implements HardwareWalletProvider {
       }
     };
 
-    // 3. Initiate pairing via WASM
-    await this.bridge.call('pair');
+    // 3. Initiate pairing via WASM. The returned code is displayed to the
+    // user and must be confirmed against the BitBox display.
+    const pairing = await this.bridge.call<HardwareWalletPairing>('beginPairing');
 
-    this.connectedDevice = device;
+    this.pairingDevice = device;
+    return pairing;
+  }
+
+  async confirmPairing(): Promise<void> {
+    this.ensureTransportOpen();
+    await this.bridge.call('confirmPairing');
+    this.connectedDevice = this.pairingDevice;
+    this.pairingDevice = null;
   }
 
   async disconnect(): Promise<void> {
@@ -84,6 +104,7 @@ export class BitboxProvider implements HardwareWalletProvider {
       this.transport = null;
     }
     this.connectedDevice = null;
+    this.pairingDevice = null;
   }
 
   async getEthAddress(derivationPath?: string): Promise<string> {
@@ -150,6 +171,13 @@ export class BitboxProvider implements HardwareWalletProvider {
   }
 
   private ensureConnected(): void {
+    this.ensureTransportOpen();
+    if (!this.connectedDevice) {
+      throw new Error('BitBox02 not paired. Call confirmPairing() first.');
+    }
+  }
+
+  private ensureTransportOpen(): void {
     if (!this.transport) {
       throw new Error('BitBox02 not connected. Call connect() first.');
     }

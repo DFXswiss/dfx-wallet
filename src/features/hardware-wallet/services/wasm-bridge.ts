@@ -34,6 +34,7 @@
 type PendingCall = {
   resolve: (result: unknown) => void;
   reject: (error: Error) => void;
+  timeout: ReturnType<typeof setTimeout>;
 };
 
 export class WasmBridge {
@@ -60,20 +61,20 @@ export class WasmBridge {
     const id = ++this.callId;
 
     return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, {
-        resolve: resolve as (result: unknown) => void,
-        reject,
-      });
-
-      this.webViewRef!.postMessage(JSON.stringify({ id, method, params }));
-
-      // Timeout after 30 seconds
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         if (this.pending.has(id)) {
           this.pending.delete(id);
           reject(new Error(`WASM bridge call timeout: ${method}`));
         }
       }, 30000);
+
+      this.pending.set(id, {
+        resolve: resolve as (result: unknown) => void,
+        reject,
+        timeout,
+      });
+
+      this.webViewRef!.postMessage(JSON.stringify({ id, method, params }));
     });
   }
 
@@ -101,6 +102,7 @@ export class WasmBridge {
       const pending = this.pending.get(msg.id);
       if (pending) {
         this.pending.delete(msg.id);
+        clearTimeout(pending.timeout);
         if (msg.error) {
           pending.reject(new Error(msg.error));
         } else {
@@ -132,7 +134,10 @@ export class WasmBridge {
 
   /** Clean up */
   destroy(): void {
-    this.pending.forEach((p) => p.reject(new Error('Bridge destroyed')));
+    this.pending.forEach((p) => {
+      clearTimeout(p.timeout);
+      p.reject(new Error('Bridge destroyed'));
+    });
     this.pending.clear();
     this.webViewRef = null;
     this.onTransportWrite = null;

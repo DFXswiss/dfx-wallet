@@ -27,6 +27,7 @@ export const BITBOX_WASM_HTML = `
   "use strict";
 
   var pairedBitBox = null;
+  var pairingBitBox = null;
   var pendingRead = null;
 
   // --- Transport: bridges WebView ↔ React Native ↔ USB/BLE ---
@@ -84,8 +85,13 @@ export const BITBOX_WASM_HTML = `
     var params = msg.params || [];
 
     // Special methods handled before pairing
-    if (method === "pair") {
-      handlePair(id, params);
+    if (method === "pair" || method === "beginPairing") {
+      handleBeginPairing(id, params);
+      return;
+    }
+
+    if (method === "confirmPairing") {
+      handleConfirmPairing(id);
       return;
     }
 
@@ -120,18 +126,20 @@ export const BITBOX_WASM_HTML = `
     }
   }
 
-  function handlePair(id, params) {
+  function handleBeginPairing(id, params) {
     if (typeof window.bitboxAPI === "undefined") {
       sendError(id, "WASM module not loaded");
       return;
     }
 
     try {
-      window.bitboxAPI.PairingBitBox(transport).then(function(pairingBB) {
-        return pairingBB.waitConfirm();
-      }).then(function(paired) {
-        pairedBitBox = paired;
-        sendResult(id, true);
+      getPairingBitBox().then(function(pairingBB) {
+        pairingBitBox = pairingBB;
+        var pairingCode = null;
+        if (pairingBB && typeof pairingBB.getPairingCode === "function") {
+          pairingCode = pairingBB.getPairingCode() || null;
+        }
+        sendResult(id, { pairingCode: pairingCode });
       }).catch(function(err) {
         sendError(id, "Pairing failed: " + (err.message || String(err)));
       });
@@ -140,11 +148,45 @@ export const BITBOX_WASM_HTML = `
     }
   }
 
+  function getPairingBitBox() {
+    if (typeof window.bitboxAPI.bitbox02ConnectAuto === "function") {
+      return window.bitboxAPI.bitbox02ConnectAuto(function() {}).then(function(bitbox) {
+        return bitbox.unlockAndPair();
+      });
+    }
+
+    if (typeof window.bitboxAPI.PairingBitBox === "function") {
+      return window.bitboxAPI.PairingBitBox(transport);
+    }
+
+    return Promise.reject(new Error("No BitBox connect function available"));
+  }
+
+  function handleConfirmPairing(id) {
+    if (!pairingBitBox) {
+      sendError(id, "No pairing session active");
+      return;
+    }
+
+    try {
+      pairingBitBox.waitConfirm().then(function(paired) {
+        pairedBitBox = paired;
+        pairingBitBox = null;
+        sendResult(id, true);
+      }).catch(function(err) {
+        sendError(id, "Pairing confirmation failed: " + (err.message || String(err)));
+      });
+    } catch (err) {
+      sendError(id, "Pairing confirmation failed: " + (err.message || String(err)));
+    }
+  }
+
   function handleClose(id) {
     if (pairedBitBox && typeof pairedBitBox.close === "function") {
       pairedBitBox.close();
     }
     pairedBitBox = null;
+    pairingBitBox = null;
     sendResult(id, true);
   }
 
