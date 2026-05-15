@@ -1,14 +1,18 @@
 name: bitbox-audit
 
 # Runs the BitBox firmware-quirk audit (https://github.com/joshuakrueger-dfx/bitbox-testkit)
-# against every PR that touches BitBox-relevant code. Findings (if any) are
-# posted as a single PR comment; clean runs leave no noise.
+# against every PR that touches BitBox-relevant code. The audit combines
+# static source detection with dynamic test coverage — Jest runs in --json
+# mode and the bitbox-audit CLI cross-references quirk IDs mentioned in
+# test names. Always-comment so the PR shows which quirks are covered,
+# untested, or actively failing.
 
 on:
   pull_request:
     paths:
       - 'src/features/hardware-wallet/**'
       - 'modules/bitbox-hid/**'
+      - 'test/services/bitbox*.test.ts'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/bitbox-audit.yml'
@@ -25,7 +29,7 @@ jobs:
   audit:
     name: scan for known firmware quirks
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - name: Checkout PR head
@@ -35,61 +39,79 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
-          cache: false   # no go.mod in this repo, nothing to cache
+          cache: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Node dependencies
+        run: npm ci --no-audit --no-fund
 
       - name: Install bitbox-audit CLIs
-        # Pinned to a specific testkit version for reproducibility. Bump
-        # intentionally; the audit semantics may shift between releases.
         env:
           TESTKIT_REF: 'main'
         run: |
           go install "github.com/joshuakrueger-dfx/bitbox-testkit/go/cmd/bitbox-audit@${TESTKIT_REF}"
           go install "github.com/joshuakrueger-dfx/bitbox-testkit/go/cmd/bitbox-audit-explain@${TESTKIT_REF}"
 
+      - name: Run BitBox-specific Jest tests
+        # Run only the BitBox tests in --json mode. Continue past failures
+        # so the audit can still report them as failing-coverage rather
+        # than swallowing the whole job.
+        run: |
+          npx jest --selectProjects unit \
+            --json \
+            --outputFile=jest-bitbox-results.json \
+            --testPathPattern='test/services/bitbox.*\\.test\\.ts' \
+            || true
+
       - name: Run audit
         id: audit
         run: |
           set -o pipefail
-          bitbox-audit --repo . --format json --output findings.json || rc=$?
-          # bitbox-audit exits 0 (clean) or 2 (findings); both are valid for us.
-          # Anything else is an actual failure.
-          rc=${rc:-0}
+          rc=0
+          bitbox-audit \
+            --repo . \
+            --test-results jest-bitbox-results.json \
+            --format json \
+            --output findings.json \
+            || rc=$?
           if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
             echo "::error::bitbox-audit failed with exit code $rc"
             exit "$rc"
           fi
-          # Surface the summary in the job log
-          jq '.summary' findings.json
-          # Make findings.json available to later steps
+          jq '.summary, .coverage' findings.json
           echo "had_findings=$([ "$rc" -eq 2 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
       - name: Render Markdown report
-        if: steps.audit.outputs.had_findings == 'true'
         run: |
-          bitbox-audit --repo . --format markdown --output report.md || true
-          # First line of report is the header — keep it but trim the repo path
-          # to look nicer in the PR comment.
-          sed -i 's|/home/runner/work/[^"]*|.|' report.md
+          bitbox-audit \
+            --repo . \
+            --test-results jest-bitbox-results.json \
+            --format markdown \
+            --output report.md \
+            || true
 
       - name: Comment on PR
-        if: steps.audit.outputs.had_findings == 'true'
+        # Always post the coverage table — the user wants to see the
+        # bucket breakdown even on clean PRs so untested quirks don't
+        # silently accumulate.
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: bitbox-audit
           path: report.md
 
-      - name: Remove stale comment when clean
-        if: steps.audit.outputs.had_findings == 'false'
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: bitbox-audit
-          delete: true
-
-      - name: Upload findings artifact
+      - name: Upload audit artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: bitbox-audit-findings
-          path: findings.json
+          name: bitbox-audit
+          path: |
+            findings.json
+            jest-bitbox-results.json
+            report.md
           if-no-files-found: ignore
           retention-days: 14
