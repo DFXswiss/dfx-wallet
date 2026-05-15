@@ -60,14 +60,16 @@ tags:
 
 # Fill in a long dummy recipient (>=26 chars to clear isValidAddress)
 # and a non-zero amount, then continue to the confirm screen.
+# `hideKeyboard` instead of `tapOn: "return"` — the Android soft
+# keyboard doesn't expose a "return" text element.
 - tapOn:
     id: "send-recipient-input"
 - inputText: "bc1qe2etestrecipientaddress0000"
-- tapOn: "return"
+- hideKeyboard
 - tapOn:
     id: "send-amount-input"
 - inputText: "0.0001"
-- tapOn: "return"
+- hideKeyboard
 - tapOn:
     id: "send-continue-button"
 
