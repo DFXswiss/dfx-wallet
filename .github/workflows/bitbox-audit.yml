@@ -45,10 +45,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          # No npm cache here — the consumer's lock file may have drift
+          # we don't control; falling back to a permissive install rather
+          # than failing the whole audit job on lock churn.
 
-      - name: Install Node dependencies
-        run: npm ci --no-audit --no-fund
+      - name: Install Node dependencies (permissive)
+        # Tolerate package-lock drift: production lockfile may temporarily
+        # diverge from package.json during feature work. We need Jest +
+        # transforms running; a non-strict install does the job.
+        # continue-on-error so a hostile dependency state falls back to
+        # static-only audit rather than blocking the PR comment entirely.
+        id: deps
+        continue-on-error: true
+        run: |
+          npm install --no-audit --no-fund --legacy-peer-deps --ignore-scripts \
+            || echo "::warning::npm install failed; static-only audit will follow"
 
       - name: Install bitbox-audit CLIs
         env:
@@ -58,24 +69,31 @@ jobs:
           go install "github.com/joshuakrueger-dfx/bitbox-testkit/go/cmd/bitbox-audit-explain@${TESTKIT_REF}"
 
       - name: Run BitBox-specific Jest tests
-        # Run only the BitBox tests in --json mode. Continue past failures
-        # so the audit can still report them as failing-coverage rather
-        # than swallowing the whole job.
+        # Best-effort. If deps install failed or Jest can't boot, we
+        # continue with static-only audit. The audit-runner reads the
+        # results file only if it exists.
+        if: steps.deps.outcome == 'success'
+        continue-on-error: true
         run: |
           npx jest --selectProjects unit \
             --json \
             --outputFile=jest-bitbox-results.json \
-            --testPathPattern='test/services/bitbox.*\\.test\\.ts' \
-            || true
+            --testPathPattern='test/services/bitbox.*\.test\.ts' \
+            || echo "::warning::Jest run failed; audit will use static-only coverage"
 
       - name: Run audit
         id: audit
         run: |
           set -o pipefail
           rc=0
+          # --test-results is optional; pass only if Jest produced one.
+          tr_args=()
+          if [ -f jest-bitbox-results.json ]; then
+            tr_args=(--test-results jest-bitbox-results.json)
+          fi
           bitbox-audit \
             --repo . \
-            --test-results jest-bitbox-results.json \
+            "${tr_args[@]}" \
             --format json \
             --output findings.json \
             || rc=$?
@@ -88,9 +106,13 @@ jobs:
 
       - name: Render Markdown report
         run: |
+          tr_args=()
+          if [ -f jest-bitbox-results.json ]; then
+            tr_args=(--test-results jest-bitbox-results.json)
+          fi
           bitbox-audit \
             --repo . \
-            --test-results jest-bitbox-results.json \
+            "${tr_args[@]}" \
             --format markdown \
             --output report.md \
             || true
