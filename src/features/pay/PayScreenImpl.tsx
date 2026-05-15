@@ -58,6 +58,9 @@ export default function PayScreen() {
     width: width * CUTOUT_PCT.width,
     height: height * CUTOUT_PCT.height,
   };
+  const balanceStyle = {
+    top: height * (CUTOUT_PCT.top + CUTOUT_PCT.height) + 26,
+  };
   const currencySymbol = CURRENCY_SYMBOLS.get(selectedCurrency) ?? selectedCurrency;
   const availableLabel = Number.isFinite(availableFiat)
     ? (Math.round(availableFiat * 100) / 100).toLocaleString('de-CH', {
@@ -105,22 +108,6 @@ export default function PayScreen() {
             </Pressable>
           </View>
 
-          <View
-            style={styles.balanceRail}
-            testID="pay-available-balance"
-            accessibilityLabel={`${t('pay.availableBalance')} ${currencySymbol} ${availableLabel}`}
-          >
-            <Text style={styles.balanceLabel} numberOfLines={1}>
-              {t('pay.availableBalance')}
-            </Text>
-            <View style={styles.balanceAmount} accessibilityElementsHidden>
-              <Text style={styles.balanceCurrency}>{currencySymbol}</Text>
-              <Text style={styles.balanceValue} numberOfLines={1}>
-                {availableLabel}
-              </Text>
-            </View>
-          </View>
-
           <View style={{ flex: 1 }} />
         </SafeAreaView>
 
@@ -140,6 +127,19 @@ export default function PayScreen() {
               </Pressable>
             </View>
           )}
+        </View>
+
+        <View
+          style={[styles.balanceBlock, balanceStyle]}
+          testID="pay-available-balance"
+          accessibilityLabel={`${t('pay.availableBalance')} ${currencySymbol} ${availableLabel}`}
+        >
+          <Text style={styles.balanceLabel} numberOfLines={1}>
+            {t('pay.availableBalance')}
+          </Text>
+          <Text style={styles.balanceValue} numberOfLines={1}>
+            {currencySymbol} {availableLabel}
+          </Text>
         </View>
       </ImageBackground>
     </>
@@ -185,44 +185,26 @@ const styles = StyleSheet.create({
     height: 30,
     width: 110,
   },
-  balanceRail: {
-    minHeight: 54,
-    marginTop: 18,
-    marginHorizontal: 2,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(37,67,111,0.16)',
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: 18,
+  balanceBlock: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    alignItems: 'center',
   },
   balanceLabel: {
-    ...Typography.bodyMedium,
-    color: 'rgba(37,67,111,0.72)',
-    fontWeight: '700',
+    fontSize: 29,
+    lineHeight: 35,
+    color: 'rgba(37,67,111,0.82)',
+    fontWeight: '500',
     letterSpacing: 0,
-    flexShrink: 1,
-  },
-  balanceAmount: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'flex-end',
-    gap: 6,
-    maxWidth: '58%',
-  },
-  balanceCurrency: {
-    fontSize: 16,
-    lineHeight: 25,
-    color: DfxColors.primary,
-    fontWeight: '700',
   },
   balanceValue: {
-    fontSize: 26,
-    lineHeight: 31,
-    fontWeight: '800',
+    marginTop: 6,
+    fontSize: 29,
+    lineHeight: 35,
+    fontWeight: '600',
     color: DfxColors.text,
-    flexShrink: 1,
+    letterSpacing: 0,
   },
   permissionFallback: {
     alignItems: 'center',
