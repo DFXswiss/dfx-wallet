@@ -16,6 +16,9 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/bitbox-audit.yml'
+  # Manual trigger lets maintainers re-run the audit after a testkit
+  # release without pushing an unrelated commit just to re-fetch.
+  workflow_dispatch:
 
 permissions:
   contents: read
