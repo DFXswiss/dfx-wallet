@@ -71,7 +71,7 @@
     "seeAll": "See all",
     "title": "Dashboard",
     "toggleBalance": "Toggle balance visibility",
-    "totalBalance": "Total Wallet Balance",
+    "totalBalance": "Available Balance",
     "transactions": "Transactions"
   },
   "dfxAuthGate": {
@@ -468,7 +468,7 @@
     "networkCount_one": "{{count}} network",
     "networkCount_other": "{{count}} networks",
     "optional": "Optional networks",
-    "totalValue": "Total value"
+    "totalValue": "Available Balance"
   },
   "receive": {
     "buyFromBank": "Buy with your bank account",

@@ -71,7 +71,7 @@
     "seeAll": "Alle anzeigen",
     "title": "Dashboard",
     "toggleBalance": "Guthaben ein-/ausblenden",
-    "totalBalance": "Gesamtguthaben",
+    "totalBalance": "Verfügbares Guthaben",
     "transactions": "Transaktionen"
   },
   "dfxAuthGate": {
@@ -468,7 +468,7 @@
     "networkCount_one": "{{count}} Netzwerk",
     "networkCount_other": "{{count}} Netzwerke",
     "optional": "Optionale Netzwerke",
-    "totalValue": "Gesamtwert"
+    "totalValue": "Verfügbares Guthaben"
   },
   "receive": {
     "buyFromBank": "Mit deinem Bankkonto kaufen",
