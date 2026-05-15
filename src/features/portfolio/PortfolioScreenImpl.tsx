@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { Icon } from '@/components';
 import { getAssetMeta, getAssets, type TokenCategory } from '@/config/tokens';
 import { getRawBalance, useBalances } from '@/services/balances';
+import { useTotalPortfolioFiat } from '@/hooks';
 import {
   computeFiatValue,
   formatBalance,
@@ -57,6 +58,7 @@ export default function PortfolioScreen() {
   const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
   const { isSelected } = useLinkedWalletSelection();
   const { getName } = useLinkedWalletNames();
+  const headlineTotalFiat = useTotalPortfolioFiat();
 
   const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
   const { data: balances } = useBalances(assetConfigs);
@@ -198,23 +200,6 @@ export default function PortfolioScreen() {
     });
   }, [assetConfigs, balances, fiatCurrency, pricingReady]);
 
-  // Headline total = local WDK groups + selected linked-wallet discovery
-  // fiat. Wallets the discovery couldn't resolve contribute nothing
-  // instead of zeroing the headline.
-  const linkedWalletsFiat = useMemo(() => {
-    let sum = 0;
-    for (const wallet of linkedWallets) {
-      const entry = linkedDiscovery.get(wallet.address.toLowerCase());
-      if (entry?.known) sum += entry.totalFiat;
-    }
-    return sum;
-  }, [linkedWallets, linkedDiscovery]);
-
-  const totalFiat = useMemo(
-    () => groups.reduce((sum, g) => sum + g.totalFiat, 0) + linkedWalletsFiat,
-    [groups, linkedWalletsFiat],
-  );
-
   // Pull-to-refresh: invalidates every balance + pricing source so the
   // user gets a fresh round-trip rather than the staleTime-cached view.
   const queryClient = useQueryClient();
@@ -293,8 +278,8 @@ export default function PortfolioScreen() {
             <View style={styles.totalRow}>
               <Text style={styles.totalCurrency}>{currencySymbol}</Text>
               <Text style={styles.totalValue}>
-                {Number.isFinite(totalFiat)
-                  ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', {
+                {Number.isFinite(headlineTotalFiat)
+                  ? (Math.round(headlineTotalFiat * 100) / 100).toLocaleString('de-CH', {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })
