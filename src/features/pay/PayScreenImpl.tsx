@@ -138,7 +138,7 @@ export default function PayScreen() {
         >
           <Text style={styles.balanceLine} numberOfLines={1} adjustsFontSizeToFit>
             <Text>{t('pay.availableBalance')}</Text>
-            <Text style={styles.balanceSeparator}>  ·  </Text>
+            <Text style={styles.balanceSeparator}> · </Text>
             <Text style={styles.balanceValue}>
               {currencySymbol} {availableLabel}
             </Text>
