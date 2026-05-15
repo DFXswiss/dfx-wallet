@@ -59,7 +59,9 @@ export default function PayScreen() {
     height: height * CUTOUT_PCT.height,
   };
   const balanceStyle = {
-    top: height * (CUTOUT_PCT.top + CUTOUT_PCT.height) + 26,
+    left: width * CUTOUT_PCT.left,
+    top: height * (CUTOUT_PCT.top + CUTOUT_PCT.height) + 30,
+    width: width * CUTOUT_PCT.width,
   };
   const currencySymbol = CURRENCY_SYMBOLS.get(selectedCurrency) ?? selectedCurrency;
   const availableLabel = Number.isFinite(availableFiat)
@@ -187,24 +189,31 @@ const styles = StyleSheet.create({
   },
   balanceBlock: {
     position: 'absolute',
-    left: 20,
-    right: 20,
     alignItems: 'center',
+    paddingHorizontal: 8,
   },
   balanceLabel: {
-    fontSize: 29,
-    lineHeight: 35,
-    color: 'rgba(37,67,111,0.82)',
+    fontSize: 27,
+    lineHeight: 33,
+    color: 'rgba(35,64,106,0.78)',
     fontWeight: '500',
     letterSpacing: 0,
+    textAlign: 'center',
+    textShadowColor: 'rgba(255,255,255,0.72)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
   balanceValue: {
-    marginTop: 6,
-    fontSize: 29,
-    lineHeight: 35,
+    marginTop: 4,
+    fontSize: 31,
+    lineHeight: 37,
     fontWeight: '600',
     color: DfxColors.text,
     letterSpacing: 0,
+    textAlign: 'center',
+    textShadowColor: 'rgba(255,255,255,0.82)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 7,
   },
   permissionFallback: {
     alignItems: 'center',
