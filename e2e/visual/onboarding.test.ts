@@ -139,6 +139,30 @@ describe('Visual Regression', () => {
       await expectScreenToMatchBaseline('send-input-step');
     });
 
+    it('shows confirm step after filling in recipient + amount', async () => {
+      // 30-char dummy recipient clears the 26-char isValidAddress check.
+      // Amount 0.0001 ensures Continue is enabled. We never tap the
+      // Confirm button on the resulting screen — handleSend() would
+      // broadcast a real transaction.
+      await element(by.id('send-recipient-input')).typeText('bc1qe2etestrecipientaddress0000');
+      await element(by.id('send-recipient-input')).tapReturnKey();
+      await element(by.id('send-amount-input')).typeText('0.0001');
+      await element(by.id('send-amount-input')).tapReturnKey();
+      await element(by.id('send-continue-button')).tap();
+      await waitFor(element(by.id('send-confirm-step')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause();
+      await expectScreenToMatchBaseline('send-confirm-step');
+    });
+
+    it('returns to input step via cancel', async () => {
+      await element(by.id('send-cancel-button')).tap();
+      await waitFor(element(by.id('send-input-step')))
+        .toBeVisible()
+        .withTimeout(30_000);
+    });
+
     it('returns to the send asset list', async () => {
       await element(by.id('send-selected-asset-pill')).tap();
       await waitFor(element(by.id('send-asset-list')))

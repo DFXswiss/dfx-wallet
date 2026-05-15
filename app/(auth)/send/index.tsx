@@ -251,7 +251,11 @@ export default function SendScreen() {
           />
         </View>
 
-        {error && <Text style={styles.errorText}>{error}</Text>}
+        {error && (
+          <Text testID="send-input-error" style={styles.errorText}>
+            {error}
+          </Text>
+        )}
 
         <View style={styles.spacer} />
 
@@ -275,7 +279,7 @@ export default function SendScreen() {
   };
 
   const renderConfirmStep = () => (
-    <View style={styles.stepContent}>
+    <View style={styles.stepContent} testID="send-confirm-step">
       <Text style={styles.stepTitle}>{t('send.confirmTransaction')}</Text>
 
       <View style={styles.summary}>
@@ -313,8 +317,14 @@ export default function SendScreen() {
 
       <View style={styles.spacer} />
 
-      <PrimaryButton title={t('common.confirm')} onPress={handleSend} loading={isLoading} />
       <PrimaryButton
+        testID="send-confirm-button"
+        title={t('common.confirm')}
+        onPress={handleSend}
+        loading={isLoading}
+      />
+      <PrimaryButton
+        testID="send-cancel-button"
         title={t('common.cancel')}
         variant="outlined"
         onPress={() => {
