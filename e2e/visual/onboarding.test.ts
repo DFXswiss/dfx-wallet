@@ -85,6 +85,23 @@ describe('Visual Regression', () => {
   // existing "PIN unlock" block below already relies on the same
   // describe-to-describe state carry-over.
   describe('Dashboard navigation (MVP)', () => {
+    it('hides the balance via the eye toggle', async () => {
+      // dashboard-screen is in view from the Create-wallet describe above.
+      await element(by.id('dashboard-balance-toggle')).tap();
+      await waitFor(element(by.id('dashboard-balance-hidden')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause();
+      await expectScreenToMatchBaseline('dashboard-balance-hidden');
+    });
+
+    it('restores the balance via the eye toggle', async () => {
+      await element(by.id('dashboard-balance-toggle')).tap();
+      await waitFor(element(by.id('dashboard-balance-value')))
+        .toBeVisible()
+        .withTimeout(30_000);
+    });
+
     it('shows receive screen (asset list)', async () => {
       await element(by.id('dashboard-action-receive')).tap();
       await waitFor(element(by.id('receive-screen')))
