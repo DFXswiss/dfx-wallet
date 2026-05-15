@@ -66,12 +66,11 @@ jobs:
 
       - name: Install bitbox-audit CLIs
         env:
-          TESTKIT_REF: 'main'
-          # Bypass proxy.golang.org's cache so pushes to testkit's main
-          # are picked up immediately. Without this, the proxy lazily
-          # resolves @main and may serve a stale commit for several minutes.
-          GOPROXY: 'direct'
-          GOSUMDB: 'off'
+          # Pinned to a tagged release for reproducibility. Bump
+          # intentionally — audit semantics can shift between releases.
+          # Override to "main" during local debugging if you want the
+          # bleeding edge.
+          TESTKIT_REF: 'v0.1.0'
         run: |
           go install "github.com/joshuakrueger-dfx/bitbox-testkit/go/cmd/bitbox-audit@${TESTKIT_REF}"
           go install "github.com/joshuakrueger-dfx/bitbox-testkit/go/cmd/bitbox-audit-explain@${TESTKIT_REF}"
