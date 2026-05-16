@@ -7,6 +7,14 @@ tags:
 - launchApp:
     clearState: true
     clearKeychain: true
+# Belt-and-suspenders for the Android emulator: in case the
+# Pixel-Launcher disable in the workflow does not take effect (e.g.
+# on a future AVD without launcher3 as fallback), dismiss any ANR
+# dialog that still overlays the app. 'optional: true' makes this a
+# no-op on iOS and when the dialog does not appear.
+- tapOn:
+    text: "Wait"
+    optional: true
 
 # Welcome -> Create Wallet
 - assertVisible:
