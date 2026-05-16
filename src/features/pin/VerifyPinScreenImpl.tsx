@@ -58,13 +58,14 @@ export default function VerifyPinScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setAuthenticated(true);
         await unlockWallet();
+        goToDashboard();
       }
     } catch (err) {
       console.warn('verify: biometric authentication failed', err);
     } finally {
       setBiometricInFlight(false);
     }
-  }, [authenticateBiometric, biometricInFlight, setAuthenticated, unlockWallet]);
+  }, [authenticateBiometric, biometricInFlight, goToDashboard, setAuthenticated, unlockWallet]);
 
   useEffect(() => {
     if (biometricEnabled) {
@@ -99,6 +100,7 @@ export default function VerifyPinScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setAuthenticated(true);
         await unlockWallet();
+        goToDashboard();
         return;
       }
     } catch (err) {
