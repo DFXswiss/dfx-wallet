@@ -115,16 +115,22 @@ export function scenarioChannelHashEarly(hashRepeats = 2): {
 
 /**
  * Quirk E10: firmware on older versions doesn't recognise a chain ID.
- * Returns ErrInvalidInput101 only when the first call argument matches
- * a "known unknown" chain (HYPE=999, SONIC=146 — these are placeholders;
+ * Tolerates the chainId arriving as either number, bigint or string
+ * (BitboxProvider serialises bigint → string for the JSON-over-postMessage
+ * wire format). Returns ErrInvalidInput101 when the chainId matches the
+ * "known unknown" set; otherwise succeeds with a dummy signature.
  * the firmware-side allowlist is more elaborate). ASCII payloads on
  * known chains succeed.
  */
-export function scenarioUnknownNetwork(unknownChainIds: number[] = [999, 146]): BridgeHandler {
-  const set = new Set(unknownChainIds);
+export function scenarioUnknownNetwork(unknownChainIds: (number | bigint)[] = [999, 146]): BridgeHandler {
+  const set = new Set(unknownChainIds.map((id) => String(id)));
   return async (_method, args) => {
     const chainId = args[0];
-    if (typeof chainId === 'number' && set.has(chainId)) {
+    let key: string | null = null;
+    if (typeof chainId === 'string') key = chainId;
+    else if (typeof chainId === 'number') key = String(chainId);
+    else if (typeof chainId === 'bigint') key = chainId.toString();
+    if (key !== null && set.has(key)) {
       throw ErrInvalidInput101;
     }
     return dummySignature();

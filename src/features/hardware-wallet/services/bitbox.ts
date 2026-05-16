@@ -1,32 +1,106 @@
 import { Platform } from 'react-native';
-import type { BitboxTransport, HardwareWalletDevice, HardwareWalletProvider } from './types';
+import type {
+  BitboxTransport,
+  BtcAddressOpts,
+  DeviceInfo,
+  EthAddressOpts,
+  EthSignMessageOpts,
+  EthSignTxOpts,
+  HardwareWalletDevice,
+  HardwareWalletProvider,
+  TransportEventListener,
+} from './types';
+import {
+  DEFAULT_BTC_DERIVATION_PATH,
+  DEFAULT_ETH_DERIVATION_PATH,
+  MIN_FIRMWARE_VERSION,
+} from './types';
 import { scanUsbDevices, UsbTransport } from './transport-usb';
 import { BleTransport, scanBleDevices } from './transport-ble';
-import { WasmBridge } from './wasm-bridge';
+import { WasmBridge, type WebViewRef } from './wasm-bridge';
 import { ethSignatureToHex } from './bitbox-protocol';
+import {
+  compareVersions,
+  HwAddressMismatchError,
+  HwFirmwareRejectError,
+  HwFirmwareTooOldError,
+  HwFirmwareUnsupportedOperationError,
+  HwNotConnectedError,
+  HwUserAbortError,
+  isUserAbort,
+  parseFirmwareError,
+} from './errors';
 
 /**
  * BitBox02 hardware wallet provider.
  *
- * Dual-transport + WASM architecture:
- *   USB/BLE Transport ←→ WasmBridge (postMessage) ←→ WebView (bitbox-api WASM)
+ * Architecture:
  *
- * The WasmBridge handles the Noise XX handshake, Protobuf encoding,
- * and all signing operations inside the WebView's WASM runtime.
- * Transport read/write calls are bridged back to native USB/BLE.
+ *   USB/BLE Transport ─→ WasmBridge ─→ WebView (bitbox-api WASM) ─→ Device
+ *
+ * Lifecycle is per-instance: callers should NEVER create a module-level
+ * singleton. Use the React hook at /src/features/hardware-wallet/store.ts
+ * or instantiate one per screen and let useEffect cleanup own the
+ * disconnect call.
+ *
+ * Safety invariants this class enforces:
+ *
+ *   1. Every device-display call passes `display: true` by default. The
+ *      caller must explicitly opt-out and review the call site (the
+ *      audit-runner has a static check for this pattern).
+ *   2. chainId / coin is plumbed from the caller — never hardcoded.
+ *   3. Errors are classified into typed exceptions so the UI can branch
+ *      on user-abort vs. firmware-reject vs. transport-failure.
+ *   4. Firmware version is captured during connect and gated against
+ *      MIN_FIRMWARE_VERSION before any signing operation.
+ *   5. Transport disconnects emit events to subscribers, so the UI can
+ *      transition state instead of waiting on a pending promise that
+ *      will time out 30 s later.
  */
 export class BitboxProvider implements HardwareWalletProvider {
   private transport: BitboxTransport | null = null;
   private connectedDevice: HardwareWalletDevice | null = null;
   private bridge: WasmBridge;
+  private deviceInfo: DeviceInfo | null = null;
+  private listeners = new Set<TransportEventListener>();
 
-  constructor() {
-    this.bridge = new WasmBridge();
+  constructor(bridge: WasmBridge = new WasmBridge()) {
+    this.bridge = bridge;
   }
 
-  /** Get the WasmBridge instance (needed by BitboxWasmWebView component) */
+  /** Attach a WebView ref so the bridge can post messages into it. */
+  setWebView(ref: WebViewRef): void {
+    this.bridge.setWebView(ref);
+  }
+
+  /** Forward bridge incoming messages from the WebView. */
+  onBridgeMessage(data: string): void {
+    this.bridge.onMessage(data);
+  }
+
   getBridge(): WasmBridge {
     return this.bridge;
+  }
+
+  getDeviceInfo(): DeviceInfo | null {
+    return this.deviceInfo;
+  }
+
+  subscribeTransport(listener: TransportEventListener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private emit(event: 'disconnected' | 'reconnected' | 'fatal'): void {
+    for (const l of [...this.listeners]) {
+      try {
+        l(event);
+      } catch {
+        // Listener errors must not affect transport state.
+      }
+    }
   }
 
   async scanDevices(): Promise<HardwareWalletDevice[]> {
@@ -43,9 +117,10 @@ export class BitboxProvider implements HardwareWalletProvider {
       throw new Error('USB connection is only available on Android');
     }
 
+    // Always start from a clean slate.
     await this.disconnect();
 
-    // 1. Open physical transport
+    // 1. Open physical transport.
     if (device.transport === 'usb') {
       const usb = new UsbTransport();
       await usb.open(device.id);
@@ -56,19 +131,41 @@ export class BitboxProvider implements HardwareWalletProvider {
       this.transport = ble;
     }
 
-    // 2. Wire transport to WASM bridge
+    // 2. Wire transport read/write into the bridge.
     this.bridge.onTransportWrite = async (data: Uint8Array) => {
-      if (this.transport) await this.transport.write(data);
+      try {
+        if (this.transport) await this.transport.write(data);
+      } catch (err) {
+        this.emit('fatal');
+        throw err;
+      }
     };
     this.bridge.onTransportRead = async () => {
-      if (this.transport) {
-        const data = await this.transport.read();
-        this.bridge.sendTransportData(data);
+      try {
+        if (this.transport) {
+          const data = await this.transport.read();
+          this.bridge.sendTransportData(data);
+        }
+      } catch {
+        // Read failures (timeout, transport gone) propagate via the bridge
+        // call timeout — but we also notify subscribers so the UI can
+        // surface "Reconnect device" rather than wait for a 30 s spinner.
+        this.emit('disconnected');
       }
     };
 
-    // 3. Initiate pairing via WASM
-    await this.bridge.call('pair');
+    // 3. Wait for the WebView WASM to be loaded.
+    await this.bridge.waitReady();
+
+    // 4. Initiate pairing.
+    await this.bridge.call('pair', [], { timeoutMs: 60_000 });
+
+    // 5. Fetch device info and gate against minimum firmware.
+    this.deviceInfo = await this.fetchDeviceInfo();
+    if (compareVersions(this.deviceInfo.version, MIN_FIRMWARE_VERSION) < 0) {
+      await this.disconnect();
+      throw new HwFirmwareTooOldError(MIN_FIRMWARE_VERSION, this.deviceInfo.version);
+    }
 
     this.connectedDevice = device;
   }
@@ -76,45 +173,61 @@ export class BitboxProvider implements HardwareWalletProvider {
   async disconnect(): Promise<void> {
     if (this.transport) {
       try {
-        await this.bridge.call('close');
+        await this.bridge.call('close', [], { timeoutMs: 2_000 });
       } catch {
-        // Ignore close errors
+        // Bridge close failure is non-fatal during teardown — we still
+        // tear down the transport. Telemetry could pick this up if we
+        // start emitting structured logs.
       }
-      await this.transport.close();
+      try {
+        await this.transport.close();
+      } catch {
+        // Same reasoning as above.
+      }
       this.transport = null;
     }
     this.connectedDevice = null;
+    this.deviceInfo = null;
   }
 
-  async getEthAddress(derivationPath?: string): Promise<string> {
+  async getEthAddress(opts: EthAddressOpts): Promise<string> {
     this.ensureConnected();
-    return this.bridge.call<string>('ethAddress', [
-      1, // chainId (mainnet)
-      derivationPath ?? "m/44'/60'/0'/0/0",
-      false, // don't display on device
-    ]);
+    const displayOnDevice = opts.displayOnDevice !== false; // default TRUE
+    return this.translateErrors('getEthAddress', () =>
+      this.bridge.call<string>(
+        'ethAddress',
+        [String(opts.chainId), opts.derivationPath ?? DEFAULT_ETH_DERIVATION_PATH, displayOnDevice],
+        { timeoutMs: 60_000 },
+      ),
+    );
   }
 
-  async getBtcAddress(derivationPath?: string): Promise<string> {
+  async getBtcAddress(opts: BtcAddressOpts): Promise<string> {
     this.ensureConnected();
-    return this.bridge.call<string>('btcAddress', [
-      'btc',
-      derivationPath ?? "m/84'/0'/0'/0/0",
-      { simpleType: 'p2wpkh' },
-      false,
-    ]);
+    const displayOnDevice = opts.displayOnDevice !== false; // default TRUE
+    return this.translateErrors('getBtcAddress', () =>
+      this.bridge.call<string>(
+        'btcAddress',
+        [
+          opts.coin,
+          opts.derivationPath ?? DEFAULT_BTC_DERIVATION_PATH,
+          { simpleType: opts.scriptType ?? 'p2wpkh' },
+          displayOnDevice,
+        ],
+        { timeoutMs: 60_000 },
+      ),
+    );
   }
 
-  async signEthTransaction(
-    chainId: number,
-    derivationPath: string,
-    rlpPayload: Uint8Array,
-    _isEIP1559: boolean,
-  ): Promise<{ r: string; s: string; v: number }> {
+  async signEthTransaction(opts: EthSignTxOpts): Promise<{ r: string; s: string; v: number }> {
     this.ensureConnected();
-    const sig = await this.bridge.call<{ r: number[]; s: number[]; v: number[] }>(
-      'ethSign1559Transaction',
-      [derivationPath, rlpPayload, undefined],
+    const method = opts.isEIP1559 ? 'ethSign1559Transaction' : 'ethSignTransaction';
+    const sig = await this.translateErrors(method, () =>
+      this.bridge.call<{ r: number[]; s: number[]; v: number[] }>(
+        method,
+        [String(opts.chainId), opts.derivationPath, Array.from(opts.rlpPayload)],
+        { timeoutMs: opts.timeoutMs ?? 120_000 },
+      ),
     );
     return ethSignatureToHex({
       r: new Uint8Array(sig.r),
@@ -123,17 +236,15 @@ export class BitboxProvider implements HardwareWalletProvider {
     });
   }
 
-  async signMessage(
-    chainId: number,
-    derivationPath: string,
-    message: Uint8Array,
-  ): Promise<Uint8Array> {
+  async signEthMessage(opts: EthSignMessageOpts): Promise<Uint8Array> {
     this.ensureConnected();
-    const sig = await this.bridge.call<{ r: number[]; s: number[]; v: number[] }>(
-      'ethSignMessage',
-      [chainId, derivationPath, Array.from(message)],
+    const sig = await this.translateErrors('ethSignMessage', () =>
+      this.bridge.call<{ r: number[]; s: number[]; v: number[] }>(
+        'ethSignMessage',
+        [String(opts.chainId), opts.derivationPath, Array.from(opts.message)],
+        { timeoutMs: opts.timeoutMs ?? 120_000 },
+      ),
     );
-    // Combine r + s + v into 65-byte signature
     const result = new Uint8Array(65);
     result.set(new Uint8Array(sig.r), 0);
     result.set(new Uint8Array(sig.s), 32);
@@ -141,17 +252,45 @@ export class BitboxProvider implements HardwareWalletProvider {
     return result;
   }
 
-  getConnectedDevice(): HardwareWalletDevice | null {
-    return this.connectedDevice;
-  }
-
-  isConnected(): boolean {
-    return this.transport !== null;
-  }
-
   private ensureConnected(): void {
-    if (!this.transport) {
-      throw new Error('BitBox02 not connected. Call connect() first.');
+    if (!this.transport) throw new HwNotConnectedError();
+  }
+
+  /**
+   * Map raw bridge errors onto typed Hw* error classes. UserAbort and
+   * firmware-reject are classified first; everything else passes through.
+   */
+  private async translateErrors<T>(operation: string, fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (err) {
+      if (isUserAbort(err)) throw new HwUserAbortError();
+      const fw = parseFirmwareError(err);
+      if (fw) throw fw;
+      throw err;
     }
   }
+
+  private async fetchDeviceInfo(): Promise<DeviceInfo> {
+    const raw = await this.bridge.call<DeviceInfo>('deviceInfo', [], { timeoutMs: 10_000 });
+    return raw;
+  }
 }
+
+/**
+ * Compile-time assertion that BitboxProvider implements the full provider
+ * surface. Forces a build break if the interface drifts ahead.
+ */
+const _check: HardwareWalletProvider = new BitboxProvider();
+void _check;
+
+// Re-export so consumers can construct one without reaching into types.
+export type { HardwareWalletProvider } from './types';
+export {
+  HwUserAbortError,
+  HwFirmwareRejectError,
+  HwFirmwareTooOldError,
+  HwFirmwareUnsupportedOperationError,
+  HwNotConnectedError,
+  HwAddressMismatchError,
+} from './errors';

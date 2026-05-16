@@ -1,14 +1,34 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, DfxBackgroundScreen, PrimaryButton } from '@/components';
 import { BitboxProvider, BitboxWasmWebView } from './services';
-import type { HardwareWalletDevice, HardwareWalletStatus } from './services';
+import type { HardwareWalletDevice } from './services';
+import {
+  HwFirmwareRejectError,
+  HwFirmwareTooOldError,
+  HwPermissionDeniedError,
+  HwTransportFailureError,
+  HwUserAbortError,
+} from './services/errors';
 import { useHardwareWalletStore } from './store';
 import { DfxColors, Typography } from '@/theme';
 
-const provider = new BitboxProvider();
+/**
+ * Maps a hardware-wallet error to a localised, user-visible message. The
+ * UI MUST surface UserAbort and FirmwareReject distinctly — they need
+ * different copy ("You rejected on device" vs "Connection failed").
+ */
+function userMessage(err: unknown, t: (k: string) => string): string {
+  if (err instanceof HwUserAbortError) return t('hardware.error.userAbort');
+  if (err instanceof HwFirmwareTooOldError) return t('hardware.error.firmwareTooOld');
+  if (err instanceof HwFirmwareRejectError) return t('hardware.error.firmwareReject');
+  if (err instanceof HwPermissionDeniedError) return t('hardware.error.permissionDenied');
+  if (err instanceof HwTransportFailureError) return t('hardware.error.transport');
+  if (err instanceof Error) return err.message;
+  return t('hardware.error.unknown');
+}
 
 export default function HardwareConnectScreen() {
   const router = useRouter();
@@ -16,6 +36,14 @@ export default function HardwareConnectScreen() {
   const { status, device, setStatus, setDevice, setAddress, setError, reset } =
     useHardwareWalletStore();
   const [devices, setDevices] = useState<HardwareWalletDevice[]>([]);
+  const [, setWasmReady] = useState(false);
+
+  // Per-screen provider instance — never a module-level singleton, so a
+  // second mount of this screen does not share transport state with the
+  // first. Owned by the useEffect cleanup below.
+  const providerRef = useRef<BitboxProvider | null>(null);
+  if (!providerRef.current) providerRef.current = new BitboxProvider();
+  const provider = providerRef.current;
 
   const isAndroid = Platform.OS === 'android';
 
@@ -26,7 +54,7 @@ export default function HardwareConnectScreen() {
       setDevices(found);
       setStatus(found.length > 0 ? 'detected' : 'disconnected');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Scan failed');
+      setError(userMessage(err, t));
     }
   };
 
@@ -36,21 +64,33 @@ export default function HardwareConnectScreen() {
     try {
       await provider.connect(dev);
       setStatus('verifying');
-      const address = await provider.getEthAddress();
+      // Receive-address always shown on-device so the user can verify.
+      const address = await provider.getEthAddress({
+        chainId: 1n,
+        displayOnDevice: true,
+      });
       setAddress(address);
       setStatus('connected');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Connection failed');
+      setError(userMessage(err, t));
+      setStatus('error');
     }
   };
 
-  const [, setWasmReady] = useState(false);
-
   useEffect(() => {
+    const unsubscribe = provider.subscribeTransport((event) => {
+      if (event === 'disconnected') {
+        setStatus('reconnecting');
+      } else if (event === 'fatal') {
+        setError(t('hardware.error.transport'));
+        setStatus('error');
+      }
+    });
     return () => {
+      unsubscribe();
       void provider.disconnect();
     };
-  }, []);
+  }, [provider, setError, setStatus, t]);
 
   return (
     <DfxBackgroundScreen contentStyle={styles.screen} testID="hardware-connect-screen">
