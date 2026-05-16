@@ -1,4 +1,4 @@
-import { BleManager, Device, type Characteristic } from 'react-native-ble-plx';
+import { BleManager, ConnectionPriority, Device, type Characteristic } from 'react-native-ble-plx';
 import type { BitboxTransport, HardwareWalletDevice } from './types';
 import {
   BITBOX_NOVA_NOTIFY_CHAR_UUID,
@@ -73,10 +73,49 @@ export class BleTransport implements BitboxTransport {
   async connectToDevice(deviceId: string): Promise<void> {
     const manager = getManager();
 
+    // Idempotency guard (Agent A H-1): if a previous connectToDevice is
+    // still live, close it before establishing a new GATT session so a
+    // double-subscribed notify channel cannot deliver stale frames to
+    // the new reader.
+    if (this.device || this.monitorSub) {
+      await this.close();
+    }
+
     try {
       this.device = await manager.connectToDevice(deviceId, { requestMTU: BLE_DEFAULT_MTU });
     } catch (err) {
       throw new HwTransportFailureError(`BLE connect failed: ${describeError(err)}`, asError(err));
+    }
+
+    // Audit CC-19 — LE-SC bonding trade-off.
+    //
+    // react-native-ble-plx (as of 3.x) does NOT expose isBonded() or a
+    // "force bond" method. Bonding on Android is OS-mediated and gets
+    // triggered automatically by the kernel when a peripheral demands
+    // an encrypted characteristic read. iOS handles bonding inside
+    // CoreBluetooth opaquely.
+    //
+    // What we get for free with BitBox02 Nova: the bitbox-api WASM
+    // performs a Noise XX handshake OVER the GATT channel. Noise XX
+    // gives us channel confidentiality + mutual authentication WITHOUT
+    // requiring LE-SC bonding at the kernel layer. The remaining gap
+    // is denial-of-service resistance: an unbonded GATT session lets
+    // a 3rd party send write requests that the BitBox firmware will
+    // reject at the Noise layer, but the GATT stack still accepts.
+    //
+    // The user's channel-hash comparison (CC-4) is the load-bearing
+    // defence — without it, a counterfeit peripheral that fakes the
+    // GATT shape would complete the Noise handshake and present a
+    // fake address. With CC-4 enforced, that attack surfaces as a
+    // hash mismatch on the device display.
+    //
+    // We additionally request HIGH connection priority and a sane
+    // MTU on connect so the channel is configured deterministically.
+    try {
+      await this.device.requestConnectionPriority(ConnectionPriority.High);
+    } catch {
+      // Non-fatal — priority is a hint to the OS, not a hard guarantee.
+      // Continue without it.
     }
 
     try {
