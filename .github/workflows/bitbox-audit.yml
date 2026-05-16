@@ -34,6 +34,21 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+
+      # Supply-chain gate. Downloads the bitbox-api npm tarball, verifies
+      # tarball-level SHA-256 against the pinned value (catches a tampered
+      # registry response), extracts, then verifies each file's SHA-256
+      # against the pinned value. Fails the job loudly on mismatch — that
+      # is a supply-chain alarm, not a flaky CI step.
+      #
+      # The pinned hashes live in scripts/setup-bitbox-wasm.sh; bumping
+      # bitbox-api requires capturing new hashes AND code-reviewing the
+      # upstream commit range before pinning.
+      - name: Stage + verify bitbox-api WASM (supply-chain gate)
+        run: |
+          bash scripts/setup-bitbox-wasm.sh --apply
+          bash scripts/setup-bitbox-wasm.sh --check
+
       - uses: joshuakrueger-dfx/bitbox-testkit/.github/actions/bitbox-audit@v0.2.0
         with:
           # dfx-wallet uses Jest projects; the audit's Jest run needs

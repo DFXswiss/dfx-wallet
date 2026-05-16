@@ -26,16 +26,53 @@ STAGE_DIR="$ROOT/assets/bitbox-bridge"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-# Pinned hashes — when bumping VERSION, regenerate by running this script
-# in --capture mode, inspect the diff, code-review the bitbox-api-rs commit
-# range, then commit the new values here.
+# Pinned hashes for bitbox-api 0.12.0.
 #
-# Using a function (not associative arrays) keeps the script portable to
+# How these were captured:
+#   curl -sL https://registry.npmjs.org/bitbox-api/-/bitbox-api-0.12.0.tgz \
+#     | shasum -a 256
+#   # → tarball SHA-256
+#   #   e03095a8e546bcfa61639317af15c88d5d241c4ba6bec65ef2ecf8951f92abf9
+#   tar -xzf .../bitbox-api-0.12.0.tgz
+#   shasum -a 256 package/bitbox_api.js package/bitbox_api_bg.wasm
+#
+# Cross-checked against npm registry's metadata `dist.shasum` (SHA-1):
+#   ff7a97d43b71cb2fd7c9d0d5f3e76097dfbdfb61
+# which matches the tarball SHA-1, ruling out in-flight tampering between
+# the registry and the download.
+#
+# Publisher: benmma (Marko Bencun, BitBoxSwiss maintainer per the
+# `repository` field pointing at github.com/BitBoxSwiss/bitbox-api-rs).
+# Published at 2026-01-20T09:41:45.506Z.
+#
+# When bumping VERSION:
+#   1. Run `--capture` and inspect the diff.
+#   2. Cross-check the tarball SHA-1 against npm's `dist.shasum` metadata
+#      (curl https://registry.npmjs.org/bitbox-api/<VERSION> | jq '.dist').
+#   3. Code-review the bitbox-api-rs commit range between the previous
+#      pinned commit and the new release.
+#   4. Commit the new values + this comment block updated.
+#
+# A function (not associative arrays) keeps the script portable to
 # macOS's default bash 3.x.
 expected_sha256() {
   case "$1/$2" in
-    "0.12.0/bitbox_api.js")     echo "REPLACE_WITH_REAL_SHA256_OF_bitbox_api_js" ;;
-    "0.12.0/bitbox_api_bg.wasm") echo "REPLACE_WITH_REAL_SHA256_OF_bitbox_api_bg_wasm" ;;
+    "0.12.0/bitbox_api.js")
+      echo "b71c1779a2032906e043a58c2cf41e13da3d58febb18bc3eb41e4b440267238f" ;;
+    "0.12.0/bitbox_api_bg.wasm")
+      echo "ca59c51054978db8d943a4ce24b378a85ffc1d400d6014f3d58fa0aaba8cea06" ;;
+    *) echo "" ;;
+  esac
+}
+
+# Tarball-level integrity (SHA-256 over the entire .tgz bytes). Verified
+# against npm registry's dist.shasum (SHA-1) by --apply / --check before
+# extraction, so a tampered tarball is rejected before its files even
+# reach disk.
+expected_tarball_sha256() {
+  case "$1" in
+    "0.12.0")
+      echo "e03095a8e546bcfa61639317af15c88d5d241c4ba6bec65ef2ecf8951f92abf9" ;;
     *) echo "" ;;
   esac
 }
@@ -61,11 +98,37 @@ esac
 
 download() {
   local out="$TMP_DIR/bitbox-api.tgz"
-  echo "==> downloading bitbox-api@$VERSION..."
+  # Progress to stderr so the caller's $(download) captures only the
+  # path on stdout. The previous implementation echoed progress on
+  # stdout, polluting the return value with a multi-line string that
+  # silently broke every downstream path expansion — every CI run
+  # then reported "file missing" against bogus paths.
+  echo "==> downloading bitbox-api@$VERSION..." >&2
   curl --fail --silent --show-error --location \
     --output "$out" \
-    "https://registry.npmjs.org/bitbox-api/-/bitbox-api-$VERSION.tgz"
-  tar -xzf "$out" -C "$TMP_DIR"
+    "https://registry.npmjs.org/bitbox-api/-/bitbox-api-$VERSION.tgz" >&2
+
+  # Verify the tarball itself BEFORE extraction. Catches a tampered
+  # registry response before any of its files touch disk.
+  local expected_tar
+  expected_tar=$(expected_tarball_sha256 "$VERSION")
+  if [[ -n "$expected_tar" ]]; then
+    local actual_tar
+    actual_tar=$(shasum -a 256 "$out" | awk '{print $1}')
+    if [[ "$actual_tar" != "$expected_tar" ]]; then
+      cat >&2 <<EOF
+ERROR: tarball SHA-256 mismatch for bitbox-api@$VERSION
+       expected $expected_tar
+       actual   $actual_tar
+       The .tgz downloaded from npm does not match the pinned hash.
+       This is a supply-chain alarm — investigate before proceeding.
+EOF
+      exit 1
+    fi
+    echo "==> tarball verified ($actual_tar)" >&2
+  fi
+
+  tar -xzf "$out" -C "$TMP_DIR" >&2
   # npm tarball unpacks under "package/"
   local pkg="$TMP_DIR/package"
   for f in bitbox_api.js bitbox_api_bg.wasm; do
