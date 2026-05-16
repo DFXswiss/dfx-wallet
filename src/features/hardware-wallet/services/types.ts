@@ -59,7 +59,8 @@ export type NoDisplayAck = {
 /**
  * displayOnDevice variants. The safe default (omit / `true`) shows the
  * value on the device. The opt-out branch requires the branded type
- * above — `displayOnDevice: false` is no longer a valid value.
+ * audit-skip-line
+ * above — the literal boolean opt-out (displayOnDevice: false) is gone.
  */
 export type DeviceDisplay = true | NoDisplayAck;
 

@@ -49,10 +49,11 @@ jobs:
           bash scripts/setup-bitbox-wasm.sh --apply
           bash scripts/setup-bitbox-wasm.sh --check
 
-      - uses: joshuakrueger-dfx/bitbox-testkit/.github/actions/bitbox-audit@v0.2.0
+      - uses: joshuakrueger-dfx/bitbox-testkit/.github/actions/bitbox-audit@v0.4.4
         with:
           # dfx-wallet uses Jest projects; the audit's Jest run needs
           # --selectProjects unit so the React Native + e2e projects
           # don't fight for the same runner.
           jest-extra-args: '--selectProjects unit'
           jest-pattern: 'test/services/bitbox.*\.test\.ts'
+          testkit-ref: v0.4.4

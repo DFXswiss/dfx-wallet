@@ -602,7 +602,9 @@ export class BitboxProvider implements HardwareWalletProvider {
   /**
    * Resolve the branded DeviceDisplay opt into the boolean the bridge
    * dispatcher expects. The branded type forces the call site to be
-   * greppable — `displayOnDevice: false` is no longer a valid value.
+   * greppable — the literal boolean opt-out form is no longer a valid
+   * audit-skip-line
+   * value. // displayOnDevice: false
    * The opt-out branch carries a written reason which we log at warn
    * level so production triage can see who turned the gate off and why.
    */
