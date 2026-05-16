@@ -1,11 +1,10 @@
 name: bitbox-audit
 
-# Runs the BitBox firmware-quirk audit (https://github.com/joshuakrueger-dfx/bitbox-testkit)
-# against every PR that touches BitBox-relevant code. The audit combines
-# static source detection with dynamic test coverage — Jest runs in --json
-# mode and the bitbox-audit CLI cross-references quirk IDs mentioned in
-# test names. Always-comment so the PR shows which quirks are covered,
-# untested, or actively failing.
+# Runs the BitBox firmware-quirk audit
+# (https://github.com/joshuakrueger-dfx/bitbox-testkit) against every PR
+# that touches BitBox-relevant code. The work happens inside the testkit's
+# composite action so a regression in audit semantics ships once via a
+# testkit tag bump; this workflow stays a thin caller.
 
 on:
   pull_request:
@@ -32,136 +31,13 @@ jobs:
   audit:
     name: scan for known firmware quirks
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
+    timeout-minutes: 15
     steps:
-      - name: Checkout PR head
-        uses: actions/checkout@v4
-
-      - name: bitbox-api WASM hash check (supply-chain gate)
-        # Runs scripts/setup-bitbox-wasm.sh --check IFF the staging dir
-        # exists. If the placeholder hashes are still in the script (fresh
-        # checkout, no asset bundle yet) this step is informational rather
-        # than blocking — once the SHA values are captured for real, the
-        # --check exit code becomes the gate. The diagnostic line in the
-        # job log tells the maintainer to run --capture and commit.
-        continue-on-error: true
-        run: |
-          if [ -d assets/bitbox-bridge ]; then
-            bash scripts/setup-bitbox-wasm.sh --check
-          else
-            echo "::notice::assets/bitbox-bridge not staged yet — run scripts/setup-bitbox-wasm.sh --apply locally to enable the WASM hash gate."
-          fi
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: joshuakrueger-dfx/bitbox-testkit/.github/actions/bitbox-audit@v0.2.0
         with:
-          go-version: '1.24'
-          cache: false
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          # No npm cache here — the consumer's lock file may have drift
-          # we don't control; falling back to a permissive install rather
-          # than failing the whole audit job on lock churn.
-
-      - name: Install Node dependencies (permissive)
-        # Tolerate package-lock drift: production lockfile may temporarily
-        # diverge from package.json during feature work. We need Jest +
-        # transforms running; a non-strict install does the job.
-        # continue-on-error so a hostile dependency state falls back to
-        # static-only audit rather than blocking the PR comment entirely.
-        id: deps
-        continue-on-error: true
-        run: |
-          npm install --no-audit --no-fund --legacy-peer-deps --ignore-scripts \
-            || echo "::warning::npm install failed; static-only audit will follow"
-
-      - name: Install bitbox-audit CLIs
-        env:
-          # Pinned to a tagged release for reproducibility. Bump
-          # intentionally — audit semantics can shift between releases.
-          # Override to "main" during local debugging if you want the
-          # bleeding edge.
-          # Tracks the testkit's main branch with GOPROXY=direct to bypass
-          # proxy.golang.org's cache so pushes propagate immediately.
-          # Pinning to a tagged release awaits a proxy-indexing fix for
-          # the go-submodule tag convention.
-          TESTKIT_REF: 'main'
-          GOPROXY: 'direct'
-          GOSUMDB: 'off'
-        run: |
-          go install "github.com/joshuakrueger-dfx/bitbox-testkit/go/cmd/bitbox-audit@${TESTKIT_REF}"
-          go install "github.com/joshuakrueger-dfx/bitbox-testkit/go/cmd/bitbox-audit-explain@${TESTKIT_REF}"
-
-      - name: Run BitBox-specific Jest tests
-        # Best-effort. If deps install failed or Jest can't boot, we
-        # continue with static-only audit. The audit-runner reads the
-        # results file only if it exists.
-        if: steps.deps.outcome == 'success'
-        continue-on-error: true
-        run: |
-          npx jest --selectProjects unit \
-            --json \
-            --outputFile=jest-bitbox-results.json \
-            --testPathPattern='test/services/bitbox.*\.test\.ts' \
-            || echo "::warning::Jest run failed; audit will use static-only coverage"
-
-      - name: Run audit
-        id: audit
-        run: |
-          set -o pipefail
-          rc=0
-          # --test-results is optional; pass only if Jest produced one.
-          tr_args=()
-          if [ -f jest-bitbox-results.json ]; then
-            tr_args=(--test-results jest-bitbox-results.json)
-          fi
-          bitbox-audit \
-            --repo . \
-            "${tr_args[@]}" \
-            --format json \
-            --output findings.json \
-            || rc=$?
-          if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
-            echo "::error::bitbox-audit failed with exit code $rc"
-            exit "$rc"
-          fi
-          jq '.summary, .coverage' findings.json
-          echo "had_findings=$([ "$rc" -eq 2 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-
-      - name: Render Markdown report
-        run: |
-          tr_args=()
-          if [ -f jest-bitbox-results.json ]; then
-            tr_args=(--test-results jest-bitbox-results.json)
-          fi
-          bitbox-audit \
-            --repo . \
-            "${tr_args[@]}" \
-            --format markdown \
-            --output report.md \
-            || true
-
-      - name: Comment on PR
-        # Always post the coverage table — the user wants to see the
-        # bucket breakdown even on clean PRs so untested quirks don't
-        # silently accumulate.
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: bitbox-audit
-          path: report.md
-
-      - name: Upload audit artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: bitbox-audit
-          path: |
-            findings.json
-            jest-bitbox-results.json
-            report.md
-          if-no-files-found: ignore
-          retention-days: 14
+          # dfx-wallet uses Jest projects; the audit's Jest run needs
+          # --selectProjects unit so the React Native + e2e projects
+          # don't fight for the same runner.
+          jest-extra-args: '--selectProjects unit'
+          jest-pattern: 'test/services/bitbox.*\.test\.ts'
