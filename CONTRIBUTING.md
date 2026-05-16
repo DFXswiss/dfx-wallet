@@ -238,7 +238,7 @@ BitBox02 integration is a MUST-HAVE requirement.
 ## Testing
 
 - **Unit tests**: Jest, co-located with the code they cover
-- **E2E**: Maestro (`npm run e2e:maestro`) for cross-platform flows, Detox (`npm run e2e:test:ios`) for iOS-specific scenarios
+- **E2E**: Maestro (`npm run e2e:maestro`) for cross-platform flows, Detox (`npm run e2e:test:ios`) for iOS-specific scenarios. See [docs/maestro.md](docs/maestro.md) and [docs/visual-regression.md](docs/visual-regression.md) for the MVP/feature-gated tag split, baseline workflow, and CI runner setup.
 - Add tests for new business logic in `src/services/` and `src/store/`
 
 ## Security

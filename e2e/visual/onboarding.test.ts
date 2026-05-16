@@ -85,7 +85,24 @@ describe('Visual Regression', () => {
   // existing "PIN unlock" block below already relies on the same
   // describe-to-describe state carry-over.
   describe('Dashboard navigation (MVP)', () => {
-    it('shows receive screen', async () => {
+    it('hides the balance via the eye toggle', async () => {
+      // dashboard-screen is in view from the Create-wallet describe above.
+      await element(by.id('dashboard-balance-toggle')).tap();
+      await waitFor(element(by.id('dashboard-balance-hidden')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause();
+      await expectScreenToMatchBaseline('dashboard-balance-hidden');
+    });
+
+    it('restores the balance via the eye toggle', async () => {
+      await element(by.id('dashboard-balance-toggle')).tap();
+      await waitFor(element(by.id('dashboard-balance-value')))
+        .toBeVisible()
+        .withTimeout(30_000);
+    });
+
+    it('shows receive screen (asset list)', async () => {
       await element(by.id('dashboard-action-receive')).tap();
       await waitFor(element(by.id('receive-screen')))
         .toBeVisible()
@@ -94,20 +111,70 @@ describe('Visual Regression', () => {
       await expectScreenToMatchBaseline('receive');
     });
 
-    it('returns to the dashboard from receive', async () => {
-      await element(by.id('receive-screen-back')).tap();
-      await waitFor(element(by.id('dashboard-screen')))
+    it('shows receive QR step after picking BTC', async () => {
+      await element(by.id('receive-asset-btc')).tap();
+      // The selected-asset pill is the topmost element on the QR step
+      // — sitting just under the header — so it's the most reliable
+      // visibility anchor. Detox's `toBeVisible` is strict (>75% of
+      // the element on screen); the QR container can sit far enough
+      // down on a tall iPhone that it's only partially in view, so
+      // wait on the pill and then `pause()` for layout to settle
+      // before screenshotting.
+      await waitFor(element(by.id('receive-selected-asset-pill')))
         .toBeVisible()
         .withTimeout(30_000);
+      await pause(2_000);
+      await expectScreenToMatchBaseline('receive-qr-step');
     });
 
-    it('shows send screen', async () => {
+    it('returns to the receive asset list', async () => {
+      await element(by.id('receive-selected-asset-pill')).tap();
+      // After the pill tap the screen re-mounts the asset-step body;
+      // wait on the top BTC card (visible, anchored near the top of
+      // the scroll view) rather than the wrapper View, which can sit
+      // outside Detox's strict viewport heuristic.
+      await waitFor(element(by.id('receive-asset-btc')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause();
+    });
+
+    it('returns to the dashboard from receive', async () => {
+      await element(by.id('receive-screen-back')).tap();
+      await waitFor(element(by.id('dashboard-balance-toggle')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause();
+    });
+
+    it('shows send screen (asset list)', async () => {
       await element(by.id('dashboard-action-send')).tap();
-      await waitFor(element(by.id('send-screen')))
+      // Asset cards are the top content on the Send screen — they're
+      // a more reliable visibility anchor than the header View, which
+      // sits behind the safe-area inset on tall iPhones.
+      await waitFor(element(by.id('send-asset-btc')))
         .toBeVisible()
         .withTimeout(30_000);
       await pause();
       await expectScreenToMatchBaseline('send');
+    });
+
+    it('shows send input step after picking BTC', async () => {
+      await element(by.id('send-asset-btc')).tap();
+      // Same trick as receive-qr-step: the selected-asset pill is the
+      // anchor near the top of the screen, the inputs are below.
+      await waitFor(element(by.id('send-selected-asset-pill')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause(2_000);
+      await expectScreenToMatchBaseline('send-input-step');
+    });
+
+    it('returns to the send asset list', async () => {
+      await element(by.id('send-selected-asset-pill')).tap();
+      await waitFor(element(by.id('send-asset-btc')))
+        .toBeVisible()
+        .withTimeout(30_000);
     });
   });
 

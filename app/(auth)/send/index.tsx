@@ -134,10 +134,11 @@ export default function SendScreen() {
   const renderAssetStep = () => (
     <View style={styles.stepContent}>
       <Text style={styles.stepSubtitle}>{t('send.sendToCrypto')}</Text>
-      <View style={styles.assetList}>
+      <View style={styles.assetList} testID="send-asset-list">
         {SEND_ASSETS.map((asset) => (
           <Pressable
             key={asset.symbol}
+            testID={`send-asset-${asset.symbol.toLowerCase()}`}
             style={({ pressed }) => [
               styles.assetCard,
               selectedAsset?.symbol === asset.symbol && styles.assetCardActive,
@@ -181,19 +182,24 @@ export default function SendScreen() {
 
   const renderInputStep = (asset: AssetOption) => {
     return (
-      <View style={styles.stepContent}>
-        <Pressable style={styles.selectedAssetPill} onPress={() => setStep('asset')}>
+      <View style={styles.stepContent} testID="send-input-step">
+        <Pressable
+          testID="send-selected-asset-pill"
+          style={styles.selectedAssetPill}
+          onPress={() => setStep('asset')}
+        >
           <Text style={styles.selectedAssetText}>{asset.symbol}</Text>
           <Icon name="chevron-right" size={14} color={colors.textTertiary} />
         </Pressable>
 
         {asset.chains.length > 1 && (
-          <View style={styles.inputGroup}>
+          <View style={styles.inputGroup} testID="send-chain-bar">
             <Text style={styles.inputLabel}>{t('send.network')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
               {asset.chains.map((c) => (
                 <Pressable
                   key={c.chain}
+                  testID={`send-chain-${c.chain}`}
                   style={[styles.chainChip, selectedChain === c.chain && styles.chainChipActive]}
                   onPress={() => setSelectedChain(c.chain)}
                 >
@@ -215,6 +221,7 @@ export default function SendScreen() {
           <Text style={styles.inputLabel}>{t('send.recipient')}</Text>
           <View style={styles.recipientRow}>
             <TextInput
+              testID="send-recipient-input"
               style={[styles.input, styles.recipientInput]}
               value={recipient}
               onChangeText={setRecipient}
@@ -223,7 +230,11 @@ export default function SendScreen() {
               autoCapitalize="none"
               autoCorrect={false}
             />
-            <Pressable style={styles.scanButton} onPress={() => setScannerVisible(true)}>
+            <Pressable
+              testID="send-recipient-scan-button"
+              style={styles.scanButton}
+              onPress={() => setScannerVisible(true)}
+            >
               <Text style={styles.scanText}>{t('send.scan')}</Text>
             </Pressable>
           </View>
@@ -234,6 +245,7 @@ export default function SendScreen() {
             {t('send.amount')} ({symbol})
           </Text>
           <TextInput
+            testID="send-amount-input"
             style={styles.input}
             value={amount}
             onChangeText={setAmount}
@@ -243,11 +255,16 @@ export default function SendScreen() {
           />
         </View>
 
-        {error && <Text style={styles.errorText}>{error}</Text>}
+        {error && (
+          <Text testID="send-input-error" style={styles.errorText}>
+            {error}
+          </Text>
+        )}
 
         <View style={styles.spacer} />
 
         <PrimaryButton
+          testID="send-continue-button"
           title={t('common.continue')}
           onPress={goToConfirm}
           disabled={!sendAsset || !isValidAddress || !amount || parseFloat(amount) <= 0}
@@ -266,7 +283,7 @@ export default function SendScreen() {
   };
 
   const renderConfirmStep = () => (
-    <View style={styles.stepContent}>
+    <View style={styles.stepContent} testID="send-confirm-step">
       <Text style={styles.stepTitle}>{t('send.confirmTransaction')}</Text>
 
       <View style={styles.summary}>
@@ -304,8 +321,14 @@ export default function SendScreen() {
 
       <View style={styles.spacer} />
 
-      <PrimaryButton title={t('common.confirm')} onPress={handleSend} loading={isLoading} />
       <PrimaryButton
+        testID="send-confirm-button"
+        title={t('common.confirm')}
+        onPress={handleSend}
+        loading={isLoading}
+      />
+      <PrimaryButton
+        testID="send-cancel-button"
         title={t('common.cancel')}
         variant="outlined"
         onPress={() => {

@@ -5,11 +5,12 @@ tags:
   - dashboard
   - mvp
 ---
-# Walks an MVP user from a fresh install to the Receive screen. With
-# EXPO_PUBLIC_ENABLE_PIN + EXPO_PUBLIC_ENABLE_LEGAL off, SetupPinDisabled
-# bridges Create -> Dashboard without a PIN or legal step (see
-# 10-onboarding-create.yaml for the same bridge). The Receive flow
-# itself ships in the MVP build.
+# Walks an MVP user from a fresh install through the Receive flow:
+# Dashboard -> Receive (asset list) -> tap BTC -> QR step (container
+# rendered even before WDK has produced an address) -> back to assets.
+# With EXPO_PUBLIC_ENABLE_PIN + EXPO_PUBLIC_ENABLE_LEGAL off,
+# SetupPinDisabled bridges Create -> Dashboard without a PIN or legal
+# step (see 10-onboarding-create.yaml for the same bridge).
 - launchApp:
     clearState: true
     clearKeychain: true
@@ -28,7 +29,7 @@ tags:
 - tapOn:
     id: "create-wallet-continue-button"
 
-# Dashboard -> Receive
+# Dashboard -> Receive (asset step)
 - assertVisible:
     id: "dashboard-screen"
 - tapOn:
@@ -36,3 +37,25 @@ tags:
 
 - assertVisible:
     id: "receive-screen"
+- assertVisible:
+    id: "receive-asset-list"
+- assertVisible:
+    id: "receive-asset-btc"
+- assertVisible:
+    id: "receive-asset-chf"
+
+# Asset -> QR step
+- tapOn:
+    id: "receive-asset-btc"
+- assertVisible:
+    id: "receive-qr"
+- assertVisible:
+    id: "receive-address"
+- assertVisible:
+    id: "receive-copy-button"
+
+# Back to asset step via the selected-asset pill
+- tapOn:
+    id: "receive-selected-asset-pill"
+- assertVisible:
+    id: "receive-asset-list"
