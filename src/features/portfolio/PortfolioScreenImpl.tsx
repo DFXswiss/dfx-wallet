@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Icon } from '@/components';
+import { DarkBackdrop, EmptyState, Icon, Skeleton } from '@/components';
 import { getAssetMeta, getAssets, type TokenCategory } from '@/config/tokens';
 import { getRawBalance, useBalances } from '@/services/balances';
 import {
@@ -35,7 +35,7 @@ import { dfxUserService } from '@/features/dfx-backend/services';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { useAuthStore, useWalletStore } from '@/store';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
 type PortfolioGroup = {
   canonicalSymbol: string;
@@ -52,6 +52,9 @@ type PortfolioGroup = {
 export default function PortfolioScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const colors = useColors();
+  const scheme = useResolvedScheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { enabledChains } = useEnabledChains();
   const { selectedCurrency } = useWalletStore();
   const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
@@ -243,119 +246,148 @@ export default function PortfolioScreen() {
     }
   }, [isDfxAuthenticated, queryClient, refetchDiscovery]);
 
-  return (
-    <>
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      <ImageBackground
-        source={require('../../../assets/dashboard-bg.png')}
-        style={styles.bg}
-        resizeMode="cover"
+  const body = (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <View style={styles.header}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          style={styles.headerIcon}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+          testID="portfolio-back-button"
+        >
+          <Icon name="arrow-left" size={26} color={colors.text} />
+        </Pressable>
+        <Text style={styles.headerTitle}>{t('dashboard.portfolio')}</Text>
+        <Pressable
+          onPress={() => router.push('/(auth)/portfolio/manage')}
+          hitSlop={12}
+          style={styles.headerIcon}
+          accessibilityRole="button"
+          accessibilityLabel={t('portfolio.manage')}
+          testID="portfolio-manage-button"
+        >
+          <Text style={styles.manageLink}>{t('portfolio.manage')}</Text>
+        </Pressable>
+      </View>
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-          <View style={styles.header}>
-            <Pressable
-              onPress={() => router.back()}
-              hitSlop={12}
-              style={styles.headerIcon}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.back')}
-              testID="portfolio-back-button"
-            >
-              <Icon name="arrow-left" size={26} color={DfxColors.text} />
-            </Pressable>
-            <Text style={styles.headerTitle}>{t('dashboard.portfolio')}</Text>
-            <Pressable
-              onPress={() => router.push('/(auth)/portfolio/manage')}
-              hitSlop={12}
-              style={styles.headerIcon}
-              accessibilityRole="button"
-              accessibilityLabel={t('portfolio.manage')}
-              testID="portfolio-manage-button"
-            >
-              <Text style={styles.manageLink}>{t('portfolio.manage')}</Text>
-            </Pressable>
+        <Text style={styles.totalLabel}>{t('portfolio.totalValue')}</Text>
+        <View style={styles.totalRow}>
+          <Text style={styles.totalCurrency}>{currencySymbol}</Text>
+          <Text style={styles.totalValue}>
+            {Number.isFinite(totalFiat)
+              ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })
+              : '0.00'}
+          </Text>
+        </View>
+
+        {balances === undefined ? (
+          // Balance fetch hasn't resolved yet — surface skeleton rows in
+          // the same shape as PortfolioGroupCard so layout doesn't shift
+          // when data lands.
+          <View style={styles.assetList}>
+            {[0, 1, 2, 3].map((i) => (
+              <View key={i} style={styles.skeletonRow}>
+                <Skeleton width={44} height={44} radius={22} />
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Skeleton width={'60%'} height={14} radius={6} />
+                  <Skeleton width={'40%'} height={11} radius={6} />
+                </View>
+                <Skeleton width={84} height={16} radius={6} />
+              </View>
+            ))}
           </View>
-
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                tintColor={DfxColors.primary}
-                colors={[DfxColors.primary]}
+        ) : groups.length > 0 ? (
+          <View style={styles.assetList}>
+            {groups.map((group) => (
+              <PortfolioGroupCard
+                key={group.canonicalSymbol}
+                group={group}
+                currencySymbol={currencySymbol}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(auth)/portfolio/[symbol]',
+                    params: { symbol: group.canonicalSymbol },
+                  })
+                }
               />
-            }
-          >
-            <Text style={styles.totalLabel}>{t('portfolio.totalValue')}</Text>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalCurrency}>{currencySymbol}</Text>
-              <Text style={styles.totalValue}>
-                {Number.isFinite(totalFiat)
-                  ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })
-                  : '0.00'}
-              </Text>
-            </View>
+            ))}
+          </View>
+        ) : (
+          <EmptyState
+            icon="wallet"
+            title={t('portfolio.empty')}
+            description={t('portfolio.emptyDescription')}
+            testID="portfolio-empty"
+          />
+        )}
 
-            {groups.length > 0 ? (
-              <View style={styles.assetList}>
-                {groups.map((group) => (
-                  <PortfolioGroupCard
-                    key={group.canonicalSymbol}
-                    group={group}
+        {linkedWallets.length > 0 ? (
+          <View style={styles.linkedSection}>
+            <Text style={styles.linkedSectionLabel}>{t('portfolio.linkedWallets')}</Text>
+            <View style={styles.linkedList}>
+              {linkedWallets.map((wallet) => {
+                const entry = linkedDiscovery.get(wallet.address.toLowerCase());
+                const displayName =
+                  getName(wallet.address) ?? defaultLinkedWalletName(wallet.blockchain);
+                return (
+                  <LinkedWalletCard
+                    key={wallet.address}
+                    wallet={wallet}
+                    displayName={displayName}
                     currencySymbol={currencySymbol}
+                    fiatValue={entry?.totalFiat ?? 0}
+                    fiatKnown={entry?.known ?? false}
                     onPress={() =>
                       router.push({
-                        pathname: '/(auth)/portfolio/[symbol]',
-                        params: { symbol: group.canonicalSymbol },
+                        pathname: '/(auth)/linked-wallet/[address]',
+                        params: { address: wallet.address },
                       })
                     }
                   />
-                ))}
-              </View>
-            ) : (
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyTitle}>{t('portfolio.empty')}</Text>
-                <Text style={styles.emptyDescription}>{t('portfolio.emptyDescription')}</Text>
-              </View>
-            )}
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+      </ScrollView>
+    </SafeAreaView>
+  );
 
-            {linkedWallets.length > 0 ? (
-              <View style={styles.linkedSection}>
-                <Text style={styles.linkedSectionLabel}>{t('portfolio.linkedWallets')}</Text>
-                <View style={styles.linkedList}>
-                  {linkedWallets.map((wallet) => {
-                    const entry = linkedDiscovery.get(wallet.address.toLowerCase());
-                    const displayName =
-                      getName(wallet.address) ?? defaultLinkedWalletName(wallet.blockchain);
-                    return (
-                      <LinkedWalletCard
-                        key={wallet.address}
-                        wallet={wallet}
-                        displayName={displayName}
-                        currencySymbol={currencySymbol}
-                        fiatValue={entry?.totalFiat ?? 0}
-                        fiatKnown={entry?.known ?? false}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/(auth)/linked-wallet/[address]',
-                            params: { address: wallet.address },
-                          })
-                        }
-                      />
-                    );
-                  })}
-                </View>
-              </View>
-            ) : null}
-          </ScrollView>
-        </SafeAreaView>
-      </ImageBackground>
+  return (
+    <>
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
+      {scheme === 'dark' ? (
+        <View style={styles.bg}>
+          <DarkBackdrop baseColor={colors.background} />
+          {body}
+        </View>
+      ) : (
+        <ImageBackground
+          source={require('../../../assets/dashboard-bg.png')}
+          style={styles.bg}
+          resizeMode="cover"
+        >
+          {body}
+        </ImageBackground>
+      )}
     </>
   );
 }
@@ -382,6 +414,8 @@ function LinkedWalletCard({
   onPress: () => void;
 }) {
   const { t } = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { address } = wallet;
   const truncated = address.length > 18 ? `${address.slice(0, 10)}…${address.slice(-6)}` : address;
   const chains = (wallet.blockchains?.length ? wallet.blockchains : [wallet.blockchain]).join(
@@ -404,8 +438,8 @@ function LinkedWalletCard({
       accessibilityRole="button"
       accessibilityLabel={t('portfolio.linkedWalletA11y', { address: truncated })}
     >
-      <View style={[styles.iconBubble, { backgroundColor: DfxColors.primary }]}>
-        <Icon name="wallet" size={20} color={DfxColors.white} />
+      <View style={[styles.iconBubble, { backgroundColor: colors.primary }]}>
+        <Icon name="wallet" size={20} color={colors.white} />
       </View>
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>
@@ -429,7 +463,9 @@ function LinkedWalletCard({
 
 function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) {
   const { t } = useTranslation();
-  const color = SYMBOL_COLORS.get(group.canonicalSymbol) ?? DfxColors.primary;
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const color = SYMBOL_COLORS.get(group.canonicalSymbol) ?? colors.primary;
   const glyph = SYMBOL_GLYPH.get(group.canonicalSymbol) ?? group.canonicalSymbol.slice(0, 1);
   const networkLabel =
     group.networks.size === 1
@@ -464,179 +500,190 @@ function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) 
   );
 }
 
-const styles = StyleSheet.create({
-  bg: {
-    flex: 1,
-    backgroundColor: DfxColors.background,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 6,
-    paddingBottom: 12,
-  },
-  headerIcon: {
-    minWidth: 80,
-    height: 44,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-  },
-  manageLink: {
-    ...Typography.bodyMedium,
-    color: DfxColors.primary,
-    fontWeight: '600',
-    textAlign: 'right',
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 36,
-    paddingBottom: 48,
-    gap: 14,
-  },
-  totalLabel: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  totalRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  totalCurrency: {
-    fontSize: 26,
-    color: DfxColors.textTertiary,
-    fontWeight: '500',
-  },
-  totalValue: {
-    fontSize: 46,
-    lineHeight: 52,
-    fontWeight: '700',
-    color: DfxColors.text,
-    flexShrink: 1,
-  },
-  assetList: {
-    gap: 10,
-    marginTop: 22,
-  },
-  emptyCard: {
-    marginTop: 28,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    padding: 18,
-    gap: 6,
-  },
-  emptyTitle: {
-    ...Typography.bodyLarge,
-    fontWeight: '700',
-    color: DfxColors.text,
-  },
-  emptyDescription: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-  },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(221,229,240,0.9)',
-    padding: 14,
-    gap: 12,
-    shadowColor: '#0B1426',
-    shadowOpacity: 0.07,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
-  },
-  cardPressed: {
-    opacity: 0.86,
-    transform: [{ scale: 0.99 }],
-  },
-  iconBubble: {
-    width: 46,
-    height: 46,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#0B1426',
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  iconText: {
-    color: DfxColors.white,
-    fontWeight: '700',
-    fontSize: 22,
-    lineHeight: 26,
-  },
-  info: {
-    flex: 1,
-    gap: 4,
-    minWidth: 0,
-  },
-  name: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  chainCountText: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-  },
-  balanceColumn: {
-    alignItems: 'flex-end',
-    gap: 2,
-    minWidth: 98,
-    maxWidth: '42%',
-  },
-  fiatValue: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  cryptoBalance: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-  },
-  linkedSection: {
-    marginTop: 24,
-    gap: 10,
-  },
-  linkedSectionLabel: {
-    ...Typography.bodySmall,
-    fontWeight: '700',
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    paddingHorizontal: 4,
-  },
-  linkedList: {
-    gap: 8,
-  },
-  linkedAddress: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.text,
-    fontFamily: 'monospace',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    bg: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    safeArea: {
+      flex: 1,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingTop: 6,
+      paddingBottom: 12,
+    },
+    headerIcon: {
+      minWidth: 80,
+      height: 44,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      flex: 1,
+      textAlign: 'center',
+      ...Typography.headlineSmall,
+      color: colors.text,
+    },
+    manageLink: {
+      ...Typography.bodyMedium,
+      color: colors.primary,
+      fontWeight: '600',
+      textAlign: 'right',
+    },
+    scroll: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingHorizontal: 20,
+      paddingTop: 36,
+      paddingBottom: 48,
+      gap: 14,
+    },
+    totalLabel: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      fontWeight: '500',
+      textAlign: 'center',
+    },
+    totalRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'center',
+      gap: 6,
+    },
+    totalCurrency: {
+      fontSize: 26,
+      color: colors.textTertiary,
+      fontWeight: '500',
+    },
+    totalValue: {
+      fontSize: 46,
+      lineHeight: 52,
+      fontWeight: '700',
+      color: colors.text,
+      flexShrink: 1,
+    },
+    assetList: {
+      gap: 10,
+      marginTop: 22,
+    },
+    skeletonRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.cardOverlayBorder,
+      padding: 14,
+      gap: 12,
+    },
+    emptyCard: {
+      marginTop: 28,
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 18,
+      gap: 6,
+    },
+    emptyTitle: {
+      ...Typography.bodyLarge,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    emptyDescription: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+    },
+    card: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.cardOverlayBorder,
+      padding: 14,
+      gap: 12,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.07,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 2,
+    },
+    cardPressed: {
+      opacity: 0.86,
+      transform: [{ scale: 0.99 }],
+    },
+    iconBubble: {
+      width: 46,
+      height: 46,
+      borderRadius: 15,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: '#0B1426',
+      shadowOpacity: 0.12,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+    },
+    iconText: {
+      color: colors.white,
+      fontWeight: '700',
+      fontSize: 22,
+      lineHeight: 26,
+    },
+    info: {
+      flex: 1,
+      gap: 4,
+      minWidth: 0,
+    },
+    name: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    chainCountText: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+    },
+    balanceColumn: {
+      alignItems: 'flex-end',
+      gap: 2,
+      minWidth: 98,
+      maxWidth: '42%',
+    },
+    fiatValue: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    cryptoBalance: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+    },
+    linkedSection: {
+      marginTop: 24,
+      gap: 10,
+    },
+    linkedSectionLabel: {
+      ...Typography.bodySmall,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      paddingHorizontal: 4,
+    },
+    linkedList: {
+      gap: 8,
+    },
+    linkedAddress: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.text,
+      fontFamily: 'monospace',
+    },
+  });

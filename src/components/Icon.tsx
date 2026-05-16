@@ -135,6 +135,11 @@ export function Icon({ name, size = 24, color = DfxColors.primary, strokeWidth =
           />
         </Svg>
       );
+    // Send / Receive share the paper-plane glyph and form a 180° pair:
+    // Send points to the UPPER-LEFT (out + away from the user), Receive
+    // points to the LOWER-RIGHT (in + arriving). Both are pure mirrors
+    // of the source path — Send horizontally flipped, Receive vertically
+    // flipped — so the silhouette stays identical across the pair.
     case 'send':
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -145,6 +150,7 @@ export function Icon({ name, size = 24, color = DfxColors.primary, strokeWidth =
             strokeLinecap="round"
             strokeLinejoin="round"
             fill="none"
+            transform="matrix(-1, 0, 0, 1, 24, 0)"
           />
         </Svg>
       );
@@ -158,7 +164,7 @@ export function Icon({ name, size = 24, color = DfxColors.primary, strokeWidth =
             strokeLinecap="round"
             strokeLinejoin="round"
             fill="none"
-            transform="rotate(-90 12 12)"
+            transform="matrix(1, 0, 0, -1, 0, 24)"
           />
         </Svg>
       );

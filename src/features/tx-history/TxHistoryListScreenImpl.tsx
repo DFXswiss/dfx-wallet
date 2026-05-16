@@ -15,10 +15,18 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { AppHeader, AssetActions, Icon, TransactionRow } from '@/components';
+import {
+  AppHeader,
+  AssetActions,
+  DarkBackdrop,
+  EmptyState,
+  Icon,
+  Skeleton,
+  TransactionRow,
+} from '@/components';
 import { CHAIN_LABELS } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/features/dfx-backend/services';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
 type FilterType = 'all' | 'in' | 'out' | 'pay';
 
@@ -35,6 +43,9 @@ const FILTER_TYPES: Record<Exclude<FilterType, 'all'>, readonly TransactionDto['
 export default function TransactionHistoryScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const colors = useColors();
+  const scheme = useResolvedScheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const params = useLocalSearchParams<{ asset?: string; network?: string }>();
   const assetFilter = typeof params.asset === 'string' ? params.asset.toUpperCase() : undefined;
   const networkFilter = typeof params.network === 'string' ? params.network : undefined;
@@ -92,99 +103,122 @@ export default function TransactionHistoryScreen() {
     return t('transactions.title');
   })();
 
+  const body = (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <AppHeader title={headerTitle} testID="transaction-history" />
+
+      {networkFilter && <WalletAddressBar network={networkFilter} />}
+
+      {(assetFilter || networkFilter) && (
+        <View style={styles.actionsWrapper}>
+          <AssetActions
+            {...(assetFilter ? { asset: assetFilter } : {})}
+            {...(networkFilter ? { chain: networkFilter } : {})}
+            testID="wallet-actions"
+          />
+        </View>
+      )}
+
+      {!assetFilter && (
+        <View style={styles.segmentedWrapper}>
+          <View style={styles.segmented}>
+            {filters.map((f) => {
+              const isActive = filter === f.key;
+              return (
+                <Pressable
+                  key={f.key}
+                  style={[styles.segment, isActive && styles.segmentActive]}
+                  onPress={() => setFilter(f.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
+                >
+                  <Text
+                    style={[styles.segmentText, isActive && styles.segmentTextActive]}
+                    numberOfLines={1}
+                  >
+                    {f.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      )}
+
+      {isLoading ? (
+        <View style={styles.skeletonList}>
+          {[0, 1, 2, 3].map((i) => (
+            <View key={i} style={styles.skeletonRow}>
+              <Skeleton width={36} height={36} radius={18} />
+              <View style={styles.skeletonLines}>
+                <Skeleton width={'60%'} height={14} radius={6} />
+                <Skeleton width={'40%'} height={11} radius={6} />
+              </View>
+              <Skeleton width={84} height={14} radius={6} />
+            </View>
+          ))}
+        </View>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon="swap"
+          title={t('transactions.noTransactions')}
+          description={t('transactions.emptyHint')}
+          testID="tx-history-empty"
+        />
+      ) : (
+        // Virtualised so that long histories don't block the JS thread on
+        // first render — the previous ScrollView+map approach mounted every
+        // row up-front and dropped frames once a user crossed ~100 txs.
+        <FlatList
+          style={styles.scroll}
+          contentContainerStyle={styles.txList}
+          data={filtered}
+          keyExtractor={(tx) => String(tx.id)}
+          renderItem={({ item }: ListRenderItemInfo<TransactionDto>) => (
+            <TransactionRow
+              tx={item}
+              onPress={() =>
+                router.push({
+                  pathname: '/(auth)/transaction-history/[id]',
+                  params: { id: String(item.id), network: networkFilter ?? '' },
+                })
+              }
+            />
+          )}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isLoading}
+              onRefresh={loadTransactions}
+              tintColor={colors.primary}
+            />
+          }
+          initialNumToRender={20}
+          maxToRenderPerBatch={20}
+          windowSize={11}
+          removeClippedSubviews
+        />
+      )}
+    </SafeAreaView>
+  );
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      <ImageBackground
-        source={require('../../../assets/dashboard-bg.png')}
-        style={styles.bg}
-        resizeMode="cover"
-      >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-          <AppHeader title={headerTitle} testID="transaction-history" />
-
-          {networkFilter && <WalletAddressBar network={networkFilter} />}
-
-          {(assetFilter || networkFilter) && (
-            <View style={styles.actionsWrapper}>
-              <AssetActions
-                {...(assetFilter ? { asset: assetFilter } : {})}
-                {...(networkFilter ? { chain: networkFilter } : {})}
-                testID="wallet-actions"
-              />
-            </View>
-          )}
-
-          {!assetFilter && (
-            <View style={styles.segmentedWrapper}>
-              <View style={styles.segmented}>
-                {filters.map((f) => {
-                  const isActive = filter === f.key;
-                  return (
-                    <Pressable
-                      key={f.key}
-                      style={[styles.segment, isActive && styles.segmentActive]}
-                      onPress={() => setFilter(f.key)}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: isActive }}
-                    >
-                      <Text
-                        style={[styles.segmentText, isActive && styles.segmentTextActive]}
-                        numberOfLines={1}
-                      >
-                        {f.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator color={DfxColors.primary} />
-            </View>
-          ) : filtered.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>{t('transactions.noTransactions')}</Text>
-            </View>
-          ) : (
-            // Virtualised so that long histories don't block the JS thread on
-            // first render — the previous ScrollView+map approach mounted every
-            // row up-front and dropped frames once a user crossed ~100 txs.
-            <FlatList
-              style={styles.scroll}
-              contentContainerStyle={styles.txList}
-              data={filtered}
-              keyExtractor={(tx) => String(tx.id)}
-              renderItem={({ item }: ListRenderItemInfo<TransactionDto>) => (
-                <TransactionRow
-                  tx={item}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/(auth)/transaction-history/[id]',
-                      params: { id: String(item.id), network: networkFilter ?? '' },
-                    })
-                  }
-                />
-              )}
-              showsVerticalScrollIndicator={false}
-              refreshControl={
-                <RefreshControl
-                  refreshing={isLoading}
-                  onRefresh={loadTransactions}
-                  tintColor={DfxColors.primary}
-                />
-              }
-              initialNumToRender={20}
-              maxToRenderPerBatch={20}
-              windowSize={11}
-              removeClippedSubviews
-            />
-          )}
-        </SafeAreaView>
-      </ImageBackground>
+      {scheme === 'dark' ? (
+        <View style={styles.bg}>
+          <DarkBackdrop baseColor={colors.background} />
+          {body}
+        </View>
+      ) : (
+        <ImageBackground
+          source={require('../../../assets/dashboard-bg.png')}
+          style={styles.bg}
+          resizeMode="cover"
+        >
+          {body}
+        </ImageBackground>
+      )}
     </>
   );
 }
@@ -194,6 +228,8 @@ export default function TransactionHistoryScreen() {
 // once WDK can derive these natively.
 function WalletAddressBar({ network }: { network: string }) {
   const { t } = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { address } = useAccount({ network, accountIndex: 0 });
   const [copied, setCopied] = useState(false);
 
@@ -210,7 +246,7 @@ function WalletAddressBar({ network }: { network: string }) {
   return (
     <Pressable style={styles.addressCard} onPress={handleCopy} testID="wallet-address-copy">
       <View style={styles.addressIconCircle}>
-        <Icon name="wallet" size={22} color={DfxColors.primary} />
+        <Icon name="wallet" size={22} color={colors.primary} />
       </View>
       <Text style={styles.addressLabel}>{t('transactions.walletAddress')}</Text>
       <Text style={styles.addressText} numberOfLines={1} selectable>
@@ -223,164 +259,182 @@ function WalletAddressBar({ network }: { network: string }) {
   );
 }
 
-const styles = StyleSheet.create({
-  addressCard: {
-    alignItems: 'center',
-    marginHorizontal: 20,
-    marginBottom: 16,
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-  },
-  addressIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  addressLabel: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  addressText: {
-    ...Typography.bodyLarge,
-    color: DfxColors.text,
-    fontFamily: 'monospace',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  copyBadge: {
-    marginTop: 4,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    backgroundColor: DfxColors.primaryLight,
-    borderRadius: 12,
-  },
-  copyText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.primary,
-    fontWeight: '700',
-  },
-  bg: {
-    flex: 1,
-    backgroundColor: DfxColors.background,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  actionsWrapper: {
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 12,
-  },
-  segmentedWrapper: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  segmented: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    padding: 4,
-  },
-  segment: {
-    flex: 1,
-    height: 36,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  segmentActive: {
-    backgroundColor: DfxColors.primary,
-  },
-  segmentText: {
-    ...Typography.bodySmall,
-    fontWeight: '600',
-    color: DfxColors.textSecondary,
-    lineHeight: 16,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-  segmentTextActive: {
-    color: DfxColors.white,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  emptyText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textTertiary,
-  },
-  scroll: {
-    flex: 1,
-  },
-  txList: {
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 32,
-    gap: 4,
-  },
-  txItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    gap: 12,
-  },
-  txItemPressed: {
-    opacity: 0.6,
-  },
-  txIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  txInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  txType: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  txDate: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-  },
-  txAmountColumn: {
-    alignItems: 'flex-end',
-    gap: 2,
-    minWidth: 110,
-  },
-  txAmount: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-  },
-  txState: {
-    ...Typography.bodySmall,
-    fontWeight: '500',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    addressCard: {
+      alignItems: 'center',
+      marginHorizontal: 20,
+      marginBottom: 16,
+      paddingVertical: 24,
+      paddingHorizontal: 20,
+      gap: 8,
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    addressIconCircle: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 4,
+    },
+    addressLabel: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    addressText: {
+      ...Typography.bodyLarge,
+      color: colors.text,
+      fontFamily: 'monospace',
+      fontWeight: '500',
+      textAlign: 'center',
+    },
+    copyBadge: {
+      marginTop: 4,
+      paddingHorizontal: 20,
+      paddingVertical: 8,
+      backgroundColor: colors.primaryLight,
+      borderRadius: 12,
+    },
+    copyText: {
+      ...Typography.bodyMedium,
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    bg: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    safeArea: {
+      flex: 1,
+    },
+    actionsWrapper: {
+      paddingHorizontal: 20,
+      paddingTop: 4,
+      paddingBottom: 12,
+    },
+    segmentedWrapper: {
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+    },
+    segmented: {
+      flexDirection: 'row',
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 4,
+    },
+    segment: {
+      flex: 1,
+      height: 36,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    segmentActive: {
+      backgroundColor: colors.primary,
+    },
+    segmentText: {
+      ...Typography.bodySmall,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      lineHeight: 16,
+      includeFontPadding: false,
+      textAlignVertical: 'center',
+    },
+    segmentTextActive: {
+      color: colors.white,
+    },
+    loadingContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyState: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+    },
+    emptyText: {
+      ...Typography.bodyMedium,
+      color: colors.textTertiary,
+    },
+    // Skeleton row mirrors the TransactionRow shape so the list doesn't
+    // jump when real data lands — same row height, same column widths.
+    skeletonList: {
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      gap: 12,
+    },
+    skeletonRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 4,
+    },
+    skeletonLines: {
+      flex: 1,
+      gap: 6,
+    },
+    scroll: {
+      flex: 1,
+    },
+    txList: {
+      paddingHorizontal: 20,
+      paddingTop: 4,
+      paddingBottom: 32,
+      gap: 4,
+    },
+    txItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 4,
+      gap: 12,
+    },
+    txItemPressed: {
+      opacity: 0.6,
+    },
+    txIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    txInfo: {
+      flex: 1,
+      gap: 2,
+    },
+    txType: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    txDate: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+    },
+    txAmountColumn: {
+      alignItems: 'flex-end',
+      gap: 2,
+      minWidth: 110,
+    },
+    txAmount: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+    },
+    txState: {
+      ...Typography.bodySmall,
+      fontWeight: '500',
+    },
+  });
