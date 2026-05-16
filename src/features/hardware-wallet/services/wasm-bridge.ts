@@ -98,11 +98,11 @@ export class WasmBridge {
    * failure message behind a generic "bridge not ready" error.
    */
   private bootstrapError: HwBridgeNotReadyError | null = null;
-  private readyWaiters: Array<{
+  private readyWaiters: {
     resolve: () => void;
     reject: (err: Error) => void;
     timer: ReturnType<typeof setTimeout>;
-  }> = [];
+  }[] = [];
 
   /** Read-side transport callbacks: BitboxProvider wires these. */
   onTransportWrite: ((data: Uint8Array) => void) | null = null;
@@ -273,9 +273,7 @@ export class WasmBridge {
         // queued waitReady caller immediately with the underlying cause,
         // and stash the error so future waitReady() calls reject fast
         // instead of waiting another 5 s.
-        const err = new HwBridgeNotReadyError(
-          parsed.error?.message ?? 'wasm bootstrap failed',
-        );
+        const err = new HwBridgeNotReadyError(parsed.error?.message ?? 'wasm bootstrap failed');
         this.bootstrapError = err;
         this.wasmReady = false;
         for (const w of this.readyWaiters) {
@@ -295,11 +293,7 @@ export class WasmBridge {
         return;
 
       case 'result': {
-        if (
-          typeof parsed.id !== 'number' ||
-          !Number.isInteger(parsed.id) ||
-          parsed.id <= 0
-        ) {
+        if (typeof parsed.id !== 'number' || !Number.isInteger(parsed.id) || parsed.id <= 0) {
           return;
         }
         const pending = this.pending.get(parsed.id);
@@ -319,11 +313,7 @@ export class WasmBridge {
       }
 
       case 'error': {
-        if (
-          typeof parsed.id !== 'number' ||
-          !Number.isInteger(parsed.id) ||
-          parsed.id <= 0
-        ) {
+        if (typeof parsed.id !== 'number' || !Number.isInteger(parsed.id) || parsed.id <= 0) {
           return;
         }
         const pending = this.pending.get(parsed.id);

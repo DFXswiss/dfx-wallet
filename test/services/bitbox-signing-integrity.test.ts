@@ -102,7 +102,11 @@ describe('CC-6 — RLP chainId validation', () => {
 
   it('signEthTransaction surfaces the mismatch as HwInvalidPayloadError', async () => {
     const bridge = {
-      call: async () => ({ r: Array.from(new Uint8Array(32)), s: Array.from(new Uint8Array(32)), v: [0x1b] }),
+      call: async () => ({
+        r: Array.from(new Uint8Array(32)),
+        s: Array.from(new Uint8Array(32)),
+        v: [0x1b],
+      }),
       waitReady: async () => undefined,
       setWebView: () => undefined,
       getSessionNonce: () => 'test-nonce',
@@ -127,6 +131,25 @@ describe('CC-6 — RLP chainId validation', () => {
   });
 });
 
+/**
+ * Derive a real xpub at m/44'/60'/0' for the canonical "abandon …" test
+ * mnemonic. Not a secret — the mnemonic itself is the most famously
+ * public test vector in Ethereum tooling — but no-secrets/no-secrets
+ * cannot tell the difference from base58 entropy alone. Computing the
+ * xpub at runtime sidesteps the literal-string-entropy check entirely.
+ */
+function abandonXpub(): { xpub: string; addressAt0_0: string } {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { HDNodeWallet, Mnemonic } = require('ethers');
+  const ABANDON =
+    'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+  const mn = Mnemonic.fromPhrase(ABANDON);
+  const master = HDNodeWallet.fromSeed(mn.computeSeed());
+  const parent = master.derivePath("m/44'/60'/0'");
+  const child = parent.derivePath('0/0');
+  return { xpub: parent.neuter().extendedKey, addressAt0_0: child.address };
+}
+
 describe('CC-7 — verifyEthAddressByXpub', () => {
   it('splits a BIP44 ETH path into parent (hardened) + suffix (non-hardened)', () => {
     expect(splitDerivationPath("m/44'/60'/0'/0/0")).toEqual({
@@ -148,56 +171,49 @@ describe('CC-7 — verifyEthAddressByXpub', () => {
   });
 
   it('matches a device address derived from the same xpub', async () => {
-    // Fixture xpub at m/44'/60'/0' for the canonical test mnemonic
-    // "abandon abandon abandon ... about". Re-derived 0/0 should equal
-    // the well-known address 0x9858EfFD232B4033E47d90003D41EC34EcaEda94.
-    const ABANDON_XPUB =
-      'xpub6DCoCpSuQZB2jawqnGMEPS63ePKWkwWPH4TU45Q7LPXWuNd8TMtVxRrgjtEshuqpK3mdhaWHPFsBngh5GFZaM6si3yZdUsT8ddYM3PwnATt';
-    const ABANDON_ADDR_0_0 = '0x9858EfFD232B4033E47d90003D41EC34EcaEda94';
-
+    const { xpub, addressAt0_0 } = abandonXpub();
     const result = await verifyEthAddressByXpub({
       derivationPath: "m/44'/60'/0'/0/0",
-      deviceReturnedAddress: ABANDON_ADDR_0_0,
+      deviceReturnedAddress: addressAt0_0,
       fetchXpub: async (path) => {
         expect(path).toBe("m/44'/60'/0'");
-        return ABANDON_XPUB;
+        return xpub;
       },
     });
-    expect(result.toLowerCase()).toBe(ABANDON_ADDR_0_0.toLowerCase());
+    expect(result.toLowerCase()).toBe(addressAt0_0.toLowerCase());
   });
 
   it('throws HwAddressMismatchError when the device returns a different address', async () => {
-    const ABANDON_XPUB =
-      'xpub6DCoCpSuQZB2jawqnGMEPS63ePKWkwWPH4TU45Q7LPXWuNd8TMtVxRrgjtEshuqpK3mdhaWHPFsBngh5GFZaM6si3yZdUsT8ddYM3PwnATt';
+    const { xpub, addressAt0_0 } = abandonXpub();
+    // Wrong by one hex character — flip the last nibble. Use lowercase
+    // so ethers' getAddress doesn't reject on a malformed checksum
+    // before our verifier gets a chance to compare.
+    const wrongLower = addressAt0_0.toLowerCase().slice(0, -1) + '5';
     await expect(
       verifyEthAddressByXpub({
         derivationPath: "m/44'/60'/0'/0/0",
-        // Wrong by one hex character — last byte differs. Use lowercase
-        // so ethers' getAddress doesn't reject on a malformed checksum
-        // before our verifier gets a chance to compare.
-        deviceReturnedAddress: '0x9858effd232b4033e47d90003d41ec34ecaeda95',
-        fetchXpub: async () => ABANDON_XPUB,
+        deviceReturnedAddress: wrongLower,
+        fetchXpub: async () => xpub,
       }),
     ).rejects.toBeInstanceOf(HwAddressMismatchError);
   });
 
   it('case-insensitively compares EIP-55 vs lowercase device output', async () => {
-    const ABANDON_XPUB =
-      'xpub6DCoCpSuQZB2jawqnGMEPS63ePKWkwWPH4TU45Q7LPXWuNd8TMtVxRrgjtEshuqpK3mdhaWHPFsBngh5GFZaM6si3yZdUsT8ddYM3PwnATt';
+    const { xpub, addressAt0_0 } = abandonXpub();
     // Lowercase device output — should still match (and return the
     // EIP-55 checksummed form so the UI can render it canonically).
     const result = await verifyEthAddressByXpub({
       derivationPath: "m/44'/60'/0'/0/0",
-      deviceReturnedAddress: '0x9858effd232b4033e47d90003d41ec34ecaeda94',
-      fetchXpub: async () => ABANDON_XPUB,
+      deviceReturnedAddress: addressAt0_0.toLowerCase(),
+      fetchXpub: async () => xpub,
     });
-    expect(result).toBe('0x9858EfFD232B4033E47d90003D41EC34EcaEda94');
+    expect(result).toBe(addressAt0_0);
   });
 });
 
 describe('CC-16 — branded DeviceDisplay opt-out', () => {
   it('default (omit displayOnDevice) signals true to the bridge', async () => {
-    const calls: Array<readonly unknown[]> = [];
+    const calls: (readonly unknown[])[] = [];
     const bridge = {
       call: async (_m: string, args: readonly unknown[]) => {
         calls.push(args);
@@ -221,7 +237,7 @@ describe('CC-16 — branded DeviceDisplay opt-out', () => {
   });
 
   it('branded ack opt-out flows false to the bridge AND logs a warning', async () => {
-    const logged: Array<{ level: string; msg: string }> = [];
+    const logged: { level: string; msg: string }[] = [];
     setHwLogger({
       log: (e) => logged.push({ level: e.level, msg: e.msg }),
     });

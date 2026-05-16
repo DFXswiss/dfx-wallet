@@ -3,7 +3,12 @@
  * emit raw key material — these tests fail loudly if redaction breaks.
  */
 
-import { _redactValueForTest, logHw, setHwLogger, type HwLogger } from '@/features/hardware-wallet/services/log';
+import {
+  _redactValueForTest,
+  logHw,
+  setHwLogger,
+  type HwLogger,
+} from '@/features/hardware-wallet/services/log';
 
 describe('hardware-wallet logger — redaction', () => {
   it('redacts known sensitive field names regardless of value', () => {
@@ -30,7 +35,10 @@ describe('hardware-wallet logger — redaction', () => {
   });
 
   it('redacts EVM addresses embedded in strings', () => {
-    const out = _redactValueForTest('arbitrary', 'sending to 0x1234567890123456789012345678901234567890 now') as string;
+    const out = _redactValueForTest(
+      'arbitrary',
+      'sending to 0x1234567890123456789012345678901234567890 now',
+    ) as string;
     expect(out).toContain('[REDACTED]');
     expect(out).not.toContain('0x1234567890123456789012345678901234567890');
   });
@@ -57,7 +65,9 @@ describe('hardware-wallet logger — redaction', () => {
   });
 
   it('redacts inside Error.message but keeps the Error.name', () => {
-    const err = new Error('signing failed for recipient 0x1234567890123456789012345678901234567890');
+    const err = new Error(
+      'signing failed for recipient 0x1234567890123456789012345678901234567890',
+    );
     const out = _redactValueForTest(undefined, err) as { name: string; message: string };
     expect(out.name).toBe('Error');
     expect(out.message).toContain('[REDACTED]');
@@ -86,7 +96,7 @@ describe('hardware-wallet logger — redaction', () => {
 
 describe('hardware-wallet logger — pluggability', () => {
   it('captures entries through a substituted logger', () => {
-    const captured: Array<{ level: string; msg: string }> = [];
+    const captured: { level: string; msg: string }[] = [];
     const fake: HwLogger = {
       log: (entry) => {
         captured.push({ level: entry.level, msg: entry.msg });
@@ -113,7 +123,7 @@ describe('hardware-wallet logger — pluggability', () => {
  */
 describe('hardware-wallet logger — top-level msg redaction', () => {
   function captureOne(act: () => void): { msg: string; ctx?: Record<string, unknown> } {
-    const entries: Array<{ msg: string; ctx?: Record<string, unknown> }> = [];
+    const entries: { msg: string; ctx?: Record<string, unknown> }[] = [];
     setHwLogger({
       log: (e) => {
         const captured: { msg: string; ctx?: Record<string, unknown> } = { msg: e.msg };

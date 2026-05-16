@@ -259,7 +259,9 @@ export class BitboxProvider implements HardwareWalletProvider {
       checkAbort();
 
       // 5. Fetch device info — also wrapped so firmware-rejects surface typed.
-      this.deviceInfo = await this.translateErrors('deviceInfo', () => this.fetchDeviceInfo(signal));
+      this.deviceInfo = await this.translateErrors('deviceInfo', () =>
+        this.fetchDeviceInfo(signal),
+      );
       checkAbort();
       logHw(
         'info',
@@ -357,12 +359,7 @@ export class BitboxProvider implements HardwareWalletProvider {
           const v = await fn();
           resolveResult(v);
         } catch (e) {
-          logHw(
-            'debug',
-            `lifecycle.${label}.failed`,
-            { err: errorContext(e) },
-            this.flowId,
-          );
+          logHw('debug', `lifecycle.${label}.failed`, { err: errorContext(e) }, this.flowId);
           rejectResult(e);
         }
       });
@@ -559,12 +556,7 @@ export class BitboxProvider implements HardwareWalletProvider {
     display: import('./types').DeviceDisplay | undefined,
   ): boolean {
     if (display === undefined || display === true) return true;
-    logHw(
-      'warn',
-      `op.${operation}.display_on_device_off`,
-      { reason: display.reason },
-      this.flowId,
-    );
+    logHw('warn', `op.${operation}.display_on_device_off`, { reason: display.reason }, this.flowId);
     return false;
   }
 
@@ -588,8 +580,7 @@ function bytesToLowerHex(bytes: Uint8Array): string {
  * type-level — no runtime instantiation, so importing this module does
  * not allocate a WasmBridge or a flowId.
  */
-type _ProviderImplCheck =
-  BitboxProvider extends HardwareWalletProvider ? true : never;
+type _ProviderImplCheck = BitboxProvider extends HardwareWalletProvider ? true : never;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const _providerImplCheck: _ProviderImplCheck = true;
 

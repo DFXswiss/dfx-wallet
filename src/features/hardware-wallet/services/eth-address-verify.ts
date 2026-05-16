@@ -38,9 +38,7 @@ export function splitDerivationPath(path: string): { parent: string; suffix: str
     if (segments[i]!.endsWith("'")) lastHardened = i;
   }
   if (lastHardened === segments.length - 1) {
-    throw new Error(
-      `derivationPath has no non-hardened tail; cannot re-derive publicly: ${path}`,
-    );
+    throw new Error(`derivationPath has no non-hardened tail; cannot re-derive publicly: ${path}`);
   }
   const parentParts = segments.slice(0, lastHardened + 1);
   const suffixParts = segments.slice(lastHardened + 1);

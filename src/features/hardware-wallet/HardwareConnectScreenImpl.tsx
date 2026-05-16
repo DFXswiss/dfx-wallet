@@ -29,7 +29,7 @@ import { Typography, useColors, type ThemeColors } from '@/theme';
  * for an untyped Error returns the generic key (NOT err.message) so a
  * native-library jargon string never reaches the user.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 function userMessage(err: unknown, t: any): string {
   if (err instanceof HwUserAbortError) return t('hardware.error.userAbort');
   if (err instanceof HwFirmwareTooOldError)
@@ -220,11 +220,7 @@ export default function HardwareConnectScreen() {
               {channelHash ? (
                 <>
                   <Text style={styles.channelHashLabel}>{t('hardware.channelHashLabel')}</Text>
-                  <Text
-                    style={styles.channelHashValue}
-                    testID="hardware-channel-hash"
-                    selectable
-                  >
+                  <Text style={styles.channelHashValue} testID="hardware-channel-hash" selectable>
                     {formatChannelHash(channelHash)}
                   </Text>
                   <Text style={styles.hint}>{t('hardware.channelHashCompare')}</Text>

@@ -31,19 +31,18 @@ const ERROR_KEYS = [
   'unknown',
 ] as const;
 
-const CHANNEL_HASH_KEYS = [
-  'channelHashLabel',
-  'channelHashCompare',
-  'channelHashMissing',
-] as const;
+const CHANNEL_HASH_KEYS = ['channelHashLabel', 'channelHashCompare', 'channelHashMissing'] as const;
 
 const TOP_LEVEL_KEYS = ['retry'] as const;
 
 function get(o: Record<string, unknown>, path: string): string | undefined {
-  const v = path.split('.').reduce<unknown>(
-    (acc, p) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[p] : undefined),
-    o,
-  );
+  const v = path
+    .split('.')
+    .reduce<unknown>(
+      (acc, p) =>
+        acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[p] : undefined,
+      o,
+    );
   return typeof v === 'string' ? v : undefined;
 }
 

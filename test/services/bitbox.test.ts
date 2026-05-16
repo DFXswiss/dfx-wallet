@@ -371,7 +371,11 @@ describe('BitboxProvider — UserAbort is a distinct error class', () => {
       throw err;
     });
     await expect(
-      provider.signEthMessage({ chainId: 1n, derivationPath: PATH, message: new Uint8Array([0x68]) }),
+      provider.signEthMessage({
+        chainId: 1n,
+        derivationPath: PATH,
+        message: new Uint8Array([0x68]),
+      }),
     ).rejects.toBeInstanceOf(HwUserAbortError);
   });
 
@@ -382,7 +386,11 @@ describe('BitboxProvider — UserAbort is a distinct error class', () => {
       throw err;
     });
     await expect(
-      provider.signEthMessage({ chainId: 1n, derivationPath: PATH, message: new Uint8Array([0x68]) }),
+      provider.signEthMessage({
+        chainId: 1n,
+        derivationPath: PATH,
+        message: new Uint8Array([0x68]),
+      }),
     ).rejects.toBeInstanceOf(HwUserAbortError);
   });
 });
@@ -435,7 +443,9 @@ describe('BitboxProvider — firmware version gate', () => {
     // the post-pair state by invoking fetchDeviceInfo via the typed gate.
     // The full connect() exercise lives in an integration test later.
     (provider as unknown as { transport: object | null }).transport = {};
-    const info = await (provider as unknown as { fetchDeviceInfo: () => Promise<{ version: string }> }).fetchDeviceInfo();
+    const info = await (
+      provider as unknown as { fetchDeviceInfo: () => Promise<{ version: string }> }
+    ).fetchDeviceInfo();
     expect(info.version).toBe('9.10.0');
     // Now test the comparison helper:
     const { compareVersions } = await import('@/features/hardware-wallet/services/errors');
@@ -468,7 +478,9 @@ describe('BitboxProvider — transport event subscription', () => {
     provider.subscribeTransport((e) => events.push(`a:${e}`));
     provider.subscribeTransport((e) => events.push(`b:${e}`));
     // Trigger via the internal emit (test-only access).
-    (provider as unknown as { emit: (e: 'disconnected' | 'reconnected' | 'fatal') => void }).emit('disconnected');
+    (provider as unknown as { emit: (e: 'disconnected' | 'reconnected' | 'fatal') => void }).emit(
+      'disconnected',
+    );
     expect(events).toEqual(['a:disconnected', 'b:disconnected']);
   });
 
@@ -476,9 +488,13 @@ describe('BitboxProvider — transport event subscription', () => {
     const provider = new BitboxProvider();
     const events: string[] = [];
     const unsub = provider.subscribeTransport((e) => events.push(e));
-    (provider as unknown as { emit: (e: 'disconnected' | 'reconnected' | 'fatal') => void }).emit('disconnected');
+    (provider as unknown as { emit: (e: 'disconnected' | 'reconnected' | 'fatal') => void }).emit(
+      'disconnected',
+    );
     unsub();
-    (provider as unknown as { emit: (e: 'disconnected' | 'reconnected' | 'fatal') => void }).emit('reconnected');
+    (provider as unknown as { emit: (e: 'disconnected' | 'reconnected' | 'fatal') => void }).emit(
+      'reconnected',
+    );
     expect(events).toEqual(['disconnected']);
   });
 
@@ -489,7 +505,9 @@ describe('BitboxProvider — transport event subscription', () => {
       throw new Error('listener boom');
     });
     provider.subscribeTransport((e) => events.push(e));
-    (provider as unknown as { emit: (e: 'disconnected' | 'reconnected' | 'fatal') => void }).emit('fatal');
+    (provider as unknown as { emit: (e: 'disconnected' | 'reconnected' | 'fatal') => void }).emit(
+      'fatal',
+    );
     expect(events).toEqual(['fatal']);
   });
 });
@@ -506,7 +524,9 @@ describe('BitboxProvider — attemptReconnect', () => {
     const provider = new BitboxProvider();
     // Inject a connected device into private state so attemptReconnect has
     // something to retry — but the connect attempts will fail (no mock).
-    (provider as unknown as { connectedDevice: { id: string; transport: string } }).connectedDevice = {
+    (
+      provider as unknown as { connectedDevice: { id: string; transport: string } }
+    ).connectedDevice = {
       id: 'fake',
       transport: 'ble',
     } as never;
@@ -829,7 +849,9 @@ describe('WasmBridge — protocol hardening', () => {
  *        envelope to the WebView so the WASM read unwinds.
  */
 
-function makeBridgeStub(callImpl: (m: string, a: readonly unknown[], o?: CallOpts) => Promise<unknown>) {
+function makeBridgeStub(
+  callImpl: (m: string, a: readonly unknown[], o?: CallOpts) => Promise<unknown>,
+) {
   return {
     call: callImpl,
     waitReady: async () => undefined,
@@ -900,7 +922,12 @@ describe('BitboxProvider — translateErrors over pair / deviceInfo (CC-8)', () 
       return null;
     });
     const provider = new BitboxProvider(bridge as never);
-    const device: HardwareWalletDevice = { id: 'fake', name: 'BB', type: 'bitbox02', transport: 'ble' };
+    const device: HardwareWalletDevice = {
+      id: 'fake',
+      name: 'BB',
+      type: 'bitbox02',
+      transport: 'ble',
+    };
     await expect(provider.connect(device)).rejects.toBeInstanceOf(HwUserAbortError);
   });
 
@@ -915,7 +942,12 @@ describe('BitboxProvider — translateErrors over pair / deviceInfo (CC-8)', () 
       return null;
     });
     const provider = new BitboxProvider(bridge as never);
-    const device: HardwareWalletDevice = { id: 'fake', name: 'BB', type: 'bitbox02', transport: 'ble' };
+    const device: HardwareWalletDevice = {
+      id: 'fake',
+      name: 'BB',
+      type: 'bitbox02',
+      transport: 'ble',
+    };
     const { HwFirmwareRejectError } = await import('@/features/hardware-wallet/services/errors');
     await expect(provider.connect(device)).rejects.toBeInstanceOf(HwFirmwareRejectError);
   });
@@ -933,12 +965,23 @@ describe('BitboxProvider — serialised lifecycle (CC-23)', () => {
         pairInFlight -= 1;
         return { channelHash: null };
       }
-      if (method === 'deviceInfo') return { version: '9.21.0', product: 'bitbox02-multi', name: 'BB', initialized: true };
+      if (method === 'deviceInfo')
+        return { version: '9.21.0', product: 'bitbox02-multi', name: 'BB', initialized: true };
       return null;
     });
     const provider = new BitboxProvider(bridge as never);
-    const deviceA: HardwareWalletDevice = { id: 'A', name: 'BB-A', type: 'bitbox02', transport: 'ble' };
-    const deviceB: HardwareWalletDevice = { id: 'B', name: 'BB-B', type: 'bitbox02', transport: 'ble' };
+    const deviceA: HardwareWalletDevice = {
+      id: 'A',
+      name: 'BB-A',
+      type: 'bitbox02',
+      transport: 'ble',
+    };
+    const deviceB: HardwareWalletDevice = {
+      id: 'B',
+      name: 'BB-B',
+      type: 'bitbox02',
+      transport: 'ble',
+    };
     // Issue two connects in rapid succession.
     const a = provider.connect(deviceA).catch(() => undefined);
     const b = provider.connect(deviceB).catch(() => undefined);
@@ -961,7 +1004,12 @@ describe('BitboxProvider — serialised lifecycle (CC-23)', () => {
       return null;
     });
     const provider = new BitboxProvider(bridge as never);
-    const device: HardwareWalletDevice = { id: 'X', name: 'BB', type: 'bitbox02', transport: 'ble' };
+    const device: HardwareWalletDevice = {
+      id: 'X',
+      name: 'BB',
+      type: 'bitbox02',
+      transport: 'ble',
+    };
     const connecting = provider.connect(device).catch((e) => e);
     // Yield so connect() enters the pair await.
     await new Promise((r) => setTimeout(r, 5));

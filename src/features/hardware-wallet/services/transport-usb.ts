@@ -84,7 +84,7 @@ export async function scanUsbDevices(): Promise<HardwareWalletDevice[]> {
   let mod: typeof import('@modules/bitbox-hid/src');
   try {
     mod = await import('@modules/bitbox-hid/src');
-  } catch (err) {
+  } catch {
     // The native module is unavailable in this build (likely a managed
     // workflow or an iOS-only fork). Empty list, not a crash.
     return [];

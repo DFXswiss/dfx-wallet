@@ -163,6 +163,7 @@ function bytesToHex(bytes: Uint8Array): string {
 function bigEndianToNumber(bytes: Uint8Array, label: string): number {
   let n = 0;
   for (let i = 0; i < bytes.length; i++) {
+    // eslint-disable-next-line security/detect-object-injection -- i is bounded by bytes.length
     const b = bytes[i]!;
     if (n > (Number.MAX_SAFE_INTEGER - b) / 256) {
       throw new Error(`${label} exceeds Number.MAX_SAFE_INTEGER`);

@@ -140,11 +140,9 @@ class ConsoleHwLogger implements HwLogger {
     const out = JSON.stringify(safe);
     switch (entry.level) {
       case 'error':
-        // eslint-disable-next-line no-console
         console.error(out);
         break;
       case 'warn':
-        // eslint-disable-next-line no-console
         console.warn(out);
         break;
       case 'debug':

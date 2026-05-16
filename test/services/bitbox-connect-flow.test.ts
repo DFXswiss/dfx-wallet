@@ -18,14 +18,15 @@
 
 import { BitboxProvider } from '@/features/hardware-wallet/services/bitbox';
 import { HwFirmwareTooOldError } from '@/features/hardware-wallet/services/errors';
-import { setHwLogger, type HwLogEntry, type HwLogger } from '@/features/hardware-wallet/services/log';
+import {
+  setHwLogger,
+  type HwLogEntry,
+  type HwLogger,
+} from '@/features/hardware-wallet/services/log';
 
 type CallRecord = { method: string; args: readonly unknown[] };
 
-function newBridgeMock(opts: {
-  deviceVersion?: string;
-  pairResponse?: unknown;
-}) {
+function newBridgeMock(opts: { deviceVersion?: string; pairResponse?: unknown }) {
   const calls: CallRecord[] = [];
   const bridge = {
     call: async (method: string, args: readonly unknown[]) => {
@@ -54,7 +55,12 @@ function newBridgeMock(opts: {
   return { bridge, calls };
 }
 
-function captureLogs(): { entries: HwLogEntry[]; logger: HwLogger; install: () => void; uninstall: () => void } {
+function captureLogs(): {
+  entries: HwLogEntry[];
+  logger: HwLogger;
+  install: () => void;
+  uninstall: () => void;
+} {
   const entries: HwLogEntry[] = [];
   const logger: HwLogger = {
     log: (entry) => entries.push({ ...entry, ts: new Date().toISOString() }),
@@ -98,8 +104,13 @@ describe('BitboxProvider.connect — connect-flow integration', () => {
       // We can't call provider.connect(device) end-to-end without RN
       // platform shims, so we step through the bridge sequence directly.
       injectTransport(provider);
-      await (provider as unknown as { bridge: { call: typeof bridge.call } }).bridge.call('pair', []);
-      const info = await (provider as unknown as { fetchDeviceInfo: () => Promise<{ version: string }> }).fetchDeviceInfo();
+      await (provider as unknown as { bridge: { call: typeof bridge.call } }).bridge.call(
+        'pair',
+        [],
+      );
+      const info = await (
+        provider as unknown as { fetchDeviceInfo: () => Promise<{ version: string }> }
+      ).fetchDeviceInfo();
       expect(info.version).toBe('9.23.0');
       // The call order at the bridge:
       expect(calls.map((c) => c.method)).toEqual(['pair', 'deviceInfo']);
@@ -133,11 +144,13 @@ describe('BitboxProvider.connect — connect-flow integration', () => {
       const provider = new BitboxProvider(bridge as never);
       injectTransport(provider);
       // Drive an operation that would otherwise smuggle bytes into args.
-      await provider.signEthMessage({
-        chainId: 1n,
-        derivationPath: "m/44'/60'/0'/0/0",
-        message: new TextEncoder().encode('verify me'),
-      }).catch(() => undefined);
+      await provider
+        .signEthMessage({
+          chainId: 1n,
+          derivationPath: "m/44'/60'/0'/0/0",
+          message: new TextEncoder().encode('verify me'),
+        })
+        .catch(() => undefined);
       // No log entry should contain the derivation path or a long byte
       // array verbatim. The default redaction strips message/keypath
       // field names and long byte arrays.
@@ -162,7 +175,9 @@ describe('BitboxProvider.connect — connect-flow integration', () => {
       // We can't call connect() end-to-end (no real transport), so we
       // exercise the gate manually: call the bridge, capture deviceInfo,
       // compare against MIN_FIRMWARE_VERSION.
-      const info = await (provider as unknown as { fetchDeviceInfo: () => Promise<{ version: string }> }).fetchDeviceInfo();
+      const info = await (
+        provider as unknown as { fetchDeviceInfo: () => Promise<{ version: string }> }
+      ).fetchDeviceInfo();
       const { compareVersions } = await import('@/features/hardware-wallet/services/errors');
       const { MIN_FIRMWARE_VERSION } = await import('@/features/hardware-wallet/services/types');
       expect(compareVersions(info.version, MIN_FIRMWARE_VERSION)).toBeLessThan(0);

@@ -43,11 +43,11 @@ export class BleTransport implements BitboxTransport {
   private device: Device | null = null;
   private writeChar: Characteristic | null = null;
   private readBuffer: Uint8Array[] = [];
-  private waiters: Array<{
+  private waiters: {
     resolve: (data: Uint8Array) => void;
     reject: (err: Error) => void;
     timer: ReturnType<typeof setTimeout>;
-  }> = [];
+  }[] = [];
   private monitorSub: { remove: () => void } | null = null;
   private readonly readTimeoutMs: number;
 
