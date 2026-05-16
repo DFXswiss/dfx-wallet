@@ -21,12 +21,15 @@ import { scanUsbDevices, UsbTransport } from './transport-usb';
 import { BleTransport, scanBleDevices } from './transport-ble';
 import { WasmBridge, type WebViewRef } from './wasm-bridge';
 import { ethSignatureToHex } from './bitbox-protocol';
+import { assertChainIdMatchesRlp } from './eth-tx-validation';
+import { verifyEthAddressByXpub } from './eth-address-verify';
 import {
   compareVersions,
   HwAddressMismatchError,
   HwFirmwareRejectError,
   HwFirmwareTooOldError,
   HwFirmwareUnsupportedOperationError,
+  HwInvalidPayloadError,
   HwNotConnectedError,
   HwTransportFailureError,
   HwUserAbortError,
@@ -388,22 +391,34 @@ export class BitboxProvider implements HardwareWalletProvider {
   async getEthAddress(opts: EthAddressOpts): Promise<string> {
     this.ensureConnected();
     if (opts.signal?.aborted) throw new HwUserAbortError();
-    const displayOnDevice = opts.displayOnDevice !== false; // default TRUE
+    const displayOnDevice = this.resolveDisplayOnDevice('getEthAddress', opts.displayOnDevice);
     const bridgeOpts: { timeoutMs: number; signal?: AbortSignal } = { timeoutMs: 60_000 };
     if (opts.signal !== undefined) bridgeOpts.signal = opts.signal;
-    return this.translateErrors('getEthAddress', () =>
+    const derivationPath = opts.derivationPath ?? DEFAULT_ETH_DERIVATION_PATH;
+    const deviceAddress = await this.translateErrors('getEthAddress', () =>
       this.bridge.call<string>(
         'ethAddress',
-        [String(opts.chainId), opts.derivationPath ?? DEFAULT_ETH_DERIVATION_PATH, displayOnDevice],
+        [String(opts.chainId), derivationPath, displayOnDevice],
         bridgeOpts,
       ),
     );
+    if (opts.verifyByXpub === true) {
+      return this.translateErrors('verifyEthAddress', () =>
+        verifyEthAddressByXpub({
+          derivationPath,
+          deviceReturnedAddress: deviceAddress,
+          fetchXpub: (parentPath) =>
+            this.bridge.call<string>('ethXpub', [parentPath], { timeoutMs: 30_000 }),
+        }),
+      );
+    }
+    return deviceAddress;
   }
 
   async getBtcAddress(opts: BtcAddressOpts): Promise<string> {
     this.ensureConnected();
     if (opts.signal?.aborted) throw new HwUserAbortError();
-    const displayOnDevice = opts.displayOnDevice !== false; // default TRUE
+    const displayOnDevice = this.resolveDisplayOnDevice('getBtcAddress', opts.displayOnDevice);
     const bridgeOpts: { timeoutMs: number; signal?: AbortSignal } = { timeoutMs: 60_000 };
     if (opts.signal !== undefined) bridgeOpts.signal = opts.signal;
     return this.translateErrors('getBtcAddress', () =>
@@ -423,6 +438,10 @@ export class BitboxProvider implements HardwareWalletProvider {
   async signEthTransaction(opts: EthSignTxOpts): Promise<{ r: string; s: string; v: number }> {
     this.ensureConnected();
     if (opts.signal?.aborted) throw new HwUserAbortError();
+    // CC-6: parse the RLP and assert that the chainId committed inside
+    // the body matches the chainId we're about to pass to the SDK. A
+    // mismatch is a chain-replay attack signal — refuse to bridge.
+    assertChainIdMatchesRlp(opts.rlpPayload, opts.chainId, opts.isEIP1559);
     const method = opts.isEIP1559 ? 'ethSign1559Transaction' : 'ethSignTransaction';
     const bridgeOpts: { timeoutMs: number; signal?: AbortSignal } = {
       timeoutMs: opts.timeoutMs ?? 120_000,
@@ -498,6 +517,27 @@ export class BitboxProvider implements HardwareWalletProvider {
       logHw('error', `op.${operation}.failed`, { err: errorContext(err) }, this.flowId);
       throw err;
     }
+  }
+
+  /**
+   * Resolve the branded DeviceDisplay opt into the boolean the bridge
+   * dispatcher expects. The branded type forces the call site to be
+   * greppable — `displayOnDevice: false` is no longer a valid value.
+   * The opt-out branch carries a written reason which we log at warn
+   * level so production triage can see who turned the gate off and why.
+   */
+  private resolveDisplayOnDevice(
+    operation: string,
+    display: import('./types').DeviceDisplay | undefined,
+  ): boolean {
+    if (display === undefined || display === true) return true;
+    logHw(
+      'warn',
+      `op.${operation}.display_on_device_off`,
+      { reason: display.reason },
+      this.flowId,
+    );
+    return false;
   }
 
   private async fetchDeviceInfo(signal?: AbortSignal): Promise<DeviceInfo> {

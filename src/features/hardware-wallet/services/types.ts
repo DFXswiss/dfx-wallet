@@ -37,18 +37,43 @@ export type HardwareWalletError =
   | { kind: 'FirmwareTooOld'; minRequired: string; actual: string }
   | { kind: 'FirmwareUnsupportedOperation'; operation: string; firmware: string }
   | { kind: 'AddressMismatch' }
+  | { kind: 'InvalidPayload'; reason: string }
   | { kind: 'Unknown'; cause: string };
 
 /**
- * Common options every device-display API takes. The defaults are SAFE: any
- * call that omits `displayOnDevice` defaults to TRUE — the BitBox screen
- * shows the value, the user verifies it on a second channel. Setting
- * displayOnDevice to false is explicitly opt-out and should be flagged in
- * review (see audit-runner quirk A4). // audit-skip-line
+ * Brand for the "I accept that this call does NOT show the value on the
+ * BitBox display" escape hatch. Disabling the device-display step removes
+ * the trusted-display verification (BitBox's primary defence against a
+ * malicious host) — callers MUST acknowledge in code at the call site so
+ * code review can spot the unsafe path.
+ *
+ * Type-only — there is no runtime value. The branded shape forces every
+ * call site to construct the object inline (literal type), making greppable.
+ */
+export type NoDisplayAck = {
+  readonly acknowledgeNoDisplay: 'I_ACCEPT_THE_RISK_OF_NOT_DISPLAYING_ON_DEVICE';
+  /** Free-text reason. Logged at warn level. */
+  readonly reason: string;
+};
+
+/**
+ * displayOnDevice variants. The safe default (omit / `true`) shows the
+ * value on the device. The opt-out branch requires the branded type
+ * above — `displayOnDevice: false` is no longer a valid value.
+ */
+export type DeviceDisplay = true | NoDisplayAck;
+
+/**
+ * Common options every device-display API takes. Defaults are SAFE: any
+ * call that omits `displayOnDevice` defaults to true — the BitBox screen
+ * shows the value, the user verifies it on a second channel. To opt out,
+ * pass `{ acknowledgeNoDisplay: 'I_ACCEPT_THE_RISK_OF_NOT_DISPLAYING_ON_DEVICE',
+ * reason: 'why' }` and accept that the operation has no on-device verify.
+ * audit-skip-line
  */
 export type DeviceDisplayOpts = {
-  /** Show the value on the BitBox screen so the user can verify it. Default: true. */
-  displayOnDevice?: boolean;
+  /** See DeviceDisplay. Default: true (verify on device). */
+  displayOnDevice?: DeviceDisplay;
 };
 
 /** Common cancellation field. Aborting cancels the in-flight call; the
@@ -62,6 +87,14 @@ export type EthAddressOpts = DeviceDisplayOpts &
     /** EVM chain ID. NEVER hardcode; the BitBox displays this on-device. */
     chainId: bigint;
     derivationPath?: string;
+    /**
+     * If true, the provider independently re-derives the address from
+     * the device's ethXpub and throws HwAddressMismatchError on
+     * disagreement. This is the trusted-display verification path —
+     * use it whenever the result is persisted or shown to the user.
+     * Defaults to false (off) to keep the original API surface.
+     */
+    verifyByXpub?: boolean;
   };
 
 export type BtcAddressOpts = DeviceDisplayOpts &

@@ -112,6 +112,35 @@ function bigEndianBytes(n: number): Uint8Array {
   return buf;
 }
 
+/**
+ * Build a structurally-valid EIP-1559 RLP payload at the given chainId.
+ * After CC-6, signEthTransaction parses the RLP client-side and asserts
+ * the body's chainId matches opts.chainId. Tests that exercise downstream
+ * paths (bridge rejection, abort propagation) must hand the provider a
+ * payload that gets through that gate — `bigEndianBytes(N)` does not.
+ *
+ * The default values are inert (0 nonce, 0 value, no recipient, no data)
+ * — the tx is not broadcastable, but it parses cleanly and commits to
+ * the right chainId.
+ */
+function buildEip1559Rlp(chainId: bigint = 1n): Uint8Array {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { Transaction, getBytes } = require('ethers');
+  const tx = Transaction.from({
+    type: 2,
+    chainId,
+    nonce: 0,
+    maxFeePerGas: 1n,
+    maxPriorityFeePerGas: 1n,
+    gasLimit: 21000n,
+    to: '0x0000000000000000000000000000000000000000',
+    value: 0n,
+    data: '0x',
+    accessList: [],
+  });
+  return getBytes(tx.unsignedSerialized);
+}
+
 const PATH = "m/44'/60'/0'/0/0";
 
 // ─── ETH ────────────────────────────────────────────────────────────────────
@@ -159,7 +188,7 @@ describe('BitboxProvider — quirk E2 (ETH nonce ≤ 16 bytes)', () => {
       provider.signEthTransaction({
         chainId: 1n,
         derivationPath: PATH,
-        rlpPayload: bigEndianBytes(200),
+        rlpPayload: buildEip1559Rlp(1n),
         isEIP1559: true,
       }),
     ).rejects.toMatchObject({ code: 101 });
@@ -173,8 +202,8 @@ describe('BitboxProvider — quirk E3 (ETH recipient must be exactly 20 bytes)',
       provider.signEthTransaction({
         chainId: 1n,
         derivationPath: PATH,
-        rlpPayload: bigEndianBytes(120),
-        isEIP1559: false,
+        rlpPayload: buildEip1559Rlp(1n),
+        isEIP1559: true,
       }),
     ).rejects.toMatchObject({ code: 101 });
   });
@@ -187,7 +216,7 @@ describe('BitboxProvider — quirk E4 (ETH value ≤ 32 bytes)', () => {
       provider.signEthTransaction({
         chainId: 1n,
         derivationPath: PATH,
-        rlpPayload: bigEndianBytes(100),
+        rlpPayload: buildEip1559Rlp(1n),
         isEIP1559: true,
       }),
     ).rejects.toMatchObject({ code: 101 });
@@ -201,7 +230,7 @@ describe('BitboxProvider — quirk E5 (EIP-1559 fee fields ≤ 16 bytes)', () =>
       provider.signEthTransaction({
         chainId: 1n,
         derivationPath: PATH,
-        rlpPayload: bigEndianBytes(80),
+        rlpPayload: buildEip1559Rlp(1n),
         isEIP1559: true,
       }),
     ).rejects.toMatchObject({ code: 101 });
@@ -211,13 +240,11 @@ describe('BitboxProvider — quirk E5 (EIP-1559 fee fields ≤ 16 bytes)', () =>
 describe('BitboxProvider — quirk E6 (numerics must be smallest big-endian)', () => {
   it('quirk E6 — firmware rejects leading-zero padded numerics', async () => {
     const { provider } = newProviderWithBridge(scenarioErrInvalidInput());
-    const padded = new Uint8Array(200);
-    padded[31] = 0x01;
     await expect(
       provider.signEthTransaction({
         chainId: 1n,
         derivationPath: PATH,
-        rlpPayload: padded,
+        rlpPayload: buildEip1559Rlp(1n),
         isEIP1559: true,
       }),
     ).rejects.toMatchObject({ code: 101 });
@@ -253,9 +280,15 @@ describe('BitboxProvider — security invariants (CRIT-3, CRIT-4)', () => {
     expect(passedDisplay).toBe(true);
   });
 
-  it('CRIT-3 — caller can explicitly opt out (display:false), but must say so', async () => {
+  it('CRIT-3 — caller can explicitly opt out, but must construct the branded ack', async () => {
     const { provider, calls } = newProviderWithBridge(async () => '0xabc');
-    await provider.getEthAddress({ chainId: 1n, displayOnDevice: false });
+    await provider.getEthAddress({
+      chainId: 1n,
+      displayOnDevice: {
+        acknowledgeNoDisplay: 'I_ACCEPT_THE_RISK_OF_NOT_DISPLAYING_ON_DEVICE',
+        reason: 'unit test',
+      },
+    });
     expect(calls[0]!.args[2]).toBe(false);
   });
 
@@ -274,7 +307,7 @@ describe('BitboxProvider — security invariants (CRIT-3, CRIT-4)', () => {
     await provider.signEthTransaction({
       chainId: 42161n, // Arbitrum
       derivationPath: PATH,
-      rlpPayload: new Uint8Array([1, 2]),
+      rlpPayload: buildEip1559Rlp(42161n),
       isEIP1559: true,
     });
     expect(calls[0]!.args[0]).toBe('42161');
@@ -917,7 +950,7 @@ describe('BitboxProvider — AbortSignal on signing (CC-24)', () => {
       .signEthTransaction({
         chainId: 1n,
         derivationPath: PATH,
-        rlpPayload: new Uint8Array([1, 2, 3]),
+        rlpPayload: buildEip1559Rlp(1n),
         isEIP1559: true,
         signal: ctrl.signal,
       })

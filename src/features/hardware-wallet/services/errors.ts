@@ -105,8 +105,26 @@ export class HwAddressMismatchError extends Error {
     // Do NOT include the addresses in `message` — `toString()` ends up in
     // logs and crash reports. The constructor parameters are available
     // structurally for the UI layer to render with appropriate redaction.
-    super('Device returned a different address than the cached one');
+    super('Device returned a different address than the independent derivation');
     this.name = 'HwAddressMismatchError';
+  }
+}
+
+/**
+ * Thrown when the caller's RLP-encoded transaction (or other typed
+ * payload) fails the client-side validation gate — for example the
+ * chainId committed inside the RLP body does not match the chainId
+ * argument the caller passed to `signEthTransaction`. The device would
+ * still sign correctly, but the UI's value-display would no longer
+ * correspond to the bytes being signed — that is the chain-replay
+ * attack surface CC-6 closes.
+ */
+export class HwInvalidPayloadError extends Error {
+  readonly kind = 'InvalidPayload' as const;
+  constructor(reason: string) {
+    // Reason is author-controlled; safe to include in message.
+    super(`Invalid payload: ${reason}`);
+    this.name = 'HwInvalidPayloadError';
   }
 }
 
