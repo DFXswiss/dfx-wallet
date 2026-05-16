@@ -867,6 +867,111 @@ function makeBridgeStub(
   };
 }
 
+/**
+ * Regression for CC-22: device-identity fingerprint check.
+ *
+ * On first connect, the provider fetches the BIP44 account-level ETH
+ * xpub (m/44'/60'/0') and stores it as the device fingerprint. On a
+ * subsequent connect — whether explicit or via attemptReconnect — the
+ * fingerprint is fetched again and compared. A mismatch means a
+ * DIFFERENT physical device was paired in the same provider lifetime
+ * (USB plug-swap, BLE address reuse, OS-level deviceId collision) —
+ * we fail closed with HwAddressMismatchError instead of silently
+ * signing with the wrong key.
+ */
+describe('BitboxProvider — device-identity fingerprint (CC-22)', () => {
+  const dev: HardwareWalletDevice = {
+    id: 'X',
+    name: 'BB',
+    type: 'bitbox02',
+    transport: 'ble',
+  };
+  const goodInfo = {
+    version: '9.21.0',
+    product: 'bitbox02-multi',
+    name: 'BB',
+    initialized: true,
+  };
+
+  it('captures the fingerprint on first connect and exposes it', async () => {
+    const bridge = makeBridgeStub(async (m) => {
+      if (m === 'pair') return { channelHash: null };
+      if (m === 'deviceInfo') return goodInfo;
+      if (m === 'ethXpub') return 'xpub-deviceA';
+      return null;
+    });
+    const provider = new BitboxProvider(bridge as never);
+    expect(provider.getDeviceFingerprint()).toBeNull();
+    await provider.connect(dev);
+    expect(provider.getDeviceFingerprint()).toBe('xpub-deviceA');
+  });
+
+  it('matches on reconnect to the SAME device', async () => {
+    const bridge = makeBridgeStub(async (m) => {
+      if (m === 'pair') return { channelHash: null };
+      if (m === 'deviceInfo') return goodInfo;
+      if (m === 'ethXpub') return 'xpub-deviceA';
+      return null;
+    });
+    const provider = new BitboxProvider(bridge as never);
+    await provider.connect(dev);
+    await provider.disconnect();
+    await expect(provider.connect(dev)).resolves.toBeUndefined();
+    expect(provider.getDeviceFingerprint()).toBe('xpub-deviceA');
+  });
+
+  it('rejects with HwAddressMismatchError when a different device is paired', async () => {
+    let xpubOnDevice = 'xpub-deviceA';
+    const bridge = makeBridgeStub(async (m) => {
+      if (m === 'pair') return { channelHash: null };
+      if (m === 'deviceInfo') return goodInfo;
+      if (m === 'ethXpub') return xpubOnDevice;
+      return null;
+    });
+    const provider = new BitboxProvider(bridge as never);
+    await provider.connect(dev);
+    await provider.disconnect();
+    xpubOnDevice = 'xpub-deviceB';
+    const { HwAddressMismatchError } = await import(
+      '@/features/hardware-wallet/services/errors'
+    );
+    await expect(provider.connect(dev)).rejects.toBeInstanceOf(HwAddressMismatchError);
+    expect((provider as unknown as { transport: object | null }).transport).toBeNull();
+  });
+
+  it('fingerprint survives across disconnect within a provider lifetime', async () => {
+    const bridge = makeBridgeStub(async (m) => {
+      if (m === 'pair') return { channelHash: null };
+      if (m === 'deviceInfo') return goodInfo;
+      if (m === 'ethXpub') return 'xpub-deviceA';
+      return null;
+    });
+    const provider = new BitboxProvider(bridge as never);
+    await provider.connect(dev);
+    await provider.disconnect();
+    expect(provider.getDeviceFingerprint()).toBe('xpub-deviceA');
+  });
+
+  it('attemptReconnect to a swapped device throws HwAddressMismatchError', async () => {
+    let xpubOnDevice = 'xpub-deviceA';
+    const bridge = makeBridgeStub(async (m) => {
+      if (m === 'pair') return { channelHash: null };
+      if (m === 'deviceInfo') return goodInfo;
+      if (m === 'ethXpub') return xpubOnDevice;
+      return null;
+    });
+    const provider = new BitboxProvider(bridge as never);
+    await provider.connect(dev);
+    xpubOnDevice = 'xpub-deviceB';
+    const { HwAddressMismatchError } = await import(
+      '@/features/hardware-wallet/services/errors'
+    );
+    await expect(provider.attemptReconnect({ maxAttempts: 1 })).rejects.toBeInstanceOf(
+      HwAddressMismatchError,
+    );
+  });
+});
+
 describe('BitboxProvider — channel hash plumbing (CC-4)', () => {
   it('captures the channel-hash bytes from pair and exposes them hex-encoded', async () => {
     const bridge = makeBridgeStub(async (method) => {

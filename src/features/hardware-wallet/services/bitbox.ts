@@ -39,6 +39,13 @@ import {
 import { logHw } from './log';
 
 /**
+ * BIP44 account-0 parent path for ETH. Used as the device-identity
+ * fingerprint — its xpub is deterministic per seed, public, and stable
+ * across reconnects.
+ */
+const DEVICE_FINGERPRINT_PATH = "m/44'/60'/0'";
+
+/**
  * BitBox02 hardware wallet provider.
  *
  * Architecture:
@@ -77,6 +84,19 @@ export class BitboxProvider implements HardwareWalletProvider {
    * we don't know if we paired with their device or with a relay.
    */
   private channelHash: string | null = null;
+  /**
+   * Cryptographic device identity fingerprint. Captured on the FIRST
+   * successful connect (the parent-level xpub at m/44'/60'/0', which
+   * is deterministic per seed). On reconnect we re-fetch and compare;
+   * a mismatch means the user plugged in / paired with a different
+   * device — fail closed with HwAddressMismatchError instead of
+   * silently re-pairing.
+   *
+   * Closes audit finding CC-22 (device-swap-during-reconnect). Lives
+   * in JS, no native serial-number reads required — uses bitbox-api's
+   * ethXpub which is already part of the bridge contract.
+   */
+  private deviceFingerprint: string | null = null;
   private listeners = new Set<TransportEventListener>();
   /** Per-instance flow id; included in every emitted log line. Used by
    *  log aggregators to stitch a flow back together. */
@@ -130,6 +150,16 @@ export class BitboxProvider implements HardwareWalletProvider {
    */
   getChannelHash(): string | null {
     return this.channelHash;
+  }
+
+  /**
+   * Returns the device identity fingerprint captured at first connect.
+   * Used internally by attemptReconnect() to verify a reconnect is to
+   * the SAME physical device; surfaced for callers who want to display
+   * which-device-am-I-connected-to or persist a per-device association.
+   */
+  getDeviceFingerprint(): string | null {
+    return this.deviceFingerprint;
   }
 
   subscribeTransport(listener: TransportEventListener): () => void {
@@ -282,6 +312,31 @@ export class BitboxProvider implements HardwareWalletProvider {
         );
         await this.teardownTransport();
         throw new HwFirmwareTooOldError(MIN_FIRMWARE_VERSION, this.deviceInfo.version);
+      }
+
+      // 6. Device-identity fingerprint check (CC-22). Fetch the BIP44
+      //    account-level xpub for ETH — deterministic per seed, public,
+      //    safe to log as identity. On first connect we cache it; on
+      //    reconnect we compare. A mismatch means a different physical
+      //    device was paired (USB unplug-swap, BLE address reuse) — we
+      //    fail closed instead of silently signing with the wrong key.
+      const fingerprint = await this.translateErrors('ethXpub', () =>
+        this.bridge.call<string>('ethXpub', [DEVICE_FINGERPRINT_PATH], {
+          timeoutMs: 15_000,
+          signal,
+        }),
+      );
+      checkAbort();
+      if (this.deviceFingerprint === null) {
+        this.deviceFingerprint = fingerprint;
+        logHw('info', 'connect.fingerprint_captured', undefined, this.flowId);
+      } else if (this.deviceFingerprint !== fingerprint) {
+        logHw('error', 'connect.fingerprint_mismatch', undefined, this.flowId);
+        await this.teardownTransport();
+        // Do NOT log the xpub itself — it's a device-identity correlator
+        // and the structural fields stay on the error for the UI layer
+        // to render with appropriate redaction.
+        throw new HwAddressMismatchError(this.deviceFingerprint, fingerprint);
       }
 
       this.connectedDevice = device;
