@@ -49,4 +49,4 @@ jobs:
       - uses: actions/checkout@v4
       - uses: joshuakrueger-dfx/bitbox-testkit/.github/actions/bitbox-simulator@v0.3.6
         with:
-          testkit-ref: v0.3.7
+          testkit-ref: v0.3.8
