@@ -220,131 +220,131 @@ export default function LinkedWalletDetailScreen() {
 
   const body = (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-          <AppHeader title={displayName} testID="linked-wallet" />
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {loading ? (
-              <View style={styles.loadingBlock}>
-                <ActivityIndicator color={colors.primary} />
-              </View>
-            ) : error ? (
-              <Text style={styles.errorText}>{error}</Text>
-            ) : !wallet ? (
-              <Text style={styles.errorText}>{t('linkedWallet.notFound')}</Text>
-            ) : (
-              <>
-                <View style={styles.addressCard}>
-                  <Text style={styles.addressLabel}>{t('linkedWallet.addressLabel')}</Text>
-                  <Pressable
-                    style={({ pressed }) => [styles.copyBlock, pressed && styles.pressed]}
-                    onPress={onCopy}
-                    testID="linked-wallet-copy-address"
-                  >
-                    <Text style={styles.addressMono} numberOfLines={1}>
-                      {truncate(wallet.address)}
-                    </Text>
-                    <View style={styles.copyBadge}>
-                      <Icon name="copy" size={14} color={colors.primary} />
-                      <Text style={styles.copyBadgeText}>
-                        {copied ? t('common.copied') : t('common.copy')}
-                      </Text>
-                    </View>
-                  </Pressable>
-                  <Text style={styles.addressMeta} numberOfLines={1}>
-                    {blockchains.join(' · ')}
+      <AppHeader title={displayName} testID="linked-wallet" />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {loading ? (
+          <View style={styles.loadingBlock}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : error ? (
+          <Text style={styles.errorText}>{error}</Text>
+        ) : !wallet ? (
+          <Text style={styles.errorText}>{t('linkedWallet.notFound')}</Text>
+        ) : (
+          <>
+            <View style={styles.addressCard}>
+              <Text style={styles.addressLabel}>{t('linkedWallet.addressLabel')}</Text>
+              <Pressable
+                style={({ pressed }) => [styles.copyBlock, pressed && styles.pressed]}
+                onPress={onCopy}
+                testID="linked-wallet-copy-address"
+              >
+                <Text style={styles.addressMono} numberOfLines={1}>
+                  {truncate(wallet.address)}
+                </Text>
+                <View style={styles.copyBadge}>
+                  <Icon name="copy" size={14} color={colors.primary} />
+                  <Text style={styles.copyBadgeText}>
+                    {copied ? t('common.copied') : t('common.copy')}
                   </Text>
                 </View>
+              </Pressable>
+              <Text style={styles.addressMeta} numberOfLines={1}>
+                {blockchains.join(' · ')}
+              </Text>
+            </View>
 
-                <View style={styles.actionsRow}>
-                  <Pressable
-                    style={({ pressed }) => [styles.actionPill, pressed && styles.pressed]}
-                    onPress={() => navigateToFlow('/(auth)/buy')}
-                    testID="linked-wallet-buy"
-                    accessibilityRole="button"
-                    accessibilityLabel={t('buy.title')}
-                  >
-                    <Icon name="arrow-down" size={16} color={colors.primary} strokeWidth={2.4} />
-                    <Text style={styles.actionLabel}>{t('buy.title')}</Text>
-                  </Pressable>
-                  <Pressable
-                    style={({ pressed }) => [styles.actionPill, pressed && styles.pressed]}
-                    onPress={() => navigateToFlow('/(auth)/sell')}
-                    testID="linked-wallet-sell"
-                    accessibilityRole="button"
-                    accessibilityLabel={t('sell.title')}
-                  >
-                    <Icon name="arrow-up" size={16} color={colors.primary} strokeWidth={2.4} />
-                    <Text style={styles.actionLabel}>{t('sell.title')}</Text>
-                  </Pressable>
+            <View style={styles.actionsRow}>
+              <Pressable
+                style={({ pressed }) => [styles.actionPill, pressed && styles.pressed]}
+                onPress={() => navigateToFlow('/(auth)/buy')}
+                testID="linked-wallet-buy"
+                accessibilityRole="button"
+                accessibilityLabel={t('buy.title')}
+              >
+                <Icon name="arrow-down" size={16} color={colors.primary} strokeWidth={2.4} />
+                <Text style={styles.actionLabel}>{t('buy.title')}</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.actionPill, pressed && styles.pressed]}
+                onPress={() => navigateToFlow('/(auth)/sell')}
+                testID="linked-wallet-sell"
+                accessibilityRole="button"
+                accessibilityLabel={t('sell.title')}
+              >
+                <Icon name="arrow-up" size={16} color={colors.primary} strokeWidth={2.4} />
+                <Text style={styles.actionLabel}>{t('sell.title')}</Text>
+              </Pressable>
+            </View>
+
+            {/* Assets block — every token the discovery scan found on
+             *  this wallet's chains with a CoinGecko price + non-zero
+             *  balance. Hidden when discovery hasn't returned yet
+             *  (spinner) or when there's nothing to show. */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{t('linkedWallet.assetsLabel')}</Text>
+              {discoveryLoading && !walletDiscovery ? (
+                <View style={styles.loadingBlock}>
+                  <ActivityIndicator color={colors.primary} />
                 </View>
-
-                {/* Assets block — every token the discovery scan found on
-                 *  this wallet's chains with a CoinGecko price + non-zero
-                 *  balance. Hidden when discovery hasn't returned yet
-                 *  (spinner) or when there's nothing to show. */}
-                <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>{t('linkedWallet.assetsLabel')}</Text>
-                  {discoveryLoading && !walletDiscovery ? (
-                    <View style={styles.loadingBlock}>
-                      <ActivityIndicator color={colors.primary} />
+              ) : !walletDiscovery || walletDiscovery.assets.length === 0 ? (
+                <Text style={styles.emptyText}>{t('linkedWallet.assetsEmpty')}</Text>
+              ) : (
+                <View style={styles.assetList}>
+                  {walletDiscovery.assets.map((asset) => (
+                    <View
+                      key={`${asset.chain}:${asset.contract ?? 'native'}`}
+                      style={styles.assetRow}
+                      testID={`linked-wallet-asset-${asset.chain}-${asset.symbol}`}
+                    >
+                      <View style={styles.assetMain}>
+                        <Text style={styles.assetSymbol}>{asset.symbol}</Text>
+                        <Text style={styles.assetMeta}>{chainLabel(asset.chain)}</Text>
+                      </View>
+                      <View style={styles.assetValues}>
+                        <Text style={styles.assetFiat}>
+                          {asset.fiatValue != null
+                            ? `${currencySymbol} ${(Math.round(asset.fiatValue * 100) / 100).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : '—'}
+                        </Text>
+                        <Text style={styles.assetAmount} numberOfLines={1}>
+                          {formatCryptoAmount(asset.balance)} {asset.symbol}
+                        </Text>
+                      </View>
                     </View>
-                  ) : !walletDiscovery || walletDiscovery.assets.length === 0 ? (
-                    <Text style={styles.emptyText}>{t('linkedWallet.assetsEmpty')}</Text>
-                  ) : (
-                    <View style={styles.assetList}>
-                      {walletDiscovery.assets.map((asset) => (
-                        <View
-                          key={`${asset.chain}:${asset.contract ?? 'native'}`}
-                          style={styles.assetRow}
-                          testID={`linked-wallet-asset-${asset.chain}-${asset.symbol}`}
-                        >
-                          <View style={styles.assetMain}>
-                            <Text style={styles.assetSymbol}>{asset.symbol}</Text>
-                            <Text style={styles.assetMeta}>{chainLabel(asset.chain)}</Text>
-                          </View>
-                          <View style={styles.assetValues}>
-                            <Text style={styles.assetFiat}>
-                              {asset.fiatValue != null
-                                ? `${currencySymbol} ${(Math.round(asset.fiatValue * 100) / 100).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                : '—'}
-                            </Text>
-                            <Text style={styles.assetAmount} numberOfLines={1}>
-                              {formatCryptoAmount(asset.balance)} {asset.symbol}
-                            </Text>
-                          </View>
-                        </View>
-                      ))}
-                    </View>
-                  )}
+                  ))}
                 </View>
+              )}
+            </View>
 
-                {/* On-chain transaction feed — Blockscout `txlist` +
-                 *  `tokentx` merged chronologically across every chain
-                 *  this wallet lives on. No API key required. */}
-                <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>{t('linkedWallet.transactions')}</Text>
-                  {txLoading && transactions.length === 0 ? (
-                    <View style={styles.loadingBlock}>
-                      <ActivityIndicator color={colors.primary} />
-                    </View>
-                  ) : transactions.length === 0 ? (
-                    <Text style={styles.emptyText}>{t('linkedWallet.txEmpty')}</Text>
-                  ) : (
-                    <View style={styles.txList}>
-                      {transactions.slice(0, 50).map((tx) => (
-                        <TransactionRow key={tx.id} tx={tx} now={now} />
-                      ))}
-                    </View>
-                  )}
+            {/* On-chain transaction feed — Blockscout `txlist` +
+             *  `tokentx` merged chronologically across every chain
+             *  this wallet lives on. No API key required. */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{t('linkedWallet.transactions')}</Text>
+              {txLoading && transactions.length === 0 ? (
+                <View style={styles.loadingBlock}>
+                  <ActivityIndicator color={colors.primary} />
                 </View>
+              ) : transactions.length === 0 ? (
+                <Text style={styles.emptyText}>{t('linkedWallet.txEmpty')}</Text>
+              ) : (
+                <View style={styles.txList}>
+                  {transactions.slice(0, 50).map((tx) => (
+                    <TransactionRow key={tx.id} tx={tx} now={now} />
+                  ))}
+                </View>
+              )}
+            </View>
 
-                <Text style={styles.note}>{t('linkedWallet.note')}</Text>
-              </>
-            )}
-          </ScrollView>
+            <Text style={styles.note}>{t('linkedWallet.note')}</Text>
+          </>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 

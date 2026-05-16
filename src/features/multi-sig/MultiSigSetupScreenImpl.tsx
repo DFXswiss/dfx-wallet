@@ -106,289 +106,284 @@ export default function MultiSigSetupScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <AppHeader title={t('multiSig.title')} onBack={onBack} testID="multi-sig" />
 
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {step === 'intro' && (
-              <View style={styles.stepContent}>
-                <View style={styles.heroCard}>
-                  <View style={styles.heroIcon}>
-                    <Icon name="shield" size={36} color={colors.primary} strokeWidth={2} />
-                  </View>
-                  <Text style={styles.heroTitle}>{t('multiSig.intro.title')}</Text>
-                  <Text style={styles.heroBody}>{t('multiSig.intro.body')}</Text>
-                </View>
-                <Bullet text={t('multiSig.intro.bullet1')} />
-                <Bullet text={t('multiSig.intro.bullet2')} />
-                <Bullet text={t('multiSig.intro.bullet3')} />
-                <View style={styles.spacer} />
-                <PrimaryButton title={t('multiSig.intro.cta')} onPress={() => setStep('concept')} />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {step === 'intro' && (
+          <View style={styles.stepContent}>
+            <View style={styles.heroCard}>
+              <View style={styles.heroIcon}>
+                <Icon name="shield" size={36} color={colors.primary} strokeWidth={2} />
               </View>
-            )}
+              <Text style={styles.heroTitle}>{t('multiSig.intro.title')}</Text>
+              <Text style={styles.heroBody}>{t('multiSig.intro.body')}</Text>
+            </View>
+            <Bullet text={t('multiSig.intro.bullet1')} />
+            <Bullet text={t('multiSig.intro.bullet2')} />
+            <Bullet text={t('multiSig.intro.bullet3')} />
+            <View style={styles.spacer} />
+            <PrimaryButton title={t('multiSig.intro.cta')} onPress={() => setStep('concept')} />
+          </View>
+        )}
 
-            {step === 'concept' && (
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>{t('multiSig.concept.title')}</Text>
-                <Text style={styles.stepBody}>{t('multiSig.concept.body')}</Text>
-                <View style={styles.analogyCard}>
-                  <Text style={styles.analogyEmoji}>{'🔐'}</Text>
-                  <Text style={styles.analogyTitle}>{t('multiSig.concept.analogyTitle')}</Text>
-                  <Text style={styles.analogyBody}>{t('multiSig.concept.analogyBody')}</Text>
-                </View>
+        {step === 'concept' && (
+          <View style={styles.stepContent}>
+            <Text style={styles.stepTitle}>{t('multiSig.concept.title')}</Text>
+            <Text style={styles.stepBody}>{t('multiSig.concept.body')}</Text>
+            <View style={styles.analogyCard}>
+              <Text style={styles.analogyEmoji}>{'🔐'}</Text>
+              <Text style={styles.analogyTitle}>{t('multiSig.concept.analogyTitle')}</Text>
+              <Text style={styles.analogyBody}>{t('multiSig.concept.analogyBody')}</Text>
+            </View>
 
-                <View style={styles.diagramCard}>
-                  <Text style={styles.diagramHeader}>{t('multiSig.concept.exampleTitle')}</Text>
-                  <View style={styles.diagramRow}>
-                    <DiagramSigner
-                      label={t('multiSig.concept.diagramYou')}
-                      status={t('multiSig.concept.diagramApproved')}
-                      approved
-                    />
-                    <DiagramSigner
-                      label={t('multiSig.concept.diagramPartner')}
-                      status={t('multiSig.concept.diagramApproved')}
-                      approved
-                    />
-                    <DiagramSigner
-                      label={t('multiSig.concept.diagramBackup')}
-                      status={t('multiSig.concept.diagramPending')}
-                      approved={false}
-                    />
-                  </View>
-                  <View style={styles.diagramArrow}>
-                    <Icon name="arrow-down" size={20} color={colors.primary} />
-                  </View>
-                  <View style={styles.diagramResultCard}>
-                    <View style={styles.diagramResultIcon}>
-                      <Icon name="shield" size={20} color={colors.white} strokeWidth={2.5} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.diagramResultTitle}>
-                        {t('multiSig.concept.diagramResult')}
-                      </Text>
-                      <Text style={styles.diagramResultBody}>
-                        {t('multiSig.concept.diagramSubResult')}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                <Text style={styles.exampleCaption}>{t('multiSig.concept.exampleCaption')}</Text>
-                <View style={styles.spacer} />
-                <PrimaryButton
-                  title={t('multiSig.concept.cta')}
-                  onPress={() => setStep('quorum')}
+            <View style={styles.diagramCard}>
+              <Text style={styles.diagramHeader}>{t('multiSig.concept.exampleTitle')}</Text>
+              <View style={styles.diagramRow}>
+                <DiagramSigner
+                  label={t('multiSig.concept.diagramYou')}
+                  status={t('multiSig.concept.diagramApproved')}
+                  approved
+                />
+                <DiagramSigner
+                  label={t('multiSig.concept.diagramPartner')}
+                  status={t('multiSig.concept.diagramApproved')}
+                  approved
+                />
+                <DiagramSigner
+                  label={t('multiSig.concept.diagramBackup')}
+                  status={t('multiSig.concept.diagramPending')}
+                  approved={false}
                 />
               </View>
-            )}
+              <View style={styles.diagramArrow}>
+                <Icon name="arrow-down" size={20} color={colors.primary} />
+              </View>
+              <View style={styles.diagramResultCard}>
+                <View style={styles.diagramResultIcon}>
+                  <Icon name="shield" size={20} color={colors.white} strokeWidth={2.5} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.diagramResultTitle}>
+                    {t('multiSig.concept.diagramResult')}
+                  </Text>
+                  <Text style={styles.diagramResultBody}>
+                    {t('multiSig.concept.diagramSubResult')}
+                  </Text>
+                </View>
+              </View>
+            </View>
 
-            {step === 'quorum' && (
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>{t('multiSig.quorum.title')}</Text>
-                <Text style={styles.stepBody}>{t('multiSig.quorum.body')}</Text>
-                {QUORUM_OPTIONS.map((opt, i) => {
-                  const isActive = quorumIdx === i;
-                  return (
-                    <Pressable
-                      key={`${opt.required}-of-${opt.total}`}
-                      style={[styles.optionCard, isActive && styles.optionCardActive]}
-                      onPress={() => setQuorumIdx(i)}
-                      testID={`quorum-${opt.required}-${opt.total}`}
-                    >
-                      <View style={styles.optionLead}>
-                        <Text style={[styles.optionNum, isActive && styles.optionNumActive]}>
-                          {opt.required}/{opt.total}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.optionTitle}>
-                          {t(`multiSig.quorum.option_${opt.required}_${opt.total}_title`)}
-                        </Text>
-                        <Text style={styles.optionDesc}>
-                          {t(`multiSig.quorum.option_${opt.required}_${opt.total}_desc`)}
-                        </Text>
-                      </View>
-                      {isActive ? <Icon name="shield" size={18} color={colors.primary} /> : null}
-                    </Pressable>
-                  );
-                })}
+            <Text style={styles.exampleCaption}>{t('multiSig.concept.exampleCaption')}</Text>
+            <View style={styles.spacer} />
+            <PrimaryButton title={t('multiSig.concept.cta')} onPress={() => setStep('quorum')} />
+          </View>
+        )}
 
+        {step === 'quorum' && (
+          <View style={styles.stepContent}>
+            <Text style={styles.stepTitle}>{t('multiSig.quorum.title')}</Text>
+            <Text style={styles.stepBody}>{t('multiSig.quorum.body')}</Text>
+            {QUORUM_OPTIONS.map((opt, i) => {
+              const isActive = quorumIdx === i;
+              return (
                 <Pressable
-                  style={[styles.optionCard, isCustomQuorum && styles.optionCardActive]}
-                  onPress={() => setQuorumIdx(CUSTOM_IDX)}
-                  testID="quorum-custom"
+                  key={`${opt.required}-of-${opt.total}`}
+                  style={[styles.optionCard, isActive && styles.optionCardActive]}
+                  onPress={() => setQuorumIdx(i)}
+                  testID={`quorum-${opt.required}-${opt.total}`}
                 >
                   <View style={styles.optionLead}>
-                    <Text style={[styles.optionNum, isCustomQuorum && styles.optionNumActive]}>
-                      {customRequired}/{customTotal}
+                    <Text style={[styles.optionNum, isActive && styles.optionNumActive]}>
+                      {opt.required}/{opt.total}
                     </Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.optionTitle}>
-                      {t('multiSig.quorum.option_custom_title')}
+                      {t(`multiSig.quorum.option_${opt.required}_${opt.total}_title`)}
                     </Text>
-                    <Text style={styles.optionDesc}>{t('multiSig.quorum.option_custom_desc')}</Text>
+                    <Text style={styles.optionDesc}>
+                      {t(`multiSig.quorum.option_${opt.required}_${opt.total}_desc`)}
+                    </Text>
                   </View>
-                  {isCustomQuorum ? <Icon name="shield" size={18} color={colors.primary} /> : null}
+                  {isActive ? <Icon name="shield" size={18} color={colors.primary} /> : null}
                 </Pressable>
+              );
+            })}
 
-                {isCustomQuorum && (
-                  <View style={styles.customCard}>
-                    <Stepper
-                      label={t('multiSig.quorum.customTotalLabel')}
-                      value={customTotal}
-                      min={MIN_TOTAL}
-                      max={MAX_TOTAL}
-                      onChange={updateCustomTotal}
-                      testID="quorum-custom-total"
-                    />
-                    <Stepper
-                      label={t('multiSig.quorum.customRequiredLabel')}
-                      value={customRequired}
-                      min={1}
-                      max={customTotal}
-                      onChange={setCustomRequired}
-                      testID="quorum-custom-required"
-                    />
-                    <Text style={styles.customSummary}>
-                      {t('multiSig.quorum.customSummary', {
-                        required: customRequired,
-                        total: customTotal,
-                      })}
-                    </Text>
-                  </View>
-                )}
-
-                <View style={styles.spacer} />
-                <PrimaryButton title={t('common.continue')} onPress={() => setStep('cosigners')} />
-              </View>
-            )}
-
-            {step === 'cosigners' && (
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>{t('multiSig.cosigners.title')}</Text>
-                <Text style={styles.stepBody}>
-                  {t('multiSig.cosigners.body', { count: requiredCosigners })}
+            <Pressable
+              style={[styles.optionCard, isCustomQuorum && styles.optionCardActive]}
+              onPress={() => setQuorumIdx(CUSTOM_IDX)}
+              testID="quorum-custom"
+            >
+              <View style={styles.optionLead}>
+                <Text style={[styles.optionNum, isCustomQuorum && styles.optionNumActive]}>
+                  {customRequired}/{customTotal}
                 </Text>
-
-                <View style={styles.youCard}>
-                  <View style={styles.youAvatar}>
-                    <Icon name="user" size={20} color={colors.white} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.youLabel}>{t('multiSig.cosigners.youLabel')}</Text>
-                    <Text style={styles.youDesc}>{t('multiSig.cosigners.youDesc')}</Text>
-                  </View>
-                </View>
-
-                {Array.from({ length: requiredCosigners }).map((_, idx) => (
-                  <View key={idx} style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>
-                      {t('multiSig.cosigners.cosignerLabel', { n: idx + 1 })}
-                    </Text>
-                    <TextInput
-                      style={styles.input}
-                      // eslint-disable-next-line security/detect-object-injection -- bounded by requiredCosigners
-                      value={cosignerInputs[idx] ?? ''}
-                      onChangeText={(v) => setCosignerAt(idx, v)}
-                      placeholder={t('multiSig.cosigners.placeholder')}
-                      placeholderTextColor={colors.textTertiary}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                  </View>
-                ))}
-
-                <Text style={styles.helperHint}>{t('multiSig.cosigners.hint')}</Text>
-
-                <View style={styles.spacer} />
-                <PrimaryButton
-                  title={t('common.continue')}
-                  onPress={() => setStep('backup')}
-                  disabled={!cosignersValid}
-                />
               </View>
-            )}
-
-            {step === 'backup' && (
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>{t('multiSig.backup.title')}</Text>
-                <Text style={styles.stepBody}>{t('multiSig.backup.body')}</Text>
-
-                <View style={styles.checklist}>
-                  <BackupItem
-                    icon="document"
-                    title={t('multiSig.backup.item1Title')}
-                    desc={t('multiSig.backup.item1Desc')}
-                  />
-                  <BackupItem
-                    icon="shield"
-                    title={t('multiSig.backup.item2Title')}
-                    desc={t('multiSig.backup.item2Desc')}
-                  />
-                  <BackupItem
-                    icon="user"
-                    title={t('multiSig.backup.item3Title')}
-                    desc={t('multiSig.backup.item3Desc')}
-                  />
-                </View>
-
-                <Pressable
-                  style={[styles.confirmRow, backupConfirmed && styles.confirmRowActive]}
-                  onPress={() => setBackupConfirmed((v) => !v)}
-                  testID="multi-sig-confirm-backup"
-                >
-                  <View style={[styles.checkbox, backupConfirmed && styles.checkboxActive]}>
-                    {backupConfirmed ? <Icon name="shield" size={14} color={colors.white} /> : null}
-                  </View>
-                  <Text style={styles.confirmText}>{t('multiSig.backup.confirm')}</Text>
-                </Pressable>
-
-                <View style={styles.spacer} />
-                <PrimaryButton
-                  title={t('multiSig.backup.cta')}
-                  onPress={() => {
-                    Alert.alert(
-                      t('multiSig.backup.alertTitle'),
-                      t('multiSig.backup.alertBody', {
-                        required: quorum.required,
-                        total: quorum.total,
-                      }),
-                      [
-                        { text: t('common.cancel'), style: 'cancel' },
-                        { text: t('multiSig.backup.cta'), onPress: finish },
-                      ],
-                    );
-                  }}
-                  disabled={!backupConfirmed}
-                />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.optionTitle}>{t('multiSig.quorum.option_custom_title')}</Text>
+                <Text style={styles.optionDesc}>{t('multiSig.quorum.option_custom_desc')}</Text>
               </View>
-            )}
+              {isCustomQuorum ? <Icon name="shield" size={18} color={colors.primary} /> : null}
+            </Pressable>
 
-            {step === 'success' && (
-              <View style={styles.stepContent}>
-                <View style={styles.successIcon}>
-                  <Icon name="shield" size={64} color={colors.primary} strokeWidth={2} />
-                </View>
-                <Text style={styles.successTitle}>{t('multiSig.success.title')}</Text>
-                <Text style={styles.successBody}>
-                  {t('multiSig.success.body', {
-                    required: quorum.required,
-                    total: quorum.total,
+            {isCustomQuorum && (
+              <View style={styles.customCard}>
+                <Stepper
+                  label={t('multiSig.quorum.customTotalLabel')}
+                  value={customTotal}
+                  min={MIN_TOTAL}
+                  max={MAX_TOTAL}
+                  onChange={updateCustomTotal}
+                  testID="quorum-custom-total"
+                />
+                <Stepper
+                  label={t('multiSig.quorum.customRequiredLabel')}
+                  value={customRequired}
+                  min={1}
+                  max={customTotal}
+                  onChange={setCustomRequired}
+                  testID="quorum-custom-required"
+                />
+                <Text style={styles.customSummary}>
+                  {t('multiSig.quorum.customSummary', {
+                    required: customRequired,
+                    total: customTotal,
                   })}
                 </Text>
-                <View style={styles.successCard}>
-                  <Text style={styles.successCardLabel}>{t('multiSig.success.nextLabel')}</Text>
-                  <Text style={styles.successCardBody}>{t('multiSig.success.nextBody')}</Text>
-                </View>
-                <View style={styles.spacer} />
-                <PrimaryButton title={t('common.done')} onPress={() => router.back()} />
               </View>
             )}
-          </ScrollView>
+
+            <View style={styles.spacer} />
+            <PrimaryButton title={t('common.continue')} onPress={() => setStep('cosigners')} />
+          </View>
+        )}
+
+        {step === 'cosigners' && (
+          <View style={styles.stepContent}>
+            <Text style={styles.stepTitle}>{t('multiSig.cosigners.title')}</Text>
+            <Text style={styles.stepBody}>
+              {t('multiSig.cosigners.body', { count: requiredCosigners })}
+            </Text>
+
+            <View style={styles.youCard}>
+              <View style={styles.youAvatar}>
+                <Icon name="user" size={20} color={colors.white} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.youLabel}>{t('multiSig.cosigners.youLabel')}</Text>
+                <Text style={styles.youDesc}>{t('multiSig.cosigners.youDesc')}</Text>
+              </View>
+            </View>
+
+            {Array.from({ length: requiredCosigners }).map((_, idx) => (
+              <View key={idx} style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>
+                  {t('multiSig.cosigners.cosignerLabel', { n: idx + 1 })}
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  // eslint-disable-next-line security/detect-object-injection -- bounded by requiredCosigners
+                  value={cosignerInputs[idx] ?? ''}
+                  onChangeText={(v) => setCosignerAt(idx, v)}
+                  placeholder={t('multiSig.cosigners.placeholder')}
+                  placeholderTextColor={colors.textTertiary}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+            ))}
+
+            <Text style={styles.helperHint}>{t('multiSig.cosigners.hint')}</Text>
+
+            <View style={styles.spacer} />
+            <PrimaryButton
+              title={t('common.continue')}
+              onPress={() => setStep('backup')}
+              disabled={!cosignersValid}
+            />
+          </View>
+        )}
+
+        {step === 'backup' && (
+          <View style={styles.stepContent}>
+            <Text style={styles.stepTitle}>{t('multiSig.backup.title')}</Text>
+            <Text style={styles.stepBody}>{t('multiSig.backup.body')}</Text>
+
+            <View style={styles.checklist}>
+              <BackupItem
+                icon="document"
+                title={t('multiSig.backup.item1Title')}
+                desc={t('multiSig.backup.item1Desc')}
+              />
+              <BackupItem
+                icon="shield"
+                title={t('multiSig.backup.item2Title')}
+                desc={t('multiSig.backup.item2Desc')}
+              />
+              <BackupItem
+                icon="user"
+                title={t('multiSig.backup.item3Title')}
+                desc={t('multiSig.backup.item3Desc')}
+              />
+            </View>
+
+            <Pressable
+              style={[styles.confirmRow, backupConfirmed && styles.confirmRowActive]}
+              onPress={() => setBackupConfirmed((v) => !v)}
+              testID="multi-sig-confirm-backup"
+            >
+              <View style={[styles.checkbox, backupConfirmed && styles.checkboxActive]}>
+                {backupConfirmed ? <Icon name="shield" size={14} color={colors.white} /> : null}
+              </View>
+              <Text style={styles.confirmText}>{t('multiSig.backup.confirm')}</Text>
+            </Pressable>
+
+            <View style={styles.spacer} />
+            <PrimaryButton
+              title={t('multiSig.backup.cta')}
+              onPress={() => {
+                Alert.alert(
+                  t('multiSig.backup.alertTitle'),
+                  t('multiSig.backup.alertBody', {
+                    required: quorum.required,
+                    total: quorum.total,
+                  }),
+                  [
+                    { text: t('common.cancel'), style: 'cancel' },
+                    { text: t('multiSig.backup.cta'), onPress: finish },
+                  ],
+                );
+              }}
+              disabled={!backupConfirmed}
+            />
+          </View>
+        )}
+
+        {step === 'success' && (
+          <View style={styles.stepContent}>
+            <View style={styles.successIcon}>
+              <Icon name="shield" size={64} color={colors.primary} strokeWidth={2} />
+            </View>
+            <Text style={styles.successTitle}>{t('multiSig.success.title')}</Text>
+            <Text style={styles.successBody}>
+              {t('multiSig.success.body', {
+                required: quorum.required,
+                total: quorum.total,
+              })}
+            </Text>
+            <View style={styles.successCard}>
+              <Text style={styles.successCardLabel}>{t('multiSig.success.nextLabel')}</Text>
+              <Text style={styles.successCardBody}>{t('multiSig.success.nextBody')}</Text>
+            </View>
+            <View style={styles.spacer} />
+            <PrimaryButton title={t('common.done')} onPress={() => router.back()} />
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 

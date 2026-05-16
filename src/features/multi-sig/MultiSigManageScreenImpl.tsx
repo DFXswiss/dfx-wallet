@@ -56,106 +56,106 @@ export default function MultiSigManageScreen() {
         testID="multi-sig-manage"
       />
 
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {vaults.length === 0 ? (
-              <View style={styles.emptyContent}>
-                <View style={styles.heroIcon}>
-                  <Icon name="shield" size={36} color={colors.primary} strokeWidth={2} />
-                </View>
-                <Text style={styles.emptyTitle}>{t('multiSig.manage.emptyTitle')}</Text>
-                <Text style={styles.emptyBody}>{t('multiSig.manage.emptyBody')}</Text>
-                <View style={styles.spacer} />
-                <PrimaryButton
-                  title={t('multiSig.manage.setupCta')}
-                  onPress={onSetup}
-                  testID="multi-sig-setup-cta"
-                />
-              </View>
-            ) : (
-              <View style={styles.listContent}>
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryLabel}>{t('multiSig.manage.summaryLabel')}</Text>
-                  <Text style={styles.summaryValue}>
-                    {t('multiSig.manage.summaryValue', { count: vaults.length })}
-                  </Text>
-                </View>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {vaults.length === 0 ? (
+          <View style={styles.emptyContent}>
+            <View style={styles.heroIcon}>
+              <Icon name="shield" size={36} color={colors.primary} strokeWidth={2} />
+            </View>
+            <Text style={styles.emptyTitle}>{t('multiSig.manage.emptyTitle')}</Text>
+            <Text style={styles.emptyBody}>{t('multiSig.manage.emptyBody')}</Text>
+            <View style={styles.spacer} />
+            <PrimaryButton
+              title={t('multiSig.manage.setupCta')}
+              onPress={onSetup}
+              testID="multi-sig-setup-cta"
+            />
+          </View>
+        ) : (
+          <View style={styles.listContent}>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>{t('multiSig.manage.summaryLabel')}</Text>
+              <Text style={styles.summaryValue}>
+                {t('multiSig.manage.summaryValue', { count: vaults.length })}
+              </Text>
+            </View>
 
-                {vaults.map((vault) => (
-                  <View key={vault.id} style={styles.vaultCard} testID={`vault-${vault.id}`}>
-                    <View style={styles.vaultHeader}>
-                      <View style={styles.vaultLead}>
-                        <Text style={styles.vaultLeadText}>
-                          {vault.required}/{vault.total}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.vaultName}>{vault.name}</Text>
-                        <Text style={styles.vaultMeta}>
-                          {t('multiSig.manage.quorumMeta', {
-                            required: vault.required,
-                            total: vault.total,
-                          })}
-                        </Text>
-                      </View>
-                      <Pressable
-                        onPress={() => onRemove(vault)}
-                        hitSlop={10}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('multiSig.manage.removeConfirm')}
-                        testID={`vault-${vault.id}-remove`}
-                      >
-                        <Icon name="close" size={20} color={colors.textTertiary} />
-                      </Pressable>
-                    </View>
-
-                    <View style={styles.divider} />
-
-                    <Text style={styles.cosignerSectionLabel}>
-                      {t('multiSig.manage.membersLabel', { count: vault.total })}
+            {vaults.map((vault) => (
+              <View key={vault.id} style={styles.vaultCard} testID={`vault-${vault.id}`}>
+                <View style={styles.vaultHeader}>
+                  <View style={styles.vaultLead}>
+                    <Text style={styles.vaultLeadText}>
+                      {vault.required}/{vault.total}
                     </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.vaultName}>{vault.name}</Text>
+                    <Text style={styles.vaultMeta}>
+                      {t('multiSig.manage.quorumMeta', {
+                        required: vault.required,
+                        total: vault.total,
+                      })}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => onRemove(vault)}
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('multiSig.manage.removeConfirm')}
+                    testID={`vault-${vault.id}-remove`}
+                  >
+                    <Icon name="close" size={20} color={colors.textTertiary} />
+                  </Pressable>
+                </View>
 
-                    <View style={styles.memberRow}>
-                      <View style={[styles.avatar, styles.avatarYou]}>
-                        <Icon name="user" size={16} color={colors.white} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.memberLabel}>{t('multiSig.manage.youLabel')}</Text>
-                        <Text style={styles.memberDesc}>{t('multiSig.manage.youDesc')}</Text>
-                      </View>
-                      <Text style={styles.memberBadge}>{t('multiSig.manage.youBadge')}</Text>
+                <View style={styles.divider} />
+
+                <Text style={styles.cosignerSectionLabel}>
+                  {t('multiSig.manage.membersLabel', { count: vault.total })}
+                </Text>
+
+                <View style={styles.memberRow}>
+                  <View style={[styles.avatar, styles.avatarYou]}>
+                    <Icon name="user" size={16} color={colors.white} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.memberLabel}>{t('multiSig.manage.youLabel')}</Text>
+                    <Text style={styles.memberDesc}>{t('multiSig.manage.youDesc')}</Text>
+                  </View>
+                  <Text style={styles.memberBadge}>{t('multiSig.manage.youBadge')}</Text>
+                </View>
+
+                {vault.cosigners.map((c, idx) => (
+                  <View key={c.id} style={styles.memberRow}>
+                    <View style={styles.avatar}>
+                      <Icon name="user" size={16} color={colors.primary} />
                     </View>
-
-                    {vault.cosigners.map((c, idx) => (
-                      <View key={c.id} style={styles.memberRow}>
-                        <View style={styles.avatar}>
-                          <Icon name="user" size={16} color={colors.primary} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.memberLabel}>
-                            {c.label ?? t('multiSig.manage.cosignerLabel', { n: idx + 1 })}
-                          </Text>
-                          <Text style={styles.memberDesc} numberOfLines={1}>
-                            {truncateAddress(c.address)}
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.memberLabel}>
+                        {c.label ?? t('multiSig.manage.cosignerLabel', { n: idx + 1 })}
+                      </Text>
+                      <Text style={styles.memberDesc} numberOfLines={1}>
+                        {truncateAddress(c.address)}
+                      </Text>
+                    </View>
                   </View>
                 ))}
-
-                <View style={styles.spacer} />
-                <PrimaryButton
-                  title={t('multiSig.manage.addAnotherCta')}
-                  onPress={onSetup}
-                  testID="multi-sig-add-another"
-                />
               </View>
-            )}
-          </ScrollView>
+            ))}
+
+            <View style={styles.spacer} />
+            <PrimaryButton
+              title={t('multiSig.manage.addAnotherCta')}
+              onPress={onSetup}
+              testID="multi-sig-add-another"
+            />
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 
