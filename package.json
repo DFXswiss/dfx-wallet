@@ -42,7 +42,7 @@
     "@tetherto/wdk-wallet-evm-erc-4337": "^1.0.0-beta.6",
     "@tetherto/wdk-wallet-spark": "^1.0.0-beta.18",
     "b4a": "1.7.3",
-    "bare-crypto": "1.13.0",
+    "bare-crypto": "1.13.7",
     "bare-dns": "2.1.4",
     "bare-net": "2.2.0",
     "bare-node-runtime": "1.1.4",
