@@ -12,6 +12,7 @@ jest.mock('@noble/hashes/argon2', () => ({
 import { useAuthStore } from '../../src/store/auth';
 import * as SecureStore from 'expo-secure-store';
 import * as LA from 'expo-local-authentication';
+import { waitFor } from '@testing-library/react-native';
 
 const setItemMock = SecureStore.setItemAsync as jest.Mock;
 const getItemMock = SecureStore.getItemAsync as jest.Mock;
@@ -144,11 +145,15 @@ describe('useAuthStore', () => {
       const ok = await useAuthStore.getState().verifyPin('123456');
 
       expect(ok).toBe(true);
-      expect(setItemMock).toHaveBeenCalledWith(
-        'pinHash',
-        expect.stringMatching(/^pin\$argon2id\$/),
+      await waitFor(() =>
+        expect(setItemMock).toHaveBeenCalledWith(
+          'pinHash',
+          expect.stringMatching(/^pin\$argon2id\$/),
+        ),
       );
-      expect(useAuthStore.getState().pinHash).toBe(setItemMock.mock.calls.at(-1)?.[1]);
+      await waitFor(() =>
+        expect(useAuthStore.getState().pinHash).toBe(setItemMock.mock.calls.at(-1)?.[1]),
+      );
     });
   });
 
