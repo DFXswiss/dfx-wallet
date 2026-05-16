@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { AppHeader, Icon, PrimaryButton, ShortcutAction } from '@/components';
+import { AppHeader, DarkBackdrop, Icon, PrimaryButton, ShortcutAction } from '@/components';
 import { QrScanner } from '@/components/QrScanner';
 import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
@@ -20,7 +20,7 @@ import { getPaymasterTokenInfo } from '@/config/chains';
 import { FEATURES } from '@/config/features';
 import { formatBalance } from '@/config/portfolio-presentation';
 import { getSendAssetForCanonical } from '@/config/tokens';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
 type SendStep = 'asset' | 'input' | 'confirm' | 'success';
 
@@ -71,6 +71,9 @@ const SEND_ASSETS: AssetOption[] = [
 export default function SendScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const colors = useColors();
+  const scheme = useResolvedScheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [step, setStep] = useState<SendStep>('asset');
   // Start unselected so no card has a border on first render — the active
   // border appears only after the user explicitly picks an asset.
@@ -164,13 +167,13 @@ export default function SendScreen() {
           accessibilityLabel={t('send.sendToBank')}
         >
           <View style={styles.destinationIcon}>
-            <Icon name="document" size={20} color={DfxColors.primary} strokeWidth={2.2} />
+            <Icon name="document" size={20} color={colors.primary} strokeWidth={2.2} />
           </View>
           <View style={styles.destinationText}>
             <Text style={styles.destinationTitle}>{t('send.sendToBank')}</Text>
             <Text style={styles.destinationSubtitle}>{t('send.sendToBankSubtitle')}</Text>
           </View>
-          <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
+          <Icon name="chevron-right" size={18} color={colors.textTertiary} />
         </Pressable>
       )}
     </View>
@@ -181,7 +184,7 @@ export default function SendScreen() {
       <View style={styles.stepContent}>
         <Pressable style={styles.selectedAssetPill} onPress={() => setStep('asset')}>
           <Text style={styles.selectedAssetText}>{asset.symbol}</Text>
-          <Icon name="chevron-right" size={14} color={DfxColors.textTertiary} />
+          <Icon name="chevron-right" size={14} color={colors.textTertiary} />
         </Pressable>
 
         {asset.chains.length > 1 && (
@@ -216,7 +219,7 @@ export default function SendScreen() {
               value={recipient}
               onChangeText={setRecipient}
               placeholder={t('send.addressPlaceholder')}
-              placeholderTextColor={DfxColors.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               autoCapitalize="none"
               autoCorrect={false}
             />
@@ -235,7 +238,7 @@ export default function SendScreen() {
             value={amount}
             onChangeText={setAmount}
             placeholder="0.00"
-            placeholderTextColor={DfxColors.textTertiary}
+            placeholderTextColor={colors.textTertiary}
             keyboardType="decimal-pad"
           />
         </View>
@@ -252,7 +255,7 @@ export default function SendScreen() {
 
         {FEATURES.BUY_SELL && (
           <ShortcutAction
-            icon={<Icon name="swap" size={18} color={DfxColors.white} strokeWidth={2.2} />}
+            icon={<Icon name="swap" size={18} color={colors.white} strokeWidth={2.2} />}
             label={t('send.sellInstead')}
             onPress={() => router.push('/(auth)/sell')}
             testID="send-action-sell"
@@ -341,289 +344,301 @@ export default function SendScreen() {
     </View>
   );
 
+  const body = (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <AppHeader
+        title={t('send.title')}
+        onBack={() => {
+          if (step === 'confirm') setStep('input');
+          else if (step === 'input') setStep('asset');
+          else router.back();
+        }}
+        testID="send-screen"
+      />
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {step === 'asset' && renderAssetStep()}
+        {step === 'input' && selectedAsset && renderInputStep(selectedAsset)}
+        {step === 'confirm' && renderConfirmStep()}
+        {step === 'success' && renderSuccessStep()}
+      </ScrollView>
+
+      <QrScanner
+        visible={scannerVisible}
+        onScan={(data) => {
+          // Handle various QR formats: plain address, ethereum:0x..., bitcoin:bc1...
+          // String.prototype.split always yields at least one element, so [0] is defined.
+          const address = data.replace(/^(ethereum|bitcoin):/, '').split('?')[0]!;
+          setRecipient(address);
+        }}
+        onClose={() => setScannerVisible(false)}
+      />
+    </SafeAreaView>
+  );
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      <ImageBackground
-        source={require('../../../assets/dashboard-bg.png')}
-        style={styles.bg}
-        resizeMode="cover"
-      >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-          <AppHeader
-            title={t('send.title')}
-            onBack={() => {
-              if (step === 'confirm') setStep('input');
-              else if (step === 'input') setStep('asset');
-              else router.back();
-            }}
-            testID="send-screen"
-          />
-
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {step === 'asset' && renderAssetStep()}
-            {step === 'input' && selectedAsset && renderInputStep(selectedAsset)}
-            {step === 'confirm' && renderConfirmStep()}
-            {step === 'success' && renderSuccessStep()}
-          </ScrollView>
-
-          <QrScanner
-            visible={scannerVisible}
-            onScan={(data) => {
-              // Handle various QR formats: plain address, ethereum:0x..., bitcoin:bc1...
-              // String.prototype.split always yields at least one element, so [0] is defined.
-              const address = data.replace(/^(ethereum|bitcoin):/, '').split('?')[0]!;
-              setRecipient(address);
-            }}
-            onClose={() => setScannerVisible(false)}
-          />
-        </SafeAreaView>
-      </ImageBackground>
+      {scheme === 'dark' ? (
+        <View style={styles.bg}>
+          <DarkBackdrop baseColor={colors.background} />
+          {body}
+        </View>
+      ) : (
+        <ImageBackground
+          source={require('../../../assets/dashboard-bg.png')}
+          style={styles.bg}
+          resizeMode="cover"
+        >
+          {body}
+        </ImageBackground>
+      )}
     </>
   );
 }
 
-const styles = StyleSheet.create({
-  bg: {
-    flex: 1,
-    backgroundColor: DfxColors.background,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 32,
-  },
-  stepContent: {
-    flex: 1,
-    gap: 20,
-  },
-  stepTitle: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-  },
-  stepSubtitle: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  destinationCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    padding: 16,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: DfxColors.primary,
-  },
-  destinationIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  destinationText: {
-    flex: 1,
-    gap: 2,
-  },
-  destinationTitle: {
-    ...Typography.bodyLarge,
-    color: DfxColors.text,
-    fontWeight: '600',
-  },
-  destinationSubtitle: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-  },
-  assetList: {
-    gap: 10,
-  },
-  assetCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    padding: 18,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-  },
-  assetCardActive: {
-    borderColor: DfxColors.primary,
-    backgroundColor: 'rgba(220,234,254,0.72)',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  assetSymbol: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-    fontWeight: '700',
-    width: 56,
-  },
-  assetSymbolActive: {
-    color: DfxColors.primary,
-  },
-  assetLabel: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-  },
-  selectedAssetPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: DfxColors.primaryLight,
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    gap: 6,
-    marginBottom: 4,
-  },
-  selectedAssetText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.primary,
-    fontWeight: '700',
-  },
-  chainBar: {
-    flexGrow: 0,
-  },
-  chainChip: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    marginRight: 8,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  chainChipActive: {
-    borderColor: DfxColors.primary,
-    backgroundColor: DfxColors.primaryLight,
-  },
-  chainChipText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    fontWeight: '500',
-  },
-  chainChipTextActive: {
-    color: DfxColors.primary,
-    fontWeight: '600',
-  },
-  inputGroup: {
-    gap: 8,
-  },
-  inputLabel: {
-    ...Typography.bodySmall,
-    fontWeight: '600',
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  input: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    padding: 16,
-    color: DfxColors.text,
-    ...Typography.bodyLarge,
-  },
-  recipientRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  recipientInput: {
-    flex: 1,
-  },
-  scanButton: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    paddingHorizontal: 16,
-    justifyContent: 'center',
-  },
-  scanText: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.primary,
-  },
-  summary: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    padding: 20,
-    gap: 16,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  summaryLabel: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textTertiary,
-  },
-  summaryValue: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.text,
-    maxWidth: '60%',
-  },
-  warning: {
-    ...Typography.bodySmall,
-    color: DfxColors.warning,
-    textAlign: 'center',
-  },
-  errorText: {
-    ...Typography.bodySmall,
-    color: DfxColors.error,
-    textAlign: 'center',
-  },
-  successContainer: {
-    alignItems: 'center',
-    paddingVertical: 48,
-    gap: 12,
-  },
-  successIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: DfxColors.success,
-    color: DfxColors.white,
-    fontSize: 42,
-    lineHeight: 72,
-    textAlign: 'center',
-    overflow: 'hidden',
-  },
-  successTitle: {
-    ...Typography.headlineMedium,
-    color: DfxColors.text,
-  },
-  successDescription: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-  },
-  txHash: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    fontFamily: 'monospace',
-    marginTop: 8,
-  },
-  spacer: {
-    flex: 1,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    bg: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    safeArea: {
+      flex: 1,
+    },
+    scroll: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingHorizontal: 20,
+      paddingBottom: 32,
+    },
+    stepContent: {
+      flex: 1,
+      gap: 20,
+    },
+    stepTitle: {
+      ...Typography.headlineSmall,
+      color: colors.text,
+    },
+    stepSubtitle: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+      fontWeight: '500',
+      marginBottom: 4,
+    },
+    destinationCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(255,255,255,0.92)',
+      borderRadius: 12,
+      padding: 16,
+      gap: 14,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    destinationIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    destinationText: {
+      flex: 1,
+      gap: 2,
+    },
+    destinationTitle: {
+      ...Typography.bodyLarge,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    destinationSubtitle: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+    },
+    assetList: {
+      gap: 10,
+    },
+    assetCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(255,255,255,0.92)',
+      borderRadius: 12,
+      padding: 18,
+      gap: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    assetCardActive: {
+      borderColor: colors.primary,
+      backgroundColor: 'rgba(220,234,254,0.72)',
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+    assetSymbol: {
+      ...Typography.headlineSmall,
+      color: colors.text,
+      fontWeight: '700',
+      width: 56,
+    },
+    assetSymbolActive: {
+      color: colors.primary,
+    },
+    assetLabel: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+    },
+    selectedAssetPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      backgroundColor: colors.primaryLight,
+      borderRadius: 12,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      gap: 6,
+      marginBottom: 4,
+    },
+    selectedAssetText: {
+      ...Typography.bodyMedium,
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    chainBar: {
+      flexGrow: 0,
+    },
+    chainChip: {
+      backgroundColor: 'rgba(255,255,255,0.92)',
+      borderRadius: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      marginRight: 8,
+      borderWidth: 1.5,
+      borderColor: 'transparent',
+    },
+    chainChipActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primaryLight,
+    },
+    chainChipText: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    chainChipTextActive: {
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    inputGroup: {
+      gap: 8,
+    },
+    inputLabel: {
+      ...Typography.bodySmall,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    input: {
+      backgroundColor: 'rgba(255,255,255,0.92)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 16,
+      color: colors.text,
+      ...Typography.bodyLarge,
+    },
+    recipientRow: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    recipientInput: {
+      flex: 1,
+    },
+    scanButton: {
+      backgroundColor: 'rgba(255,255,255,0.92)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 16,
+      justifyContent: 'center',
+    },
+    scanText: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.primary,
+    },
+    summary: {
+      backgroundColor: 'rgba(255,255,255,0.92)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 20,
+      gap: 16,
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    summaryLabel: {
+      ...Typography.bodyMedium,
+      color: colors.textTertiary,
+    },
+    summaryValue: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.text,
+      maxWidth: '60%',
+    },
+    warning: {
+      ...Typography.bodySmall,
+      color: colors.warning,
+      textAlign: 'center',
+    },
+    errorText: {
+      ...Typography.bodySmall,
+      color: colors.error,
+      textAlign: 'center',
+    },
+    successContainer: {
+      alignItems: 'center',
+      paddingVertical: 48,
+      gap: 12,
+    },
+    successIcon: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: colors.success,
+      color: colors.white,
+      fontSize: 42,
+      lineHeight: 72,
+      textAlign: 'center',
+      overflow: 'hidden',
+    },
+    successTitle: {
+      ...Typography.headlineMedium,
+      color: colors.text,
+    },
+    successDescription: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    txHash: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+      fontFamily: 'monospace',
+      marginTop: 8,
+    },
+    spacer: {
+      flex: 1,
+    },
+  });

@@ -13,7 +13,7 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { getWdkConfigs } from '@/config/chains';
 import { pricingService } from '@/services/pricing-service';
 import { useAuthStore, useWalletStore } from '@/store';
-import { DfxColors } from '@/theme';
+import { useColors, useThemeStore } from '@/theme';
 import '@/i18n';
 
 // Silence the WDK / Tether SDK error toasts that pile up in dev when the
@@ -45,10 +45,13 @@ export default function RootLayout() {
   // a restored deep route bypass PIN entirely.
   const { isHydrated, hydrate } = useAuthStore();
   const hydrateWallet = useWalletStore((s) => s.hydrate);
+  const hydrateTheme = useThemeStore((s) => s.hydrate);
+  const colors = useColors();
   useEffect(() => {
     void hydrate();
     void hydrateWallet();
-  }, [hydrate, hydrateWallet]);
+    void hydrateTheme();
+  }, [hydrate, hydrateWallet, hydrateTheme]);
 
   // Keep the pricing singleton minute-fresh app-wide. The native EVM
   // Portfolio cards consult `pricingService.getExchangeRate` instead
@@ -63,7 +66,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
         <WdkAppProvider bundle={{ bundle }} wdkConfigs={getWdkConfigs()}>
-          <StatusBar style="light" />
+          <StatusBar style={colors.statusBar} />
           <OfflineBanner />
           {isHydrated ? (
             <Stack
@@ -71,6 +74,7 @@ export default function RootLayout() {
                 headerShown: false,
                 gestureEnabled: true,
                 fullScreenGestureEnabled: true,
+                contentStyle: { backgroundColor: colors.background },
               }}
             >
               <Stack.Screen name="(onboarding)" />
@@ -78,8 +82,8 @@ export default function RootLayout() {
               <Stack.Screen name="(auth)" />
             </Stack>
           ) : (
-            <View style={styles.loading}>
-              <ActivityIndicator size="large" color={DfxColors.primary} />
+            <View style={[styles.loading, { backgroundColor: colors.background }]}>
+              <ActivityIndicator size="large" color={colors.primary} />
             </View>
           )}
         </WdkAppProvider>
@@ -91,7 +95,6 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   loading: {
     flex: 1,
-    backgroundColor: DfxColors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },

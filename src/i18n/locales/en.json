@@ -395,6 +395,9 @@
   "onboarding": {
     "createError": "Could not create the wallet on this device. Check that your storage is available and try again.",
     "createPasskey": "Create with Passkey",
+    "featureMultiChain": "Bitcoin, Ethereum and multi-chain — one wallet",
+    "featureSelfCustody": "Self-custody — only you hold the keys",
+    "featureSwiss": "Direct Swiss bank-payment integration",
     "createWallet": "Create with Seed Phrase",
     "invalidSeed": "This seed phrase is not valid yet. Enter exactly 12 or 24 words in the original order.",
     "restoreError": "Could not restore this wallet. Check the seed phrase and try again.",
@@ -555,6 +558,7 @@
     "txHash": "TX: {{hash}}"
   },
   "settings": {
+    "appearance": "Appearance",
     "biometric": "Face ID / Touch ID",
     "biometricUnsupported": "Biometric unlock isn't available on this device. Enable Face ID or Touch ID in iOS settings first.",
     "contact": "Contact",

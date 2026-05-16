@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
@@ -14,7 +14,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Icon } from '@/components';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 const CUTOUT_PCT = {
   left: 0.0925,
@@ -26,6 +26,8 @@ const CUTOUT_PCT = {
 export default function PayScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { width, height } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -67,7 +69,7 @@ export default function PayScreen() {
               accessibilityLabel={t('common.back')}
               testID="pay-back-button"
             >
-              <Icon name="arrow-left" size={26} color={DfxColors.text} />
+              <Icon name="arrow-left" size={26} color={colors.text} />
             </Pressable>
 
             <Image
@@ -84,7 +86,7 @@ export default function PayScreen() {
               accessibilityLabel={t('settings.title')}
               testID="pay-menu-button"
             >
-              <Icon name="menu" size={26} color={DfxColors.primary} strokeWidth={2.5} />
+              <Icon name="menu" size={26} color={colors.primary} strokeWidth={2.5} />
             </Pressable>
           </View>
 
@@ -113,62 +115,63 @@ export default function PayScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  bg: {
-    flex: 1,
-    backgroundColor: DfxColors.background,
-  },
-  flow: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  cutout: {
-    position: 'absolute',
-    overflow: 'hidden',
-    borderRadius: 16,
-    backgroundColor: 'rgba(11, 20, 38, 0.18)',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 4,
-    paddingBottom: 8,
-  },
-  headerSlot: {
-    width: 36,
-    height: 36,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-  },
-  headerSlotRight: {
-    alignItems: 'flex-end',
-  },
-  logo: {
-    height: 30,
-    width: 110,
-  },
-  permissionFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    gap: 12,
-    backgroundColor: 'rgba(255,255,255,0.85)',
-  },
-  permissionText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-    textAlign: 'center',
-  },
-  permissionButton: {
-    backgroundColor: DfxColors.primary,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
-  permissionButtonText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.white,
-    fontWeight: '600',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    bg: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    flow: {
+      flex: 1,
+      paddingHorizontal: 20,
+    },
+    cutout: {
+      position: 'absolute',
+      overflow: 'hidden',
+      borderRadius: 16,
+      backgroundColor: 'rgba(11, 20, 38, 0.18)',
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingTop: 4,
+      paddingBottom: 8,
+    },
+    headerSlot: {
+      width: 36,
+      height: 36,
+      alignItems: 'flex-start',
+      justifyContent: 'center',
+    },
+    headerSlotRight: {
+      alignItems: 'flex-end',
+    },
+    logo: {
+      height: 30,
+      width: 110,
+    },
+    permissionFallback: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 16,
+      gap: 12,
+      backgroundColor: 'rgba(255,255,255,0.85)',
+    },
+    permissionText: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    permissionButton: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      borderRadius: 999,
+    },
+    permissionButtonText: {
+      ...Typography.bodyMedium,
+      color: colors.white,
+      fontWeight: '600',
+    },
+  });

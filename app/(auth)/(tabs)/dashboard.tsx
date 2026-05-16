@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { DashboardHeader, Icon, ShortcutAction } from '@/components';
+import { DarkBackdrop, DashboardHeader, Icon, ShortcutAction } from '@/components';
 import { FEATURES } from '@/config/features';
 import { useDfxAuth, useTotalPortfolioFiat } from '@/hooks';
 import { useAuthStore, useWalletStore } from '@/store';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
 const CURRENCY_SYMBOLS = new Map<string, string>([
   ['USD', '$'],
@@ -43,6 +43,9 @@ export default function DashboardScreen() {
   const { isDfxAuthenticated } = useAuthStore();
   const { authenticate, isAuthenticating } = useDfxAuth();
   const totalPortfolioFiat = useTotalPortfolioFiat();
+  const colors = useColors();
+  const scheme = useResolvedScheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [balanceVisible, setBalanceVisible] = useState(true);
 
@@ -61,81 +64,79 @@ export default function DashboardScreen() {
     : '0';
   const { whole, fraction } = splitBalance(displayBalance);
 
-  return (
-    <ImageBackground
-      source={require('../../../assets/dashboard-bg.png')}
-      style={styles.bg}
-      resizeMode="cover"
-    >
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <View style={styles.content} testID="dashboard-screen">
-          <DashboardHeader
-            onMenuPress={FEATURES.SETTINGS ? () => router.push('/settings') : undefined}
-            onShieldPress={FEATURES.MULTISIG ? () => router.push('/(auth)/multi-sig') : undefined}
-          />
+  const content = (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <View style={styles.content} testID="dashboard-screen">
+        <DashboardHeader
+          onMenuPress={FEATURES.SETTINGS ? () => router.push('/settings') : undefined}
+          onShieldPress={FEATURES.MULTISIG ? () => router.push('/(auth)/multi-sig') : undefined}
+        />
 
-          <View style={styles.balanceSection}>
-            <Pressable
-              style={styles.balanceLabelRow}
-              onPress={() => setBalanceVisible((v) => !v)}
-              accessibilityRole="button"
-              accessibilityLabel={t('dashboard.toggleBalance')}
-              testID="dashboard-balance-toggle"
-              hitSlop={8}
-            >
-              <Text style={styles.balanceLabel}>{t('dashboard.totalBalance')}</Text>
-              <Icon name={balanceVisible ? 'eye' : 'eye-off'} size={18} color={DfxColors.primary} />
-            </Pressable>
-
-            <View style={styles.balanceValueRow}>
-              <Text style={styles.balanceSymbol}>{symbol}</Text>
-              {balanceVisible ? (
-                <>
-                  <Text style={styles.balanceWhole}>{whole}</Text>
-                  <Text style={styles.balanceFraction}>.{fraction}</Text>
-                </>
-              ) : (
-                <Text style={styles.balanceHidden}>••••</Text>
-              )}
+        <View style={styles.balanceSection}>
+          <Pressable
+            style={styles.balanceLabelRow}
+            onPress={() => setBalanceVisible((v) => !v)}
+            accessibilityRole="button"
+            accessibilityLabel={t('dashboard.toggleBalance')}
+            testID="dashboard-balance-toggle"
+            hitSlop={12}
+          >
+            <Text style={styles.balanceLabel}>{t('dashboard.totalBalance')}</Text>
+            <View style={styles.balanceEyeBubble}>
+              <Icon name={balanceVisible ? 'eye' : 'eye-off'} size={16} color={colors.primary} />
             </View>
+          </Pressable>
+
+          <View style={styles.balanceValueRow}>
+            <Text style={styles.balanceSymbol}>{symbol}</Text>
+            {balanceVisible ? (
+              <>
+                <Text style={styles.balanceWhole}>{whole}</Text>
+                <Text style={styles.balanceFraction}>.{fraction}</Text>
+              </>
+            ) : (
+              <Text style={styles.balanceHidden}>••••</Text>
+            )}
           </View>
+        </View>
 
-          {(FEATURES.PORTFOLIO || FEATURES.PAY) && (
-            <View style={styles.actions}>
-              {FEATURES.PORTFOLIO && (
-                <ShortcutAction
-                  icon={<Icon name="wallet" size={18} color={DfxColors.white} strokeWidth={2.2} />}
-                  label={t('dashboard.portfolio')}
-                  testID="dashboard-action-portfolio"
-                  onPress={() => router.push('/(auth)/portfolio')}
-                  style={styles.actionPill}
-                />
-              )}
-              {FEATURES.PAY && (
-                <ShortcutAction
-                  icon={<Icon name="grid" size={18} color={DfxColors.white} strokeWidth={2.2} />}
-                  label={t('dashboard.pay')}
-                  testID="dashboard-action-pay"
-                  onPress={() => router.push('/(auth)/pay')}
-                  style={styles.actionPill}
-                />
-              )}
-            </View>
-          )}
+        {(FEATURES.PORTFOLIO || FEATURES.PAY) && (
+          <View style={styles.actions}>
+            {FEATURES.PORTFOLIO && (
+              <ShortcutAction
+                icon={<Icon name="wallet" size={18} color={colors.white} strokeWidth={2.2} />}
+                label={t('dashboard.portfolio')}
+                testID="dashboard-action-portfolio"
+                onPress={() => router.push('/(auth)/portfolio')}
+                style={styles.actionPill}
+              />
+            )}
+            {FEATURES.PAY && (
+              <ShortcutAction
+                icon={<Icon name="grid" size={18} color={colors.white} strokeWidth={2.2} />}
+                label={t('dashboard.pay')}
+                testID="dashboard-action-pay"
+                onPress={() => router.push('/(auth)/pay')}
+                style={styles.actionPill}
+              />
+            )}
+          </View>
+        )}
 
-          {FEATURES.TX_HISTORY && (
-            <Pressable
-              style={styles.transactions}
-              onPress={() => router.push('/(auth)/transaction-history')}
-              testID="dashboard-action-transactions"
-              accessibilityRole="button"
-            >
-              <Icon name="swap" size={18} color={DfxColors.primary} />
-              <Text style={styles.transactionsLabel}>{t('dashboard.transactions')}</Text>
-            </Pressable>
-          )}
+        {FEATURES.TX_HISTORY && (
+          <Pressable
+            style={styles.transactions}
+            onPress={() => router.push('/(auth)/transaction-history')}
+            testID="dashboard-action-transactions"
+            accessibilityRole="button"
+          >
+            <Icon name="swap" size={18} color={colors.primary} />
+            <Text style={styles.transactionsLabel}>{t('dashboard.transactions')}</Text>
+          </Pressable>
+        )}
 
-          <View style={styles.footer}>
+        <View style={[styles.footer, scheme === 'dark' && styles.darkFooter]}>
+          {scheme === 'light' ? (
             <View style={styles.bottomPill}>
               <Pressable
                 style={styles.bottomPillItem}
@@ -144,7 +145,7 @@ export default function DashboardScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={t('receive.title')}
               >
-                <Icon name="receive" size={22} color={DfxColors.primary} />
+                <Icon name="receive" size={22} color={colors.primary} />
                 <Text style={styles.bottomPillLabel}>{t('receive.title')}</Text>
               </Pressable>
               <View style={styles.bottomPillSeparator} />
@@ -155,140 +156,252 @@ export default function DashboardScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={t('send.title')}
               >
-                <Icon name="send" size={22} color={DfxColors.primary} />
+                <Icon name="send" size={22} color={colors.primary} />
                 <Text style={styles.bottomPillLabel}>{t('send.title')}</Text>
               </Pressable>
             </View>
-          </View>
+          ) : (
+            <>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.primaryAction,
+                  pressed && styles.primaryActionPressed,
+                ]}
+                onPress={() => router.push('/(auth)/receive')}
+                testID="dashboard-action-receive"
+                accessibilityRole="button"
+                accessibilityLabel={t('receive.title')}
+              >
+                <View style={styles.primaryActionIcon}>
+                  <Icon name="receive" size={20} color={colors.white} />
+                </View>
+                <Text style={styles.primaryActionLabel}>{t('receive.title')}</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.primaryAction,
+                  styles.primaryActionAlt,
+                  pressed && styles.primaryActionPressed,
+                ]}
+                onPress={() => router.push('/(auth)/send')}
+                testID="dashboard-action-send"
+                accessibilityRole="button"
+                accessibilityLabel={t('send.title')}
+              >
+                <View style={styles.primaryActionIcon}>
+                  <Icon name="send" size={20} color={colors.white} />
+                </View>
+                <Text style={styles.primaryActionLabel}>{t('send.title')}</Text>
+              </Pressable>
+            </>
+          )}
         </View>
-      </SafeAreaView>
+      </View>
+    </SafeAreaView>
+  );
+
+  if (scheme === 'dark') {
+    return (
+      <View style={styles.bg}>
+        <DarkBackdrop baseColor={colors.background} />
+        {content}
+      </View>
+    );
+  }
+
+  return (
+    <ImageBackground
+      source={require('../../../assets/dashboard-bg.png')}
+      style={styles.bg}
+      resizeMode="cover"
+    >
+      {content}
     </ImageBackground>
   );
 }
 
-const styles = StyleSheet.create({
-  bg: {
-    flex: 1,
-    backgroundColor: DfxColors.background,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  balanceSection: {
-    marginTop: 'auto',
-    alignItems: 'center',
-    paddingTop: 16,
-    paddingBottom: 28,
-  },
-  balanceLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  balanceLabel: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    fontWeight: '500',
-  },
-  balanceValueRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginTop: 8,
-    maxWidth: '100%',
-  },
-  balanceSymbol: {
-    fontSize: 32,
-    lineHeight: 54,
-    fontWeight: '500',
-    color: DfxColors.primary,
-    marginRight: 6,
-  },
-  balanceWhole: {
-    fontSize: 54,
-    lineHeight: 58,
-    fontWeight: '700',
-    color: DfxColors.text,
-    flexShrink: 1,
-  },
-  balanceFraction: {
-    fontSize: 24,
-    lineHeight: 48,
-    fontWeight: '500',
-    color: DfxColors.textSecondary,
-  },
-  balanceHidden: {
-    fontSize: 52,
-    lineHeight: 56,
-    fontWeight: '600',
-    color: DfxColors.text,
-    letterSpacing: 4,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  actionPill: {
-    flex: 1,
-  },
-  transactions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    minHeight: 54,
-    paddingVertical: 14,
-    marginTop: 10,
-  },
-  transactionsLabel: {
-    ...Typography.bodyLarge,
-    color: DfxColors.primary,
-    fontWeight: '600',
-  },
-  footer: {
-    marginTop: 'auto',
-    alignItems: 'center',
-    paddingBottom: 22,
-  },
-  bottomPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(221,229,240,0.9)',
-    paddingHorizontal: 6,
-    paddingVertical: 8,
-    width: '100%',
-    maxWidth: 336,
-    shadowColor: '#0B1426',
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3,
-  },
-  bottomPillItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    minHeight: 58,
-    paddingVertical: 8,
-    borderRadius: 18,
-  },
-  bottomPillSeparator: {
-    width: StyleSheet.hairlineWidth,
-    height: 32,
-    backgroundColor: DfxColors.border,
-  },
-  bottomPillLabel: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-    fontWeight: '600',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    bg: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    safeArea: {
+      flex: 1,
+    },
+    content: {
+      flex: 1,
+      paddingHorizontal: 20,
+    },
+    balanceSection: {
+      marginTop: 'auto',
+      alignItems: 'center',
+      paddingTop: 16,
+      paddingBottom: 28,
+    },
+    balanceLabelRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      // Bumped from 6 → 12 so the tap target clears 44pt without relying on hitSlop alone.
+      paddingVertical: 12,
+      paddingHorizontal: 12,
+    },
+    balanceLabel: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    balanceEyeBubble: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    balanceValueRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      marginTop: 8,
+      maxWidth: '100%',
+    },
+    // Currency code + fraction are intentionally subdued so the whole-number
+    // portion of the balance carries the hierarchy. Tabular figures keep the
+    // digit-grid stable when the value changes (no width jitter).
+    balanceSymbol: {
+      fontSize: 22,
+      lineHeight: 58,
+      fontWeight: '500',
+      color: colors.textSecondary,
+      marginRight: 8,
+      letterSpacing: 0.5,
+    },
+    balanceWhole: {
+      fontSize: 56,
+      lineHeight: 60,
+      fontWeight: '700',
+      color: colors.text,
+      flexShrink: 1,
+      letterSpacing: -1,
+      fontVariant: ['tabular-nums'],
+    },
+    balanceFraction: {
+      fontSize: 22,
+      lineHeight: 58,
+      fontWeight: '500',
+      color: colors.textSecondary,
+      fontVariant: ['tabular-nums'],
+    },
+    balanceHidden: {
+      fontSize: 52,
+      lineHeight: 58,
+      fontWeight: '600',
+      color: colors.text,
+      letterSpacing: 4,
+    },
+    actions: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    actionPill: {
+      flex: 1,
+    },
+    transactions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      minHeight: 54,
+      paddingVertical: 14,
+      marginTop: 10,
+    },
+    transactionsLabel: {
+      ...Typography.bodyLarge,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    footer: {
+      marginTop: 'auto',
+      alignItems: 'center',
+      paddingBottom: 22,
+    },
+    darkFooter: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    bottomPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(255,255,255,0.95)',
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: 'rgba(221,229,240,0.9)',
+      paddingHorizontal: 6,
+      paddingVertical: 8,
+      width: '100%',
+      maxWidth: 336,
+      shadowColor: '#0B1426',
+      shadowOpacity: 0.1,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 3,
+    },
+    bottomPillItem: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
+      minHeight: 58,
+      paddingVertical: 8,
+      borderRadius: 18,
+    },
+    bottomPillSeparator: {
+      width: StyleSheet.hairlineWidth,
+      height: 32,
+      backgroundColor: colors.border,
+    },
+    bottomPillLabel: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    // Receive/Send are the highest-frequency actions in a wallet — they
+    // earn primary-filled CTAs at the bottom instead of a single muted
+    // pill. Receive uses the brighter primary tint, Send uses primaryDark
+    // so the two reads as complementary (matching/inverse) actions.
+    primaryAction: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      minHeight: 56,
+      paddingVertical: 14,
+      paddingHorizontal: 12,
+      borderRadius: 18,
+      backgroundColor: colors.primary,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.22,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 3,
+    },
+    primaryActionAlt: {
+      backgroundColor: colors.primaryDark,
+    },
+    primaryActionPressed: {
+      opacity: 0.88,
+    },
+    primaryActionIcon: {
+      width: 24,
+      height: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    primaryActionLabel: {
+      ...Typography.bodyLarge,
+      color: colors.white,
+      fontWeight: '700',
+    },
+  });

@@ -1,7 +1,8 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 import { Icon } from './Icon';
 
 type Props = {
@@ -14,18 +15,12 @@ type Props = {
 
 /**
  * Compact Kaufen / Verkaufen pill row for wallet- and asset-detail screens.
- *
- * Uses the same `primaryLight` + `primary` visual language as the existing
- * copyBadge / quickAmount chips so the row sits naturally inside the
- * surrounding card stack without competing for attention.
- *
- * Both pills route to the existing Buy/Sell flows. Optional `asset` and
- * `chain` params are passed through so the Buy/Sell screen can preselect
- * the right token on mount (when those screens read the route params).
  */
 export function AssetActions({ asset, chain, testID }: Props) {
   const router = useRouter();
   const { t } = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const navigate = (path: '/(auth)/buy' | '/(auth)/sell') => {
     const params: Record<string, string> = {};
@@ -43,7 +38,7 @@ export function AssetActions({ asset, chain, testID }: Props) {
         accessibilityLabel={t('buy.title')}
         testID={testID ? `${testID}-buy` : undefined}
       >
-        <Icon name="arrow-down" size={16} color={DfxColors.primary} strokeWidth={2.4} />
+        <Icon name="arrow-down" size={16} color={colors.primary} strokeWidth={2.4} />
         <Text style={styles.label}>{t('buy.title')}</Text>
       </Pressable>
       <Pressable
@@ -53,34 +48,35 @@ export function AssetActions({ asset, chain, testID }: Props) {
         accessibilityLabel={t('sell.title')}
         testID={testID ? `${testID}-sell` : undefined}
       >
-        <Icon name="arrow-up" size={16} color={DfxColors.primary} strokeWidth={2.4} />
+        <Icon name="arrow-up" size={16} color={colors.primary} strokeWidth={2.4} />
         <Text style={styles.label}>{t('sell.title')}</Text>
       </Pressable>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: DfxColors.primaryLight,
-    borderRadius: 999,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  label: {
-    ...Typography.bodyMedium,
-    color: DfxColors.primary,
-    fontWeight: '600',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 10,
+    },
+    pill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      backgroundColor: colors.primaryLight,
+      borderRadius: 999,
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+    label: {
+      ...Typography.bodyMedium,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+  });

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type Props = {
   visible: boolean;
@@ -13,6 +13,8 @@ type Props = {
 export function QrScanner({ visible, onScan, onClose }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   useEffect(() => {
     if (visible && !permission?.granted) {
@@ -72,77 +74,80 @@ export function QrScanner({ visible, onScan, onClose }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: DfxColors.black,
-  },
-  camera: {
-    flex: 1,
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cutout: {
-    width: 250,
-    height: 250,
-    borderWidth: 2,
-    borderColor: DfxColors.primary,
-    borderRadius: 16,
-    backgroundColor: 'transparent',
-  },
-  permissionContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-    padding: 32,
-  },
-  permissionText: {
-    ...Typography.bodyLarge,
-    color: DfxColors.text,
-    textAlign: 'center',
-  },
-  permissionButton: {
-    backgroundColor: DfxColors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  permissionButtonText: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.white,
-  },
-  pasteButton: {
-    position: 'absolute',
-    bottom: 100,
-    alignSelf: 'center',
-    backgroundColor: DfxColors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
-  },
-  pasteText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.white,
-    fontWeight: '600',
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  closeText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.white,
-    fontWeight: '600',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      // Camera viewfinder always has a black bezel regardless of app theme
+      // — that's how every native QR-scanner reads.
+      backgroundColor: '#000000',
+    },
+    camera: {
+      flex: 1,
+    },
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cutout: {
+      width: 250,
+      height: 250,
+      borderWidth: 2,
+      borderColor: colors.primary,
+      borderRadius: 16,
+      backgroundColor: 'transparent',
+    },
+    permissionContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 16,
+      padding: 32,
+    },
+    permissionText: {
+      ...Typography.bodyLarge,
+      color: colors.white,
+      textAlign: 'center',
+    },
+    permissionButton: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 24,
+      paddingVertical: 12,
+      borderRadius: 12,
+    },
+    permissionButtonText: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.white,
+    },
+    pasteButton: {
+      position: 'absolute',
+      bottom: 100,
+      alignSelf: 'center',
+      backgroundColor: colors.primary,
+      paddingHorizontal: 24,
+      paddingVertical: 14,
+      borderRadius: 12,
+    },
+    pasteText: {
+      ...Typography.bodyMedium,
+      color: colors.white,
+      fontWeight: '600',
+    },
+    closeButton: {
+      position: 'absolute',
+      top: 60,
+      right: 20,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 20,
+    },
+    closeText: {
+      ...Typography.bodyMedium,
+      color: colors.white,
+      fontWeight: '600',
+    },
+  });

@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, Icon, PrimaryButton, ScreenContainer } from '@/components';
 import { useDfxAuth } from '@/hooks';
 import { dfxApi, dfxAuthService, decodeDfxJwt } from '@/features/dfx-backend/services';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type Stage = 'enterMail' | 'sending' | 'verify' | 'success';
 
@@ -24,6 +24,8 @@ type Stage = 'enterMail' | 'sending' | 'verify' | 'success';
  *    email user — done. If they match, the link hasn't been clicked yet.
  */
 export default function DfxLoginScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
   const { authenticate } = useDfxAuth();
@@ -91,7 +93,7 @@ export default function DfxLoginScreen() {
 
         <View style={styles.content}>
           <View style={styles.heroIcon}>
-            <Icon name="shield" size={32} color={DfxColors.white} strokeWidth={2.5} />
+            <Icon name="shield" size={32} color={colors.white} strokeWidth={2.5} />
           </View>
 
           {stage === 'enterMail' && (
@@ -104,7 +106,7 @@ export default function DfxLoginScreen() {
                 value={mail}
                 onChangeText={setMail}
                 placeholder="name@example.com"
-                placeholderTextColor={DfxColors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -124,7 +126,7 @@ export default function DfxLoginScreen() {
 
           {stage === 'sending' && (
             <View style={styles.centered}>
-              <ActivityIndicator color={DfxColors.primary} size="large" />
+              <ActivityIndicator color={colors.primary} size="large" />
               <Text style={styles.body}>{t('dfxLogin.sendingBody')}</Text>
             </View>
           )}
@@ -160,58 +162,59 @@ export default function DfxLoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingTop: 24,
-    paddingBottom: 32,
-    gap: 14,
-    alignItems: 'stretch',
-  },
-  heroIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: DfxColors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    marginBottom: 8,
-  },
-  title: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-    textAlign: 'center',
-  },
-  body: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-    paddingHorizontal: 4,
-  },
-  label: {
-    ...Typography.bodySmall,
-    fontWeight: '700',
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginTop: 8,
-  },
-  input: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 12,
-    padding: 14,
-    color: DfxColors.text,
-    ...Typography.bodyLarge,
-  },
-  errorText: {
-    ...Typography.bodySmall,
-    color: DfxColors.error,
-    textAlign: 'center',
-  },
-  centered: {
-    alignItems: 'center',
-    gap: 16,
-    paddingVertical: 32,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      paddingTop: 24,
+      paddingBottom: 32,
+      gap: 14,
+      alignItems: 'stretch',
+    },
+    heroIcon: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      alignSelf: 'center',
+      marginBottom: 8,
+    },
+    title: {
+      ...Typography.headlineSmall,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    body: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 22,
+      paddingHorizontal: 4,
+    },
+    label: {
+      ...Typography.bodySmall,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      marginTop: 8,
+    },
+    input: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 14,
+      color: colors.text,
+      ...Typography.bodyLarge,
+    },
+    errorText: {
+      ...Typography.bodySmall,
+      color: colors.error,
+      textAlign: 'center',
+    },
+    centered: {
+      alignItems: 'center',
+      gap: 16,
+      paddingVertical: 32,
+    },
+  });

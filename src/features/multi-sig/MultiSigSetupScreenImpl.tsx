@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Alert,
   ImageBackground,
@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { AppHeader, Icon, PrimaryButton } from '@/components';
 import { useMultiSigStore } from './store';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type Step = 'intro' | 'concept' | 'quorum' | 'cosigners' | 'backup' | 'success';
 
@@ -32,6 +32,8 @@ const MIN_TOTAL = 2;
 const MAX_TOTAL = 9;
 
 export default function MultiSigSetupScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
   const addVault = useMultiSigStore((s) => s.addVault);
@@ -120,7 +122,7 @@ export default function MultiSigSetupScreen() {
               <View style={styles.stepContent}>
                 <View style={styles.heroCard}>
                   <View style={styles.heroIcon}>
-                    <Icon name="shield" size={36} color={DfxColors.primary} strokeWidth={2} />
+                    <Icon name="shield" size={36} color={colors.primary} strokeWidth={2} />
                   </View>
                   <Text style={styles.heroTitle}>{t('multiSig.intro.title')}</Text>
                   <Text style={styles.heroBody}>{t('multiSig.intro.body')}</Text>
@@ -163,11 +165,11 @@ export default function MultiSigSetupScreen() {
                     />
                   </View>
                   <View style={styles.diagramArrow}>
-                    <Icon name="arrow-down" size={20} color={DfxColors.primary} />
+                    <Icon name="arrow-down" size={20} color={colors.primary} />
                   </View>
                   <View style={styles.diagramResultCard}>
                     <View style={styles.diagramResultIcon}>
-                      <Icon name="shield" size={20} color={DfxColors.white} strokeWidth={2.5} />
+                      <Icon name="shield" size={20} color={colors.white} strokeWidth={2.5} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.diagramResultTitle}>
@@ -215,7 +217,7 @@ export default function MultiSigSetupScreen() {
                           {t(`multiSig.quorum.option_${opt.required}_${opt.total}_desc`)}
                         </Text>
                       </View>
-                      {isActive ? <Icon name="shield" size={18} color={DfxColors.primary} /> : null}
+                      {isActive ? <Icon name="shield" size={18} color={colors.primary} /> : null}
                     </Pressable>
                   );
                 })}
@@ -236,9 +238,7 @@ export default function MultiSigSetupScreen() {
                     </Text>
                     <Text style={styles.optionDesc}>{t('multiSig.quorum.option_custom_desc')}</Text>
                   </View>
-                  {isCustomQuorum ? (
-                    <Icon name="shield" size={18} color={DfxColors.primary} />
-                  ) : null}
+                  {isCustomQuorum ? <Icon name="shield" size={18} color={colors.primary} /> : null}
                 </Pressable>
 
                 {isCustomQuorum && (
@@ -282,7 +282,7 @@ export default function MultiSigSetupScreen() {
 
                 <View style={styles.youCard}>
                   <View style={styles.youAvatar}>
-                    <Icon name="user" size={20} color={DfxColors.white} />
+                    <Icon name="user" size={20} color={colors.white} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.youLabel}>{t('multiSig.cosigners.youLabel')}</Text>
@@ -301,7 +301,7 @@ export default function MultiSigSetupScreen() {
                       value={cosignerInputs[idx] ?? ''}
                       onChangeText={(v) => setCosignerAt(idx, v)}
                       placeholder={t('multiSig.cosigners.placeholder')}
-                      placeholderTextColor={DfxColors.textTertiary}
+                      placeholderTextColor={colors.textTertiary}
                       autoCapitalize="none"
                       autoCorrect={false}
                     />
@@ -348,9 +348,7 @@ export default function MultiSigSetupScreen() {
                   testID="multi-sig-confirm-backup"
                 >
                   <View style={[styles.checkbox, backupConfirmed && styles.checkboxActive]}>
-                    {backupConfirmed ? (
-                      <Icon name="shield" size={14} color={DfxColors.white} />
-                    ) : null}
+                    {backupConfirmed ? <Icon name="shield" size={14} color={colors.white} /> : null}
                   </View>
                   <Text style={styles.confirmText}>{t('multiSig.backup.confirm')}</Text>
                 </Pressable>
@@ -379,7 +377,7 @@ export default function MultiSigSetupScreen() {
             {step === 'success' && (
               <View style={styles.stepContent}>
                 <View style={styles.successIcon}>
-                  <Icon name="shield" size={64} color={DfxColors.primary} strokeWidth={2} />
+                  <Icon name="shield" size={64} color={colors.primary} strokeWidth={2} />
                 </View>
                 <Text style={styles.successTitle}>{t('multiSig.success.title')}</Text>
                 <Text style={styles.successBody}>
@@ -404,6 +402,8 @@ export default function MultiSigSetupScreen() {
 }
 
 function Bullet({ text }: { text: string }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.bullet}>
       <View style={styles.bulletDot} />
@@ -427,6 +427,8 @@ function Stepper({
   onChange: (v: number) => void;
   testID?: string;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const decDisabled = value <= min;
   const incDisabled = value >= max;
   return (
@@ -468,13 +470,15 @@ function DiagramSigner({
   status: string;
   approved: boolean;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.diagramSigner}>
       <View style={[styles.diagramAvatar, approved && styles.diagramAvatarApproved]}>
         <Icon
           name="user"
           size={22}
-          color={approved ? DfxColors.white : DfxColors.textTertiary}
+          color={approved ? colors.white : colors.textTertiary}
           strokeWidth={2}
         />
         {approved ? (
@@ -500,10 +504,12 @@ function BackupItem({
   title: string;
   desc: string;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.checklistItem}>
       <View style={styles.checklistIcon}>
-        <Icon name={icon} size={18} color={DfxColors.primary} />
+        <Icon name={icon} size={18} color={colors.primary} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.checklistTitle}>{title}</Text>
@@ -513,432 +519,433 @@ function BackupItem({
   );
 }
 
-const styles = StyleSheet.create({
-  bg: { flex: 1, backgroundColor: DfxColors.background },
-  safeArea: { flex: 1 },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 32, gap: 18 },
-  stepContent: { gap: 18 },
-  heroCard: {
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 24,
-  },
-  heroIcon: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroTitle: {
-    ...Typography.headlineMedium,
-    color: DfxColors.text,
-    textAlign: 'center',
-  },
-  heroBody: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-    paddingHorizontal: 8,
-  },
-  bullet: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'flex-start',
-    paddingHorizontal: 4,
-  },
-  bulletDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: DfxColors.primary,
-    marginTop: 8,
-  },
-  bulletText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-    flex: 1,
-    lineHeight: 22,
-  },
-  stepTitle: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-  },
-  stepBody: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-    lineHeight: 24,
-  },
-  analogyCard: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 18,
-    padding: 20,
-    gap: 8,
-    alignItems: 'center',
-  },
-  analogyEmoji: { fontSize: 40 },
-  analogyTitle: {
-    ...Typography.bodyLarge,
-    fontWeight: '700',
-    color: DfxColors.text,
-    textAlign: 'center',
-  },
-  analogyBody: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  exampleCaption: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-    paddingHorizontal: 8,
-    lineHeight: 22,
-  },
-  diagramCard: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 18,
-    padding: 18,
-    gap: 12,
-  },
-  diagramHeader: {
-    ...Typography.bodySmall,
-    fontWeight: '700',
-    color: DfxColors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    textAlign: 'center',
-  },
-  diagramRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-start',
-    paddingTop: 4,
-  },
-  diagramSigner: {
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
-  },
-  diagramAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: DfxColors.background,
-    borderWidth: 2,
-    borderColor: DfxColors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  diagramAvatarApproved: {
-    backgroundColor: DfxColors.primary,
-    borderColor: DfxColors.primary,
-  },
-  diagramBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#22C55E',
-    borderWidth: 2,
-    borderColor: DfxColors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  diagramBadgeText: {
-    color: DfxColors.white,
-    fontSize: 12,
-    fontWeight: '800',
-    lineHeight: 14,
-  },
-  diagramSignerLabel: {
-    ...Typography.bodySmall,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  diagramSignerStatus: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    fontSize: 11,
-  },
-  diagramSignerStatusApproved: {
-    color: '#22C55E',
-    fontWeight: '600',
-  },
-  diagramArrow: {
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  diagramResultCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: DfxColors.primaryLight,
-    borderRadius: 14,
-    padding: 14,
-  },
-  diagramResultIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: DfxColors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  diagramResultTitle: {
-    ...Typography.bodyMedium,
-    fontWeight: '700',
-    color: DfxColors.text,
-  },
-  diagramResultBody: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    marginTop: 2,
-  },
-  optionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
-    padding: 16,
-    gap: 14,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  optionCardActive: {
-    borderColor: DfxColors.primary,
-  },
-  optionLead: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  optionNum: {
-    ...Typography.bodyLarge,
-    fontWeight: '700',
-    color: DfxColors.textSecondary,
-  },
-  optionNumActive: {
-    color: DfxColors.primary,
-  },
-  optionTitle: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  optionDesc: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    marginTop: 2,
-    lineHeight: 18,
-  },
-  customCard: {
-    backgroundColor: DfxColors.primaryLight,
-    borderRadius: 16,
-    padding: 16,
-    gap: 14,
-  },
-  stepperRow: { gap: 8 },
-  stepperLabel: {
-    ...Typography.bodySmall,
-    fontWeight: '700',
-    color: DfxColors.text,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  stepperControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: DfxColors.surface,
-    borderRadius: 12,
-    padding: 6,
-  },
-  stepperButton: {
-    width: 44,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: DfxColors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepperButtonDisabled: {
-    opacity: 0.35,
-  },
-  stepperButtonText: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: DfxColors.primary,
-    lineHeight: 26,
-  },
-  stepperValue: {
-    ...Typography.headlineSmall,
-    fontWeight: '700',
-    color: DfxColors.text,
-    minWidth: 40,
-    textAlign: 'center',
-  },
-  customSummary: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  youCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: DfxColors.primaryLight,
-    borderRadius: 14,
-    padding: 14,
-  },
-  youAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: DfxColors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  youLabel: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.primary,
-  },
-  youDesc: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-  },
-  inputGroup: { gap: 6 },
-  inputLabel: {
-    ...Typography.bodySmall,
-    fontWeight: '600',
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  input: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 12,
-    padding: 14,
-    color: DfxColors.text,
-    ...Typography.bodyMedium,
-    fontFamily: 'monospace',
-  },
-  helperHint: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    paddingHorizontal: 4,
-    lineHeight: 18,
-  },
-  checklist: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
-    padding: 4,
-  },
-  checklistItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    padding: 14,
-  },
-  checklistIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checklistTitle: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  checklistDesc: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    marginTop: 2,
-    lineHeight: 18,
-  },
-  confirmRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: DfxColors.surface,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  confirmRowActive: {
-    borderColor: DfxColors.primary,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: DfxColors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxActive: {
-    backgroundColor: DfxColors.primary,
-    borderColor: DfxColors.primary,
-  },
-  confirmText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-    flex: 1,
-    lineHeight: 22,
-  },
-  successIcon: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    marginVertical: 24,
-  },
-  successTitle: {
-    ...Typography.headlineMedium,
-    color: DfxColors.text,
-    textAlign: 'center',
-  },
-  successBody: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  successCard: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
-    padding: 18,
-    gap: 6,
-  },
-  successCardLabel: {
-    ...Typography.bodySmall,
-    fontWeight: '700',
-    color: DfxColors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  successCardBody: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-    lineHeight: 22,
-  },
-  spacer: { minHeight: 16 },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    bg: { flex: 1, backgroundColor: colors.background },
+    safeArea: { flex: 1 },
+    scroll: { flex: 1 },
+    scrollContent: { paddingHorizontal: 20, paddingBottom: 32, gap: 18 },
+    stepContent: { gap: 18 },
+    heroCard: {
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 24,
+    },
+    heroIcon: {
+      width: 84,
+      height: 84,
+      borderRadius: 42,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    heroTitle: {
+      ...Typography.headlineMedium,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    heroBody: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      paddingHorizontal: 8,
+    },
+    bullet: {
+      flexDirection: 'row',
+      gap: 12,
+      alignItems: 'flex-start',
+      paddingHorizontal: 4,
+    },
+    bulletDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: colors.primary,
+      marginTop: 8,
+    },
+    bulletText: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      flex: 1,
+      lineHeight: 22,
+    },
+    stepTitle: {
+      ...Typography.headlineSmall,
+      color: colors.text,
+    },
+    stepBody: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+      lineHeight: 24,
+    },
+    analogyCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 18,
+      padding: 20,
+      gap: 8,
+      alignItems: 'center',
+    },
+    analogyEmoji: { fontSize: 40 },
+    analogyTitle: {
+      ...Typography.bodyLarge,
+      fontWeight: '700',
+      color: colors.text,
+      textAlign: 'center',
+    },
+    analogyBody: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 22,
+    },
+    exampleCaption: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      paddingHorizontal: 8,
+      lineHeight: 22,
+    },
+    diagramCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 18,
+      padding: 18,
+      gap: 12,
+    },
+    diagramHeader: {
+      ...Typography.bodySmall,
+      fontWeight: '700',
+      color: colors.primary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      textAlign: 'center',
+    },
+    diagramRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      alignItems: 'flex-start',
+      paddingTop: 4,
+    },
+    diagramSigner: {
+      alignItems: 'center',
+      gap: 6,
+      flex: 1,
+    },
+    diagramAvatar: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: colors.background,
+      borderWidth: 2,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    diagramAvatarApproved: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    diagramBadge: {
+      position: 'absolute',
+      bottom: -2,
+      right: -2,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: '#22C55E',
+      borderWidth: 2,
+      borderColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    diagramBadgeText: {
+      color: colors.white,
+      fontSize: 12,
+      fontWeight: '800',
+      lineHeight: 14,
+    },
+    diagramSignerLabel: {
+      ...Typography.bodySmall,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    diagramSignerStatus: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+      fontSize: 11,
+    },
+    diagramSignerStatusApproved: {
+      color: '#22C55E',
+      fontWeight: '600',
+    },
+    diagramArrow: {
+      alignItems: 'center',
+      paddingVertical: 4,
+    },
+    diagramResultCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: colors.primaryLight,
+      borderRadius: 14,
+      padding: 14,
+    },
+    diagramResultIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    diagramResultTitle: {
+      ...Typography.bodyMedium,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    diagramResultBody: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    optionCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 16,
+      gap: 14,
+      borderWidth: 2,
+      borderColor: 'transparent',
+    },
+    optionCardActive: {
+      borderColor: colors.primary,
+    },
+    optionLead: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    optionNum: {
+      ...Typography.bodyLarge,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    optionNumActive: {
+      color: colors.primary,
+    },
+    optionTitle: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    optionDesc: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      marginTop: 2,
+      lineHeight: 18,
+    },
+    customCard: {
+      backgroundColor: colors.primaryLight,
+      borderRadius: 16,
+      padding: 16,
+      gap: 14,
+    },
+    stepperRow: { gap: 8 },
+    stepperLabel: {
+      ...Typography.bodySmall,
+      fontWeight: '700',
+      color: colors.text,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    stepperControls: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 6,
+    },
+    stepperButton: {
+      width: 44,
+      height: 36,
+      borderRadius: 8,
+      backgroundColor: colors.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    stepperButtonDisabled: {
+      opacity: 0.35,
+    },
+    stepperButtonText: {
+      fontSize: 22,
+      fontWeight: '600',
+      color: colors.primary,
+      lineHeight: 26,
+    },
+    stepperValue: {
+      ...Typography.headlineSmall,
+      fontWeight: '700',
+      color: colors.text,
+      minWidth: 40,
+      textAlign: 'center',
+    },
+    customSummary: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      fontWeight: '500',
+    },
+    youCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: colors.primaryLight,
+      borderRadius: 14,
+      padding: 14,
+    },
+    youAvatar: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    youLabel: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.primary,
+    },
+    youDesc: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+    },
+    inputGroup: { gap: 6 },
+    inputLabel: {
+      ...Typography.bodySmall,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    input: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 14,
+      color: colors.text,
+      ...Typography.bodyMedium,
+      fontFamily: 'monospace',
+    },
+    helperHint: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+      paddingHorizontal: 4,
+      lineHeight: 18,
+    },
+    checklist: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 4,
+    },
+    checklistItem: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+      padding: 14,
+    },
+    checklistIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checklistTitle: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    checklistDesc: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      marginTop: 2,
+      lineHeight: 18,
+    },
+    confirmRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      padding: 14,
+      borderRadius: 14,
+      backgroundColor: colors.surface,
+      borderWidth: 1.5,
+      borderColor: 'transparent',
+    },
+    confirmRowActive: {
+      borderColor: colors.primary,
+    },
+    checkbox: {
+      width: 22,
+      height: 22,
+      borderRadius: 6,
+      borderWidth: 2,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkboxActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    confirmText: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      flex: 1,
+      lineHeight: 22,
+    },
+    successIcon: {
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+      alignSelf: 'center',
+      marginVertical: 24,
+    },
+    successTitle: {
+      ...Typography.headlineMedium,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    successBody: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 24,
+    },
+    successCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 18,
+      gap: 6,
+    },
+    successCardLabel: {
+      ...Typography.bodySmall,
+      fontWeight: '700',
+      color: colors.primary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    successCardBody: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      lineHeight: 22,
+    },
+    spacer: { minHeight: 16 },
+  });

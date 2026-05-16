@@ -1,12 +1,12 @@
-import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { DfxBackgroundScreen, OnboardingStepIndicator } from '@/components';
+import { BrandLogo, DfxBackgroundScreen, OnboardingStepIndicator } from '@/components';
 import { FEATURES } from '@/config/features';
 import { useAuthStore } from '@/store';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type SetupError = 'mismatch' | 'save';
 
@@ -14,6 +14,8 @@ export default function SetupPinScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { setPin, setAuthenticated } = useAuthStore();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [pin, setPinValue] = useState('');
   const [step, setStep] = useState<'create' | 'confirm'>('create');
   const [firstPin, setFirstPin] = useState('');
@@ -45,9 +47,6 @@ export default function SetupPinScreen() {
     try {
       await setPin(pinValue);
       setAuthenticated(true);
-      // With `EXPO_PUBLIC_ENABLE_LEGAL` off, the disclaimer step is
-      // not part of the onboarding flow; skip straight to the
-      // dashboard so the user does not bounce through a redirect stub.
       router.replace(
         FEATURES.LEGAL ? '/(onboarding)/legal-disclaimer' : '/(auth)/(tabs)/dashboard',
       );
@@ -71,12 +70,7 @@ export default function SetupPinScreen() {
       contentStyle={styles.content}
       testID={step === 'create' ? 'setup-pin-screen' : 'setup-pin-confirm-screen'}
     >
-      <Image
-        source={require('../../../assets/dfx-logo.png')}
-        style={styles.logo}
-        resizeMode="contain"
-        accessibilityLabel="DFX"
-      />
+      <BrandLogo size="auth" style={styles.logoWrap} />
       <OnboardingStepIndicator current={2} />
       <Text style={styles.title}>{step === 'create' ? t('pin.create') : t('pin.confirm')}</Text>
       <Text style={styles.description}>
@@ -108,11 +102,11 @@ export default function SetupPinScreen() {
               testID={key === 'del' ? 'pin-key-delete' : `pin-key-${key}`}
               style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
               onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
-              android_ripple={{ color: DfxColors.surfaceLight, borderless: false, radius: 36 }}
+              android_ripple={{ color: colors.surfaceLight, borderless: false, radius: 36 }}
               accessibilityRole="button"
               accessibilityLabel={key === 'del' ? 'Delete' : key}
             >
-              <Text style={styles.numpadText}>{key === 'del' ? '\u232B' : key}</Text>
+              <Text style={styles.numpadText}>{key === 'del' ? '⌫' : key}</Text>
             </Pressable>
           );
         })}
@@ -121,72 +115,75 @@ export default function SetupPinScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    alignItems: 'center',
-    paddingVertical: 48,
-    gap: 18,
-  },
-  logo: {
-    width: 160,
-    height: 44,
-    marginBottom: 8,
-  },
-  title: {
-    ...Typography.headlineMedium,
-    color: DfxColors.text,
-  },
-  description: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-  },
-  error: {
-    ...Typography.bodyMedium,
-    color: DfxColors.error,
-  },
-  dots: {
-    flexDirection: 'row',
-    gap: 16,
-    marginVertical: 32,
-  },
-  dot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: DfxColors.primary,
-  },
-  dotFilled: {
-    backgroundColor: DfxColors.primary,
-  },
-  dotError: {
-    borderColor: DfxColors.error,
-  },
-  numpad: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    width: 280,
-    marginTop: 'auto',
-  },
-  numpadKey: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    margin: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  numpadKeyPressed: {
-    backgroundColor: 'rgba(255,255,255,0.6)',
-  },
-  numpadText: {
-    color: DfxColors.text,
-    fontSize: 28,
-    fontWeight: '600',
-    lineHeight: 32,
-    textAlign: 'center',
-    includeFontPadding: false,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingTop: 32,
+      paddingBottom: 32,
+      gap: 16,
+    },
+    logoWrap: {
+      marginBottom: 8,
+    },
+    title: {
+      ...Typography.headlineMedium,
+      color: colors.text,
+    },
+    description: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    error: {
+      ...Typography.bodyMedium,
+      color: colors.error,
+    },
+    dots: {
+      flexDirection: 'row',
+      gap: 16,
+      marginVertical: 32,
+    },
+    dot: {
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      borderWidth: 2,
+      borderColor: colors.primary,
+    },
+    dotFilled: {
+      backgroundColor: colors.primary,
+    },
+    dotError: {
+      borderColor: colors.error,
+    },
+    numpad: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      width: 280,
+      marginTop: 24,
+    },
+    numpadKey: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      margin: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    // Brand-coloured pressed state — see VerifyPinScreenImpl for rationale.
+    numpadKeyPressed: {
+      backgroundColor: colors.primaryLight,
+    },
+    numpadText: {
+      color: colors.text,
+      fontSize: 28,
+      fontWeight: '600',
+      lineHeight: 32,
+      textAlign: 'center',
+      includeFontPadding: false,
+    },
+  });

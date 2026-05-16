@@ -118,14 +118,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!pinHash) return false;
     const ok = await verifyPinHash(pin, pinHash);
     if (ok && needsPinRehash(pinHash)) {
-      try {
-        const migratedHash = await hashPin(pin);
-        await secureStorage.set(StorageKeys.PIN_HASH, migratedHash);
-        set({ pinHash: migratedHash });
-      } catch {
-        // Authentication succeeded; keep the legacy hash and retry migration
-        // on the next successful unlock rather than locking out the user.
-      }
+      void (async () => {
+        try {
+          const migratedHash = await hashPin(pin);
+          await secureStorage.set(StorageKeys.PIN_HASH, migratedHash);
+          if (get().pinHash === pinHash) set({ pinHash: migratedHash });
+        } catch {
+          // Authentication succeeded; keep the legacy hash and retry migration
+          // on the next successful unlock rather than locking out the user.
+        }
+      })();
     }
     return ok;
   },

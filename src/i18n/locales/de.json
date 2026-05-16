@@ -395,6 +395,9 @@
   "onboarding": {
     "createError": "Wallet konnte auf diesem Gerät nicht erstellt werden. Prüfe den Gerätespeicher und versuche es erneut.",
     "createPasskey": "Mit Passkey erstellen",
+    "featureMultiChain": "Bitcoin, Ethereum & Multi-Chain in einer Wallet",
+    "featureSelfCustody": "Self-custody — nur du hast den Schlüssel",
+    "featureSwiss": "Direkter Anschluss an Schweizer Bankzahlungen",
     "createWallet": "Mit Seed Phrase erstellen",
     "invalidSeed": "Diese Seed Phrase ist noch nicht gültig. Gib genau 12 oder 24 Wörter in der ursprünglichen Reihenfolge ein.",
     "restoreError": "Diese Wallet konnte nicht wiederhergestellt werden. Prüfe die Seed Phrase und versuche es erneut.",
@@ -567,6 +570,7 @@
     "sectionWalletSecurity": "Wallet & Sicherheit",
     "deleteWalletConfirm": "Deine Wallet wird permanent von diesem Gerät entfernt. Stelle sicher, dass du deine Seed Phrase gesichert hast.",
     "deleteWalletConfirmPasskey": "Deine Wallet wird permanent von diesem Gerät entfernt. Zur Wiederherstellung benötigst du deinen Passkey oder deine exportierte Recovery Phrase. Bitte lösche den Passkey auch aus deinen Geräteeinstellungen.",
+    "appearance": "Erscheinungsbild",
     "dfxWallets": "DFX-Wallets",
     "email": "Kontaktdaten",
     "hardwareWallet": "Hardware Wallet",

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -11,12 +11,14 @@ import {
   PrimaryButton,
 } from '@/components';
 import { createPasskey, setupPasskeyWallet, PasskeyPrfUnsupportedError } from './services';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 export default function CreatePasskeyScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { restoreWallet } = useWalletManager();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [isCreating, setIsCreating] = useState(false);
 
   const handleCreate = async () => {
@@ -95,58 +97,59 @@ export default function CreatePasskeyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingTop: 4,
-    paddingBottom: 24,
-    gap: 24,
-  },
-  description: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-  },
-  infoContainer: {
-    gap: 10,
-  },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    padding: 14,
-  },
-  infoIcon: {
-    ...Typography.headlineSmall,
-    color: DfxColors.primary,
-    width: 32,
-    height: 32,
-    textAlign: 'center',
-    lineHeight: 32,
-    backgroundColor: DfxColors.surfaceLight,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  infoText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-    flex: 1,
-  },
-  warningContainer: {
-    backgroundColor: 'rgba(255,255,255,0.78)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.warning,
-    padding: 16,
-  },
-  warningText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.warning,
-  },
-  spacer: {
-    flex: 1,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      paddingTop: 4,
+      paddingBottom: 24,
+      gap: 24,
+    },
+    description: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    infoContainer: {
+      gap: 10,
+    },
+    infoItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.cardOverlayBorder,
+      padding: 14,
+    },
+    infoIcon: {
+      ...Typography.headlineSmall,
+      color: colors.primary,
+      width: 32,
+      height: 32,
+      textAlign: 'center',
+      lineHeight: 32,
+      backgroundColor: colors.primaryLight,
+      borderRadius: 16,
+      overflow: 'hidden',
+    },
+    infoText: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      flex: 1,
+    },
+    warningContainer: {
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.warning,
+      padding: 16,
+    },
+    warningText: {
+      ...Typography.bodyMedium,
+      color: colors.warning,
+    },
+    spacer: {
+      flex: 1,
+    },
+  });

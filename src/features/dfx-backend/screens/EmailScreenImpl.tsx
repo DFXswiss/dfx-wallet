@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, Icon, ScreenContainer } from '@/components';
 import { useDfxAuth } from '@/hooks';
 import { DfxApiError, dfxUserService } from '@/features/dfx-backend/services';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 /**
  * Read-only user-data page mirroring realunit-app's
@@ -24,6 +24,8 @@ import { DfxColors, Typography } from '@/theme';
  * tap from Settings; the screen itself is the user-data summary.
  */
 export default function UserDataScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
 
@@ -79,7 +81,7 @@ export default function UserDataScreen() {
         <View style={styles.content}>
           {loadingUser ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator color={DfxColors.primary} />
+              <ActivityIndicator color={colors.primary} />
             </View>
           ) : isMergedState ? (
             <View style={styles.mergedCard}>
@@ -93,7 +95,7 @@ export default function UserDataScreen() {
                 testID="email-reauth"
               >
                 {isAuthenticating ? (
-                  <ActivityIndicator color={DfxColors.white} />
+                  <ActivityIndicator color={colors.white} />
                 ) : (
                   <Text style={styles.reauthLabel}>{t('wallets.reauthCta')}</Text>
                 )}
@@ -130,6 +132,8 @@ type UserDataRowProps = {
 };
 
 function UserDataRow({ label, value, onEdit, editTestID }: UserDataRowProps) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.row}>
       <View style={styles.rowText}>
@@ -143,82 +147,83 @@ function UserDataRow({ label, value, onEdit, editTestID }: UserDataRowProps) {
           testID={editTestID}
           accessibilityLabel="Edit"
         >
-          <Icon name="document" size={18} color={DfxColors.primary} />
+          <Icon name="document" size={18} color={colors.primary} />
         </Pressable>
       ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingTop: 16,
-    paddingBottom: 32,
-    gap: 16,
-  },
-  loadingContainer: {
-    paddingVertical: 32,
-    alignItems: 'center',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DfxColors.surface,
-    borderRadius: 14,
-    padding: 14,
-    gap: 12,
-  },
-  rowText: {
-    flex: 1,
-    gap: 4,
-  },
-  rowLabel: {
-    ...Typography.bodySmall,
-    fontWeight: '700',
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  rowValue: {
-    ...Typography.bodyLarge,
-    color: DfxColors.text,
-  },
-  editBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  mergedCard: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 14,
-    padding: 16,
-    gap: 12,
-  },
-  mergedText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    lineHeight: 20,
-  },
-  reauthBtn: {
-    backgroundColor: DfxColors.primary,
-    borderRadius: 999,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  reauthLabel: {
-    ...Typography.bodyMedium,
-    fontWeight: '700',
-    color: DfxColors.white,
-  },
-  errorText: {
-    ...Typography.bodySmall,
-    color: DfxColors.error,
-    textAlign: 'center',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      paddingTop: 16,
+      paddingBottom: 32,
+      gap: 16,
+    },
+    loadingContainer: {
+      paddingVertical: 32,
+      alignItems: 'center',
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: 14,
+      padding: 14,
+      gap: 12,
+    },
+    rowText: {
+      flex: 1,
+      gap: 4,
+    },
+    rowLabel: {
+      ...Typography.bodySmall,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    rowValue: {
+      ...Typography.bodyLarge,
+      color: colors.text,
+    },
+    editBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+    mergedCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 14,
+      padding: 16,
+      gap: 12,
+    },
+    mergedText: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      lineHeight: 20,
+    },
+    reauthBtn: {
+      backgroundColor: colors.primary,
+      borderRadius: 999,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    reauthLabel: {
+      ...Typography.bodyMedium,
+      fontWeight: '700',
+      color: colors.white,
+    },
+    errorText: {
+      ...Typography.bodySmall,
+      color: colors.error,
+      textAlign: 'center',
+    },
+  });

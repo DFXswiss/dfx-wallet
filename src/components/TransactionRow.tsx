@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from './Icon';
 import { computeFiatValue, resolveFiatCurrency } from '@/config/portfolio-presentation';
@@ -6,7 +6,7 @@ import { getCanonicalForSymbol } from '@/config/tokens';
 import { pricingService } from '@/services/pricing-service';
 import type { TransactionDto } from '@/features/dfx-backend/services';
 import { useWalletStore } from '@/store';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 const FIAT_LABEL = new Map<string, string>([
   ['CHF', 'CHF'],
@@ -20,16 +20,16 @@ type IconConfig = {
   bg: string;
 };
 
-// Buy/Sell are reserved for DFX on-/off-ramp.
-// Send/Receive are on-chain transfers between addresses.
-// Swap is in-wallet asset conversion. Pay is a merchant payment.
+// Type-specific tint pairs. The fg/bg are theme-agnostic accent colours
+// chosen for category recognition (green = incoming, red = outgoing,
+// blue = swap, purple = pay) — they read on both light and dark cards.
 const TYPE_ICON = new Map<TransactionDto['type'], IconConfig>([
-  ['Buy', { iconName: 'arrow-down', fg: DfxColors.success, bg: '#DCFCE7' }],
-  ['Sell', { iconName: 'arrow-up', fg: DfxColors.error, bg: '#FEE2E2' }],
-  ['Swap', { iconName: 'swap', fg: DfxColors.primary, bg: '#DCEAFE' }],
-  ['Pay', { iconName: 'storefront', fg: '#7C3AED', bg: '#EDE9FE' }],
-  ['Send', { iconName: 'send', fg: DfxColors.error, bg: '#FEE2E2' }],
-  ['Receive', { iconName: 'receive', fg: DfxColors.success, bg: '#DCFCE7' }],
+  ['Buy', { iconName: 'arrow-down', fg: '#16A34A', bg: 'rgba(34,197,94,0.18)' }],
+  ['Sell', { iconName: 'arrow-up', fg: '#DC2626', bg: 'rgba(248,113,113,0.20)' }],
+  ['Swap', { iconName: 'swap', fg: '#1E6EF7', bg: 'rgba(96,165,250,0.20)' }],
+  ['Pay', { iconName: 'storefront', fg: '#7C3AED', bg: 'rgba(167,139,250,0.22)' }],
+  ['Send', { iconName: 'send', fg: '#DC2626', bg: 'rgba(248,113,113,0.20)' }],
+  ['Receive', { iconName: 'receive', fg: '#16A34A', bg: 'rgba(34,197,94,0.18)' }],
 ]);
 
 const OUTGOING_TYPES = new Set<TransactionDto['type']>(['Sell', 'Pay', 'Send']);
@@ -46,11 +46,17 @@ type Props = {
  * preview, the global history list, and per-asset filtered lists.
  */
 export function TransactionRow({ tx, onPress, showState = true, testID }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const isOutgoing = OUTGOING_TYPES.has(tx.type);
   const isPay = tx.type === 'Pay';
   const iconConfig =
     TYPE_ICON.get(tx.type) ??
-    ({ iconName: 'swap', fg: DfxColors.primary, bg: '#DCEAFE' } satisfies IconConfig);
+    ({
+      iconName: 'swap',
+      fg: '#1E6EF7',
+      bg: 'rgba(96,165,250,0.20)',
+    } satisfies IconConfig);
 
   const { selectedCurrency } = useWalletStore();
   const fiatCurrency = resolveFiatCurrency(selectedCurrency);
@@ -66,13 +72,8 @@ export function TransactionRow({ tx, onPress, showState = true, testID }: Props)
       .catch(() => setPricingReady(false));
   }, []);
 
-  // Pay rows lead with the merchant — that's the answer to "where did I spend?".
-  // Other rows lead with the type and surface the counterparty as a subtitle.
   const primaryLabel = isPay && tx.counterparty ? tx.counterparty : tx.type;
 
-  // Fiat estimate so a Pay in BTC/USDC also shows the CHF/EUR/USD value the
-  // user has configured. Falls back gracefully when pricing isn't available
-  // or when the asset symbol isn't in the canonical map.
   const canonical = getCanonicalForSymbol(tx.outputAsset);
   const fiatEstimate = canonical
     ? computeFiatValue(tx.outputAmount, canonical, fiatCurrency, pricingReady)
@@ -131,67 +132,69 @@ export function TransactionRow({ tx, onPress, showState = true, testID }: Props)
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    gap: 12,
-  },
-  pressed: {
-    opacity: 0.6,
-  },
-  payPrimary: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  icon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  info: {
-    flex: 1,
-    gap: 2,
-  },
-  type: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  subtitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  payDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#7C3AED',
-  },
-  subtitle: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    flexShrink: 1,
-  },
-  amountColumn: {
-    alignItems: 'flex-end',
-    gap: 2,
-    minWidth: 110,
-  },
-  amount: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  state: {
-    ...Typography.bodySmall,
-    fontWeight: '500',
-    color: DfxColors.textTertiary,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 4,
+      gap: 12,
+    },
+    pressed: {
+      opacity: 0.6,
+    },
+    payPrimary: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    icon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    info: {
+      flex: 1,
+      gap: 2,
+    },
+    type: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    subtitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    payDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#7C3AED',
+    },
+    subtitle: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+      flexShrink: 1,
+    },
+    amountColumn: {
+      alignItems: 'flex-end',
+      gap: 2,
+      minWidth: 110,
+    },
+    amount: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.text,
+      fontVariant: ['tabular-nums'],
+    },
+    state: {
+      ...Typography.bodySmall,
+      fontWeight: '500',
+      color: colors.textTertiary,
+    },
+  });
