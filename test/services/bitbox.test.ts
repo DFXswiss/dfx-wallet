@@ -375,6 +375,101 @@ describe('BitboxProvider — firmware version gate', () => {
 
 // ─── Bridge errors (HIGH-7 + HIGH-9) ────────────────────────────────────────
 
+// ─── Transport event subscription (HIGH-8) ──────────────────────────────────
+
+describe('BitboxProvider — transport event subscription', () => {
+  it('subscribeTransport returns an unsubscribe function', () => {
+    const provider = new BitboxProvider();
+    const unsubscribe = provider.subscribeTransport(() => undefined);
+    expect(typeof unsubscribe).toBe('function');
+    unsubscribe();
+  });
+
+  it('multiple subscribers all receive events', () => {
+    const provider = new BitboxProvider();
+    const events: string[] = [];
+    provider.subscribeTransport((e) => events.push(`a:${e}`));
+    provider.subscribeTransport((e) => events.push(`b:${e}`));
+    // Trigger via the internal emit (test-only access).
+    (provider as unknown as { emit: (e: 'disconnected' | 'reconnected' | 'fatal') => void }).emit('disconnected');
+    expect(events).toEqual(['a:disconnected', 'b:disconnected']);
+  });
+
+  it('unsubscribed listener does not receive future events', () => {
+    const provider = new BitboxProvider();
+    const events: string[] = [];
+    const unsub = provider.subscribeTransport((e) => events.push(e));
+    (provider as unknown as { emit: (e: 'disconnected' | 'reconnected' | 'fatal') => void }).emit('disconnected');
+    unsub();
+    (provider as unknown as { emit: (e: 'disconnected' | 'reconnected' | 'fatal') => void }).emit('reconnected');
+    expect(events).toEqual(['disconnected']);
+  });
+
+  it('listener throw does not affect other subscribers', () => {
+    const provider = new BitboxProvider();
+    const events: string[] = [];
+    provider.subscribeTransport(() => {
+      throw new Error('listener boom');
+    });
+    provider.subscribeTransport((e) => events.push(e));
+    (provider as unknown as { emit: (e: 'disconnected' | 'reconnected' | 'fatal') => void }).emit('fatal');
+    expect(events).toEqual(['fatal']);
+  });
+});
+
+// ─── Bridge per-call timeout (HIGH-7) ───────────────────────────────────────
+
+describe('WasmBridge — per-call timeout', () => {
+  let bridge: import('@/features/hardware-wallet/services/wasm-bridge').WasmBridge;
+
+  beforeEach(async () => {
+    const { WasmBridge } = await import('@/features/hardware-wallet/services/wasm-bridge');
+    bridge = new WasmBridge();
+    bridge.setWebView({ postMessage: () => undefined });
+    const nonce = bridge.getSessionNonce();
+    bridge.onMessage(JSON.stringify({ nonce, type: 'wasm_ready' }));
+    await bridge.waitReady();
+  });
+
+  it('rejects with HwBridgeTimeoutError after timeoutMs', async () => {
+    const { HwBridgeTimeoutError } = await import('@/features/hardware-wallet/services/errors');
+    jest.useFakeTimers();
+    const inflight = bridge.call('slow-method', [], { timeoutMs: 100 });
+    jest.advanceTimersByTime(150);
+    await expect(inflight).rejects.toBeInstanceOf(HwBridgeTimeoutError);
+    jest.useRealTimers();
+  });
+
+  it('timeout error carries method name and timeout value', async () => {
+    const { HwBridgeTimeoutError } = await import('@/features/hardware-wallet/services/errors');
+    jest.useFakeTimers();
+    const inflight = bridge.call('expensive-op', [], { timeoutMs: 50 });
+    jest.advanceTimersByTime(100);
+    await expect(inflight).rejects.toMatchObject({
+      method: 'expensive-op',
+      timeoutMs: 50,
+    });
+    expect(HwBridgeTimeoutError).toBeDefined();
+    jest.useRealTimers();
+  });
+
+  it('destroy() rejects all pending calls', async () => {
+    const { HwBridgeNotReadyError } = await import('@/features/hardware-wallet/services/errors');
+    const a = bridge.call('a', [], { timeoutMs: 60_000 });
+    const b = bridge.call('b', [], { timeoutMs: 60_000 });
+    bridge.destroy();
+    await expect(a).rejects.toBeInstanceOf(HwBridgeNotReadyError);
+    await expect(b).rejects.toBeInstanceOf(HwBridgeNotReadyError);
+  });
+
+  it('setWebView resets pending calls (session re-bind)', async () => {
+    const { HwBridgeNotReadyError } = await import('@/features/hardware-wallet/services/errors');
+    const inflight = bridge.call('a', [], { timeoutMs: 60_000 });
+    bridge.setWebView({ postMessage: () => undefined });
+    await expect(inflight).rejects.toBeInstanceOf(HwBridgeNotReadyError);
+  });
+});
+
 describe('WasmBridge — bridge not ready', () => {
   it('call() rejects with HwBridgeNotReadyError before WASM signals ready', async () => {
     const { WasmBridge } = await import('@/features/hardware-wallet/services/wasm-bridge');
