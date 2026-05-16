@@ -20,14 +20,24 @@ type Props = {
  */
 export function AppHeader({ title, onBack, rightAction, testID }: Props) {
   const router = useRouter();
-  const handleBack = onBack ?? (() => router.back());
+  // When a screen is mounted directly via deep-link (e.g. simctl openurl,
+  // a push-notification tap, or app-clip launch), the navigation stack has
+  // no parent — `router.back()` then crashes the navigator with
+  // "GO_BACK was not handled". Falling back to the dashboard keeps the
+  // user out of a dead-end without any visible back affordance.
+  const handleBack =
+    onBack ??
+    (() => {
+      if (router.canGoBack()) router.back();
+      else router.replace('/(auth)/(tabs)/dashboard');
+    });
 
   return (
     <View style={styles.container} testID={testID}>
       <Pressable
         onPress={handleBack}
         hitSlop={12}
-        style={styles.iconSlot}
+        style={[styles.iconSlot, styles.iconButton]}
         accessibilityRole="button"
         accessibilityLabel="Back"
         testID={testID ? `${testID}-back` : undefined}
@@ -39,7 +49,11 @@ export function AppHeader({ title, onBack, rightAction, testID }: Props) {
         {title}
       </Text>
 
-      <View style={styles.iconSlot}>{rightAction}</View>
+      {rightAction ? (
+        <View style={[styles.iconSlot, styles.iconButton]}>{rightAction}</View>
+      ) : (
+        <View style={styles.iconSlot} pointerEvents="none" />
+      )}
     </View>
   );
 }
@@ -53,10 +67,16 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   iconSlot: {
-    minWidth: 64,
-    height: 32,
-    alignItems: 'flex-start',
+    width: 40,
+    height: 40,
+    alignItems: 'center',
     justifyContent: 'center',
+  },
+  iconButton: {
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    borderWidth: 1,
+    borderColor: DfxColors.border,
   },
   title: {
     flex: 1,

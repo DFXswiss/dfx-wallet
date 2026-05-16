@@ -18,7 +18,13 @@ type IconName =
   | 'shield'
   | 'globe'
   | 'document'
-  | 'support';
+  | 'support'
+  | 'arrow-down'
+  | 'arrow-up'
+  | 'storefront'
+  | 'check'
+  | 'copy'
+  | 'edit';
 
 type Props = {
   name: IconName;
@@ -179,6 +185,63 @@ export function Icon({ name, size = 24, color = DfxColors.primary, strokeWidth =
           />
         </Svg>
       );
+    case 'check':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Polyline
+            points="5,12 10,17 19,7"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        </Svg>
+      );
+    case 'copy':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Rect
+            x={9}
+            y={9}
+            width={12}
+            height={12}
+            rx={2}
+            stroke={stroke}
+            strokeWidth={sw}
+            fill="none"
+          />
+          <Path
+            d="M15 9V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        </Svg>
+      );
+    case 'edit':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M4 20h4l10-10-4-4L4 16v4z"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+          <Path
+            d="M14 6l4 4"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        </Svg>
+      );
     case 'lightning':
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24" fill={stroke}>
@@ -249,6 +312,56 @@ export function Icon({ name, size = 24, color = DfxColors.primary, strokeWidth =
             stroke={stroke}
             strokeWidth={sw}
             strokeLinecap="round"
+          />
+        </Svg>
+      );
+    case 'arrow-down':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M12 4v15m0 0l-6-6m6 6l6-6"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    case 'arrow-up':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M12 20V5m0 0l-6 6m6-6l6 6"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    case 'storefront':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M3 9l1.5-4h15L21 9"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Path
+            d="M3 9v11h18V9"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Path
+            d="M3 9c0 1.7 1.3 3 3 3s3-1.3 3-3M9 9c0 1.7 1.3 3 3 3s3-1.3 3-3M15 9c0 1.7 1.3 3 3 3s3-1.3 3-3"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
         </Svg>
       );

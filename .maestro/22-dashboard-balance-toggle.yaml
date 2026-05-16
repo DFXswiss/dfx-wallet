@@ -1,0 +1,59 @@
+appId: ${APP_ID}
+name: 22-dashboard-balance-toggle
+tags:
+  - smoke
+  - dashboard
+  - mvp
+---
+# Walks an MVP user from a fresh install to the dashboard and flips
+# the balance eye-toggle: visible balance -> hidden bullets -> visible
+# balance again. The toggle keeps `balanceVisible` in component state
+# only (no persisted setting), so each tap should round-trip the two
+# render states.
+- launchApp:
+    clearState: true
+    clearKeychain: true
+# Belt-and-suspenders for the Android emulator: in case the
+# Pixel-Launcher disable in the workflow does not take effect (e.g.
+# on a future AVD without launcher3 as fallback), dismiss any ANR
+# dialog that still overlays the app. 'optional: true' makes this a
+# no-op on iOS and when the dialog does not appear.
+- tapOn:
+    text: "Wait"
+    optional: true
+
+- assertVisible:
+    id: "welcome-screen"
+- tapOn:
+    id: "welcome-create-wallet-button"
+
+- assertVisible:
+    id: "create-wallet-screen"
+- tapOn:
+    id: "create-wallet-reveal-button"
+- assertVisible:
+    id: "create-wallet-seed-container"
+- tapOn:
+    id: "create-wallet-continue-button"
+
+# Dashboard renders with the balance visible by default
+- assertVisible:
+    id: "dashboard-screen"
+- assertVisible:
+    id: "dashboard-balance-value"
+
+# Tap toggle -> hidden state
+- tapOn:
+    id: "dashboard-balance-toggle"
+- assertVisible:
+    id: "dashboard-balance-hidden"
+- assertNotVisible:
+    id: "dashboard-balance-value"
+
+# Tap toggle again -> visible state
+- tapOn:
+    id: "dashboard-balance-toggle"
+- assertVisible:
+    id: "dashboard-balance-value"
+- assertNotVisible:
+    id: "dashboard-balance-hidden"

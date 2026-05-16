@@ -2,9 +2,14 @@ name: Visual Regression
 
 on:
   workflow_dispatch:
+  schedule:
+    # Nightly drift check on develop. 03:00 UTC = low-traffic window.
+    - cron: '0 3 * * *'
   pull_request:
     branches: [develop]
-    types: [opened, synchronize, reopened, ready_for_review]
+    # `synchronize` removed on purpose — iterative pushes don't run visual
+    # regression. Re-trigger via `ready_for_review` or the `needs-visual` label.
+    types: [opened, reopened, ready_for_review, labeled]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -25,9 +30,16 @@ env:
 jobs:
   ios:
     name: iOS Visual Regression
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft != true
+    # On `labeled` we only run when the trigger label is `needs-visual`,
+    # otherwise every label change (size/area/etc.) would burn a macOS run.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.draft != true &&
+       (github.event.action != 'labeled' || github.event.label.name == 'needs-visual'))
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 

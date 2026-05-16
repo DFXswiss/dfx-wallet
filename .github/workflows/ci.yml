@@ -70,3 +70,50 @@ jobs:
           cache: npm
       - name: npm audit (high+)
         run: npm audit --audit-level=high
+
+  bundle:
+    name: Bundle (${{ matrix.variant }})
+    # Builds the JS bundle that `expo run:ios` / `eas build` would ship,
+    # catching regressions that pure typecheck/lint cannot — most importantly
+    # missing assets, broken `require()` paths in deferred-feature wrappers,
+    # and feature-flag combinations that fail to resolve at module-load time.
+    # `mvp` builds with every `EXPO_PUBLIC_ENABLE_*` unset (the MVP scope);
+    # `full` flips every flag on so a deferred path that drifts out of sync
+    # with the rest of the codebase is also caught.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [mvp, full]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: npm
+      # `postinstall` builds @tetherto/wdk-react-native-core's dist/ and the
+      # `.wdk/` worklet bundle that the app imports unconditionally.
+      - run: npm ci --legacy-peer-deps
+      - name: Enable all feature flags (full build only)
+        if: matrix.variant == 'full'
+        run: |
+          for flag in RESTORE PASSKEY LEGAL PIN BIOMETRIC PORTFOLIO BUY_SELL LINKED_WALLETS TX_HISTORY PAY DFX_BACKEND TAX_REPORT SETTINGS HARDWARE_WALLET MULTISIG DEEPLINKS WEBVIEW; do
+            echo "EXPO_PUBLIC_ENABLE_$flag=true" >> "$GITHUB_ENV"
+          done
+      - name: Export iOS JS bundle
+        run: npx expo export --platform ios --no-bytecode --output-dir dist
+      - name: Verify bundle was produced
+        run: |
+          BUNDLE=$(find dist/_expo/static/js/ios -name '*.js' | head -1)
+          if [ -z "$BUNDLE" ]; then
+            echo "::error::No JS bundle produced under dist/_expo/static/js/ios/"
+            ls -laR dist
+            exit 1
+          fi
+          SIZE=$(stat -c%s "$BUNDLE" 2>/dev/null || stat -f%z "$BUNDLE")
+          echo "Bundle: $BUNDLE ($SIZE bytes, variant=${{ matrix.variant }})"
+          # Empty or near-empty bundle would silently break the app at boot.
+          if [ "$SIZE" -lt 1000000 ]; then
+            echo "::error::Bundle suspiciously small ($SIZE bytes)"
+            exit 1
+          fi

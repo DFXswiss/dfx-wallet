@@ -1,11 +1,20 @@
-appId: swiss.dfx.wallet
+appId: ${APP_ID}
 name: 10-onboarding-create
 tags:
   - onboarding
+  - mvp
 ---
 - launchApp:
     clearState: true
     clearKeychain: true
+# Belt-and-suspenders for the Android emulator: in case the
+# Pixel-Launcher disable in the workflow does not take effect (e.g.
+# on a future AVD without launcher3 as fallback), dismiss any ANR
+# dialog that still overlays the app. 'optional: true' makes this a
+# no-op on iOS and when the dialog does not appear.
+- tapOn:
+    text: "Wait"
+    optional: true
 
 # Welcome -> Create Wallet
 - assertVisible:
@@ -23,40 +32,14 @@ tags:
 - tapOn:
     id: "create-wallet-continue-button"
 
-# Setup PIN (create step) -> tap "1" six times
-- assertVisible:
-    id: "setup-pin-screen"
-- repeat:
-    times: 6
-    commands:
-      - tapOn:
-          id: "pin-key-1"
-
-# Setup PIN (confirm step) -> tap "1" six times
-- assertVisible:
-    id: "setup-pin-confirm-screen"
-- repeat:
-    times: 6
-    commands:
-      - tapOn:
-          id: "pin-key-1"
-
-# Legal disclaimer -> accept -> continue
-- assertVisible:
-    id: "legal-disclaimer-screen"
-- tapOn:
-    id: "legal-accept-checkbox"
-- tapOn:
-    id: "legal-continue-button"
-
-# Dashboard reached
+# With EXPO_PUBLIC_ENABLE_PIN + EXPO_PUBLIC_ENABLE_LEGAL off (the MVP
+# build), SetupPinDisabled flips `isOnboarded` + `isAuthenticated` and
+# routes straight to the dashboard. The full PIN + legal-disclaimer
+# variant of this flow lives in 11-onboarding-create-pin-legal.yaml
+# and runs once those features ship.
 - assertVisible:
     id: "dashboard-screen"
 - assertVisible:
-    id: "dashboard-action-buy"
-- assertVisible:
-    id: "dashboard-action-sell"
+    id: "dashboard-action-receive"
 - assertVisible:
     id: "dashboard-action-send"
-- assertVisible:
-    id: "dashboard-action-receive"

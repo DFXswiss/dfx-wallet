@@ -1,15 +1,22 @@
-appId: swiss.dfx.wallet
+appId: ${APP_ID}
 name: 01-welcome
 tags:
   - smoke
   - onboarding
+  - mvp
 ---
 - launchApp:
     clearState: true
     clearKeychain: true
+# Belt-and-suspenders for the Android emulator: in case the
+# Pixel-Launcher disable in the workflow does not take effect (e.g.
+# on a future AVD without launcher3 as fallback), dismiss any ANR
+# dialog that still overlays the app. 'optional: true' makes this a
+# no-op on iOS and when the dialog does not appear.
+- tapOn:
+    text: "Wait"
+    optional: true
 - assertVisible:
     id: "welcome-screen"
 - assertVisible:
     id: "welcome-create-wallet-button"
-- assertVisible:
-    id: "welcome-restore-toggle"

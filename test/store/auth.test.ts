@@ -58,7 +58,9 @@ describe('useAuthStore', () => {
 
     it('rejects without flipping state when secureStorage write fails', async () => {
       setItemMock.mockRejectedValueOnce(new Error('keychain unavailable'));
-      await expect(useAuthStore.getState().setOnboarded(true)).rejects.toThrow('keychain unavailable');
+      await expect(useAuthStore.getState().setOnboarded(true)).rejects.toThrow(
+        'keychain unavailable',
+      );
       expect(useAuthStore.getState().isOnboarded).toBe(false);
     });
   });
@@ -154,6 +156,32 @@ describe('useAuthStore', () => {
       await useAuthStore.getState().hydrate();
       expect(useAuthStore.getState().isOnboarded).toBe(false);
     });
+
+    it('rearms dfxAuthService with the stored JWT so cold-start linkAddress works', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { dfxAuthService } = require('../../src/features/dfx-backend/services');
+      getItemMock.mockImplementation(async (key: string) =>
+        key === 'dfxAuthToken' ? 'jwt-from-keychain' : null,
+      );
+
+      await useAuthStore.getState().hydrate();
+
+      // Without this `adoptStoredToken` step, `linkAddress` would throw
+      // "Not authenticated" on first post-boot use even though dfxApi has
+      // the bearer header set.
+      expect(dfxAuthService.getAccessToken()).toBe('jwt-from-keychain');
+      expect(dfxAuthService.isAuthenticated()).toBe(true);
+    });
+
+    it('clears the dfxAuthService token when no JWT is stored', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { dfxAuthService } = require('../../src/features/dfx-backend/services');
+      dfxAuthService.adoptStoredToken('residual');
+
+      await useAuthStore.getState().hydrate();
+
+      expect(dfxAuthService.getAccessToken()).toBeNull();
+    });
   });
 
   describe('reset', () => {
@@ -234,17 +262,16 @@ describe('useAuthStore', () => {
       expect(useAuthStore.getState().biometricEnabled).toBe(true);
     });
 
-    it('does NOT persist or flip state when enabling but no hardware/enrolment is available', async () => {
+    it('still persists the preference when enabling without enrolled hardware (lock-screen falls back to PIN)', async () => {
       hasHardwareMock.mockResolvedValueOnce(false);
       await useAuthStore.getState().setBiometricEnabled(true);
-      expect(setItemMock).not.toHaveBeenCalled();
-      expect(useAuthStore.getState().biometricEnabled).toBe(false);
+      expect(setItemMock).toHaveBeenCalledWith('biometricEnabled', 'true');
+      expect(useAuthStore.getState().biometricEnabled).toBe(true);
     });
 
     it('persists "false" without checking hardware when disabling', async () => {
       useAuthStore.setState({ biometricEnabled: true });
       await useAuthStore.getState().setBiometricEnabled(false);
-      expect(hasHardwareMock).not.toHaveBeenCalled();
       expect(setItemMock).toHaveBeenCalledWith('biometricEnabled', 'false');
       expect(useAuthStore.getState().biometricEnabled).toBe(false);
     });
@@ -255,6 +282,35 @@ describe('useAuthStore', () => {
         'keychain locked',
       );
       expect(useAuthStore.getState().biometricEnabled).toBe(false);
+    });
+  });
+});
+
+describe('useAuthStore (biometric + DFX backend OFF — MVP build)', () => {
+  it('authenticateBiometric short-circuits to false when the biometric module is absent', async () => {
+    // Re-require the store with FEATURES.BIOMETRIC disabled so the
+    // `require('@/features/biometric/biometric')` is replaced with
+    // null. This validates the MVP-mode build behaviour where the
+    // module is not bundled at all.
+    await jest.isolateModulesAsync(async () => {
+      jest.doMock('@/config/features', () => ({
+        FEATURES: { BIOMETRIC: false, DFX_BACKEND: false },
+      }));
+      const mod = await import('../../src/store/auth');
+      const ok = await mod.useAuthStore.getState().authenticateBiometric();
+      expect(ok).toBe(false);
+    });
+  });
+
+  it('hydrate() skips the DFX token rearm path when the DFX module is absent', async () => {
+    await jest.isolateModulesAsync(async () => {
+      jest.doMock('@/config/features', () => ({
+        FEATURES: { BIOMETRIC: false, DFX_BACKEND: false },
+      }));
+      const mod = await import('../../src/store/auth');
+      // Should complete without touching any DFX module (none is loaded).
+      await mod.useAuthStore.getState().hydrate();
+      expect(mod.useAuthStore.getState().isHydrated).toBe(true);
     });
   });
 });

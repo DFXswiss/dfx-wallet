@@ -1,59 +1,16 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { WebView } from 'react-native-webview';
-import { ScreenContainer } from '@/components';
-import { DfxColors, Typography } from '@/theme';
+import { FEATURES } from '@/config/features';
 
 /**
- * Generic WebView screen for opening external URLs (KYC ident, legal docs, etc.)
- * Usage: router.push({ pathname: '/(auth)/webview', params: { url, title } })
+ * In-app WebView route. Loads external URLs (KYC iframe, payment
+ * hand-off) inside a `<WebView>` gated by the `safe-url` allow-list.
+ * With `EXPO_PUBLIC_ENABLE_WEBVIEW` off, the route resolves to a tiny
+ * stub that redirects to the dashboard — keeping `react-native-webview`
+ * and the host allow-list out of the MVP bundle.
  */
-export default function WebViewScreen() {
-  const router = useRouter();
-  const { url, title } = useLocalSearchParams<{ url: string; title?: string }>();
+const WebViewScreen = FEATURES.WEBVIEW
+  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    (require('@/features/webview/WebViewScreenImpl').default as React.ComponentType)
+  : // eslint-disable-next-line @typescript-eslint/no-require-imports
+    (require('@/features/webview/WebViewDisabled').default as React.ComponentType);
 
-  return (
-    <ScreenContainer>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()}>
-          <Text style={styles.backButton}>{'\u2190'}</Text>
-        </Pressable>
-        <Text style={styles.title} numberOfLines={1}>
-          {title ?? 'DFX'}
-        </Text>
-        <View style={styles.backButton} />
-      </View>
-      <WebView
-        source={{ uri: url ?? 'https://dfx.swiss' }}
-        style={styles.webview}
-        startInLoadingState
-        javaScriptEnabled
-      />
-    </ScreenContainer>
-  );
-}
-
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  backButton: {
-    fontSize: 24,
-    color: DfxColors.text,
-    width: 32,
-  },
-  title: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.text,
-    flex: 1,
-    textAlign: 'center',
-  },
-  webview: {
-    flex: 1,
-  },
-});
+export default WebViewScreen;

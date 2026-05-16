@@ -51,7 +51,7 @@ jobs:
 
       - name: Upload APK artifact
         if: env.APK_URL != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-apk
           path: dfx-wallet-*.apk
@@ -94,7 +94,7 @@ jobs:
 
       - name: Upload IPA artifact
         if: env.IPA_URL != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ios-ipa
           path: dfx-wallet-*.ipa
@@ -112,7 +112,7 @@ jobs:
 
       - name: Generate Changelog
         id: changelog
-        uses: mikepenz/release-changelog-builder-action@v6.0.1
+        uses: mikepenz/release-changelog-builder-action@v6.2.1
         with:
           configurationJson: |
             {
@@ -152,19 +152,19 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download APK artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: android-apk
           path: .
 
       - name: Download iOS artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ios-ipa
           path: .
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           body: ${{ steps.changelog.outputs.changelog }}

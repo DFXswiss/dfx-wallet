@@ -1,0 +1,77 @@
+appId: ${APP_ID}
+name: 21-send
+tags:
+  - smoke
+  - dashboard
+  - mvp
+---
+# Walks an MVP user from a fresh install through the Send flow:
+# Dashboard -> Send (asset list) -> tap BTC -> input step -> back to
+# asset list. We deliberately stop at the input step:
+#
+# - The Confirm step is tested in the Detox visual-regression suite
+#   (e2e/visual/onboarding.test.ts), where we have programmatic
+#   control over the keyboard. Maestro's `tapOn: "return"` works on
+#   the iOS keyboard but not the Android one, and `hideKeyboard`
+#   fails on iOS with "Couldn't hide the keyboard" on the custom
+#   send recipient input.
+# - The actual Confirm tap is intentionally never exercised — it
+#   calls handleSend() which broadcasts a real transaction.
+- launchApp:
+    clearState: true
+    clearKeychain: true
+# Belt-and-suspenders for the Android emulator: in case the
+# Pixel-Launcher disable in the workflow does not take effect (e.g.
+# on a future AVD without launcher3 as fallback), dismiss any ANR
+# dialog that still overlays the app. 'optional: true' makes this a
+# no-op on iOS and when the dialog does not appear.
+- tapOn:
+    text: "Wait"
+    optional: true
+
+- assertVisible:
+    id: "welcome-screen"
+- tapOn:
+    id: "welcome-create-wallet-button"
+
+- assertVisible:
+    id: "create-wallet-screen"
+- tapOn:
+    id: "create-wallet-reveal-button"
+- assertVisible:
+    id: "create-wallet-seed-container"
+- tapOn:
+    id: "create-wallet-continue-button"
+
+# Dashboard -> Send (asset step)
+- assertVisible:
+    id: "dashboard-screen"
+- tapOn:
+    id: "dashboard-action-send"
+
+- assertVisible:
+    id: "send-screen"
+- assertVisible:
+    id: "send-asset-list"
+- assertVisible:
+    id: "send-asset-btc"
+- assertVisible:
+    id: "send-asset-chf"
+
+# Asset -> Input step
+- tapOn:
+    id: "send-asset-btc"
+- assertVisible:
+    id: "send-input-step"
+- assertVisible:
+    id: "send-recipient-input"
+- assertVisible:
+    id: "send-amount-input"
+- assertVisible:
+    id: "send-continue-button"
+
+# Back to asset step via the selected-asset pill
+- tapOn:
+    id: "send-selected-asset-pill"
+- assertVisible:
+    id: "send-asset-list"

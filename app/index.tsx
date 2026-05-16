@@ -1,24 +1,11 @@
-import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuthStore } from '@/store';
-import { DfxColors } from '@/theme';
 
 export default function Index() {
-  const { isOnboarded, isAuthenticated, isHydrated, hydrate } = useAuthStore();
+  const { isOnboarded, isAuthenticated } = useAuthStore();
 
-  useEffect(() => {
-    void hydrate();
-  }, [hydrate]);
-
-  if (!isHydrated) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color={DfxColors.primary} />
-      </View>
-    );
-  }
-
+  // Hydration happens in the root layout, so by the time this renders the
+  // auth state is already loaded.
   if (!isOnboarded) {
     return <Redirect href="/(onboarding)/welcome" />;
   }
@@ -29,12 +16,3 @@ export default function Index() {
 
   return <Redirect href="/(auth)/(tabs)/dashboard" />;
 }
-
-const styles = StyleSheet.create({
-  loading: {
-    flex: 1,
-    backgroundColor: DfxColors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

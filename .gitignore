@@ -21,6 +21,11 @@ expo-env.d.ts
 # Metro
 .metro-health-check*
 
+# Test / build output
+artifacts/
+coverage/
+modules/*/android/build/
+
 # debug
 npm-debug.*
 yarn-debug.*

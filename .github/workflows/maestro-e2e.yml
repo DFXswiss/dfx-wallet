@@ -31,7 +31,11 @@ jobs:
     # Skip drafts so WIP pushes don't burn ~30 min of macOS minutes per push.
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft != true
     runs-on: macos-latest
-    timeout-minutes: 60
+    # The iOS build (xcodebuild + pod install + simctl boot + framework
+    # cache) alone takes ~50min on macos-latest. With the MVP Maestro
+    # suite (~5min for 7 flows) the old 60min ceiling was hitting the
+    # wall on roughly every other PR.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -70,7 +74,12 @@ jobs:
         run: npx expo run:ios --configuration Release --device "$SIM_DEVICE_ID" --no-bundler
 
       - name: Run Maestro tests
-        run: maestro --platform ios test .maestro/
+        # MVP build ships every EXPO_PUBLIC_ENABLE_* flag off — restrict
+        # to the `mvp` tag so the gated-feature flows (restore wallet,
+        # PIN unlock, full create-with-pin-legal) don't run against
+        # disabled stubs. Drop `--include-tags` once the corresponding
+        # features land.
+        run: maestro --platform ios test --include-tags mvp --env APP_ID=wallet.dfx.swiss .maestro/
 
       - name: Upload Maestro artifacts
         if: always()
@@ -83,8 +92,12 @@ jobs:
   android:
     name: Android Emulator
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft != true
-    runs-on: macos-latest
-    timeout-minutes: 75
+    runs-on: ubuntu-latest
+    # The release Gradle build takes ~40min on the smaller Linux runner,
+    # plus the emulator-runner's cold-boot (with its own internal retry),
+    # the launcher swap + settle, and the MVP Maestro suite (~5min).
+    # 90min leaves a comfortable buffer.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
     steps:
@@ -99,6 +112,16 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      # GitHub's macos-latest runners disable Hypervisor.framework, so any
+      # Android AVD (x86_64 via Rosetta or arm64-v8a via HVF) fails to boot.
+      # Linux runners ship with /dev/kvm; enabling user-level access lets the
+      # emulator drop into native KVM acceleration and boot reliably.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
 
       - name: Install JS dependencies
         run: |
@@ -128,9 +151,21 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            cd android && ./gradlew :app:assembleRelease && cd ..
+            cd android && ./gradlew :app:assembleRelease -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m" && cd ..
             adb install -r android/app/build/outputs/apk/release/app-release.apk
-            maestro --platform android test .maestro/
+            # The Pixel Launcher (com.google.android.apps.nexuslauncher)
+            # on the emulator AVD repeatedly spawns ANR dialogs
+            # ("Pixel Launcher isn't responding" with Wait/Close-app)
+            # that overlay the foregrounded app on every navigation
+            # transition. Disabling it for user 0 forces the system to
+            # its AOSP fallback (com.android.launcher3), which doesn't
+            # ANR and is invisible to flows that assert on app testIDs.
+            adb shell pm disable-user --user 0 com.google.android.apps.nexuslauncher || true
+            adb shell am kill-all
+            sleep 10
+            # MVP-only — see the iOS step for why; drop --include-tags
+            # once the gated features ship.
+            maestro --platform android test --include-tags mvp --env APP_ID=swiss.dfx.wallet .maestro/
 
       - name: Upload Maestro artifacts
         if: always()

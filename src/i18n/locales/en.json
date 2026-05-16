@@ -5,10 +5,46 @@
   },
   "buy": {
     "confirm": "Order placed",
-    "confirmDescription": "Your purchase has been initiated. Transfer the amount with the provided reference code.",
+    "confirmDescription": "DFX has received your confirmation and will credit your wallet once the bank transfer arrives — usually within a few hours on business days.",
+    "confirmTransfer": "I've sent the transfer",
+    "exchangeRate": "Exchange rate",
+    "feeDfx": "DFX fee",
+    "feeFixed": "Fixed fee",
+    "feeNetwork": "Network fee",
+    "feeTotal": "Total fee",
+    "chainUnsupported": "This chain isn't supported by DFX yet. Please pick SegWit, Taproot or an EVM chain.",
+    "continueHint": "Tap Weiter to link your wallet with DFX — your quote appears automatically once linking is done.",
+    "fetchingQuote": "Calculating quote…",
     "howMuch": "How much do you want to buy?",
-    "paymentInfo": "Payment Information",
-    "title": "Buy"
+    "quoteError": {
+      "AmountTooHigh": "Amount too high.",
+      "AmountTooLow": "Amount too low.",
+      "AssetUnsupported": "This asset combination isn't enabled for your account yet.",
+      "CountryNotAllowed": "Purchases from your country aren't permitted.",
+      "CurrencyUnsupported": "This currency isn't supported.",
+      "EmailRequired": "Email address required. Add one under Settings → Email.",
+      "IbanCurrencyMismatch": "IBAN doesn't match the selected currency.",
+      "KycDataRequired": "KYC data required. Please finish verification.",
+      "KycRequired": "KYC verification required.",
+      "LimitExceeded": "Limit exceeded.",
+      "NameRequired": "Name required.",
+      "NationalityNotAllowed": "Purchases for your nationality aren't permitted.",
+      "PaymentMethodNotAllowed": "Payment method not allowed.",
+      "RecommendationRequired": "Referral code required.",
+      "generic": "Quote could not be generated ({{code}})."
+    },
+    "iban": "IBAN",
+    "bic": "BIC",
+    "paymentInfo": "Payment information",
+    "recipient": "Recipient",
+    "selectAsset": "What do you want to buy?",
+    "reference": "Reference code",
+    "summary": "Quote",
+    "title": "Buy",
+    "transfer": "Transfer this amount with the reference code. Your crypto arrives in your wallet once payment is received.",
+    "volumeMax": "Max {{amount}} {{currency}}",
+    "volumeMin": "Min {{amount}} {{currency}}",
+    "youReceive": "You receive (est.)"
   },
   "common": {
     "amount": "Amount",
@@ -38,56 +74,357 @@
     "totalBalance": "Total Wallet Balance",
     "transactions": "Transactions"
   },
+  "dfxAuthGate": {
+    "chainLabel": {
+      "arbitrum": "Arbitrum",
+      "base": "Base",
+      "bitcoin": "Bitcoin",
+      "bitcoin-lightning": "Lightning",
+      "bitcoin-taproot": "Taproot",
+      "ethereum": "Ethereum",
+      "plasma": "Plasma",
+      "polygon": "Polygon",
+      "sepolia": "Sepolia",
+      "spark": "Lightning"
+    },
+    "email": {
+      "body": "DFX needs your email address for this purchase. Once it's verified, the order continues automatically.",
+      "cta": "Add email",
+      "title": "Email address required"
+    },
+    "kyc": {
+      "body": "This action requires a higher KYC level. Finish the verification to continue.",
+      "cta": "Continue KYC",
+      "title": "KYC verification needed"
+    },
+    "linkChain": {
+      "body": "So DFX can deliver the purchase to your {{chain}} wallet, link it once to your DFX account. Confirm briefly with your wallet.",
+      "cta": "Link {{chain}} wallet",
+      "failed": "Linking failed. Please try again.",
+      "title": "Link {{chain}} wallet"
+    },
+    "login": {
+      "body": "You need to sign in to DFX before you can continue.",
+      "cta": "Sign in to DFX",
+      "title": "DFX sign-in required"
+    },
+    "registration": {
+      "body": "You don't have a DFX account yet. Sign in with your email — we'll attach your wallet automatically.",
+      "cta": "Sign in to DFX",
+      "title": "Create DFX account"
+    }
+  },
+  "dfxLogin": {
+    "mailBody": "Enter your DFX email address. We'll send you a confirmation link. If you don't have an account yet, we'll create one for you.",
+    "mailLabel": "Email address",
+    "mailTitle": "Sign in to DFX",
+    "notVerifiedYet": "Not confirmed yet. Please click the link in the email first.",
+    "sendCta": "Send confirmation link",
+    "sendError": "Could not send sign-in email. Please try again.",
+    "sendingBody": "Preparing your sign-in…",
+    "successBody": "You're connected to your DFX account. Your wallet has been added to the account.",
+    "successTitle": "Signed in",
+    "title": "DFX sign-in",
+    "verifyBody": "We sent an email to {{mail}}. Click the link in the email, then tap the button below.",
+    "verifyCta": "Email confirmed",
+    "verifyError": "Verification failed. Please try again.",
+    "verifyTitle": "Confirm email"
+  },
+  "email": {
+    "currentLabel": "Email",
+    "newLabel": "New email",
+    "notSet": "Not set yet",
+    "phoneLabel": "Phone number",
+    "placeholder": "name@example.com",
+    "sendCta": "Send confirmation email",
+    "sendError": "Could not send the confirmation email. Please try again.",
+    "successBody": "Your email address {{mail}} is now linked to your DFX profile.",
+    "successTitle": "Email verified",
+    "title": "Contact details",
+    "tokenHint": "We sent a confirmation email to {{mail}}. Open it and paste the token from the link into the field below.",
+    "tokenLabel": "Confirmation token",
+    "tokenPlaceholder": "Paste the token from the email",
+    "verifyCta": "Confirm",
+    "verifyError": "Token invalid or expired. Please try again."
+  },
   "hardware": {
     "bitbox": "BitBox02",
+    "bitboxNova": "BitBox02 Nova",
+    "bitboxStandard": "BitBox02 (Standard)",
     "connect": "Connect Hardware Wallet",
     "connectDescription": "Connect your BitBox02 via USB or scan for BitBox02 Nova via Bluetooth.",
     "connectDescriptionIos": "Scan for your BitBox02 Nova via Bluetooth.",
+    "deviceConnect": "Connect",
     "notConnected": "Not connected",
+    "pairingHint": "Please confirm the pairing code on your BitBox02 device.",
+    "scanDevices": "Scan for devices",
     "scanning": "Scanning for devices...",
+    "status": {
+      "connected": "Connected",
+      "connecting": "Connecting...",
+      "detected": "Device found",
+      "disconnected": "Not connected",
+      "scanning": "Scanning for devices...",
+      "verifying": "Verify on device..."
+    },
     "verifyOnDevice": "Please confirm on your device."
+  },
+  "contact": {
+    "docs": "Documentation",
+    "email": "Email",
+    "intro": "Reach us via the right channel — in-app tickets are the fastest path for technical questions.",
+    "support": "Support tickets",
+    "website": "Website"
   },
   "kyc": {
     "complete": "Verification complete",
     "completeDescription": "Your identity verification is being reviewed.",
+    "browserDescription": "This step opens identity verification in the browser.",
+    "unsupportedApiStep": "This step is being prepared. Tap continue to reload the current KYC status.",
     "contact": "Contact Data",
     "currentLevel": "Current Level",
     "financial": "Financial Information",
+    "firstName": "First name",
     "ident": "Identity Check",
+    "lastName": "Last name",
+    "level": {
+      "0": {
+        "body": "Wallet created — no contact data on file. You can receive and send, but not trade.",
+        "title": "Anonymous"
+      },
+      "10": {
+        "body": "Email confirmed. Purchases up to 1,000 CHF/day, max 5,000 CHF/year.",
+        "title": "Email verified"
+      },
+      "20": {
+        "body": "Personal data recorded. Higher limits; KYC-restricted paths still open.",
+        "title": "Personal data"
+      },
+      "30": {
+        "body": "Nationality and residence on file. Standard purchases up to 10,000 CHF/day.",
+        "title": "Nationality verified"
+      },
+      "40": {
+        "body": "Financial details supplied. Verified for higher-volume trades.",
+        "title": "Financially verified"
+      },
+      "50": {
+        "body": "Identity confirmed via online ident. Full limits, all DFX products unlocked.",
+        "title": "Fully verified"
+      }
+    },
+    "continueCta": "Continue verification",
+    "mergedTitle": "Data unavailable",
     "nationality": "Nationality",
+    "noKycTitle": "Not verified",
+    "openVerification": "Open verification",
     "personal": "Personal Data",
+    "phone": "Phone (optional)",
+    "legalRiskTitle": "Important notice",
+    "legalRiskBody": "Cryptocurrencies and tokenized assets can fluctuate in value. Transactions are final and remain your responsibility.",
+    "legalTermsTitle": "Accept terms",
+    "legalTermsBody": "Please confirm that you have read and agree to the Terms of Service, Privacy Policy, and risk notices.",
+    "legalNo": "No",
+    "legalYes": "Yes",
+    "registerEmailTitle": "Register email",
+    "registerEmailBody": "Enter your email address. DFX Wallet checks whether it already exists at DFX and then sends the matching confirmation link.",
+    "mailSendCta": "Send confirmation link",
+    "mailSendError": "The confirmation link could not be sent.",
+    "mailNoContactStep": "The email step is not available right now. Please try again.",
+    "mailVerifyTitle": "Welcome back!",
+    "mailVerifyBody": "The email {{mail}} already exists at DFX. We sent you a DFX Wallet email for account merging. Open the link there, then tap \"Check merge\" here.",
+    "mailCodePlaceholder": "Code or link from the DFX Wallet email",
+    "mailChangeCta": "Use another email",
+    "mailVerifyCta": "Check merge",
+    "mailVerifyError": "The email could not be confirmed.",
+    "mailNotVerifiedYet": "The accounts are not merged yet. Open the link in the DFX Wallet email first.",
+    "startCta": "Start verification",
+    "status": {
+      "completed": "Completed",
+      "failed": "Failed",
+      "inProgress": "In progress",
+      "inReview": "In review",
+      "notStarted": "Not started",
+      "outdated": "Renewal required",
+      "renewal": "Renewal in progress",
+      "unknown": "{{raw}}"
+    },
+    "unknownStep": "Verification",
+    "stepsLabel": "Step status",
+    "tfaCodePlaceholder": "6-digit code",
+    "tfaCodePrompt": "Enter the code we just sent to your phone.",
+    "tfaDescription": "We need to send you a one-time code by SMS to verify your phone number before this step.",
+    "tfaRequestCta": "Send code",
+    "tfaTitle": "Verify phone number",
     "title": "KYC Verification"
   },
   "legal": {
     "accept": "I have read and agree to the Terms of Service, Privacy Policy, and Disclaimer.",
+    "bodyKyc": "KYC verification is required for certain transaction limits as mandated by Swiss anti-money laundering regulations.",
+    "bodyTransactions": "Cryptocurrency transactions are irreversible. Please check all transaction details before confirming.",
+    "bodyWallet": "DFX Wallet is non-custodial. You are responsible for securing your seed phrase and PIN; DFX AG cannot recover your wallet if you lose them.",
     "disclaimer": "Disclaimer",
+    "intro": "The legal documents open in your browser so you can save, share or print them.",
     "privacy": "Privacy Policy",
     "terms": "Terms of Service",
     "title": "Legal Information"
   },
+  "linkedWallet": {
+    "addressLabel": "Wallet address",
+    "banner": {
+      "label": "Buy/sell into wallet",
+      "notSignable": "This wallet was linked from another device and can't be used from here."
+    },
+    "confirm": {
+      "buy": {
+        "body": "After your bank transfer arrives, DFX will send {{asset}} to the wallet below. Confirm to proceed to the bank details.",
+        "title": "Confirm purchase"
+      },
+      "sell": {
+        "body": "You'll send {{asset}} from the wallet below to DFX and receive a bank payout. Confirm to continue to the bank details.",
+        "title": "Confirm sale"
+      }
+    },
+    "assetsEmpty": "No holdings detected yet. Pull to refresh once the scan completes.",
+    "assetsLabel": "Holdings",
+    "loadError": "Could not load wallet details.",
+    "notFound": "This wallet is not linked to your DFX profile.",
+    "note": "Each buy or sell from a linked wallet asks for an extra confirmation so that no asset reaches the wrong account.",
+    "openOnExplorer": "View on {{chain}} explorer",
+    "txEmpty": "No transactions found for this wallet.",
+    "reauthError": {
+      "addressMismatch": "This wallet was linked from another device, so it can't be used from here.",
+      "generic": "Could not switch to this wallet. Please try again."
+    },
+    "rename": {
+      "body": "Pick a name to recognise this wallet across the app. Leave empty to reset to the default.",
+      "cta": "Rename wallet",
+      "title": "Rename wallet"
+    },
+    "title": "DFX Wallet",
+    "transactions": "Transactions"
+  },
+  "multiSig": {
+    "backup": {
+      "alertBody": "We'll create a {{required}}-of-{{total}} vault. Make sure all co-signers are available before continuing.",
+      "alertTitle": "Activate vault?",
+      "body": "Three short steps so you never lose access — even if a phone breaks or someone forgets a PIN.",
+      "confirm": "I understand: without enough co-signers my crypto won't move.",
+      "cta": "Activate vault",
+      "item1Desc": "Print or write down the recovery sheet — same as a normal wallet, but each co-signer keeps their own copy.",
+      "item1Title": "Save the recovery sheet",
+      "item2Desc": "Pick a safe place: home safe, bank deposit box, or a trusted family member.",
+      "item2Title": "Store it offline",
+      "item3Desc": "Tell each co-signer what the vault is for and how many signatures it needs.",
+      "item3Title": "Brief your co-signers",
+      "title": "Last step: backup"
+    },
+    "concept": {
+      "analogyBody": "Imagine three keys to a safe holding your crypto. The safe only opens when at least two of the three keys are inserted at the same time.",
+      "analogyTitle": "Like a safe with three keys",
+      "body": "A multi-signature wallet is shared by several people. To send your crypto, the minimum number of people you agreed on has to approve the transaction together.",
+      "cta": "Got it",
+      "diagramApproved": "approved",
+      "diagramBackup": "Backup",
+      "diagramPartner": "Partner",
+      "diagramPending": "pending",
+      "diagramResult": "Crypto is sent",
+      "diagramSubResult": "2 of 3 signatures are enough",
+      "diagramYou": "You",
+      "exampleCaption": "Example: you, your partner, and a backup person share the wallet. As soon as two of you approve, your crypto is sent.",
+      "exampleTitle": "Example: 2 of 3 signatures",
+      "title": "How it works"
+    },
+    "cosigners": {
+      "body": "Add the wallet addresses of the people who should co-sign with you ({{count}} more needed).",
+      "cosignerLabel": "Co-signer {{n}}",
+      "hint": "Co-signers can be a family member, a hardware wallet you keep elsewhere, or a trusted friend. They each receive a request when you want to send your crypto.",
+      "placeholder": "Wallet address or xpub",
+      "title": "Who signs with you?",
+      "youDesc": "Your DFX Wallet on this device.",
+      "youLabel": "You"
+    },
+    "manage": {
+      "addAnotherCta": "Set up another vault",
+      "cosignerLabel": "Co-signer {{n}}",
+      "emptyBody": "You currently have no multi-signature vault. Set one up to secure your crypto together with family, partner, or team.",
+      "emptyTitle": "No Multi-Sig yet",
+      "membersLabel": "Members ({{count}})",
+      "quorumMeta": "{{required}} of {{total}} signatures required",
+      "removeBody": "Are you sure you want to remove \"{{name}}\"? The configuration will be deleted.",
+      "removeConfirm": "Remove",
+      "removeTitle": "Remove vault?",
+      "setupCta": "Set up Multi-Sig",
+      "summaryLabel": "Active vaults",
+      "summaryValue": "{{count}} multi-signature vault(s) configured",
+      "youBadge": "This device",
+      "youDesc": "Your DFX Wallet on this device",
+      "youLabel": "You"
+    },
+    "intro": {
+      "body": "Protect your wallet with two or more signatures. Your crypto only moves when enough people agree — no single phone, password, or person can be a single point of failure.",
+      "bullet1": "Sleep easier: even a stolen phone alone can't drain your wallet.",
+      "bullet2": "Share responsibility with family or your team without sharing one password.",
+      "bullet3": "Recover access if one device is lost — the others still work.",
+      "cta": "Let's go",
+      "title": "More security with Multi-Signature"
+    },
+    "quorum": {
+      "body": "Pick how many signatures are needed and how many co-signers there are. 2-of-3 is the most popular choice — secure, but still recoverable if one key is lost.",
+      "customRequiredLabel": "Required signatures",
+      "customSummary": "{{required}} of {{total}} signatures needed",
+      "customTotalLabel": "Number of co-signers",
+      "option_2_2_desc": "Both signatures always required. Highest security but no recovery if one key is lost.",
+      "option_2_2_title": "Couple wallet",
+      "option_2_3_desc": "Recommended. Two of three signatures send your crypto. Lose one device — the other two still work.",
+      "option_2_3_title": "Family vault",
+      "option_3_5_desc": "Stricter quorum for organisations. Three of five signatures sign each transaction.",
+      "option_3_5_title": "Team vault",
+      "option_custom_desc": "Set signatures and co-signers yourself — from 1-of-2 up to bespoke setups with 9 people.",
+      "option_custom_title": "Custom setup",
+      "title": "Pick your setup"
+    },
+    "success": {
+      "body": "Your {{required}}-of-{{total}} vault is ready. From now on, every send needs the agreed number of signatures.",
+      "nextBody": "Send funds into the vault to start using it. Each co-signer will get a signing request when you want to spend.",
+      "nextLabel": "What's next",
+      "title": "Vault active"
+    },
+    "title": "Multi-Sig Setup"
+  },
   "onboarding": {
-    "createError": "Could not create wallet. Please try again.",
+    "createError": "Could not create the wallet on this device. Check that your storage is available and try again.",
     "createPasskey": "Create with Passkey",
     "createWallet": "Create with Seed Phrase",
-    "invalidSeed": "Invalid seed phrase. Must be 12 or 24 words.",
-    "restoreError": "Could not restore wallet. Please try again.",
+    "invalidSeed": "This seed phrase is not valid yet. Enter exactly 12 or 24 words in the original order.",
+    "restoreError": "Could not restore this wallet. Check the seed phrase and try again.",
     "restorePasskey": "From Passkey",
     "restoreSeed": "From Seed Phrase",
+    "restoreSeedDescription": "Paste or type the 12 or 24 words from your recovery backup in the original order.",
+    "restoreSeedPlaceholder": "Enter seed phrase",
+    "restoreSeedWarning": "Use a private place. Anyone with these words can access the wallet.",
     "restoreWallet": "Restore Wallet",
+    "seedBackupWarning": "DFX cannot recover your seed phrase. Keep it offline and stored safely.",
+    "seedCopy": "Copy to clipboard",
+    "seedCopied": "Copied",
+    "seedDescription": "Write down your seed phrase in the correct order. It is the only way to recover your wallet.",
+    "seedReveal": "Reveal seed phrase",
+    "seedRevealHint": "Make sure nobody can see your screen.",
+    "seedWordCount": "{{count}} / {{total}} words",
     "subtitle": "Buy and sell crypto directly with your wallet",
     "title": "Welcome to DFX",
     "verifySeed": "Verify Seed"
   },
   "passkey": {
-    "backupWarning": "You can export your recovery phrase later in Settings. This is recommended as a backup in case you lose access to your passkey.",
+    "backupWarning": "After setup, export the recovery phrase in Settings and store it offline. It is your fallback if the passkey becomes unavailable.",
     "createButton": "Create Passkey",
     "createDescription": "Your wallet will be secured by a passkey stored in your device's secure element. No seed phrase to write down.",
-    "createError": "Failed to create passkey. Please try again.",
+    "createError": "Could not create the passkey. Check your device passkey settings and try again.",
     "createTitle": "Create with Passkey",
     "prfUnsupported": "Your passkey provider does not support the required encryption feature (PRF). Third-party providers like Bitwarden do not support this yet. Please use {{provider}} as your passkey provider instead.",
     "restoreButton": "Restore with Passkey",
     "restoreDescription": "Use your existing passkey to restore your wallet. The same passkey will derive the same wallet.",
-    "restoreError": "Failed to restore wallet from passkey. Please try again.",
+    "restoreError": "Could not restore a wallet from this passkey. Make sure it is the same passkey used during setup.",
     "restoreInfo": "Make sure you are using the same passkey that was used to create the wallet. If your passkey was synced via iCloud or Google, it should be available on this device.",
     "restoreTitle": "Restore from Passkey",
     "step1": "A passkey is created and stored securely on your device.",
@@ -100,16 +437,19 @@
     "comingSoonMessage": "Payments are not yet available. Scanned: {{data}}",
     "comingSoonTitle": "Coming soon",
     "grantPermission": "Grant access",
-    "lightning": "Lightning",
-    "lightningComingSoon": "Lightning support is coming soon.",
-    "scanToPay": "Scan to pay"
+    "scanToPay": "Scan QR code to pay"
   },
   "pin": {
+    "biometricCta": "Unlock with Face ID",
     "confirm": "Confirm PIN",
+    "confirmDescription": "Enter your PIN again to confirm it.",
     "create": "Create PIN",
     "createDescription": "Choose a 6-digit PIN to secure your wallet.",
     "enter": "Enter PIN",
+    "enterTitle": "Welcome back",
     "incorrect": "Incorrect PIN.",
+    "incorrectAttemptsLeft_one": "Incorrect PIN. {{count}} attempt remaining.",
+    "incorrectAttemptsLeft_other": "Incorrect PIN. {{count}} attempts remaining.",
     "mismatch": "PINs do not match.",
     "remainingAttempts": "{{count}} attempts remaining.",
     "saveError": "Could not save PIN. Please try again.",
@@ -121,15 +461,24 @@
     "empty": "No assets yet",
     "emptyDescription": "Buy your first crypto to get started.",
     "holdings": "Holdings by network",
+    "linkedWalletA11y": "DFX wallet {{address}}",
+    "linkedWallets": "Linked DFX wallets",
     "manage": "Manage",
     "manageChains": "Manage networks",
+    "networkCount_one": "{{count}} network",
+    "networkCount_other": "{{count}} networks",
     "optional": "Optional networks",
     "totalValue": "Total value"
   },
   "receive": {
+    "buyFromBank": "Buy with your bank account",
+    "buyFromBankSubtitle": "Top up via DFX SEPA transfer",
     "buyBtcWithEuro": "Buy BTC with Euro",
+    "noAddress": "No address available",
     "onlyCorrectNetwork": "Only send {{asset}} on the {{network}} network to this address.",
+    "selectAsset": "What do you want to receive?",
     "title": "Receive",
+    "walletNotInitialized": "Wallet not initialized",
     "yourAddress": "Your {{chain}} address"
   },
   "seedExport": {
@@ -141,35 +490,84 @@
     "warning": "Never share your recovery phrase. Anyone with these words can access your wallet."
   },
   "sell": {
-    "bankAccount": "Bank Account",
-    "confirmSale": "Confirm Sale",
+    "bankAccount": "Bank account",
+    "bankDescription": "Enter the IBAN where the payout should arrive.",
+    "confirmSale": "Confirm sale",
+    "depositAddress": "Deposit address",
     "depositTo": "Deposit to",
+    "exchangeRate": "Exchange rate",
+    "feeDfx": "DFX fee",
+    "feeFixed": "Fixed fee",
+    "feeNetwork": "Network fee",
+    "feeTotal": "Total fee",
+    "continueHint": "Tap Weiter to link your wallet with DFX — your quote appears automatically once linking is done.",
+    "fetchingQuote": "Calculating quote…",
     "howMuch": "How much do you want to sell?",
-    "title": "Sell"
+    "quoteError": {
+      "AmountTooHigh": "Amount too high.",
+      "AmountTooLow": "Amount too low.",
+      "AssetUnsupported": "This asset combination isn't enabled for your account yet.",
+      "CountryNotAllowed": "Sales from your country aren't permitted.",
+      "CurrencyUnsupported": "This currency isn't supported.",
+      "EmailRequired": "Email address required. Add one under Settings → Email.",
+      "IbanCurrencyMismatch": "IBAN doesn't match the selected currency.",
+      "KycDataRequired": "KYC data required. Please finish verification.",
+      "KycRequired": "KYC verification required.",
+      "LimitExceeded": "Limit exceeded.",
+      "NameRequired": "Name required.",
+      "NationalityNotAllowed": "Sales for your nationality aren't permitted.",
+      "PaymentMethodNotAllowed": "Payment method not allowed.",
+      "RecommendationRequired": "Referral code required.",
+      "generic": "Quote could not be generated ({{code}})."
+    },
+    "noBalance": "No holdings to sell — top up your wallet first.",
+    "payoutTo": "Payout to",
+    "selectAsset": "What do you want to sell?",
+    "summary": "Quote",
+    "title": "Sell",
+    "transferHint": "Send the exact amount to the deposit address. The payout arrives in your bank account once the transaction is confirmed.",
+    "volumeMax": "Max {{amount}} {{asset}}",
+    "volumeMin": "Min {{amount}} {{asset}}",
+    "youReceive": "You receive (est.)",
+    "youSell": "You sell"
   },
   "send": {
     "addressPlaceholder": "Address or ENS name",
     "amount": "Amount",
     "confirmTransaction": "Confirm Transaction",
+    "done": "Done",
+    "feeEstimating": "Estimating…",
+    "feeUnavailable": "Unable to estimate",
     "irreversible": "Transactions are irreversible. Please verify the recipient address and amount.",
     "network": "Network",
+    "networkFee": "Network fee",
     "recipient": "Recipient",
     "scan": "Scan",
     "selectAsset": "What do you want to send?",
     "sellInstead": "Sell crypto instead",
+    "sendToBank": "Send to your bank account",
+    "sendToBankSubtitle": "Cash out via DFX SEPA / SWIFT payout",
+    "sendToCrypto": "Send to a crypto address",
+    "sendToCryptoSubtitle": "On-chain transfer to any wallet",
     "sent": "Transaction Sent",
-    "title": "Send"
+    "sentDescription": "{{amount}} {{symbol}} sent to {{recipient}}",
+    "title": "Send",
+    "txHash": "TX: {{hash}}"
   },
   "settings": {
-    "biometric": "Biometric",
+    "biometric": "Face ID / Touch ID",
+    "biometricUnsupported": "Biometric unlock isn't available on this device. Enable Face ID or Touch ID in iOS settings first.",
     "contact": "Contact",
     "currencies": "Currencies",
     "deleteWallet": "Delete Wallet",
     "deleteWalletConfirm": "This will permanently remove your wallet from this device. Make sure you have backed up your seed phrase.",
     "deleteWalletConfirmPasskey": "This will permanently remove your wallet from this device. If you need to restore it, you will need your passkey or your exported recovery phrase. Please also delete the passkey from your device settings.",
+    "dfxWallets": "DFX wallets",
+    "email": "Contact details",
     "hardwareWallet": "Hardware Wallet",
     "language": "Language",
     "legalDocuments": "Legal Documents",
+    "multiSig": "Multi-Sig",
     "network": "Network",
     "sectionAccount": "Account",
     "sectionHelp": "Help",
@@ -180,12 +578,13 @@
     "seedPhrase": "Seed Phrase",
     "taxReport": "Tax Report",
     "title": "Settings",
-    "userData": "User Data",
-    "walletAddress": "Wallet Address"
+    "userData": "User Data"
   },
   "support": {
+    "createError": "Ticket could not be created. Please try again.",
     "createTicket": "Create Ticket",
     "noTickets": "No support tickets",
+    "sendError": "Message could not be sent. Please try again.",
     "title": "Support"
   },
   "transactions": {
@@ -196,12 +595,60 @@
     "filterOut": "Out",
     "filterPay": "Pay",
     "input": "From",
+    "merchant": "Merchant",
     "network": "Network",
     "noTransactions": "No transactions yet",
     "notFound": "Transaction not found",
     "output": "To",
+    "payout": "Payout to",
+    "recipient": "Recipient",
+    "sender": "Sender",
+    "source": "Source",
     "title": "Transactions",
     "txHash": "Tx hash",
-    "viewOnExplorer": "View on block explorer"
+    "venue": "Venue",
+    "viewOnExplorer": "View on block explorer",
+    "walletAddress": "Wallet address"
+  },
+  "taxReport": {
+    "cta": "Download tax report",
+    "downloadFailed": "Could not generate tax report.",
+    "formatLabel": "Format",
+    "generating": "Generating …",
+    "intro": "Download your transaction journal for a given year as CSV — ready to import into CoinTracking, Blockpit & Co.",
+    "savedAt": "File saved: {{uri}}",
+    "shareTitle": "DFX tax report",
+    "title": "Tax report",
+    "types": {
+      "chainReport": {
+        "body": "Detailed report including on-chain TXIDs.",
+        "title": "Chain Report"
+      },
+      "coinTracking": {
+        "body": "Standard format — ready for CoinTracking import.",
+        "title": "CoinTracking"
+      },
+      "compact": {
+        "body": "Compact summary — one line per transaction.",
+        "title": "Compact"
+      }
+    },
+    "yearLabel": "Year"
+  },
+  "wallets": {
+    "activeBadge": "Active",
+    "addLabel": "Available to link",
+    "bitcoinLabel": "Bitcoin",
+    "btcAddressUnavailable": "Bitcoin address not available",
+    "helper": "Linking an additional wallet requires you to sign a message with the private key of that address. You stay logged in with your original address afterwards.",
+    "intro": "Here you can see which of your wallet addresses are linked to your DFX profile. Link additional addresses so DFX treats them as the same account.",
+    "linkError": "Could not link wallet.",
+    "linkedLabel": "Linked addresses",
+    "loadError": "Could not load DFX profile.",
+    "mergedExplanation": "Your DFX account was merged into another account. Please sign in again so we can load the current profile.",
+    "noAddresses": "No addresses linked yet.",
+    "reauthCta": "Sign in to DFX again",
+    "selectHint": "Tick a wallet to surface it in your Portfolio so you can buy or sell into it directly.",
+    "title": "DFX wallets"
   }
 }
