@@ -47,4 +47,4 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: joshuakrueger-dfx/bitbox-testkit/.github/actions/bitbox-simulator@v0.3.3
+      - uses: joshuakrueger-dfx/bitbox-testkit/.github/actions/bitbox-simulator@v0.3.4
