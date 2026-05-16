@@ -51,21 +51,29 @@ export type DeviceDisplayOpts = {
   displayOnDevice?: boolean;
 };
 
-export type EthAddressOpts = DeviceDisplayOpts & {
-  /** EVM chain ID. NEVER hardcode; the BitBox displays this on-device. */
-  chainId: bigint;
-  derivationPath?: string;
+/** Common cancellation field. Aborting cancels the in-flight call; the
+ *  device may still be showing its prompt and must be dismissed there. */
+export type CancellableOpts = {
+  signal?: AbortSignal;
 };
 
-export type BtcAddressOpts = DeviceDisplayOpts & {
-  /** Bitcoin coin/network: btc, tbtc (testnet), rbtc (regtest), ltc. */
-  coin: 'btc' | 'tbtc' | 'rbtc' | 'ltc';
-  /** Script config: 'p2wpkh' (default), 'p2wpkh-p2sh', 'p2pkh', 'p2tr'. */
-  scriptType?: 'p2wpkh' | 'p2wpkh-p2sh' | 'p2pkh' | 'p2tr';
-  derivationPath?: string;
-};
+export type EthAddressOpts = DeviceDisplayOpts &
+  CancellableOpts & {
+    /** EVM chain ID. NEVER hardcode; the BitBox displays this on-device. */
+    chainId: bigint;
+    derivationPath?: string;
+  };
 
-export type EthSignTxOpts = {
+export type BtcAddressOpts = DeviceDisplayOpts &
+  CancellableOpts & {
+    /** Bitcoin coin/network: btc, tbtc (testnet), rbtc (regtest), ltc. */
+    coin: 'btc' | 'tbtc' | 'rbtc' | 'ltc';
+    /** Script config: 'p2wpkh' (default), 'p2wpkh-p2sh', 'p2pkh', 'p2tr'. */
+    scriptType?: 'p2wpkh' | 'p2wpkh-p2sh' | 'p2pkh' | 'p2tr';
+    derivationPath?: string;
+  };
+
+export type EthSignTxOpts = CancellableOpts & {
   chainId: bigint;
   derivationPath: string;
   /** RLP-encoded legacy or EIP-1559 transaction payload. */
@@ -76,12 +84,15 @@ export type EthSignTxOpts = {
   timeoutMs?: number;
 };
 
-export type EthSignMessageOpts = {
+export type EthSignMessageOpts = CancellableOpts & {
   chainId: bigint;
   derivationPath: string;
   message: Uint8Array;
   timeoutMs?: number;
 };
+
+export type ConnectOpts = CancellableOpts;
+export type DisconnectOpts = CancellableOpts;
 
 export type DeviceInfo = {
   /** Device version string, e.g. "9.21.0". */
@@ -106,11 +117,16 @@ export interface HardwareWalletProvider {
   /** Scan for devices via USB or BLE. */
   scanDevices(): Promise<HardwareWalletDevice[]>;
 
-  /** Establish connection and verify secure channel (Noise XX handshake). */
-  connect(device: HardwareWalletDevice): Promise<void>;
+  /**
+   * Establish connection and verify secure channel (Noise XX handshake).
+   * Concurrent calls are serialised — a second `connect` awaits the first
+   * before opening its own transport. Pass `opts.signal` to abort an
+   * in-flight connect (e.g. on screen unmount).
+   */
+  connect(device: HardwareWalletDevice, opts?: ConnectOpts): Promise<void>;
 
   /** Disconnect from device. Errors are surfaced, not swallowed. */
-  disconnect(): Promise<void>;
+  disconnect(opts?: DisconnectOpts): Promise<void>;
 
   /** Return cached device info (populated during connect). null before connect. */
   getDeviceInfo(): DeviceInfo | null;

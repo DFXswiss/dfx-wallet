@@ -33,7 +33,7 @@
  */
 
 import { BRIDGE_HTML } from './bridge-html';
-import { HwBridgeNotReadyError, HwBridgeTimeoutError } from './errors';
+import { HwBridgeNotReadyError, HwBridgeTimeoutError, HwUserAbortError } from './errors';
 
 export { BRIDGE_HTML };
 
@@ -46,7 +46,8 @@ type PendingCall = {
 
 type OutboundMessage =
   | { nonce: string; type: 'call'; id: number; method: string; params: unknown[] }
-  | { nonce: string; type: 'transport_read_response'; data: number[] };
+  | { nonce: string; type: 'transport_read_response'; data: number[] }
+  | { nonce: string; type: 'transport_error'; error: { message: string } };
 
 type InboundMessage =
   | { nonce: string; type: 'wasm_ready' }
@@ -160,7 +161,7 @@ export class WasmBridge {
   async call<T>(
     method: string,
     params: unknown[] = [],
-    opts: { timeoutMs?: number } = {},
+    opts: { timeoutMs?: number; signal?: AbortSignal } = {},
   ): Promise<T> {
     if (!this.webViewRef) {
       throw new HwBridgeNotReadyError('no WebView attached');
@@ -170,22 +171,60 @@ export class WasmBridge {
         `wasm not ready yet; await waitReady() before calling ${method}`,
       );
     }
+    // Early-exit if the caller hands in an already-aborted signal.
+    if (opts.signal?.aborted) {
+      return Promise.reject(new HwUserAbortError());
+    }
 
     const id = ++this.callId;
     const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const method_ = method;
+    const signal = opts.signal;
 
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         if (this.pending.has(id)) {
           this.pending.delete(id);
+          if (signal && abortHandler) signal.removeEventListener('abort', abortHandler);
           reject(new HwBridgeTimeoutError(method_, timeoutMs));
         }
       }, timeoutMs);
 
+      // Abort propagation: when the caller aborts, drop the pending entry
+      // and best-effort tell the WebView to cancel via transport_error
+      // (the page's WASM read promise rejects → bitbox-api unwinds the
+      // in-flight operation cleanly).
+      let abortHandler: (() => void) | null = null;
+      if (signal) {
+        abortHandler = () => {
+          if (!this.pending.has(id)) return;
+          this.pending.delete(id);
+          clearTimeout(timer);
+          // Best-effort cancel signal to the page.
+          try {
+            const cancel: OutboundMessage = {
+              nonce: this.nonce,
+              type: 'transport_error',
+              error: { message: 'cancelled by caller' },
+            };
+            this.webViewRef?.postMessage(JSON.stringify(cancel));
+          } catch {
+            // The WebView may already be torn down — best effort only.
+          }
+          reject(new HwUserAbortError());
+        };
+        signal.addEventListener('abort', abortHandler, { once: true });
+      }
+
       this.pending.set(id, {
-        resolve: resolve as (result: unknown) => void,
-        reject,
+        resolve: (result: unknown) => {
+          if (signal && abortHandler) signal.removeEventListener('abort', abortHandler);
+          resolve(result as T);
+        },
+        reject: (err: Error) => {
+          if (signal && abortHandler) signal.removeEventListener('abort', abortHandler);
+          reject(err);
+        },
         timer,
         method: method_,
       });
@@ -314,6 +353,37 @@ export class WasmBridge {
       data: Array.from(data),
     };
     this.webViewRef.postMessage(JSON.stringify(out));
+  }
+
+  /**
+   * Tell the WebView the physical transport failed mid-flight. The page's
+   * pending WASM read() rejects, the bitbox-api operation unwinds, and the
+   * caller's bridge.call promise rejects (via the standard error path
+   * once WASM surfaces the transport error). Use this when the physical
+   * transport drops while a sign or address-display is in flight — the
+   * alternative is waiting for the 120s sign timeout.
+   */
+  notifyTransportFailure(reason: string): void {
+    if (!this.webViewRef) return;
+    const out: OutboundMessage = {
+      nonce: this.nonce,
+      type: 'transport_error',
+      error: { message: reason },
+    };
+    this.webViewRef.postMessage(JSON.stringify(out));
+  }
+
+  /**
+   * Fail every pending bridge.call with the supplied error. Used by the
+   * provider when the physical transport drops — gives the caller a
+   * deterministic rejection instead of a 120s wait.
+   */
+  failPending(err: Error): void {
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(err);
+    }
+    this.pending.clear();
   }
 
   /**

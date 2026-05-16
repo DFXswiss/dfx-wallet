@@ -10,6 +10,44 @@
  * CLI's `--test-results` mode can map the test result back to the quirk.
  */
 
+// Mock the physical transport modules so connect() can be unit-tested
+// end-to-end without RN platform shims. Each mock provides a constructor
+// + minimal API surface; tests that need richer behaviour override at
+// runtime via jest.spyOn().
+jest.mock('@/features/hardware-wallet/services/transport-ble', () => {
+  class FakeBleTransport {
+    async connectToDevice(): Promise<void> {}
+    async close(): Promise<void> {}
+    async write(): Promise<number> {
+      return 0;
+    }
+    async read(): Promise<Uint8Array> {
+      return new Uint8Array();
+    }
+  }
+  return {
+    BleTransport: FakeBleTransport,
+    scanBleDevices: async () => [],
+    setBleManager: () => undefined,
+  };
+});
+jest.mock('@/features/hardware-wallet/services/transport-usb', () => {
+  class FakeUsbTransport {
+    async open(): Promise<void> {}
+    async close(): Promise<void> {}
+    async write(): Promise<number> {
+      return 0;
+    }
+    async read(): Promise<Uint8Array> {
+      return new Uint8Array();
+    }
+  }
+  return {
+    UsbTransport: FakeUsbTransport,
+    scanUsbDevices: async () => [],
+  };
+});
+
 import { BitboxProvider } from '@/features/hardware-wallet/services/bitbox';
 import {
   HwBridgeNotReadyError,
@@ -33,7 +71,8 @@ import {
   type BridgeHandler,
 } from './bitbox-testkit-inline';
 
-type CallOpts = { timeoutMs?: number };
+type CallOpts = { timeoutMs?: number; signal?: AbortSignal };
+import type { HardwareWalletDevice } from '@/features/hardware-wallet/services/types';
 type BridgeCall = (method: string, args: readonly unknown[], opts?: CallOpts) => Promise<unknown>;
 
 /**
@@ -425,9 +464,9 @@ describe('BitboxProvider — transport event subscription', () => {
 // ─── Reconnect logic (HIGH-8) ───────────────────────────────────────────────
 
 describe('BitboxProvider — attemptReconnect', () => {
-  it('rejects when no device was previously connected', async () => {
+  it('rejects with HwNotConnectedError when no device was previously connected', async () => {
     const provider = new BitboxProvider();
-    await expect(provider.attemptReconnect()).rejects.toThrow(/no previously connected/);
+    await expect(provider.attemptReconnect()).rejects.toBeInstanceOf(HwNotConnectedError);
   });
 
   it('honours AbortSignal to cancel mid-backoff', async () => {
@@ -740,5 +779,169 @@ describe('WasmBridge — protocol hardening', () => {
     nonce = bridge.getSessionNonce();
     bridge.onMessage(JSON.stringify({ nonce, type: 'wasm_ready' }));
     await expect(bridge.waitReady()).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * Regression tests for Commit 3: state-machine hardening.
+ *
+ * CC-8: pair and deviceInfo are now wrapped in translateErrors so a
+ *       firmware-rejected user abort surfaces as HwUserAbortError, not
+ *       a raw bridge error.
+ * CC-23: concurrent connect()s are serialised via the lifecycle chain.
+ *        A second connect awaits the first instead of racing on the
+ *        physical transport.
+ * CC-24: sign* and getAddress accept AbortSignal; aborting rejects the
+ *        local promise with HwUserAbortError and posts a transport_error
+ *        envelope to the WebView so the WASM read unwinds.
+ */
+
+function makeBridgeStub(callImpl: (m: string, a: readonly unknown[], o?: CallOpts) => Promise<unknown>) {
+  return {
+    call: callImpl,
+    waitReady: async () => undefined,
+    setWebView: () => undefined,
+    getSessionNonce: () => 'test-nonce',
+    onMessage: () => undefined,
+    sendTransportData: () => undefined,
+    notifyTransportFailure: () => undefined,
+    failPending: () => undefined,
+    destroy: () => undefined,
+    onTransportRead: null,
+    onTransportWrite: null,
+  };
+}
+
+describe('BitboxProvider — translateErrors over pair / deviceInfo (CC-8)', () => {
+  it('pair user-abort surfaces as HwUserAbortError, not raw Error', async () => {
+    const bridge = makeBridgeStub(async (method) => {
+      if (method === 'pair') {
+        const e = new Error('firmware: user abort');
+        (e as Error & { code?: number }).code = 104;
+        throw e;
+      }
+      return null;
+    });
+    const provider = new BitboxProvider(bridge as never);
+    const device: HardwareWalletDevice = { id: 'fake', name: 'BB', type: 'bitbox02', transport: 'ble' };
+    await expect(provider.connect(device)).rejects.toBeInstanceOf(HwUserAbortError);
+  });
+
+  it('deviceInfo firmware-reject surfaces as HwFirmwareRejectError, not raw Error', async () => {
+    const bridge = makeBridgeStub(async (method) => {
+      if (method === 'pair') return { channelHash: null };
+      if (method === 'deviceInfo') {
+        const e = new Error('firmware error 101: state invalid');
+        (e as Error & { code?: number }).code = 101;
+        throw e;
+      }
+      return null;
+    });
+    const provider = new BitboxProvider(bridge as never);
+    const device: HardwareWalletDevice = { id: 'fake', name: 'BB', type: 'bitbox02', transport: 'ble' };
+    const { HwFirmwareRejectError } = await import('@/features/hardware-wallet/services/errors');
+    await expect(provider.connect(device)).rejects.toBeInstanceOf(HwFirmwareRejectError);
+  });
+});
+
+describe('BitboxProvider — serialised lifecycle (CC-23)', () => {
+  it('two concurrent connect() calls do not interleave bridge.pair invocations', async () => {
+    let pairInFlight = 0;
+    let maxConcurrent = 0;
+    const bridge = makeBridgeStub(async (method) => {
+      if (method === 'pair') {
+        pairInFlight += 1;
+        maxConcurrent = Math.max(maxConcurrent, pairInFlight);
+        await new Promise((r) => setTimeout(r, 10));
+        pairInFlight -= 1;
+        return { channelHash: null };
+      }
+      if (method === 'deviceInfo') return { version: '9.21.0', product: 'bitbox02-multi', name: 'BB', initialized: true };
+      return null;
+    });
+    const provider = new BitboxProvider(bridge as never);
+    const deviceA: HardwareWalletDevice = { id: 'A', name: 'BB-A', type: 'bitbox02', transport: 'ble' };
+    const deviceB: HardwareWalletDevice = { id: 'B', name: 'BB-B', type: 'bitbox02', transport: 'ble' };
+    // Issue two connects in rapid succession.
+    const a = provider.connect(deviceA).catch(() => undefined);
+    const b = provider.connect(deviceB).catch(() => undefined);
+    await Promise.all([a, b]);
+    // The serialisation chain guarantees pair is never concurrent.
+    expect(maxConcurrent).toBeLessThanOrEqual(1);
+  });
+
+  it('disconnect cancels an in-flight connect via its abort controller', async () => {
+    let pairRejected = false;
+    const bridge = makeBridgeStub(async (method, _args, opts) => {
+      if (method === 'pair') {
+        return new Promise((_resolve, reject) => {
+          opts?.signal?.addEventListener('abort', () => {
+            pairRejected = true;
+            reject(new HwUserAbortError());
+          });
+        });
+      }
+      return null;
+    });
+    const provider = new BitboxProvider(bridge as never);
+    const device: HardwareWalletDevice = { id: 'X', name: 'BB', type: 'bitbox02', transport: 'ble' };
+    const connecting = provider.connect(device).catch((e) => e);
+    // Yield so connect() enters the pair await.
+    await new Promise((r) => setTimeout(r, 5));
+    // Disconnect aborts the in-flight controller.
+    await provider.disconnect();
+    const result = await connecting;
+    expect(result).toBeInstanceOf(HwUserAbortError);
+    expect(pairRejected).toBe(true);
+  });
+});
+
+describe('BitboxProvider — AbortSignal on signing (CC-24)', () => {
+  it('signEthTransaction rejects with HwUserAbortError when signal aborts', async () => {
+    let signRejected = false;
+    const bridge = makeBridgeStub(async (method, _args, opts) => {
+      if (method === 'ethSign1559Transaction') {
+        return new Promise((_resolve, reject) => {
+          opts?.signal?.addEventListener('abort', () => {
+            signRejected = true;
+            reject(new HwUserAbortError());
+          });
+        });
+      }
+      return null;
+    });
+    const provider = new BitboxProvider(bridge as never);
+    (provider as unknown as { transport: object }).transport = {};
+    const ctrl = new AbortController();
+    const inflight = provider
+      .signEthTransaction({
+        chainId: 1n,
+        derivationPath: PATH,
+        rlpPayload: new Uint8Array([1, 2, 3]),
+        isEIP1559: true,
+        signal: ctrl.signal,
+      })
+      .catch((e) => e);
+    await new Promise((r) => setTimeout(r, 5));
+    ctrl.abort();
+    const result = await inflight;
+    expect(result).toBeInstanceOf(HwUserAbortError);
+    expect(signRejected).toBe(true);
+  });
+
+  it('signEthMessage rejects immediately when handed an already-aborted signal', async () => {
+    const bridge = makeBridgeStub(async () => new Promise(() => undefined));
+    const provider = new BitboxProvider(bridge as never);
+    (provider as unknown as { transport: object }).transport = {};
+    const ctrl = new AbortController();
+    ctrl.abort();
+    await expect(
+      provider.signEthMessage({
+        chainId: 1n,
+        derivationPath: PATH,
+        message: new Uint8Array([1]),
+        signal: ctrl.signal,
+      }),
+    ).rejects.toBeInstanceOf(HwUserAbortError);
   });
 });
