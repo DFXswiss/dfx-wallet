@@ -1,0 +1,52 @@
+name: bitbox-simulator
+
+# Launches the official BitBox02 simulator
+# (https://github.com/BitBoxSwiss/bitbox02-firmware/releases) and runs
+# the testkit's baseline scenarios against real firmware logic. Linux-
+# only runner; the action skips cleanly on other hosts so the workflow
+# stays a green-or-red signal rather than a flaky "depends on OS" check.
+#
+# What this validates that the existing bitbox-audit workflow does not:
+#   • Real bitbox-api ↔ firmware Noise handshake.
+#   • Real ETHPub / ETHSign* protocol round-trips (not mocked).
+#   • Multi-byte v handling at chainId > 110 (Polygon, Arbitrum, …) —
+#     the CC-5 boundary case.
+#
+# What it still does NOT validate:
+#   • dfx-wallet's USB-HID / BLE transport against real hardware. That
+#     requires a physical BitBox02 or a TCP-to-USB shim.
+#
+# The workflow runs on every PR touching the BitBox surface AND on
+# manual trigger. For ad-hoc validation by a maintainer, the
+# bitbox-simulator-slash.yml workflow handles `/bitbox-simulator`
+# comments.
+
+on:
+  pull_request:
+    paths:
+      - 'src/features/hardware-wallet/**'
+      - 'modules/bitbox-hid/**'
+      - 'test/services/bitbox*.test.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/bitbox-simulator.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: bitbox-simulator-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulator:
+    name: BitBox02 simulator (real firmware)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DFXswiss/bitbox-testkit/.github/actions/bitbox-simulator@a573ab07ad55884005458683cafc153fd0bf3b0a # v0.4.5
+        with:
+          testkit-ref: v0.4.5

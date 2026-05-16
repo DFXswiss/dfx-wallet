@@ -22,7 +22,7 @@ import { dfxUserService } from '@/features/dfx-backend/services';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { useWalletStore } from '@/store';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 const truncate = (addr: string): string =>
   addr.length <= 18 ? addr : `${addr.slice(0, 10)}…${addr.slice(-6)}`;
@@ -62,20 +62,22 @@ function formatRelative(ts: number, now: number): string {
 }
 
 function TransactionRow({ tx, now }: { tx: WalletTransaction; now: number }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const sign = tx.direction === 'send' ? '−' : tx.direction === 'receive' ? '+' : '·';
   const color =
     tx.direction === 'send'
-      ? DfxColors.error
+      ? colors.error
       : tx.direction === 'receive'
-        ? DfxColors.success
-        : DfxColors.text;
+        ? colors.success
+        : colors.text;
   return (
     <View style={styles.txRow}>
       <View style={styles.txIcon}>
         <Icon
           name={tx.direction === 'send' ? 'arrow-up' : 'arrow-down'}
           size={18}
-          color={DfxColors.primary}
+          color={colors.primary}
         />
       </View>
       <View style={styles.txBody}>
@@ -98,6 +100,8 @@ function TransactionRow({ tx, now }: { tx: WalletTransaction; now: number }) {
 }
 
 export default function LinkedWalletDetailScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const params = useLocalSearchParams<{ address: string }>();
   const router = useRouter();
   const { t } = useTranslation();
@@ -230,7 +234,7 @@ export default function LinkedWalletDetailScreen() {
           >
             {loading ? (
               <View style={styles.loadingBlock}>
-                <ActivityIndicator color={DfxColors.primary} />
+                <ActivityIndicator color={colors.primary} />
               </View>
             ) : error ? (
               <Text style={styles.errorText}>{error}</Text>
@@ -249,7 +253,7 @@ export default function LinkedWalletDetailScreen() {
                       {truncate(wallet.address)}
                     </Text>
                     <View style={styles.copyBadge}>
-                      <Icon name="copy" size={14} color={DfxColors.primary} />
+                      <Icon name="copy" size={14} color={colors.primary} />
                       <Text style={styles.copyBadgeText}>
                         {copied ? t('common.copied') : t('common.copy')}
                       </Text>
@@ -268,7 +272,7 @@ export default function LinkedWalletDetailScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={t('buy.title')}
                   >
-                    <Icon name="arrow-down" size={16} color={DfxColors.primary} strokeWidth={2.4} />
+                    <Icon name="arrow-down" size={16} color={colors.primary} strokeWidth={2.4} />
                     <Text style={styles.actionLabel}>{t('buy.title')}</Text>
                   </Pressable>
                   <Pressable
@@ -278,7 +282,7 @@ export default function LinkedWalletDetailScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={t('sell.title')}
                   >
-                    <Icon name="arrow-up" size={16} color={DfxColors.primary} strokeWidth={2.4} />
+                    <Icon name="arrow-up" size={16} color={colors.primary} strokeWidth={2.4} />
                     <Text style={styles.actionLabel}>{t('sell.title')}</Text>
                   </Pressable>
                 </View>
@@ -291,7 +295,7 @@ export default function LinkedWalletDetailScreen() {
                   <Text style={styles.sectionLabel}>{t('linkedWallet.assetsLabel')}</Text>
                   {discoveryLoading && !walletDiscovery ? (
                     <View style={styles.loadingBlock}>
-                      <ActivityIndicator color={DfxColors.primary} />
+                      <ActivityIndicator color={colors.primary} />
                     </View>
                   ) : !walletDiscovery || walletDiscovery.assets.length === 0 ? (
                     <Text style={styles.emptyText}>{t('linkedWallet.assetsEmpty')}</Text>
@@ -330,7 +334,7 @@ export default function LinkedWalletDetailScreen() {
                   <Text style={styles.sectionLabel}>{t('linkedWallet.transactions')}</Text>
                   {txLoading && transactions.length === 0 ? (
                     <View style={styles.loadingBlock}>
-                      <ActivityIndicator color={DfxColors.primary} />
+                      <ActivityIndicator color={colors.primary} />
                     </View>
                   ) : transactions.length === 0 ? (
                     <Text style={styles.emptyText}>{t('linkedWallet.txEmpty')}</Text>
@@ -353,218 +357,219 @@ export default function LinkedWalletDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  bg: {
-    flex: 1,
-    backgroundColor: DfxColors.background,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 32,
-    gap: 18,
-  },
-  loadingBlock: {
-    paddingVertical: 32,
-    alignItems: 'center',
-  },
-  errorText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.error,
-    textAlign: 'center',
-    paddingVertical: 24,
-  },
-  addressCard: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    padding: 18,
-    gap: 10,
-  },
-  addressLabel: {
-    ...Typography.bodySmall,
-    fontWeight: '600',
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  copyBlock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  addressMono: {
-    flex: 1,
-    ...Typography.bodyLarge,
-    fontFamily: 'monospace',
-    color: DfxColors.text,
-  },
-  addressMeta: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-  },
-  copyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    backgroundColor: DfxColors.primaryLight,
-    borderRadius: 999,
-  },
-  copyBadgeText: {
-    ...Typography.bodySmall,
-    color: DfxColors.primary,
-    fontWeight: '600',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  actionPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 22,
-    paddingVertical: 12,
-    backgroundColor: DfxColors.primaryLight,
-    borderRadius: 999,
-  },
-  actionLabel: {
-    ...Typography.bodyMedium,
-    color: DfxColors.primary,
-    fontWeight: '700',
-  },
-  section: {
-    gap: 10,
-  },
-  sectionLabel: {
-    ...Typography.bodySmall,
-    fontWeight: '700',
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    paddingHorizontal: 4,
-  },
-  emptyText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textTertiary,
-    textAlign: 'center',
-    paddingVertical: 24,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-  },
-  assetList: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    overflow: 'hidden',
-  },
-  assetRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: DfxColors.border,
-  },
-  assetMain: {
-    flex: 1,
-    gap: 2,
-  },
-  assetSymbol: {
-    ...Typography.bodyMedium,
-    fontWeight: '700',
-    color: DfxColors.text,
-  },
-  assetMeta: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-  },
-  assetValues: {
-    alignItems: 'flex-end',
-    gap: 2,
-  },
-  assetFiat: {
-    ...Typography.bodyMedium,
-    fontWeight: '700',
-    color: DfxColors.text,
-  },
-  assetAmount: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-  },
-  txList: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    overflow: 'hidden',
-  },
-  txRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: DfxColors.border,
-  },
-  txValues: {
-    alignItems: 'flex-end',
-    gap: 2,
-  },
-  txAmount: {
-    ...Typography.bodyMedium,
-    fontWeight: '700',
-  },
-  txRelative: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-  },
-  txIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  txBody: {
-    flex: 1,
-    gap: 2,
-  },
-  txTitle: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  txHint: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-  },
-  note: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    paddingHorizontal: 4,
-    lineHeight: 18,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    bg: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    safeArea: {
+      flex: 1,
+    },
+    scroll: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      paddingBottom: 32,
+      gap: 18,
+    },
+    loadingBlock: {
+      paddingVertical: 32,
+      alignItems: 'center',
+    },
+    errorText: {
+      ...Typography.bodyMedium,
+      color: colors.error,
+      textAlign: 'center',
+      paddingVertical: 24,
+    },
+    addressCard: {
+      backgroundColor: 'rgba(255,255,255,0.92)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 18,
+      gap: 10,
+    },
+    addressLabel: {
+      ...Typography.bodySmall,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    copyBlock: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+    addressMono: {
+      flex: 1,
+      ...Typography.bodyLarge,
+      fontFamily: 'monospace',
+      color: colors.text,
+    },
+    addressMeta: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+    },
+    copyBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      backgroundColor: colors.primaryLight,
+      borderRadius: 999,
+    },
+    copyBadgeText: {
+      ...Typography.bodySmall,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 10,
+    },
+    actionPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 22,
+      paddingVertical: 12,
+      backgroundColor: colors.primaryLight,
+      borderRadius: 999,
+    },
+    actionLabel: {
+      ...Typography.bodyMedium,
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    section: {
+      gap: 10,
+    },
+    sectionLabel: {
+      ...Typography.bodySmall,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      paddingHorizontal: 4,
+    },
+    emptyText: {
+      ...Typography.bodyMedium,
+      color: colors.textTertiary,
+      textAlign: 'center',
+      paddingVertical: 24,
+      paddingHorizontal: 16,
+      backgroundColor: 'rgba(255,255,255,0.9)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    assetList: {
+      backgroundColor: 'rgba(255,255,255,0.92)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: 'hidden',
+    },
+    assetRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      gap: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    assetMain: {
+      flex: 1,
+      gap: 2,
+    },
+    assetSymbol: {
+      ...Typography.bodyMedium,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    assetMeta: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+    },
+    assetValues: {
+      alignItems: 'flex-end',
+      gap: 2,
+    },
+    assetFiat: {
+      ...Typography.bodyMedium,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    assetAmount: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+    },
+    txList: {
+      backgroundColor: 'rgba(255,255,255,0.92)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: 'hidden',
+    },
+    txRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    txValues: {
+      alignItems: 'flex-end',
+      gap: 2,
+    },
+    txAmount: {
+      ...Typography.bodyMedium,
+      fontWeight: '700',
+    },
+    txRelative: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+    },
+    txIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    txBody: {
+      flex: 1,
+      gap: 2,
+    },
+    txTitle: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    txHint: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+    },
+    note: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+      paddingHorizontal: 4,
+      lineHeight: 18,
+    },
+  });

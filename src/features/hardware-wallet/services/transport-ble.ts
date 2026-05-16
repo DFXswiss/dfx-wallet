@@ -1,74 +1,167 @@
-import { BleManager, Device, type Characteristic } from 'react-native-ble-plx';
+import { BleManager, ConnectionPriority, Device, type Characteristic } from 'react-native-ble-plx';
 import type { BitboxTransport, HardwareWalletDevice } from './types';
+import {
+  BITBOX_NOVA_NOTIFY_CHAR_UUID,
+  BITBOX_NOVA_SERVICE_UUID,
+  BITBOX_NOVA_WRITE_CHAR_UUID,
+  BLE_CHUNK_SIZE,
+  BLE_DEFAULT_MTU,
+  BLE_DEFAULT_READ_TIMEOUT_MS,
+  BLE_DEFAULT_SCAN_TIMEOUT_MS,
+  isBleEnabled,
+  uuidsArePlaceholders,
+} from './ble-config';
+import { HwPermissionDeniedError, HwTransportFailureError } from './errors';
 
 /**
- * BitBox02 Nova BLE service UUIDs.
- *
- * TODO: These need to be verified from BitBox02 Nova specs.
- * The actual UUIDs will be available once the Nova BLE protocol is documented.
- * For now, using placeholder UUIDs — update when BitBox publishes BLE specs.
+ * Shared BleManager. Injectable so multiple features can share a single
+ * native peer or so tests can substitute a fake. The default factory is
+ * lazy: the manager is created on first request rather than on import.
  */
-const BITBOX_NOVA_SERVICE_UUID = '0000bb02-0000-1000-8000-00805f9b34fb';
-const BITBOX_NOVA_WRITE_CHAR_UUID = '0000bb03-0000-1000-8000-00805f9b34fb';
-const BITBOX_NOVA_NOTIFY_CHAR_UUID = '0000bb04-0000-1000-8000-00805f9b34fb';
+let sharedManager: BleManager | null = null;
 
-/** BLE scan timeout in milliseconds */
-const SCAN_TIMEOUT_MS = 10000;
-
-/** Max BLE MTU for data chunks */
-const BLE_CHUNK_SIZE = 128;
-
-let bleManager: BleManager | null = null;
+export function setBleManager(manager: BleManager | null): void {
+  sharedManager = manager;
+}
 
 function getManager(): BleManager {
-  if (!bleManager) {
-    bleManager = new BleManager();
+  if (!sharedManager) {
+    sharedManager = new BleManager();
   }
-  return bleManager;
+  return sharedManager;
 }
 
 /**
  * BLE transport for BitBox02 Nova (Android + iOS).
  *
- * Communication:
- * - Write: split data into BLE MTU-sized chunks, send via write characteristic
- * - Read: subscribe to notify characteristic, buffer incoming data
- * - Protocol on top of raw bytes is identical to USB (Noise XX → Protobuf)
+ * Read queue: BLE notifications can arrive at any time. The class buffers
+ * notifications received without a pending reader, and queues readers
+ * waiting for notifications. A single notification → single reader pairing.
+ * Concurrent read() calls do not lose messages.
  */
 export class BleTransport implements BitboxTransport {
   private device: Device | null = null;
   private writeChar: Characteristic | null = null;
   private readBuffer: Uint8Array[] = [];
-  private readResolve: ((data: Uint8Array) => void) | null = null;
+  private waiters: {
+    resolve: (data: Uint8Array) => void;
+    reject: (err: Error) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }[] = [];
+  private monitorSub: { remove: () => void } | null = null;
+  private readonly readTimeoutMs: number;
+
+  constructor(opts: { readTimeoutMs?: number } = {}) {
+    if (!isBleEnabled()) {
+      throw new HwTransportFailureError(
+        'BLE transport is disabled in this build. Set EXPO_PUBLIC_ENABLE_BITBOX_BLE=true and verify BitBox Nova UUIDs before enabling.',
+      );
+    }
+    // Defence-in-depth: even when the env flag is on, refuse to construct
+    // a transport against placeholder UUIDs. The flag is easy to flip in
+    // dogfood EAS profiles; the UUID-verification step is not, and must
+    // not be silently bypassed.
+    if (uuidsArePlaceholders()) {
+      throw new HwTransportFailureError(
+        'BLE transport refused to start: placeholder UUIDs (BLE_CONFIG_VERSION marks them as unverified). ' +
+          'Replace the placeholder constants in ble-config.ts with audited BitBox Nova UUIDs before enabling BLE.',
+      );
+    }
+    this.readTimeoutMs = opts.readTimeoutMs ?? BLE_DEFAULT_READ_TIMEOUT_MS;
+  }
 
   async connectToDevice(deviceId: string): Promise<void> {
     const manager = getManager();
 
-    this.device = await manager.connectToDevice(deviceId, {
-      requestMTU: 185,
-    });
+    // Idempotency guard (Agent A H-1): if a previous connectToDevice is
+    // still live, close it before establishing a new GATT session so a
+    // double-subscribed notify channel cannot deliver stale frames to
+    // the new reader.
+    if (this.device || this.monitorSub) {
+      await this.close();
+    }
 
-    await this.device.discoverAllServicesAndCharacteristics();
+    try {
+      this.device = await manager.connectToDevice(deviceId, { requestMTU: BLE_DEFAULT_MTU });
+    } catch (err) {
+      throw new HwTransportFailureError(`BLE connect failed: ${describeError(err)}`, asError(err));
+    }
+
+    // Audit CC-19 — LE-SC bonding trade-off.
+    //
+    // react-native-ble-plx (as of 3.x) does NOT expose isBonded() or a
+    // "force bond" method. Bonding on Android is OS-mediated and gets
+    // triggered automatically by the kernel when a peripheral demands
+    // an encrypted characteristic read. iOS handles bonding inside
+    // CoreBluetooth opaquely.
+    //
+    // What we get for free with BitBox02 Nova: the bitbox-api WASM
+    // performs a Noise XX handshake OVER the GATT channel. Noise XX
+    // gives us channel confidentiality + mutual authentication WITHOUT
+    // requiring LE-SC bonding at the kernel layer. The remaining gap
+    // is denial-of-service resistance: an unbonded GATT session lets
+    // a 3rd party send write requests that the BitBox firmware will
+    // reject at the Noise layer, but the GATT stack still accepts.
+    //
+    // The user's channel-hash comparison (CC-4) is the load-bearing
+    // defence — without it, a counterfeit peripheral that fakes the
+    // GATT shape would complete the Noise handshake and present a
+    // fake address. With CC-4 enforced, that attack surfaces as a
+    // hash mismatch on the device display.
+    //
+    // We additionally request HIGH connection priority and a sane
+    // MTU on connect so the channel is configured deterministically.
+    try {
+      await this.device.requestConnectionPriority(ConnectionPriority.High);
+    } catch {
+      // Non-fatal — priority is a hint to the OS, not a hard guarantee.
+      // Continue without it.
+    }
+
+    try {
+      await this.device.discoverAllServicesAndCharacteristics();
+    } catch (err) {
+      throw new HwTransportFailureError(
+        `BLE service discovery failed: ${describeError(err)}`,
+        asError(err),
+      );
+    }
 
     const services = await this.device.services();
-    const bbService = services.find((s) => s.uuid === BITBOX_NOVA_SERVICE_UUID);
-    if (!bbService) throw new Error('BitBox02 Nova BLE service not found');
+    const bbService = services.find(
+      (s) => s.uuid.toLowerCase() === BITBOX_NOVA_SERVICE_UUID.toLowerCase(),
+    );
+    if (!bbService) {
+      throw new HwTransportFailureError('BitBox02 Nova BLE service not found on device');
+    }
 
     const characteristics = await bbService.characteristics();
+    this.writeChar =
+      characteristics.find(
+        (c) => c.uuid.toLowerCase() === BITBOX_NOVA_WRITE_CHAR_UUID.toLowerCase(),
+      ) ?? null;
+    if (!this.writeChar) throw new HwTransportFailureError('Write characteristic not found');
 
-    this.writeChar = characteristics.find((c) => c.uuid === BITBOX_NOVA_WRITE_CHAR_UUID) ?? null;
-    if (!this.writeChar) throw new Error('Write characteristic not found');
+    const notifyChar = characteristics.find(
+      (c) => c.uuid.toLowerCase() === BITBOX_NOVA_NOTIFY_CHAR_UUID.toLowerCase(),
+    );
+    if (!notifyChar) throw new HwTransportFailureError('Notify characteristic not found');
 
-    const notifyChar = characteristics.find((c) => c.uuid === BITBOX_NOVA_NOTIFY_CHAR_UUID);
-    if (!notifyChar) throw new Error('Notify characteristic not found');
-
-    notifyChar.monitor((error, char) => {
-      if (error || !char?.value) return;
+    this.monitorSub = notifyChar.monitor((error, char) => {
+      if (error) {
+        const failure = new HwTransportFailureError(
+          `BLE notify error: ${describeError(error)}`,
+          asError(error),
+        );
+        this.failAllWaiters(failure);
+        return;
+      }
+      if (!char?.value) return;
       const bytes = base64ToBytes(char.value);
-      if (this.readResolve) {
-        const resolve = this.readResolve;
-        this.readResolve = null;
-        resolve(bytes);
+      const waiter = this.waiters.shift();
+      if (waiter) {
+        clearTimeout(waiter.timer);
+        waiter.resolve(bytes);
       } else {
         this.readBuffer.push(bytes);
       }
@@ -76,66 +169,110 @@ export class BleTransport implements BitboxTransport {
   }
 
   async write(data: Uint8Array): Promise<number> {
-    if (!this.writeChar) throw new Error('BLE not connected');
+    if (!this.writeChar)
+      throw new HwTransportFailureError('BLE not connected (no write characteristic)');
 
     let offset = 0;
     while (offset < data.length) {
       const chunk = data.slice(offset, offset + BLE_CHUNK_SIZE);
       const b64 = bytesToBase64(chunk);
-      await this.writeChar.writeWithResponse(b64);
+      try {
+        await this.writeChar.writeWithResponse(b64);
+      } catch (err) {
+        throw new HwTransportFailureError(
+          `BLE write failed at offset ${offset}: ${describeError(err)}`,
+          asError(err),
+        );
+      }
       offset += chunk.length;
     }
     return data.length;
   }
 
   async read(): Promise<Uint8Array> {
-    if (this.readBuffer.length > 0) {
-      return this.readBuffer.shift()!;
-    }
+    const buffered = this.readBuffer.shift();
+    if (buffered) return buffered;
 
     return new Promise<Uint8Array>((resolve, reject) => {
-      this.readResolve = resolve;
-      setTimeout(() => {
-        if (this.readResolve === resolve) {
-          this.readResolve = null;
-          reject(new Error('BLE read timeout'));
-        }
-      }, 10000);
+      const timer = setTimeout(() => {
+        const idx = this.waiters.findIndex((w) => w.resolve === resolve);
+        if (idx >= 0) this.waiters.splice(idx, 1);
+        reject(new HwTransportFailureError(`BLE read timeout after ${this.readTimeoutMs}ms`));
+      }, this.readTimeoutMs);
+      this.waiters.push({ resolve, reject, timer });
     });
   }
 
   async close(): Promise<void> {
+    this.monitorSub?.remove();
+    this.monitorSub = null;
+    this.failAllWaiters(new HwTransportFailureError('transport closed'));
     if (this.device) {
-      await this.device.cancelConnection();
+      try {
+        await this.device.cancelConnection();
+      } catch {
+        // Connection may already be gone — that's the intent of close().
+      }
       this.device = null;
     }
     this.writeChar = null;
     this.readBuffer = [];
-    this.readResolve = null;
+  }
+
+  private failAllWaiters(err: Error): void {
+    for (const w of this.waiters) {
+      clearTimeout(w.timer);
+      w.reject(err);
+    }
+    this.waiters = [];
   }
 }
 
 /**
- * Scan for BitBox02 Nova devices via BLE.
- * Works on both Android and iOS.
+ * Scan for BitBox02 Nova devices via BLE. Returns an empty array (not an
+ * error) when BLE is disabled by build flag, so the UI can simply not show
+ * BLE devices instead of blowing up.
  */
-export async function scanBleDevices(): Promise<HardwareWalletDevice[]> {
+export async function scanBleDevices(
+  opts: { timeoutMs?: number } = {},
+): Promise<HardwareWalletDevice[]> {
+  // Two-layer gate — env-flag AND UUID-verification. Placeholder UUIDs
+  // are never scanned, even if the env flag is on.
+  if (!isBleEnabled() || uuidsArePlaceholders()) return [];
+  const timeoutMs = opts.timeoutMs ?? BLE_DEFAULT_SCAN_TIMEOUT_MS;
+
   const manager = getManager();
   const found: HardwareWalletDevice[] = [];
 
-  return new Promise((resolve) => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const _timeout = setTimeout(() => {
-      void manager.stopDeviceScan();
+  return new Promise((resolve, reject) => {
+    const timeoutHandle = setTimeout(() => {
+      cleanup();
       resolve(found);
-    }, SCAN_TIMEOUT_MS);
+    }, timeoutMs);
+
+    function cleanup() {
+      clearTimeout(timeoutHandle);
+      void manager.stopDeviceScan();
+    }
 
     void manager.startDeviceScan(
       [BITBOX_NOVA_SERVICE_UUID],
       { allowDuplicates: false },
       (error, device) => {
-        if (error || !device) return;
-
+        if (error) {
+          cleanup();
+          // BLE errors are surface-able as Permission or Transport class.
+          // Without a stable error-code surface from react-native-ble-plx
+          // we string-match conservatively here; widen only if real-world
+          // findings warrant.
+          if (/not[ -]?authorized|denied|permission/i.test(error.message ?? '')) {
+            reject(new HwPermissionDeniedError(detectPlatform()));
+            return;
+          }
+          reject(new HwTransportFailureError(`BLE scan failed: ${error.message}`, error as Error));
+          return;
+        }
+        if (!device) return;
         if (!found.some((d) => d.id === device.id)) {
           found.push({
             id: device.id,
@@ -149,21 +286,34 @@ export async function scanBleDevices(): Promise<HardwareWalletDevice[]> {
   });
 }
 
-/** Convert Uint8Array to base64 string */
+function describeError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  return JSON.stringify(err);
+}
+
+function asError(err: unknown): Error | undefined {
+  return err instanceof Error ? err : undefined;
+}
+
+function detectPlatform(): 'android' | 'ios' | 'unknown' {
+  const Platform = (globalThis as { Platform?: { OS?: string } }).Platform;
+  if (Platform?.OS === 'android') return 'android';
+  if (Platform?.OS === 'ios') return 'ios';
+  return 'unknown';
+}
+
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
+  for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
 }
 
-/** Convert base64 string to Uint8Array */
 function base64ToBytes(base64: string): Uint8Array {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
-    // eslint-disable-next-line security/detect-object-injection -- i is bounded by binary.length above
+    // eslint-disable-next-line security/detect-object-injection -- i bounded by binary.length
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;

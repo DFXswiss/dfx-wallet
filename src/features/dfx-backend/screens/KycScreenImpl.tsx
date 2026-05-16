@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -15,7 +15,7 @@ import { useDfxAuth } from '@/hooks';
 import { useKycFlow } from '../useKycFlow';
 import { decodeDfxJwt, DfxApiError, dfxApi, dfxAuthService } from '@/features/dfx-backend/services';
 import { isAllowedDfxHost, isSafeHttpsUrl } from '@/services/security/safe-url';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 /**
  * Try the in-app WebView for KYC URLs whose host is on the DFX-vetted
@@ -46,17 +46,16 @@ const STEP_LABEL_KEYS: Record<string, string> = {
   Ident: 'kyc.ident',
 };
 
+// Status accent colours — semantic, theme-agnostic. Centralised at module
+// scope so the map can be referenced before the component mounts.
 const STATUS_COLORS: Record<string, string> = {
-  Completed: DfxColors.success,
-  InProgress: DfxColors.warning,
-  InReview: DfxColors.info,
-  Failed: DfxColors.error,
-  NotStarted: DfxColors.textTertiary,
-  // DFX returns this when a step that was already done is asking for a
-  // periodic refresh (e.g. Ident expired after N months). The user
-  // historically passed it — coloring it grey-tertiary to signal
-  // "renewal pending, no action blocked yet".
-  Outdated: DfxColors.textTertiary,
+  Completed: '#16A34A',
+  InProgress: '#EAB308',
+  InReview: '#2F7CF7',
+  Failed: '#DC2626',
+  NotStarted: '#8D98AA',
+  // Renewal pending — neutral grey to signal "no action blocked yet".
+  Outdated: '#8D98AA',
 };
 
 /**
@@ -118,6 +117,8 @@ const DFX_LEGAL_DOCUMENTS = [
 ];
 
 export default function KycScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { t } = useTranslation();
   const router = useRouter();
   const {
@@ -320,7 +321,7 @@ export default function KycScreen() {
       <ScreenContainer>
         <AppHeader title={t('kyc.title')} testID="kyc-screen" />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={DfxColors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </ScreenContainer>
     );
@@ -350,10 +351,10 @@ export default function KycScreen() {
           }}
         >
           <View style={styles.documentIcon}>
-            <Icon name="document" size={22} color={DfxColors.primary} />
+            <Icon name="document" size={22} color={colors.primary} />
           </View>
           <Text style={styles.documentTitle}>{t(document.titleKey)}</Text>
-          <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
+          <Icon name="chevron-right" size={18} color={colors.textTertiary} />
         </Pressable>
       ))}
     </View>
@@ -397,7 +398,7 @@ export default function KycScreen() {
                   setPreKycMailRegistered(false);
                 }}
                 placeholder={t('dfxLogin.mailLabel')}
-                placeholderTextColor={DfxColors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -515,7 +516,7 @@ export default function KycScreen() {
               testID="kyc-reauth"
             >
               {isAuthenticating ? (
-                <ActivityIndicator color={DfxColors.white} />
+                <ActivityIndicator color={colors.white} />
               ) : (
                 <Text style={styles.reauthLabel}>{t('wallets.reauthCta')}</Text>
               )}
@@ -543,7 +544,7 @@ export default function KycScreen() {
                   style={[
                     styles.stepDot,
                     {
-                      backgroundColor: STATUS_COLORS[step.status] ?? DfxColors.textTertiary,
+                      backgroundColor: STATUS_COLORS[step.status] ?? colors.textTertiary,
                     },
                   ]}
                 />
@@ -573,7 +574,7 @@ export default function KycScreen() {
                 value={email}
                 onChangeText={setEmail}
                 placeholder={t('dfxLogin.mailLabel')}
-                placeholderTextColor={DfxColors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
@@ -586,21 +587,21 @@ export default function KycScreen() {
                   value={firstName}
                   onChangeText={setFirstName}
                   placeholder={t('kyc.firstName')}
-                  placeholderTextColor={DfxColors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                 />
                 <TextInput
                   style={styles.input}
                   value={lastName}
                   onChangeText={setLastName}
                   placeholder={t('kyc.lastName')}
-                  placeholderTextColor={DfxColors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                 />
                 <TextInput
                   style={styles.input}
                   value={phone}
                   onChangeText={setPhone}
                   placeholder={t('kyc.phone')}
-                  placeholderTextColor={DfxColors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   keyboardType="phone-pad"
                   autoCorrect={false}
                 />
@@ -659,7 +660,7 @@ export default function KycScreen() {
                     value={tfaCode}
                     onChangeText={setTfaCode}
                     placeholder={t('kyc.tfaCodePlaceholder')}
-                    placeholderTextColor={DfxColors.textTertiary}
+                    placeholderTextColor={colors.textTertiary}
                     keyboardType="number-pad"
                     maxLength={6}
                   />
@@ -713,215 +714,216 @@ export default function KycScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingTop: 12,
-    paddingBottom: 32,
-    gap: 16,
-  },
-  preKycContent: {
-    flex: 1,
-    paddingTop: 12,
-    paddingBottom: 28,
-    gap: 20,
-  },
-  progressTrack: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: DfxColors.borderLight,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 2,
-    backgroundColor: DfxColors.primary,
-  },
-  preKycStep: {
-    flex: 1,
-    gap: 16,
-  },
-  preKycTitle: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-  },
-  preKycBody: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    lineHeight: 22,
-  },
-  preKycActions: {
-    flexDirection: 'row',
-    gap: 14,
-  },
-  preKycAction: {
-    flex: 1,
-    minWidth: 0,
-  },
-  documentList: {
-    gap: 10,
-  },
-  documentRow: {
-    minHeight: 58,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    backgroundColor: DfxColors.surface,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 14,
-  },
-  documentIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  documentTitle: {
-    flex: 1,
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  levelCard: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    gap: 4,
-  },
-  levelLabel: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    fontWeight: '600',
-  },
-  levelValue: {
-    ...Typography.headlineLarge,
-    color: DfxColors.primary,
-    fontSize: 56,
-    lineHeight: 64,
-  },
-  tierTitle: {
-    ...Typography.bodyLarge,
-    color: DfxColors.text,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-  tierBody: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-    paddingHorizontal: 8,
-    lineHeight: 20,
-  },
-  sectionLabel: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  stepsContainer: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
-    padding: 16,
-  },
-  stepRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    gap: 12,
-  },
-  stepDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  stepName: {
-    flex: 1,
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-  },
-  stepStatus: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-  },
-  formContainer: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
-  },
-  formTitle: {
-    ...Typography.bodyLarge,
-    color: DfxColors.text,
-    fontWeight: '600',
-  },
-  formDescription: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    lineHeight: 20,
-  },
-  input: {
-    backgroundColor: DfxColors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: DfxColors.border,
-    borderRadius: 12,
-    padding: 14,
-    color: DfxColors.text,
-    ...Typography.bodyLarge,
-  },
-  textButton: {
-    alignSelf: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  textButtonLabel: {
-    ...Typography.bodyMedium,
-    color: DfxColors.primary,
-    fontWeight: '600',
-  },
-  errorText: {
-    ...Typography.bodySmall,
-    color: DfxColors.error,
-    textAlign: 'center',
-  },
-  errorBlock: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
-  },
-  mergedTitle: {
-    ...Typography.bodyLarge,
-    color: DfxColors.text,
-    fontWeight: '700',
-  },
-  helperText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    lineHeight: 20,
-  },
-  reauthBtn: {
-    backgroundColor: DfxColors.primary,
-    borderRadius: 999,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  reauthLabel: {
-    ...Typography.bodyMedium,
-    fontWeight: '700',
-    color: DfxColors.white,
-  },
-  pressed: { opacity: 0.7 },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      paddingTop: 12,
+      paddingBottom: 32,
+      gap: 16,
+    },
+    preKycContent: {
+      flex: 1,
+      paddingTop: 12,
+      paddingBottom: 28,
+      gap: 20,
+    },
+    progressTrack: {
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.borderLight,
+      overflow: 'hidden',
+    },
+    progressFill: {
+      height: '100%',
+      borderRadius: 2,
+      backgroundColor: colors.primary,
+    },
+    preKycStep: {
+      flex: 1,
+      gap: 16,
+    },
+    preKycTitle: {
+      ...Typography.headlineSmall,
+      color: colors.text,
+    },
+    preKycBody: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      lineHeight: 22,
+    },
+    preKycActions: {
+      flexDirection: 'row',
+      gap: 14,
+    },
+    preKycAction: {
+      flex: 1,
+      minWidth: 0,
+    },
+    documentList: {
+      gap: 10,
+    },
+    documentRow: {
+      minHeight: 58,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 14,
+    },
+    documentIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    documentTitle: {
+      flex: 1,
+      ...Typography.bodyMedium,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    loadingContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    levelCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 20,
+      alignItems: 'center',
+      gap: 4,
+    },
+    levelLabel: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      fontWeight: '600',
+    },
+    levelValue: {
+      ...Typography.headlineLarge,
+      color: colors.primary,
+      fontSize: 56,
+      lineHeight: 64,
+    },
+    tierTitle: {
+      ...Typography.bodyLarge,
+      color: colors.text,
+      fontWeight: '700',
+      marginTop: 4,
+    },
+    tierBody: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      paddingHorizontal: 8,
+      lineHeight: 20,
+    },
+    sectionLabel: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      fontWeight: '600',
+      marginBottom: 8,
+    },
+    stepsContainer: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 16,
+    },
+    stepRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 10,
+      gap: 12,
+    },
+    stepDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+    },
+    stepName: {
+      flex: 1,
+      ...Typography.bodyMedium,
+      color: colors.text,
+    },
+    stepStatus: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+    },
+    formContainer: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 16,
+      gap: 12,
+    },
+    formTitle: {
+      ...Typography.bodyLarge,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    formDescription: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      lineHeight: 20,
+    },
+    input: {
+      backgroundColor: colors.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      borderRadius: 12,
+      padding: 14,
+      color: colors.text,
+      ...Typography.bodyLarge,
+    },
+    textButton: {
+      alignSelf: 'center',
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+    },
+    textButtonLabel: {
+      ...Typography.bodyMedium,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    errorText: {
+      ...Typography.bodySmall,
+      color: colors.error,
+      textAlign: 'center',
+    },
+    errorBlock: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 16,
+      gap: 12,
+    },
+    mergedTitle: {
+      ...Typography.bodyLarge,
+      color: colors.text,
+      fontWeight: '700',
+    },
+    helperText: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      lineHeight: 20,
+    },
+    reauthBtn: {
+      backgroundColor: colors.primary,
+      borderRadius: 999,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    reauthLabel: {
+      ...Typography.bodyMedium,
+      fontWeight: '700',
+      color: colors.white,
+    },
+    pressed: { opacity: 0.7 },
+  });

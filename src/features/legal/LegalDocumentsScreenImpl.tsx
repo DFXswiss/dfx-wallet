@@ -1,8 +1,9 @@
+import { useMemo } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, Icon, ScreenContainer } from '@/components';
 import { isAllowedDfxHost } from '@/services/security/safe-url';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 /**
  * Native legal-documents index. Mirrors realunit-app's `legal_documents_config.dart`:
@@ -34,6 +35,8 @@ const LEGAL_LINKS: { id: string; titleKey: string; url: string }[] = [
 ];
 
 export default function LegalIndexScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { t } = useTranslation();
 
   const open = async (url: string) => {
@@ -61,10 +64,10 @@ export default function LegalIndexScreen() {
               testID={`legal-${entry.id}`}
             >
               <View style={styles.iconBubble}>
-                <Icon name="document" size={20} color={DfxColors.primary} strokeWidth={2.2} />
+                <Icon name="document" size={20} color={colors.primary} strokeWidth={2.2} />
               </View>
               <Text style={styles.rowTitle}>{t(entry.titleKey)}</Text>
-              <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
+              <Icon name="chevron-right" size={18} color={colors.textTertiary} />
             </Pressable>
           ))}
         </View>
@@ -73,48 +76,49 @@ export default function LegalIndexScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingTop: 12,
-    paddingBottom: 32,
-    gap: 16,
-  },
-  intro: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    lineHeight: 20,
-  },
-  list: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    gap: 12,
-  },
-  rowDivider: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: DfxColors.border,
-  },
-  iconBubble: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowTitle: {
-    flex: 1,
-    ...Typography.bodyLarge,
-    color: DfxColors.text,
-    fontWeight: '500',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      paddingTop: 12,
+      paddingBottom: 32,
+      gap: 16,
+    },
+    intro: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      lineHeight: 20,
+    },
+    list: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      overflow: 'hidden',
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 14,
+      gap: 12,
+    },
+    rowDivider: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    iconBubble: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    rowTitle: {
+      flex: 1,
+      ...Typography.bodyLarge,
+      color: colors.text,
+      fontWeight: '500',
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+  });

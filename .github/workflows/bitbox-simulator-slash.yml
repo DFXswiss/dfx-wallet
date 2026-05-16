@@ -1,0 +1,91 @@
+name: bitbox-simulator (slash)
+
+# Comment "/bitbox-simulator" on a PR to launch the official BitBox02
+# simulator and run the testkit's baseline scenarios against real
+# firmware logic on demand. Same engine as bitbox-simulator.yml but
+# user-triggered instead of path-triggered.
+#
+# Variants:
+#   /bitbox-simulator            — defaults (testkit v0.4.5)
+#   /bitbox-simulator ref=main   — bleeding-edge scenarios
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: bitbox-simulator-slash-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    if: >
+      github.event.issue.pull_request != null &&
+      startsWith(github.event.comment.body, '/bitbox-simulator')
+    runs-on: ubuntu-latest
+    outputs:
+      authorized: ${{ steps.authz.outputs.authorized }}
+      sha: ${{ steps.parse.outputs.sha }}
+      testkit-ref: ${{ steps.parse.outputs.testkit_ref }}
+    steps:
+      - name: Authorization
+        id: authz
+        uses: actions/github-script@v7
+        env:
+          ASSOC: ${{ github.event.comment.author_association }}
+          ACTOR: ${{ github.event.comment.user.login }}
+        with:
+          script: |
+            const allowed = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+            const ok = allowed.includes(process.env.ASSOC);
+            core.setOutput('authorized', ok ? 'true' : 'false');
+            if (!ok) {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: context.issue.number,
+                body: `:no_entry_sign: \`@${process.env.ACTOR}\` is not authorized to run \`/bitbox-simulator\`.`,
+              });
+            }
+
+      - name: Parse command + resolve PR head
+        id: parse
+        if: steps.authz.outputs.authorized == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = (context.payload.comment.body || '').trim();
+            const args = body.replace(/^\/bitbox-simulator\s*/, '').split(/\s+/).filter(Boolean);
+            let testkitRef = 'v0.4.5';
+            for (const tok of args) {
+              const [k, v] = tok.split('=');
+              if (k === 'ref' && v) testkitRef = v;
+            }
+            const { data: pr } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: context.issue.number,
+            });
+            core.setOutput('sha', pr.head.sha);
+            core.setOutput('testkit_ref', testkitRef);
+            await github.rest.reactions.createForIssueComment({
+              ...context.repo,
+              comment_id: context.payload.comment.id,
+              content: 'rocket',
+            });
+
+  simulator:
+    needs: guard
+    if: needs.guard.outputs.authorized == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.guard.outputs.sha }}
+      - uses: DFXswiss/bitbox-testkit/.github/actions/bitbox-simulator@a573ab07ad55884005458683cafc153fd0bf3b0a # v0.4.5
+        with:
+          testkit-ref: ${{ needs.guard.outputs.testkit-ref }}

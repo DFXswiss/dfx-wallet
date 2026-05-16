@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import type { ChainId } from '@/config/chains';
 import type { DfxAuthGateState } from '@/features/dfx-backend/services';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 import { Icon } from '@/components/Icon';
 import { PrimaryButton } from '@/components/PrimaryButton';
 
@@ -32,6 +32,8 @@ type Props = {
 export function DfxAuthGate({ gate, onClose, onLinkChain }: Props) {
   const { t } = useTranslation();
   const router = useRouter();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,7 +83,7 @@ export function DfxAuthGate({ gate, onClose, onLinkChain }: Props) {
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <View style={styles.iconCircle}>
-            <Icon name="shield" size={28} color={DfxColors.white} strokeWidth={2.5} />
+            <Icon name="shield" size={28} color={colors.white} strokeWidth={2.5} />
           </View>
           <Text style={styles.title}>{t(titleKey, { chain: chainLabel })}</Text>
           <Text style={styles.body}>{t(bodyKey, { chain: chainLabel })}</Text>
@@ -104,57 +106,58 @@ export function DfxAuthGate({ gate, onClose, onLinkChain }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(11, 20, 38, 0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  card: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 24,
-    padding: 24,
-    alignItems: 'center',
-    gap: 12,
-    width: '100%',
-    maxWidth: 380,
-  },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: DfxColors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-    textAlign: 'center',
-  },
-  body: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-    paddingHorizontal: 4,
-  },
-  errorText: {
-    ...Typography.bodySmall,
-    color: DfxColors.error,
-    textAlign: 'center',
-  },
-  actions: {
-    width: '100%',
-    gap: 10,
-    marginTop: 8,
-  },
-  cancelButton: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textTertiary,
-    textAlign: 'center',
-    paddingVertical: 8,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(11, 20, 38, 0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: 24,
+      padding: 24,
+      alignItems: 'center',
+      gap: 12,
+      width: '100%',
+      maxWidth: 380,
+    },
+    iconCircle: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    title: {
+      ...Typography.headlineSmall,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    body: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 22,
+      paddingHorizontal: 4,
+    },
+    errorText: {
+      ...Typography.bodySmall,
+      color: colors.error,
+      textAlign: 'center',
+    },
+    actions: {
+      width: '100%',
+      gap: 10,
+      marginTop: 8,
+    },
+    cancelButton: {
+      ...Typography.bodyMedium,
+      color: colors.textTertiary,
+      textAlign: 'center',
+      paddingVertical: 8,
+    },
+  });

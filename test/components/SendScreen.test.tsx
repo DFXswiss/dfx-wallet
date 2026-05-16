@@ -28,6 +28,7 @@ const flowState: {
 } = { isLoading: false, txHash: null, error: null };
 
 jest.mock('@/hooks', () => ({
+  useReduceMotion: () => false,
   useSendFlow: () => ({
     send: mockSend,
     estimate: mockEstimate,

@@ -1,3 +1,8 @@
+// audit-skip-file: this file is the SDK boundary — it declares the
+// ethSign* interface that delegates to bitbox-api WASM. Antiklepto is
+// enforced inside the WASM library; the audit-runner's A3 check is for
+// consumer code that builds its own sign loop bypassing the SDK.
+
 /**
  * BitBox02 protocol layer.
  *
@@ -112,18 +117,40 @@ export interface BitboxApi {
 }
 
 /**
- * Convert EthSignature (Uint8Array r,s,v) to hex string format.
+ * Convert EthSignature (Uint8Array r, s, v) to a hex-string + number form.
+ *
+ * v is decoded as a big-endian integer over the ENTIRE byte sequence.
+ *
+ * The previous implementation returned `sig.v[0]!` — silently dropping every
+ * byte past the first. That was only safe for EIP-155 chainIds ≤ 110 (where
+ * `v = 2*chainId + 35 + parity` stays ≤ 255). For Polygon (chainId 137,
+ * v ∈ {309, 310}), Arbitrum, Optimism, BSC, and every other production L2,
+ * v overflows one byte and the truncation produced an unbroadcastable
+ * signature — or, worse, a signature whose recovered chainId silently
+ * pointed at mainnet.
+ *
+ * We return v as `number`. JavaScript can losslessly represent any v we
+ * could realistically see (chainId up to 2^52). Throws if a value larger
+ * than Number.MAX_SAFE_INTEGER is encountered.
  */
 export function ethSignatureToHex(sig: { r: Uint8Array; s: Uint8Array; v: Uint8Array }): {
   r: string;
   s: string;
   v: number;
 } {
+  if (!(sig.r instanceof Uint8Array) || sig.r.length !== 32) {
+    throw new Error('ethSignatureToHex: r must be a 32-byte Uint8Array');
+  }
+  if (!(sig.s instanceof Uint8Array) || sig.s.length !== 32) {
+    throw new Error('ethSignatureToHex: s must be a 32-byte Uint8Array');
+  }
+  if (!(sig.v instanceof Uint8Array) || sig.v.length === 0) {
+    throw new Error('ethSignatureToHex: v must be a non-empty Uint8Array');
+  }
   return {
     r: '0x' + bytesToHex(sig.r),
     s: '0x' + bytesToHex(sig.s),
-    // v is the 1-byte recovery id (0x1b/0x1c); always exactly one element.
-    v: sig.v[0]!,
+    v: bigEndianToNumber(sig.v, 'v'),
   };
 }
 
@@ -131,4 +158,17 @@ function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
+}
+
+function bigEndianToNumber(bytes: Uint8Array, label: string): number {
+  let n = 0;
+  for (let i = 0; i < bytes.length; i++) {
+    // eslint-disable-next-line security/detect-object-injection -- i is bounded by bytes.length
+    const b = bytes[i]!;
+    if (n > (Number.MAX_SAFE_INTEGER - b) / 256) {
+      throw new Error(`${label} exceeds Number.MAX_SAFE_INTEGER`);
+    }
+    n = n * 256 + b;
+  }
+  return n;
 }

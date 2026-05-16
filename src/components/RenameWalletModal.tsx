@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -11,19 +11,12 @@ import {
   View,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type Props = {
   visible: boolean;
-  /** Current value displayed in the input on open. Empty string falls back
-   *  to placeholder so the user types a fresh name without first having to
-   *  clear the default. */
   initialName: string;
-  /** Default name shown as placeholder so the user can preview the
-   *  fallback they'd get by leaving the input blank. */
   defaultName: string;
-  /** Truncated address shown beneath the input as context — important when
-   *  the user has multiple wallets on the same chain. */
   walletAddressShort: string;
   loading?: boolean;
   onSave: (name: string) => void;
@@ -31,12 +24,8 @@ type Props = {
 };
 
 /**
- * Inline rename dialog for a DFX-linked wallet. Designed to mirror the
- * existing `ConfirmTargetWalletModal` aesthetic so the Settings flow
- * stays visually coherent — same overlay, card radius, button pair.
- *
- * Saving an empty string is treated as "reset to default" so the user can
- * undo a rename without retyping the blockchain-derived label.
+ * Inline rename dialog for a DFX-linked wallet. Mirrors the
+ * `ConfirmTargetWalletModal` aesthetic for cross-modal consistency.
  */
 export function RenameWalletModal({
   visible,
@@ -48,11 +37,10 @@ export function RenameWalletModal({
   onClose,
 }: Props) {
   const { t } = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [value, setValue] = useState(initialName);
 
-  // Re-seed the input every time the modal re-opens. Without this, a second
-  // rename attempt on the same screen would reuse whatever the user last
-  // typed (even after Cancel) instead of the wallet's current saved name.
   useEffect(() => {
     if (visible) setValue(initialName);
   }, [visible, initialName]);
@@ -78,7 +66,7 @@ export function RenameWalletModal({
             value={value}
             onChangeText={setValue}
             placeholder={defaultName}
-            placeholderTextColor={DfxColors.textTertiary}
+            placeholderTextColor={colors.textTertiary}
             style={styles.input}
             autoFocus
             returnKeyType="done"
@@ -117,7 +105,7 @@ export function RenameWalletModal({
               testID="rename-wallet-save"
             >
               {loading ? (
-                <ActivityIndicator color={DfxColors.white} />
+                <ActivityIndicator color={colors.white} />
               ) : (
                 <Text style={[styles.buttonLabel, styles.buttonPrimaryLabel]}>
                   {t('common.save')}
@@ -131,76 +119,77 @@ export function RenameWalletModal({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(11, 20, 38, 0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 380,
-    backgroundColor: DfxColors.surface,
-    borderRadius: 20,
-    padding: 22,
-    gap: 14,
-  },
-  title: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-  },
-  body: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    lineHeight: 22,
-  },
-  input: {
-    ...Typography.bodyLarge,
-    backgroundColor: DfxColors.background,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: DfxColors.text,
-    borderWidth: 1.5,
-    borderColor: DfxColors.border,
-  },
-  address: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    fontFamily: 'monospace',
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  button: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonGhost: {
-    backgroundColor: DfxColors.background,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-  },
-  buttonPrimary: {
-    backgroundColor: DfxColors.primary,
-  },
-  buttonLabel: {
-    ...Typography.bodyMedium,
-    fontWeight: '700',
-  },
-  buttonGhostLabel: {
-    color: DfxColors.textSecondary,
-  },
-  buttonPrimaryLabel: {
-    color: DfxColors.white,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+    },
+    card: {
+      width: '100%',
+      maxWidth: 380,
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      padding: 22,
+      gap: 14,
+    },
+    title: {
+      ...Typography.headlineSmall,
+      color: colors.text,
+    },
+    body: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      lineHeight: 22,
+    },
+    input: {
+      ...Typography.bodyLarge,
+      backgroundColor: colors.surfaceLight,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      color: colors.text,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+    },
+    address: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      fontFamily: 'monospace',
+    },
+    actions: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    button: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 999,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    buttonGhost: {
+      backgroundColor: colors.surfaceLight,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    buttonPrimary: {
+      backgroundColor: colors.primary,
+    },
+    buttonLabel: {
+      ...Typography.bodyMedium,
+      fontWeight: '700',
+    },
+    buttonGhostLabel: {
+      color: colors.textSecondary,
+    },
+    buttonPrimaryLabel: {
+      color: colors.white,
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+  });

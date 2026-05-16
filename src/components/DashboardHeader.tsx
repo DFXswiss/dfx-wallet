@@ -1,6 +1,8 @@
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { useMemo } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { BrandLogo } from './BrandLogo';
 import { Icon } from './Icon';
-import { DfxColors } from '@/theme';
+import { useColors, type ThemeColors } from '@/theme';
 
 type Props = {
   onMenuPress?: (() => void) | undefined;
@@ -8,6 +10,8 @@ type Props = {
 };
 
 export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.container}>
       {onShieldPress ? (
@@ -19,17 +23,12 @@ export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
           style={styles.iconButton}
           testID="dashboard-shield-button"
         >
-          <Icon name="shield" size={26} color={DfxColors.primary} strokeWidth={2.5} />
+          <Icon name="shield" size={26} color={colors.primary} strokeWidth={2.5} />
         </Pressable>
       ) : (
         <View style={styles.iconPlaceholder} pointerEvents="none" />
       )}
-      <Image
-        source={require('../../assets/dfx-logo.png')}
-        style={styles.logo}
-        resizeMode="contain"
-        accessibilityLabel="DFX"
-      />
+      <BrandLogo size="header" />
       {onMenuPress ? (
         <Pressable
           accessibilityRole="button"
@@ -39,7 +38,7 @@ export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
           style={styles.iconButton}
           testID="dashboard-menu-button"
         >
-          <Icon name="menu" size={26} color={DfxColors.primary} strokeWidth={2.5} />
+          <Icon name="menu" size={26} color={colors.primary} strokeWidth={2.5} />
         </Pressable>
       ) : (
         <View style={styles.iconPlaceholder} pointerEvents="none" />
@@ -48,35 +47,34 @@ export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 6,
-    paddingBottom: 12,
-  },
-  iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.84)',
-    borderWidth: 1,
-    borderColor: 'rgba(221,229,240,0.88)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#0B1426',
-    shadowOpacity: 0.07,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
-  },
-  iconPlaceholder: {
-    width: 44,
-    height: 44,
-  },
-  logo: {
-    height: 32,
-    width: 116,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      // Buffer below the Dynamic Island / camera cutout so the icon
+      // buttons don't visually collide with the status bar on Pro Max.
+      paddingTop: 16,
+      paddingBottom: 12,
+    },
+    iconButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: colors.cardOverlay,
+      borderWidth: 1,
+      borderColor: colors.cardOverlayBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.07,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 2,
+    },
+    iconPlaceholder: {
+      width: 44,
+      height: 44,
+    },
+  });

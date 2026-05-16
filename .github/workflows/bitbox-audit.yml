@@ -1,0 +1,59 @@
+name: bitbox-audit
+
+# Runs the BitBox firmware-quirk audit
+# (https://github.com/DFXswiss/bitbox-testkit) against every PR
+# that touches BitBox-relevant code. The work happens inside the testkit's
+# composite action so a regression in audit semantics ships once via a
+# testkit tag bump; this workflow stays a thin caller.
+
+on:
+  pull_request:
+    paths:
+      - 'src/features/hardware-wallet/**'
+      - 'modules/bitbox-hid/**'
+      - 'test/services/bitbox*.test.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/bitbox-audit.yml'
+  # Manual trigger lets maintainers re-run the audit after a testkit
+  # release without pushing an unrelated commit just to re-fetch.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write   # to post the findings comment
+
+concurrency:
+  group: bitbox-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: scan for known firmware quirks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Supply-chain gate. Downloads the bitbox-api npm tarball, verifies
+      # tarball-level SHA-256 against the pinned value (catches a tampered
+      # registry response), extracts, then verifies each file's SHA-256
+      # against the pinned value. Fails the job loudly on mismatch — that
+      # is a supply-chain alarm, not a flaky CI step.
+      #
+      # The pinned hashes live in scripts/setup-bitbox-wasm.sh; bumping
+      # bitbox-api requires capturing new hashes AND code-reviewing the
+      # upstream commit range before pinning.
+      - name: Stage + verify bitbox-api WASM (supply-chain gate)
+        run: |
+          bash scripts/setup-bitbox-wasm.sh --apply
+          bash scripts/setup-bitbox-wasm.sh --check
+
+      - uses: DFXswiss/bitbox-testkit/.github/actions/bitbox-audit@a573ab07ad55884005458683cafc153fd0bf3b0a # v0.4.5
+        with:
+          # dfx-wallet uses Jest projects; the audit's Jest run needs
+          # --selectProjects unit so the React Native + e2e projects
+          # don't fight for the same runner.
+          jest-extra-args: '--selectProjects unit'
+          jest-pattern: 'test/services/bitbox.*\.test\.ts'
+          testkit-ref: v0.4.5

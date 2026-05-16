@@ -1,9 +1,10 @@
+import { useMemo } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, Icon, ScreenContainer } from '@/components';
 import { isAllowedDfxHost, isSafeHttpsUrl } from '@/services/security/safe-url';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 /**
  * Native contact screen — no in-app WebView, just hand-offs to the OS:
@@ -51,6 +52,8 @@ const CHANNELS: Channel[] = [
 ];
 
 export default function ContactScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
 
@@ -93,18 +96,13 @@ export default function ContactScreen() {
               testID={`contact-${c.id}`}
             >
               <View style={styles.iconBubble}>
-                <Icon
-                  name={iconFor(c.kind)}
-                  size={20}
-                  color={DfxColors.primary}
-                  strokeWidth={2.2}
-                />
+                <Icon name={iconFor(c.kind)} size={20} color={colors.primary} strokeWidth={2.2} />
               </View>
               <View style={styles.rowBody}>
                 <Text style={styles.rowTitle}>{t(c.titleKey)}</Text>
                 <Text style={styles.rowSubtitle}>{c.subtitle}</Text>
               </View>
-              <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
+              <Icon name="chevron-right" size={18} color={colors.textTertiary} />
             </Pressable>
           ))}
         </View>
@@ -119,55 +117,56 @@ function iconFor(kind: Channel['kind']): 'support' | 'document' | 'wallet' {
   return 'wallet';
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingTop: 12,
-    paddingBottom: 32,
-    gap: 16,
-  },
-  intro: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    lineHeight: 20,
-  },
-  list: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    gap: 12,
-  },
-  rowDivider: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: DfxColors.border,
-  },
-  iconBubble: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowBody: {
-    flex: 1,
-    gap: 2,
-  },
-  rowTitle: {
-    ...Typography.bodyLarge,
-    color: DfxColors.text,
-    fontWeight: '500',
-  },
-  rowSubtitle: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      paddingTop: 12,
+      paddingBottom: 32,
+      gap: 16,
+    },
+    intro: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      lineHeight: 20,
+    },
+    list: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      overflow: 'hidden',
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 14,
+      gap: 12,
+    },
+    rowDivider: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    iconBubble: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    rowBody: {
+      flex: 1,
+      gap: 2,
+    },
+    rowTitle: {
+      ...Typography.bodyLarge,
+      color: colors.text,
+      fontWeight: '500',
+    },
+    rowSubtitle: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+  });

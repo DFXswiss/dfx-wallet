@@ -33,6 +33,7 @@ jest.mock('@tetherto/wdk-react-native-core', () => ({
   useAccount: jest.fn(() => ({ address: mockAccountAddress.current })),
 }));
 jest.mock('@/hooks', () => ({
+  useReduceMotion: () => false,
   useLdsWallet: () => ({
     user: mockLdsUser.current,
     isLoading: false,

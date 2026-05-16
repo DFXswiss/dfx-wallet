@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { ScreenContainer, PrimaryButton } from '@/components';
 import { seedToWords } from '@/services/wallet';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 const VERIFY_COUNT = 4;
 
@@ -35,6 +35,8 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 export default function VerifySeedScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
   const { seed } = useLocalSearchParams<{ seed: string }>();
@@ -169,75 +171,76 @@ export default function VerifySeedScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    flex: 1,
-    paddingVertical: 24,
-    gap: 24,
-  },
-  title: {
-    ...Typography.headlineMedium,
-    color: DfxColors.text,
-  },
-  description: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-  },
-  progress: {
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'center',
-  },
-  progressDot: {
-    width: 32,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: DfxColors.surfaceLight,
-  },
-  progressComplete: {
-    backgroundColor: DfxColors.success,
-  },
-  progressActive: {
-    backgroundColor: DfxColors.primary,
-  },
-  wordNumber: {
-    alignSelf: 'center',
-    backgroundColor: DfxColors.surface,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 24,
-  },
-  wordNumberText: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-  },
-  options: {
-    gap: 12,
-  },
-  option: {
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: DfxColors.surface,
-    alignItems: 'center',
-  },
-  optionCorrect: {
-    backgroundColor: DfxColors.success,
-  },
-  optionError: {
-    backgroundColor: DfxColors.error,
-  },
-  optionText: {
-    ...Typography.bodyLarge,
-    color: DfxColors.text,
-    fontWeight: '600',
-  },
-  optionTextCorrect: {
-    color: DfxColors.black,
-  },
-  optionTextError: {
-    color: DfxColors.white,
-  },
-  spacer: {
-    flex: 1,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      flex: 1,
+      paddingVertical: 24,
+      gap: 24,
+    },
+    title: {
+      ...Typography.headlineMedium,
+      color: colors.text,
+    },
+    description: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+    },
+    progress: {
+      flexDirection: 'row',
+      gap: 8,
+      justifyContent: 'center',
+    },
+    progressDot: {
+      width: 32,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.surfaceLight,
+    },
+    progressComplete: {
+      backgroundColor: colors.success,
+    },
+    progressActive: {
+      backgroundColor: colors.primary,
+    },
+    wordNumber: {
+      alignSelf: 'center',
+      backgroundColor: colors.surface,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderRadius: 24,
+    },
+    wordNumberText: {
+      ...Typography.headlineSmall,
+      color: colors.text,
+    },
+    options: {
+      gap: 12,
+    },
+    option: {
+      padding: 16,
+      borderRadius: 12,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+    },
+    optionCorrect: {
+      backgroundColor: colors.success,
+    },
+    optionError: {
+      backgroundColor: colors.error,
+    },
+    optionText: {
+      ...Typography.bodyLarge,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    optionTextCorrect: {
+      color: colors.black,
+    },
+    optionTextError: {
+      color: colors.white,
+    },
+    spacer: {
+      flex: 1,
+    },
+  });

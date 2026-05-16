@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -13,7 +13,7 @@ import {
 } from '@/features/passkey/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { seedToWords } from '@/services/wallet';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 /**
  * Soft import for expo-screen-capture — the native module isn't linked yet
@@ -36,6 +36,8 @@ try {
 }
 
 export default function SeedExportScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { t } = useTranslation();
   const router = useRouter();
   const [walletOrigin, setWalletOrigin] = useState<string | null>(null);
@@ -185,85 +187,86 @@ export default function SeedExportScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    paddingTop: 4,
-    paddingBottom: 32,
-  },
-  content: {
-    paddingTop: 24,
-    gap: 24,
-  },
-  title: {
-    ...Typography.headlineMedium,
-    color: DfxColors.text,
-  },
-  description: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-  },
-  revealButton: {
-    padding: 48,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  revealButtonDisabled: {
-    opacity: 0.5,
-  },
-  revealText: {
-    ...Typography.bodyLarge,
-    color: DfxColors.primary,
-    fontWeight: '600',
-  },
-  warningContainer: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.warning,
-    padding: 16,
-  },
-  warningText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.warning,
-  },
-  seedContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  wordCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 6,
-    minWidth: '30%',
-  },
-  wordIndex: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    width: 24,
-  },
-  word: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-  },
-  copyButton: {
-    alignSelf: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  copyText: {
-    ...Typography.bodySmall,
-    color: DfxColors.primary,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    screen: {
+      paddingTop: 4,
+      paddingBottom: 32,
+    },
+    content: {
+      paddingTop: 24,
+      gap: 24,
+    },
+    title: {
+      ...Typography.headlineMedium,
+      color: colors.text,
+    },
+    description: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+    },
+    revealButton: {
+      padding: 48,
+      borderRadius: 12,
+      backgroundColor: 'rgba(255,255,255,0.9)',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderStyle: 'dashed',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    revealButtonDisabled: {
+      opacity: 0.5,
+    },
+    revealText: {
+      ...Typography.bodyLarge,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    warningContainer: {
+      backgroundColor: 'rgba(255,255,255,0.9)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.warning,
+      padding: 16,
+    },
+    warningText: {
+      ...Typography.bodyMedium,
+      color: colors.warning,
+    },
+    seedContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    wordCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(255,255,255,0.92)',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 6,
+      minWidth: '30%',
+    },
+    wordIndex: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+      width: 24,
+    },
+    word: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+    },
+    copyButton: {
+      alignSelf: 'center',
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+    },
+    copyText: {
+      ...Typography.bodySmall,
+      color: colors.primary,
+    },
+  });

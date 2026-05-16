@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -11,9 +11,11 @@ import {
   PrimaryButton,
 } from '@/components';
 import { authenticatePasskey, setupPasskeyWallet, PasskeyPrfUnsupportedError } from './services';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 export default function RestorePasskeyScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
   const { restoreWallet } = useWalletManager();
@@ -74,29 +76,30 @@ export default function RestorePasskeyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingTop: 4,
-    paddingBottom: 24,
-    gap: 24,
-  },
-  description: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-  },
-  infoContainer: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    padding: 18,
-  },
-  infoText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-  },
-  spacer: {
-    flex: 1,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      paddingTop: 4,
+      paddingBottom: 24,
+      gap: 24,
+    },
+    description: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    infoContainer: {
+      backgroundColor: 'rgba(255,255,255,0.9)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 18,
+    },
+    infoText: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+    },
+    spacer: {
+      flex: 1,
+    },
+  });

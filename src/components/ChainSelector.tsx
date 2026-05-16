@@ -1,6 +1,7 @@
+import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import type { ChainId } from '@/config/chains';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type Props = {
   selected: ChainId;
@@ -18,6 +19,8 @@ const CHAIN_INFO: Record<string, { label: string; short: string }> = {
 const DEFAULT_CHAINS: ChainId[] = ['ethereum', 'arbitrum', 'polygon', 'spark'];
 
 export function ChainSelector({ selected, onSelect, chains = DEFAULT_CHAINS }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <ScrollView
       horizontal
@@ -45,26 +48,27 @@ export function ChainSelector({ selected, onSelect, chains = DEFAULT_CHAINS }: P
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: 8,
-    paddingVertical: 4,
-  },
-  chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: DfxColors.surface,
-  },
-  chipSelected: {
-    backgroundColor: DfxColors.primary,
-  },
-  chipText: {
-    ...Typography.bodySmall,
-    fontWeight: '600',
-    color: DfxColors.textSecondary,
-  },
-  chipTextSelected: {
-    color: DfxColors.white,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      gap: 8,
+      paddingVertical: 4,
+    },
+    chip: {
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 20,
+      backgroundColor: colors.surface,
+    },
+    chipSelected: {
+      backgroundColor: colors.primary,
+    },
+    chipText: {
+      ...Typography.bodySmall,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    chipTextSelected: {
+      color: colors.white,
+    },
+  });

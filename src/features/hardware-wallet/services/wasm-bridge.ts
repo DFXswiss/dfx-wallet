@@ -1,192 +1,421 @@
 /**
  * WebView WASM Bridge for bitbox-api.
  *
- * Strategy: Run bitbox-api WASM inside a hidden WebView (which has native
- * WASM support via WKWebView/Chrome). Communicate between React Native
- * and the WebView via postMessage/onMessage.
+ * Runs the Rust/WASM bitbox-api inside a hidden WebView. React Native talks
+ * to it via a strict message protocol with a per-session nonce, a typed
+ * request/response envelope, and a "wasm_ready" handshake the RN side waits
+ * on before issuing any calls.
  *
  * Architecture:
- * ┌─────────────────────┐         ┌──────────────────────────┐
- * │  React Native       │ ◄─────► │  Hidden WebView          │
- * │  (BitboxProvider)   │  JSON   │  (bitbox-api WASM)       │
- * │                     │  msgs   │                          │
- * │  USB/BLE Transport ─┼─────────┼→ Custom ReadWrite impl   │
- * └─────────────────────┘         └──────────────────────────┘
+ *   ┌─────────────────────┐         ┌──────────────────────────┐
+ *   │  React Native       │ ◄─────► │  Hidden WebView          │
+ *   │  (BitboxProvider)   │  JSON   │  (bitbox-api WASM)       │
+ *   │                     │         │                          │
+ *   │  USB/BLE Transport ─┼─────────┼→ Custom ReadWrite impl   │
+ *   └─────────────────────┘         └──────────────────────────┘
  *
- * Message protocol:
- *   RN → WebView:  { id, method, params }
- *   WebView → RN:  { id, result } | { id, error }
- *   WebView → RN:  { type: 'transport_write', data }  (transport callback)
- *   RN → WebView:  { type: 'transport_read_response', data }
+ * Wire protocol — every message carries the session nonce; messages without
+ * a matching nonce are dropped. This prevents a stale WebView (after
+ * navigation), a duplicated WebView, or a hostile page-injection from
+ * interleaving with the live session.
  *
- * The WebView loads a minimal HTML page that:
- * 1. Imports bitbox-api WASM
- * 2. Implements a custom transport that bridges to RN's USB/BLE transport
- * 3. Exposes PairedBitBox methods via the message protocol
+ *   RN → WebView:  { nonce, type: 'call',                  id, method, params }
+ *   WebView → RN:  { nonce, type: 'result',                id, result }
+ *   WebView → RN:  { nonce, type: 'error',                 id, error: { code?, message } }
+ *   WebView → RN:  { nonce, type: 'transport_write',       data: number[] }
+ *   WebView → RN:  { nonce, type: 'transport_read' }
+ *   RN → WebView:  { nonce, type: 'transport_read_response', data: number[] }
+ *   WebView → RN:  { nonce, type: 'wasm_ready' }
  *
- * TODO: Implementation requires:
- * - react-native-webview dependency
- * - Bundling bitbox_api_bg.wasm as a WebView asset
- * - HTML page with the bridge JavaScript
- * - Message queue for async request/response matching
+ * The bridge HTML is checked into bridge-html.ts as a separate module so
+ * it can be inspected, security-reviewed, and (in a future iteration)
+ * loaded from a packaged asset with a proper CSP.
  */
+
+import { BRIDGE_HTML } from './bridge-html';
+import { HwBridgeNotReadyError, HwBridgeTimeoutError, HwUserAbortError } from './errors';
+
+export { BRIDGE_HTML };
 
 type PendingCall = {
   resolve: (result: unknown) => void;
   reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+  method: string;
 };
+
+type OutboundMessage =
+  | { nonce: string; type: 'call'; id: number; method: string; params: unknown[] }
+  | { nonce: string; type: 'transport_read_response'; data: number[] }
+  | { nonce: string; type: 'transport_error'; error: { message: string } };
+
+type InboundMessage =
+  | { nonce: string; type: 'wasm_ready' }
+  | {
+      nonce: string;
+      type: 'wasm_error';
+      id: 0;
+      error: { code?: number; message: string };
+    }
+  | {
+      nonce: string;
+      type: 'result';
+      id: number;
+      method: string;
+      result: unknown;
+    }
+  | {
+      nonce: string;
+      type: 'error';
+      id: number;
+      method: string;
+      error: { code?: number; message: string };
+    }
+  | { nonce: string; type: 'transport_write'; data: number[] }
+  | { nonce: string; type: 'transport_read' };
+
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+export interface WebViewRef {
+  postMessage(msg: string): void;
+}
 
 export class WasmBridge {
   private callId = 0;
   private pending = new Map<number, PendingCall>();
-  private webViewRef: { postMessage: (msg: string) => void } | null = null;
+  private webViewRef: WebViewRef | null = null;
+  /**
+   * Session nonce — generated in the constructor so renderBridgeHtml never
+   * sees an empty nonce. setWebView rotates it on each session rebind so
+   * stale traffic from a previous WebView can never satisfy a pending call.
+   */
+  private nonce: string = generateNonce();
+  private wasmReady = false;
+  /**
+   * Cached bootstrap failure (e.g. WASM load 404, integrity failure).
+   * When set, every waitReady() call rejects immediately instead of
+   * waiting for the 5s timeout — that latency previously buried the real
+   * failure message behind a generic "bridge not ready" error.
+   */
+  private bootstrapError: HwBridgeNotReadyError | null = null;
+  private readyWaiters: {
+    resolve: () => void;
+    reject: (err: Error) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }[] = [];
+
+  /** Read-side transport callbacks: BitboxProvider wires these. */
+  onTransportWrite: ((data: Uint8Array) => void) | null = null;
+  onTransportRead: (() => void) | null = null;
 
   /**
-   * Set the WebView reference for communication.
-   * Called when the hidden WebView component mounts.
+   * Set the WebView reference and reset the session. Generates a fresh
+   * nonce so any in-flight pending calls bound to the previous session
+   * cannot be satisfied by stale traffic.
    */
-  setWebView(ref: { postMessage: (msg: string) => void }): void {
+  setWebView(ref: WebViewRef): void {
+    this.destroyInternal(new HwBridgeNotReadyError('session re-bound to a new WebView'));
     this.webViewRef = ref;
+    this.nonce = generateNonce();
+    // Reset call ID so id-based replays from the previous session cannot
+    // satisfy calls of the new session even if the nonce check were ever
+    // weakened.
+    this.callId = 0;
+    this.wasmReady = false;
+    this.bootstrapError = null;
+  }
+
+  /** Returns the current session nonce — exposed for the HTML bootstrap to inject. */
+  getSessionNonce(): string {
+    return this.nonce;
   }
 
   /**
-   * Call a method on the WASM BitBox API via the WebView bridge.
+   * Block until the WebView posts a `wasm_ready` message for the current
+   * session, or `timeoutMs` elapses (default 5s). Subsequent calls return
+   * immediately once ready.
    */
-  async call<T>(method: string, params: unknown[] = []): Promise<T> {
-    if (!this.webViewRef) {
-      throw new Error('WebView bridge not initialized');
+  waitReady(timeoutMs = 5_000): Promise<void> {
+    if (this.wasmReady) return Promise.resolve();
+    if (this.bootstrapError) {
+      return Promise.reject(this.bootstrapError);
     }
-
-    const id = ++this.callId;
-
-    return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, {
-        resolve: resolve as (result: unknown) => void,
-        reject,
-      });
-
-      this.webViewRef!.postMessage(JSON.stringify({ id, method, params }));
-
-      // Timeout after 30 seconds
-      setTimeout(() => {
-        if (this.pending.has(id)) {
-          this.pending.delete(id);
-          reject(new Error(`WASM bridge call timeout: ${method}`));
-        }
-      }, 30000);
+    if (!this.webViewRef) {
+      return Promise.reject(new HwBridgeNotReadyError('no WebView attached'));
+    }
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const idx = this.readyWaiters.findIndex((w) => w.resolve === resolve);
+        if (idx >= 0) this.readyWaiters.splice(idx, 1);
+        reject(new HwBridgeNotReadyError(`wasm did not signal ready within ${timeoutMs}ms`));
+      }, timeoutMs);
+      this.readyWaiters.push({ resolve, reject, timer });
     });
   }
 
   /**
-   * Handle messages coming back from the WebView.
-   * Called from the WebView's onMessage handler.
+   * Call a method on the WASM BitBox API via the WebView bridge.
+   * `opts.timeoutMs` overrides the default per call — signing calls should
+   * pass at least 120000.
    */
-  onMessage(data: string): void {
-    try {
-      const msg = JSON.parse(data);
-
-      if (msg.type === 'transport_write') {
-        // WebView wants to write to transport — handled by BitboxProvider
-        this.onTransportWrite?.(new Uint8Array(msg.data));
-        return;
-      }
-
-      if (msg.type === 'transport_read') {
-        // WebView wants to read from transport — handled by BitboxProvider
-        this.onTransportRead?.();
-        return;
-      }
-
-      // Response to a call
-      const pending = this.pending.get(msg.id);
-      if (pending) {
-        this.pending.delete(msg.id);
-        if (msg.error) {
-          pending.reject(new Error(msg.error));
-        } else {
-          pending.resolve(msg.result);
-        }
-      }
-    } catch {
-      // Ignore malformed messages
+  async call<T>(
+    method: string,
+    params: unknown[] = [],
+    opts: { timeoutMs?: number; signal?: AbortSignal } = {},
+  ): Promise<T> {
+    if (!this.webViewRef) {
+      throw new HwBridgeNotReadyError('no WebView attached');
     }
+    if (!this.wasmReady) {
+      throw new HwBridgeNotReadyError(
+        `wasm not ready yet; await waitReady() before calling ${method}`,
+      );
+    }
+    // Early-exit if the caller hands in an already-aborted signal.
+    if (opts.signal?.aborted) {
+      return Promise.reject(new HwUserAbortError());
+    }
+
+    const id = ++this.callId;
+    const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const method_ = method;
+    const signal = opts.signal;
+
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (this.pending.has(id)) {
+          this.pending.delete(id);
+          if (signal && abortHandler) signal.removeEventListener('abort', abortHandler);
+          reject(new HwBridgeTimeoutError(method_, timeoutMs));
+        }
+      }, timeoutMs);
+
+      // Abort propagation: when the caller aborts, drop the pending entry
+      // and best-effort tell the WebView to cancel via transport_error
+      // (the page's WASM read promise rejects → bitbox-api unwinds the
+      // in-flight operation cleanly).
+      let abortHandler: (() => void) | null = null;
+      if (signal) {
+        abortHandler = () => {
+          if (!this.pending.has(id)) return;
+          this.pending.delete(id);
+          clearTimeout(timer);
+          // Best-effort cancel signal to the page.
+          try {
+            const cancel: OutboundMessage = {
+              nonce: this.nonce,
+              type: 'transport_error',
+              error: { message: 'cancelled by caller' },
+            };
+            this.webViewRef?.postMessage(JSON.stringify(cancel));
+          } catch {
+            // The WebView may already be torn down — best effort only.
+          }
+          reject(new HwUserAbortError());
+        };
+        signal.addEventListener('abort', abortHandler, { once: true });
+      }
+
+      this.pending.set(id, {
+        resolve: (result: unknown) => {
+          if (signal && abortHandler) signal.removeEventListener('abort', abortHandler);
+          resolve(result as T);
+        },
+        reject: (err: Error) => {
+          if (signal && abortHandler) signal.removeEventListener('abort', abortHandler);
+          reject(err);
+        },
+        timer,
+        method: method_,
+      });
+
+      const out: OutboundMessage = {
+        nonce: this.nonce,
+        type: 'call',
+        id,
+        method: method_,
+        params,
+      };
+      this.webViewRef!.postMessage(JSON.stringify(out));
+    });
   }
 
   /**
-   * Send transport data from RN to the WebView (response to transport_read).
+   * Handle messages coming back from the WebView. Drops messages whose
+   * nonce does not match the active session. Malformed JSON is silently
+   * ignored (the source page may be loading or shutting down).
    */
-  sendTransportData(data: Uint8Array): void {
-    this.webViewRef?.postMessage(
-      JSON.stringify({
-        type: 'transport_read_response',
-        data: Array.from(data),
-      }),
-    );
+  onMessage(data: string): void {
+    let parsed: InboundMessage;
+    try {
+      parsed = JSON.parse(data) as InboundMessage;
+    } catch {
+      return;
+    }
+    if (!parsed || typeof parsed !== 'object' || parsed.nonce !== this.nonce) {
+      // Drop — wrong session or malformed envelope.
+      return;
+    }
+
+    switch (parsed.type) {
+      case 'wasm_ready':
+        this.wasmReady = true;
+        this.bootstrapError = null;
+        while (this.readyWaiters.length > 0) {
+          const w = this.readyWaiters.shift()!;
+          clearTimeout(w.timer);
+          w.resolve();
+        }
+        return;
+
+      case 'wasm_error': {
+        // Bootstrap failure — WASM never made it to ready. Fail every
+        // queued waitReady caller immediately with the underlying cause,
+        // and stash the error so future waitReady() calls reject fast
+        // instead of waiting another 5 s.
+        const err = new HwBridgeNotReadyError(parsed.error?.message ?? 'wasm bootstrap failed');
+        this.bootstrapError = err;
+        this.wasmReady = false;
+        for (const w of this.readyWaiters) {
+          clearTimeout(w.timer);
+          w.reject(err);
+        }
+        this.readyWaiters = [];
+        return;
+      }
+
+      case 'transport_write':
+        this.onTransportWrite?.(new Uint8Array(parsed.data ?? []));
+        return;
+
+      case 'transport_read':
+        this.onTransportRead?.();
+        return;
+
+      case 'result': {
+        if (typeof parsed.id !== 'number' || !Number.isInteger(parsed.id) || parsed.id <= 0) {
+          return;
+        }
+        const pending = this.pending.get(parsed.id);
+        if (!pending) return;
+        // Method binding: reject results whose method doesn't match the
+        // pending entry. A forged result with the predicted next id can
+        // no longer satisfy a different in-flight call.
+        if (typeof parsed.method !== 'string' || parsed.method !== pending.method) {
+          // Silently drop — a method mismatch is an attack signal.
+          // The pending entry stays, will eventually time out.
+          return;
+        }
+        this.pending.delete(parsed.id);
+        clearTimeout(pending.timer);
+        pending.resolve(parsed.result);
+        return;
+      }
+
+      case 'error': {
+        if (typeof parsed.id !== 'number' || !Number.isInteger(parsed.id) || parsed.id <= 0) {
+          return;
+        }
+        const pending = this.pending.get(parsed.id);
+        if (!pending) return;
+        if (typeof parsed.method !== 'string' || parsed.method !== pending.method) {
+          return;
+        }
+        this.pending.delete(parsed.id);
+        clearTimeout(pending.timer);
+        const err = new Error(parsed.error?.message ?? 'unknown bridge error');
+        // Preserve the firmware code (if present) so parseFirmwareError can recover it.
+        if (parsed.error?.code !== undefined) {
+          (err as Error & { code?: number }).code = parsed.error.code;
+        }
+        pending.reject(err);
+        return;
+      }
+    }
   }
 
-  /** Callback: WebView wants to write bytes to the physical transport */
-  onTransportWrite: ((data: Uint8Array) => void) | null = null;
+  /** Send transport bytes from RN to the WebView (response to transport_read). */
+  sendTransportData(data: Uint8Array): void {
+    if (!this.webViewRef) return;
+    const out: OutboundMessage = {
+      nonce: this.nonce,
+      type: 'transport_read_response',
+      data: Array.from(data),
+    };
+    this.webViewRef.postMessage(JSON.stringify(out));
+  }
 
-  /** Callback: WebView wants to read bytes from the physical transport */
-  onTransportRead: (() => void) | null = null;
+  /**
+   * Tell the WebView the physical transport failed mid-flight. The page's
+   * pending WASM read() rejects, the bitbox-api operation unwinds, and the
+   * caller's bridge.call promise rejects (via the standard error path
+   * once WASM surfaces the transport error). Use this when the physical
+   * transport drops while a sign or address-display is in flight — the
+   * alternative is waiting for the 120s sign timeout.
+   */
+  notifyTransportFailure(reason: string): void {
+    if (!this.webViewRef) return;
+    const out: OutboundMessage = {
+      nonce: this.nonce,
+      type: 'transport_error',
+      error: { message: reason },
+    };
+    this.webViewRef.postMessage(JSON.stringify(out));
+  }
 
-  /** Clean up */
-  destroy(): void {
-    this.pending.forEach((p) => p.reject(new Error('Bridge destroyed')));
+  /**
+   * Fail every pending bridge.call with the supplied error. Used by the
+   * provider when the physical transport drops — gives the caller a
+   * deterministic rejection instead of a 120s wait.
+   */
+  failPending(err: Error): void {
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(err);
+    }
     this.pending.clear();
+  }
+
+  /**
+   * Reject every pending call, clear the WebView ref, void the nonce.
+   * Safe to call multiple times.
+   */
+  destroy(): void {
+    this.destroyInternal(new HwBridgeNotReadyError('bridge destroyed'));
+  }
+
+  private destroyInternal(reason: Error): void {
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(reason);
+    }
+    this.pending.clear();
+    for (const w of this.readyWaiters) {
+      clearTimeout(w.timer);
+      w.reject(reason);
+    }
+    this.readyWaiters = [];
     this.webViewRef = null;
+    this.nonce = '';
+    this.wasmReady = false;
+    this.bootstrapError = null;
     this.onTransportWrite = null;
     this.onTransportRead = null;
   }
 }
 
-/**
- * HTML content for the hidden WebView that loads bitbox-api WASM.
- *
- * This would be loaded as the WebView source. It:
- * 1. Initializes the WASM module
- * 2. Creates a custom transport that bridges to React Native
- * 3. Handles RPC calls from React Native
- */
-export const BRIDGE_HTML = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body>
-<script type="module">
-  // TODO: Load bitbox-api WASM here
-  // import init, { PairingBitBox, PairedBitBox } from './bitbox_api.js';
-  //
-  // Custom transport that bridges to React Native:
-  // const transport = {
-  //   write: async (data) => {
-  //     window.ReactNativeWebView.postMessage(JSON.stringify({
-  //       type: 'transport_write', data: Array.from(data)
-  //     }));
-  //   },
-  //   read: async () => {
-  //     window.ReactNativeWebView.postMessage(JSON.stringify({
-  //       type: 'transport_read'
-  //     }));
-  //     return new Promise(resolve => { pendingRead = resolve; });
-  //   }
-  // };
-  //
-  // Handle calls from React Native:
-  // window.addEventListener('message', async (event) => {
-  //   const msg = JSON.parse(event.data);
-  //   if (msg.type === 'transport_read_response') {
-  //     pendingRead?.(new Uint8Array(msg.data));
-  //     return;
-  //   }
-  //   try {
-  //     const result = await pairedBitBox[msg.method](...msg.params);
-  //     window.ReactNativeWebView.postMessage(JSON.stringify({ id: msg.id, result }));
-  //   } catch (err) {
-  //     window.ReactNativeWebView.postMessage(JSON.stringify({ id: msg.id, error: err.message }));
-  //   }
-  // });
-</script>
-</body>
-</html>
-`;
+/** Crypto-grade nonce (16 bytes hex) for session binding. */
+function generateNonce(): string {
+  // crypto.getRandomValues is available on RN's Hermes runtime via the
+  // expo-crypto polyfill; we fall back to Math.random for tests where no
+  // crypto global exists.
+  const buf = new Uint8Array(16);
+  const g = (globalThis as { crypto?: { getRandomValues?: (b: Uint8Array) => void } }).crypto;
+  if (g?.getRandomValues) {
+    g.getRandomValues(buf);
+  } else {
+    // eslint-disable-next-line security/detect-object-injection -- i is bounded by buf.length above
+    for (let i = 0; i < buf.length; i++) buf[i] = Math.floor(Math.random() * 256);
+  }
+  return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
+}

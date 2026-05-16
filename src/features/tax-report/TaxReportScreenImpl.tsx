@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Directory, File, Paths } from 'expo-file-system';
 import { AppHeader, PrimaryButton, ScreenContainer } from '@/components';
 import { dfxTransactionService, type TaxReportType } from '@/features/dfx-backend/services';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 /**
  * Soft-import for expo-sharing — the native module is only present after a
@@ -53,6 +53,8 @@ const REPORT_TYPES: { kind: TaxReportType; titleKey: string; bodyKey: string }[]
  * with downloading an actual tax export.
  */
 export default function TaxReportScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { t } = useTranslation();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState<number>(currentYear);
@@ -150,7 +152,7 @@ export default function TaxReportScreen() {
 
         {busy ? (
           <View style={styles.progress}>
-            <ActivityIndicator color={DfxColors.primary} />
+            <ActivityIndicator color={colors.primary} />
             <Text style={styles.progressText}>{t('taxReport.generating')}</Text>
           </View>
         ) : null}
@@ -159,105 +161,106 @@ export default function TaxReportScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingTop: 12,
-    paddingBottom: 32,
-    gap: 16,
-  },
-  intro: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    lineHeight: 20,
-  },
-  sectionLabel: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    fontWeight: '600',
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  chip: {
-    flex: 1,
-    backgroundColor: DfxColors.surface,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  chipActive: {
-    borderColor: DfxColors.primary,
-    backgroundColor: DfxColors.primaryLight,
-  },
-  chipText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    fontWeight: '600',
-  },
-  chipTextActive: {
-    color: DfxColors.primary,
-  },
-  formatList: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  formatRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 14,
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: DfxColors.border,
-  },
-  formatRowActive: {
-    backgroundColor: DfxColors.primaryLight,
-  },
-  radio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: DfxColors.textTertiary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
-  radioActive: {
-    borderColor: DfxColors.primary,
-  },
-  radioDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: DfxColors.primary,
-  },
-  formatBody: {
-    flex: 1,
-    gap: 2,
-  },
-  formatTitle: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  formatDesc: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    lineHeight: 18,
-  },
-  progress: {
-    alignItems: 'center',
-    gap: 8,
-    paddingTop: 8,
-  },
-  progressText: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      paddingTop: 12,
+      paddingBottom: 32,
+      gap: 16,
+    },
+    intro: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      lineHeight: 20,
+    },
+    sectionLabel: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      fontWeight: '600',
+    },
+    row: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    chip: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      paddingVertical: 12,
+      borderRadius: 12,
+      alignItems: 'center',
+      borderWidth: 1.5,
+      borderColor: 'transparent',
+    },
+    chipActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primaryLight,
+    },
+    chipText: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    chipTextActive: {
+      color: colors.primary,
+    },
+    formatList: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      overflow: 'hidden',
+    },
+    formatRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      padding: 14,
+      gap: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    formatRowActive: {
+      backgroundColor: colors.primaryLight,
+    },
+    radio: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      borderWidth: 2,
+      borderColor: colors.textTertiary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 2,
+    },
+    radioActive: {
+      borderColor: colors.primary,
+    },
+    radioDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: colors.primary,
+    },
+    formatBody: {
+      flex: 1,
+      gap: 2,
+    },
+    formatTitle: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    formatDesc: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      lineHeight: 18,
+    },
+    progress: {
+      alignItems: 'center',
+      gap: 8,
+      paddingTop: 8,
+    },
+    progressText: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+    },
+  });

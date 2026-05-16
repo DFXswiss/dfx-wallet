@@ -9,6 +9,7 @@ jest.mock('@/hooks', () => {
   const useDfxAutoLinkSpy = jest.fn();
   const authenticateSilent = jest.fn();
   return {
+    useReduceMotion: () => false,
     useDeepLink: () => useDeepLinkSpy(),
     useDfxAuth: () => ({
       authenticate: jest.fn(),

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +12,7 @@ import {
   PrimaryButton,
 } from '@/components';
 import { generateSeedPhrase, wordsToSeed } from '@/services/wallet';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 function isWalletAlreadyExistsError(err: unknown): boolean {
   return err instanceof Error && err.message.toLowerCase().includes('already exists');
@@ -21,6 +21,8 @@ function isWalletAlreadyExistsError(err: unknown): boolean {
 export default function CreateWalletScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [seedWords] = useState(() => generateSeedPhrase(12));
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -133,92 +135,96 @@ export default function CreateWalletScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingTop: 4,
-    paddingBottom: 24,
-    gap: 24,
-  },
-  intro: {
-    gap: 12,
-  },
-  description: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-  },
-  warning: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-    textAlign: 'center',
-  },
-  seedCard: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    padding: 16,
-  },
-  revealButton: {
-    minHeight: 168,
-    borderRadius: 8,
-    backgroundColor: 'rgba(243,246,251,0.9)',
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    gap: 8,
-  },
-  revealText: {
-    ...Typography.bodyLarge,
-    color: DfxColors.primary,
-    fontWeight: '600',
-  },
-  revealHint: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-  },
-  seedContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  wordCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DfxColors.surfaceLight,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 6,
-    minWidth: '30%',
-  },
-  wordIndex: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    width: 24,
-  },
-  word: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-  },
-  copyButton: {
-    alignSelf: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  copyText: {
-    ...Typography.bodySmall,
-    color: DfxColors.primary,
-  },
-  error: {
-    ...Typography.bodyMedium,
-    color: DfxColors.error,
-  },
-  spacer: {
-    flex: 1,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      paddingTop: 4,
+      paddingBottom: 24,
+      gap: 24,
+    },
+    intro: {
+      gap: 12,
+    },
+    description: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    warning: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    seedCard: {
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 16,
+    },
+    revealButton: {
+      minHeight: 168,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceLight,
+      borderWidth: 1,
+      // Use the primary tint at low opacity so the dashed reveal cue stays
+      // visible against `surfaceLight` in dark mode, where `colors.border`
+      // (#1F2A40) blends into the dark card.
+      borderColor: colors.primary,
+      borderStyle: 'dashed',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+      gap: 8,
+    },
+    revealText: {
+      ...Typography.bodyLarge,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    revealHint: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    seedContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    wordCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceLight,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 6,
+      minWidth: '30%',
+    },
+    wordIndex: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+      width: 24,
+    },
+    word: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+    },
+    copyButton: {
+      alignSelf: 'center',
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+    },
+    copyText: {
+      ...Typography.bodySmall,
+      color: colors.primary,
+    },
+    error: {
+      ...Typography.bodyMedium,
+      color: colors.error,
+    },
+    spacer: {
+      flex: 1,
+    },
+  });
