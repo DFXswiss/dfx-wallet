@@ -13,14 +13,9 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { getWdkConfigs } from '@/config/chains';
 import { pricingService } from '@/services/pricing-service';
 import { useAuthStore, useWalletStore } from '@/store';
-import { DfxColors } from '@/theme';
+import { ThemeProvider, useColors, useThemeStore } from '@/theme';
 import '@/i18n';
 
-// Silence the WDK / Tether SDK error toasts that pile up in dev when the
-// public Ethereum RPC is flaky (timeouts on `eth_getBalance`,
-// `getTokenBalances`, etc.). They're surfaced via `handleServiceError` ->
-// `console.error` and aren't actionable for the user — the dashboard
-// already retries balances on its own.
 LogBox.ignoreLogs([
   /\[AccountService\] callAccountMethod/,
   /\[AddressService\] getAddress failed/,
@@ -28,70 +23,77 @@ LogBox.ignoreLogs([
   /could not coalesce error/,
   /bad address checksum/,
   /Network ethereum timed out/,
-  // WDK's `useMultiAddressLoader` (consumed transitively by `useBalance`)
-  // wraps an UNAVAILABLE / UNAUTHENTICATED Bare-Worklet response as a
-  // `console.error` toast at the bottom of the dashboard. The hook
-  // already retries the next render cycle once the worklet finishes
-  // booting, so the toast is pure noise for the user.
   /useMultiAddressLoader failed/,
 ]);
 
 (globalThis as unknown as { Buffer: typeof Buffer }).Buffer = Buffer;
 
+/**
+ * Top-level layout. The ThemeProvider sits ABOVE every screen — the
+ * actual theme-consuming render lives in `ThemedRoot` below so we never
+ * call `useColors()` outside the provider (which would return the fallback
+ * light palette instead of the live theme).
+ */
 export default function RootLayout() {
-  // Hydrate the auth store at the root so deep-link / Metro-reload entries
-  // (which skip app/index.tsx) still get isHydrated set. Without this the
-  // (auth) layout's PIN gate can't detect "not authenticated" and would let
-  // a restored deep route bypass PIN entirely.
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <ThemeProvider>
+          <WdkAppProvider bundle={{ bundle }} wdkConfigs={getWdkConfigs()}>
+            <ThemedRoot />
+          </WdkAppProvider>
+        </ThemeProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
+  );
+}
+
+function ThemedRoot() {
   const { isHydrated, hydrate } = useAuthStore();
   const hydrateWallet = useWalletStore((s) => s.hydrate);
+  const hydrateTheme = useThemeStore((s) => s.hydrate);
+  const colors = useColors();
+
   useEffect(() => {
     void hydrate();
     void hydrateWallet();
-  }, [hydrate, hydrateWallet]);
+    void hydrateTheme();
+  }, [hydrate, hydrateWallet, hydrateTheme]);
 
-  // Keep the pricing singleton minute-fresh app-wide. The native EVM
-  // Portfolio cards consult `pricingService.getExchangeRate` instead
-  // of fetching their own `/simple/price`, so without this timer they
-  // showed the same rates from boot until the user pulled to refresh.
   useEffect(() => {
     pricingService.startAutoRefresh(60_000);
     return () => pricingService.stopAutoRefresh();
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ErrorBoundary>
-        <WdkAppProvider bundle={{ bundle }} wdkConfigs={getWdkConfigs()}>
-          <StatusBar style="light" />
-          <OfflineBanner />
-          {isHydrated ? (
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                gestureEnabled: true,
-                fullScreenGestureEnabled: true,
-              }}
-            >
-              <Stack.Screen name="(onboarding)" />
-              <Stack.Screen name="(pin)" />
-              <Stack.Screen name="(auth)" />
-            </Stack>
-          ) : (
-            <View style={styles.loading}>
-              <ActivityIndicator size="large" color={DfxColors.primary} />
-            </View>
-          )}
-        </WdkAppProvider>
-      </ErrorBoundary>
-    </GestureHandlerRootView>
+    <>
+      <StatusBar style={colors.statusBar} />
+      <OfflineBanner />
+      {isHydrated ? (
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
+            contentStyle: { backgroundColor: colors.background },
+          }}
+        >
+          <Stack.Screen name="(onboarding)" />
+          <Stack.Screen name="(pin)" />
+          <Stack.Screen name="(auth)" />
+        </Stack>
+      ) : (
+        <View style={[styles.loading, { backgroundColor: colors.background }]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      )}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   loading: {
     flex: 1,
-    backgroundColor: DfxColors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },

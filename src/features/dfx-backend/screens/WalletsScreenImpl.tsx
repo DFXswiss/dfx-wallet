@@ -1,9 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { AppHeader, DfxBackgroundScreen, Icon, RenameWalletModal } from '@/components';
+import {
+  AppHeader,
+  DfxBackgroundScreen,
+  EmptyState,
+  Icon,
+  PrimaryButton,
+  RenameWalletModal,
+  Skeleton,
+} from '@/components';
 import { dfxAuthService, dfxUserService, DfxApiError } from '@/features/dfx-backend/services';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { useDfxAuth } from '@/hooks';
@@ -12,7 +20,7 @@ import {
   useLinkedWalletNames,
 } from '@/features/linked-wallets/useLinkedWalletNames';
 import { useLinkedWalletSelection } from '@/features/linked-wallets/useLinkedWalletSelection';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type LinkableChain = {
   network: 'bitcoin';
@@ -33,7 +41,10 @@ const isAddressLinked = (addresses: UserAddressDto[], address: string | null): b
 };
 
 export default function WalletsScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { t } = useTranslation();
+  const router = useRouter();
 
   const [activeAddress, setActiveAddress] = useState<UserAddressDto | null>(null);
   const [addresses, setAddresses] = useState<UserAddressDto[]>([]);
@@ -147,29 +158,37 @@ export default function WalletsScreen() {
           <Text style={styles.intro}>{t('wallets.intro')}</Text>
 
           {loadingUser ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator color={DfxColors.primary} />
+            <View style={styles.skeletonList}>
+              {[0, 1, 2].map((i) => (
+                <View key={i} style={styles.skeletonRow}>
+                  <Skeleton width={36} height={36} radius={18} />
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Skeleton width={'55%'} height={14} radius={6} />
+                    <Skeleton width={'80%'} height={11} radius={6} />
+                  </View>
+                </View>
+              ))}
             </View>
           ) : refreshError ? (
-            <View style={styles.errorBlock}>
-              <Text style={styles.errorText}>{refreshError}</Text>
-              {isMergedState ? (
-                <Pressable
-                  style={({ pressed }) => [styles.reauthBtn, pressed && styles.pressed]}
+            <EmptyState
+              icon={isMergedState ? 'shield' : 'user'}
+              title={isMergedState ? t('wallets.mergedTitle') : t('wallets.loadErrorTitle')}
+              description={isMergedState ? refreshError : t('wallets.loadErrorHint')}
+              testID="wallets-error"
+              action={
+                <PrimaryButton
+                  title={
+                    isMergedState ? t('wallets.reauthCta') : t('wallets.loadErrorCta')
+                  }
+                  loading={isAuthenticating || loadingUser}
                   onPress={() => {
-                    void reauthenticate();
+                    if (isMergedState) void reauthenticate();
+                    else router.push('/(auth)/kyc');
                   }}
-                  disabled={isAuthenticating}
-                  testID="wallets-reauth"
-                >
-                  {isAuthenticating ? (
-                    <ActivityIndicator color={DfxColors.white} />
-                  ) : (
-                    <Text style={styles.reauthLabel}>{t('wallets.reauthCta')}</Text>
-                  )}
-                </Pressable>
-              ) : null}
-            </View>
+                  testID="wallets-recover"
+                />
+              }
+            />
           ) : (
             <>
               <Text style={styles.sectionLabel}>{t('wallets.linkedLabel')}</Text>
@@ -208,7 +227,7 @@ export default function WalletsScreen() {
                           <Icon
                             name="wallet"
                             size={18}
-                            color={isActive ? DfxColors.white : DfxColors.primary}
+                            color={isActive ? colors.white : colors.primary}
                           />
                         </View>
                         <View style={styles.addressBody}>
@@ -227,7 +246,7 @@ export default function WalletsScreen() {
                               accessibilityRole="button"
                               accessibilityLabel={t('linkedWallet.rename.cta')}
                             >
-                              <Icon name="edit" size={16} color={DfxColors.primary} />
+                              <Icon name="edit" size={16} color={colors.primary} />
                             </Pressable>
                           </View>
                           <Text style={styles.addressMono} numberOfLines={1}>
@@ -244,9 +263,7 @@ export default function WalletsScreen() {
                             style={[styles.checkbox, checked && styles.checkboxChecked]}
                             testID={`wallets-checkbox-${checked ? 'on' : 'off'}-${a.address.slice(0, 8)}`}
                           >
-                            {checked ? (
-                              <Icon name="check" size={14} color={DfxColors.white} />
-                            ) : null}
+                            {checked ? <Icon name="check" size={14} color={colors.white} /> : null}
                           </View>
                         )}
                       </Pressable>
@@ -268,7 +285,7 @@ export default function WalletsScreen() {
                         testID={`wallets-link-${c.network}`}
                       >
                         <View style={styles.avatar}>
-                          <Icon name="wallet" size={18} color={DfxColors.primary} />
+                          <Icon name="wallet" size={18} color={colors.primary} />
                         </View>
                         <View style={styles.addressBody}>
                           <Text style={styles.addLabel}>{c.label}</Text>
@@ -277,9 +294,9 @@ export default function WalletsScreen() {
                           </Text>
                         </View>
                         {c.busy ? (
-                          <ActivityIndicator color={DfxColors.primary} />
+                          <ActivityIndicator color={colors.primary} />
                         ) : (
-                          <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
+                          <Icon name="chevron-right" size={18} color={colors.textTertiary} />
                         )}
                       </Pressable>
                     ))}
@@ -312,168 +329,178 @@ export default function WalletsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    paddingTop: 4,
-    paddingBottom: 32,
-  },
-  content: {
-    paddingTop: 12,
-    gap: 12,
-  },
-  intro: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    lineHeight: 22,
-  },
-  sectionLabel: {
-    ...Typography.bodySmall,
-    fontWeight: '700',
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    paddingHorizontal: 4,
-    marginTop: 8,
-  },
-  section: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    overflow: 'hidden',
-  },
-  loadingRow: {
-    paddingVertical: 24,
-    alignItems: 'center',
-  },
-  emptyText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textTertiary,
-    textAlign: 'center',
-    padding: 18,
-  },
-  addressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: DfxColors.border,
-  },
-  addRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-  },
-  pressed: { opacity: 0.7 },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarActive: {
-    backgroundColor: DfxColors.primary,
-  },
-  addressBody: {
-    flex: 1,
-    gap: 2,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  walletName: {
-    ...Typography.bodyMedium,
-    fontWeight: '700',
-    color: DfxColors.text,
-    flexShrink: 1,
-  },
-  editButton: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addressMono: {
-    ...Typography.bodyMedium,
-    fontFamily: 'monospace',
-    color: DfxColors.text,
-  },
-  addressMeta: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-  },
-  addLabel: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  activeBadge: {
-    ...Typography.bodySmall,
-    fontWeight: '700',
-    color: DfxColors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: DfxColors.border,
-    backgroundColor: DfxColors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: DfxColors.primary,
-    borderColor: DfxColors.primary,
-  },
-  selectHint: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    paddingHorizontal: 4,
-    lineHeight: 18,
-  },
-  errorBlock: {
-    gap: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-  },
-  errorText: {
-    ...Typography.bodySmall,
-    color: DfxColors.error,
-    textAlign: 'center',
-  },
-  reauthBtn: {
-    backgroundColor: DfxColors.primary,
-    borderRadius: 999,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  reauthLabel: {
-    ...Typography.bodyMedium,
-    fontWeight: '700',
-    color: DfxColors.white,
-  },
-  helper: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    paddingHorizontal: 4,
-    lineHeight: 18,
-    marginTop: 8,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    screen: {
+      paddingTop: 4,
+      paddingBottom: 32,
+    },
+    content: {
+      paddingTop: 12,
+      gap: 12,
+    },
+    intro: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      lineHeight: 22,
+    },
+    sectionLabel: {
+      ...Typography.bodySmall,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      paddingHorizontal: 4,
+      marginTop: 8,
+    },
+    section: {
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: 'hidden',
+    },
+    loadingRow: {
+      paddingVertical: 24,
+      alignItems: 'center',
+    },
+    skeletonList: {
+      paddingVertical: 8,
+      gap: 14,
+    },
+    skeletonRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    emptyText: {
+      ...Typography.bodyMedium,
+      color: colors.textTertiary,
+      textAlign: 'center',
+      padding: 18,
+    },
+    addressRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 14,
+      paddingHorizontal: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    addRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 14,
+      paddingHorizontal: 14,
+    },
+    pressed: { opacity: 0.7 },
+    avatar: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarActive: {
+      backgroundColor: colors.primary,
+    },
+    addressBody: {
+      flex: 1,
+      gap: 2,
+    },
+    nameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    walletName: {
+      ...Typography.bodyMedium,
+      fontWeight: '700',
+      color: colors.text,
+      flexShrink: 1,
+    },
+    editButton: {
+      width: 26,
+      height: 26,
+      borderRadius: 8,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    addressMono: {
+      ...Typography.bodyMedium,
+      fontFamily: 'monospace',
+      color: colors.text,
+    },
+    addressMeta: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+    },
+    addLabel: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    activeBadge: {
+      ...Typography.bodySmall,
+      fontWeight: '700',
+      color: colors.primary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    checkbox: {
+      width: 22,
+      height: 22,
+      borderRadius: 6,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkboxChecked: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    selectHint: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      paddingHorizontal: 4,
+      lineHeight: 18,
+    },
+    errorBlock: {
+      gap: 12,
+      paddingVertical: 16,
+      paddingHorizontal: 16,
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    errorText: {
+      ...Typography.bodySmall,
+      color: colors.error,
+      textAlign: 'center',
+    },
+    reauthBtn: {
+      backgroundColor: colors.primary,
+      borderRadius: 999,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    reauthLabel: {
+      ...Typography.bodyMedium,
+      fontWeight: '700',
+      color: colors.white,
+    },
+    helper: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+      paddingHorizontal: 4,
+      lineHeight: 18,
+      marginTop: 8,
+    },
+  });

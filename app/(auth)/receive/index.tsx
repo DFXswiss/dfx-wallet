@@ -6,11 +6,11 @@ import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { AppHeader, Icon, PrimaryButton, QrCode } from '@/components';
+import { AppHeader, DarkBackdrop, Icon, PrimaryButton, QrCode } from '@/components';
 import type { ChainId } from '@/config/chains';
 import { FEATURES } from '@/config/features';
 import { useLdsWallet } from '@/hooks';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
 type ReceiveStep = 'asset' | 'qr';
 
@@ -54,6 +54,9 @@ const buildReceiveAssets = (): AssetOption[] => [
 export default function ReceiveScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const colors = useColors();
+  const scheme = useResolvedScheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const receiveAssets = useMemo(buildReceiveAssets, []);
   const [step, setStep] = useState<ReceiveStep>('asset');
   // Start unselected so no card has a border on first render — the active
@@ -124,13 +127,13 @@ export default function ReceiveScreen() {
           accessibilityLabel={t('receive.buyFromBank')}
         >
           <View style={styles.destinationIcon}>
-            <Icon name="document" size={20} color={DfxColors.primary} strokeWidth={2.2} />
+            <Icon name="document" size={20} color={colors.primary} strokeWidth={2.2} />
           </View>
           <View style={styles.destinationText}>
             <Text style={styles.destinationTitle}>{t('receive.buyFromBank')}</Text>
             <Text style={styles.destinationSubtitle}>{t('receive.buyFromBankSubtitle')}</Text>
           </View>
-          <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
+          <Icon name="chevron-right" size={18} color={colors.textTertiary} />
         </Pressable>
       )}
     </View>
@@ -145,7 +148,7 @@ export default function ReceiveScreen() {
           onPress={() => setStep('asset')}
         >
           <Text style={styles.selectedAssetText}>{asset.symbol}</Text>
-          <Icon name="chevron-right" size={14} color={DfxColors.textTertiary} />
+          <Icon name="chevron-right" size={14} color={colors.textTertiary} />
         </Pressable>
 
         {asset.chains.length > 1 && (
@@ -204,206 +207,218 @@ export default function ReceiveScreen() {
     );
   };
 
+  const body = (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <AppHeader
+        title={t('receive.title')}
+        onBack={() => {
+          if (step === 'qr') setStep('asset');
+          else router.back();
+        }}
+        testID="receive-screen"
+      />
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {step === 'asset' && renderAssetStep()}
+        {step === 'qr' && selectedAsset && renderQrStep(selectedAsset)}
+      </ScrollView>
+    </SafeAreaView>
+  );
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      <ImageBackground
-        source={require('../../../assets/dashboard-bg.png')}
-        style={styles.bg}
-        resizeMode="cover"
-      >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-          <AppHeader
-            title={t('receive.title')}
-            onBack={() => {
-              if (step === 'qr') setStep('asset');
-              else router.back();
-            }}
-            testID="receive-screen"
-          />
-
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {step === 'asset' && renderAssetStep()}
-            {step === 'qr' && selectedAsset && renderQrStep(selectedAsset)}
-          </ScrollView>
-        </SafeAreaView>
-      </ImageBackground>
+      {scheme === 'dark' ? (
+        <View style={styles.bg}>
+          <DarkBackdrop baseColor={colors.background} />
+          {body}
+        </View>
+      ) : (
+        <ImageBackground
+          source={require('../../../assets/dashboard-bg.png')}
+          style={styles.bg}
+          resizeMode="cover"
+        >
+          {body}
+        </ImageBackground>
+      )}
     </>
   );
 }
 
-const styles = StyleSheet.create({
-  bg: {
-    flex: 1,
-    backgroundColor: DfxColors.background,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 32,
-    gap: 18,
-  },
-  stepContent: {
-    gap: 18,
-  },
-  stepSubtitle: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  assetList: {
-    gap: 10,
-  },
-  assetCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    padding: 18,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-  },
-  assetCardActive: {
-    borderColor: DfxColors.primary,
-    backgroundColor: 'rgba(220,234,254,0.72)',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  assetSymbol: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-    fontWeight: '700',
-    width: 56,
-  },
-  assetSymbolActive: {
-    color: DfxColors.primary,
-  },
-  assetLabel: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-  },
-  selectedAssetPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: DfxColors.primaryLight,
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    gap: 6,
-  },
-  selectedAssetText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.primary,
-    fontWeight: '700',
-  },
-  chainBar: {
-    flexGrow: 0,
-  },
-  chainChip: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    marginRight: 8,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  chainChipActive: {
-    borderColor: DfxColors.primary,
-    backgroundColor: DfxColors.primaryLight,
-  },
-  chainChipText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    fontWeight: '500',
-  },
-  chainChipTextActive: {
-    color: DfxColors.primary,
-    fontWeight: '600',
-  },
-  qrContainer: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  qrPlaceholder: {
-    width: 200,
-    height: 200,
-    borderRadius: 16,
-    backgroundColor: DfxColors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  qrPlaceholderText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textTertiary,
-  },
-  addressContainer: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    padding: 20,
-    gap: 8,
-    alignItems: 'center',
-    shadowColor: '#0B1426',
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-  },
-  addressLabel: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  address: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-    textAlign: 'center',
-    fontFamily: 'monospace',
-  },
-  destinationCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    padding: 16,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: DfxColors.primary,
-  },
-  destinationIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  destinationText: {
-    flex: 1,
-    gap: 2,
-  },
-  destinationTitle: {
-    ...Typography.bodyLarge,
-    color: DfxColors.text,
-    fontWeight: '600',
-  },
-  destinationSubtitle: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    bg: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    safeArea: {
+      flex: 1,
+    },
+    scroll: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingHorizontal: 20,
+      paddingBottom: 32,
+      gap: 18,
+    },
+    stepContent: {
+      gap: 18,
+    },
+    stepSubtitle: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+      fontWeight: '500',
+      marginBottom: 4,
+    },
+    assetList: {
+      gap: 10,
+    },
+    assetCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      padding: 18,
+      gap: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    assetCardActive: {
+      borderColor: colors.primary,
+      backgroundColor: 'rgba(220,234,254,0.72)',
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+    assetSymbol: {
+      ...Typography.headlineSmall,
+      color: colors.text,
+      fontWeight: '700',
+      width: 56,
+    },
+    assetSymbolActive: {
+      color: colors.primary,
+    },
+    assetLabel: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+    },
+    selectedAssetPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      backgroundColor: colors.primaryLight,
+      borderRadius: 12,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      gap: 6,
+    },
+    selectedAssetText: {
+      ...Typography.bodyMedium,
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    chainBar: {
+      flexGrow: 0,
+    },
+    chainChip: {
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      marginRight: 8,
+      borderWidth: 1.5,
+      borderColor: 'transparent',
+    },
+    chainChipActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primaryLight,
+    },
+    chainChipText: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    chainChipTextActive: {
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    qrContainer: {
+      alignItems: 'center',
+      paddingVertical: 8,
+    },
+    qrPlaceholder: {
+      width: 200,
+      height: 200,
+      borderRadius: 16,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    qrPlaceholderText: {
+      ...Typography.bodyMedium,
+      color: colors.textTertiary,
+    },
+    addressContainer: {
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 20,
+      gap: 8,
+      alignItems: 'center',
+      shadowColor: '#0B1426',
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 3 },
+    },
+    addressLabel: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    address: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      textAlign: 'center',
+      fontFamily: 'monospace',
+    },
+    destinationCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      padding: 16,
+      gap: 14,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    destinationIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    destinationText: {
+      flex: 1,
+      gap: 2,
+    },
+    destinationTitle: {
+      ...Typography.bodyLarge,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    destinationSubtitle: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+    },
+  });

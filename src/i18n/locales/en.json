@@ -157,6 +157,9 @@
     "deviceConnect": "Connect",
     "notConnected": "Not connected",
     "pairingHint": "Please confirm the pairing code on your BitBox02 device.",
+    "channelHashLabel": "Pairing fingerprint",
+    "channelHashCompare": "Compare these characters with the code shown on your BitBox screen. If they match, confirm on the device. If they do not match, disconnect immediately.",
+    "channelHashMissing": "No pairing fingerprint received from the device.",
     "scanDevices": "Scan for devices",
     "scanning": "Scanning for devices...",
     "status": {
@@ -164,10 +167,23 @@
       "connecting": "Connecting...",
       "detected": "Device found",
       "disconnected": "Not connected",
+      "error": "Connection error",
+      "reconnecting": "Reconnecting to BitBox…",
       "scanning": "Scanning for devices...",
       "verifying": "Verify on device..."
     },
-    "verifyOnDevice": "Please confirm on your device."
+    "verifyOnDevice": "Please confirm on your device.",
+    "error": {
+      "userAbort": "You rejected the action on your BitBox. Tap connect again to retry.",
+      "firmwareTooOld": "Your BitBox firmware ({{actual}}) is older than the required minimum ({{minRequired}}). Update via the BitBoxApp on your computer, then return here. Your seed is unaffected by the update.",
+      "firmwareReject": "Your BitBox rejected the request. The data may be invalid — please check the action and try again.",
+      "permissionDenied": "USB or Bluetooth permission is missing. Open the system settings, grant access for DFX, and try again.",
+      "transport": "Connection to your BitBox was lost. Reconnect the cable or move within Bluetooth range and try again.",
+      "addressMismatch": "Address returned by the BitBox does not match the value we derived from its public key. Do not use this device until you have confirmed it is genuine.",
+      "invalidPayload": "Transaction data is inconsistent (the chain or recipient does not match the request). For your safety, the signing request has been refused.",
+      "unknown": "Connection failed. Unplug the device, reconnect it, and try again."
+    },
+    "retry": "Try again"
   },
   "contact": {
     "docs": "Documentation",
@@ -395,6 +411,9 @@
   "onboarding": {
     "createError": "Could not create the wallet on this device. Check that your storage is available and try again.",
     "createPasskey": "Create with Passkey",
+    "featureMultiChain": "Bitcoin, Ethereum and multi-chain — one wallet",
+    "featureSelfCustody": "Self-custody — only you hold the keys",
+    "featureSwiss": "Direct Swiss bank-payment integration",
     "createWallet": "Create with Seed Phrase",
     "invalidSeed": "This seed phrase is not valid yet. Enter exactly 12 or 24 words in the original order.",
     "restoreError": "Could not restore this wallet. Check the seed phrase and try again.",
@@ -555,6 +574,7 @@
     "txHash": "TX: {{hash}}"
   },
   "settings": {
+    "appearance": "Appearance",
     "biometric": "Face ID / Touch ID",
     "biometricUnsupported": "Biometric unlock isn't available on this device. Enable Face ID or Touch ID in iOS settings first.",
     "contact": "Contact",
@@ -578,12 +598,13 @@
     "seedPhrase": "Seed Phrase",
     "taxReport": "Tax Report",
     "title": "Settings",
-    "userData": "User Data"
+    "userData": "Profile"
   },
   "support": {
     "createError": "Ticket could not be created. Please try again.",
     "createTicket": "Create Ticket",
     "noTickets": "No support tickets",
+    "emptyHint": "Open a ticket and our team will get back to you, usually within a few hours.",
     "sendError": "Message could not be sent. Please try again.",
     "title": "Support"
   },
@@ -598,6 +619,7 @@
     "merchant": "Merchant",
     "network": "Network",
     "noTransactions": "No transactions yet",
+    "emptyHint": "When you buy, send or receive crypto, your activity will appear here.",
     "notFound": "Transaction not found",
     "output": "To",
     "payout": "Payout to",
@@ -645,6 +667,8 @@
     "linkError": "Could not link wallet.",
     "linkedLabel": "Linked addresses",
     "loadError": "Could not load DFX profile.",
+    "loadErrorTitle": "Profile temporarily unavailable",
+    "mergedTitle": "Account merge",
     "mergedExplanation": "Your DFX account was merged into another account. Please sign in again so we can load the current profile.",
     "noAddresses": "No addresses linked yet.",
     "reauthCta": "Sign in to DFX again",

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import {
   Alert,
   ImageBackground,
@@ -10,10 +11,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader, Icon, PrimaryButton } from '@/components';
+import { AppHeader, DarkBackdrop, Icon, PrimaryButton } from '@/components';
 import { useMultiSigStore } from './store';
 import type { MultiSigVault } from './store';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
 const truncateAddress = (addr: string): string => {
   const trimmed = addr.trim();
@@ -22,6 +23,9 @@ const truncateAddress = (addr: string): string => {
 };
 
 export default function MultiSigManageScreen() {
+  const colors = useColors();
+  const scheme = useResolvedScheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
   const vaults = useMultiSigStore((s) => s.vaults);
@@ -44,20 +48,13 @@ export default function MultiSigManageScreen() {
     );
   };
 
-  return (
-    <>
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      <ImageBackground
-        source={require('../../../assets/dashboard-bg.png')}
-        style={styles.bg}
-        resizeMode="cover"
-      >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-          <AppHeader
-            title={t('multiSig.title')}
-            onBack={() => router.back()}
-            testID="multi-sig-manage"
-          />
+  const body = (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <AppHeader
+        title={t('multiSig.title')}
+        onBack={() => router.back()}
+        testID="multi-sig-manage"
+      />
 
           <ScrollView
             style={styles.scroll}
@@ -67,7 +64,7 @@ export default function MultiSigManageScreen() {
             {vaults.length === 0 ? (
               <View style={styles.emptyContent}>
                 <View style={styles.heroIcon}>
-                  <Icon name="shield" size={36} color={DfxColors.primary} strokeWidth={2} />
+                  <Icon name="shield" size={36} color={colors.primary} strokeWidth={2} />
                 </View>
                 <Text style={styles.emptyTitle}>{t('multiSig.manage.emptyTitle')}</Text>
                 <Text style={styles.emptyBody}>{t('multiSig.manage.emptyBody')}</Text>
@@ -111,7 +108,7 @@ export default function MultiSigManageScreen() {
                         accessibilityLabel={t('multiSig.manage.removeConfirm')}
                         testID={`vault-${vault.id}-remove`}
                       >
-                        <Icon name="close" size={20} color={DfxColors.textTertiary} />
+                        <Icon name="close" size={20} color={colors.textTertiary} />
                       </Pressable>
                     </View>
 
@@ -123,7 +120,7 @@ export default function MultiSigManageScreen() {
 
                     <View style={styles.memberRow}>
                       <View style={[styles.avatar, styles.avatarYou]}>
-                        <Icon name="user" size={16} color={DfxColors.white} />
+                        <Icon name="user" size={16} color={colors.white} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.memberLabel}>{t('multiSig.manage.youLabel')}</Text>
@@ -135,7 +132,7 @@ export default function MultiSigManageScreen() {
                     {vault.cosigners.map((c, idx) => (
                       <View key={c.id} style={styles.memberRow}>
                         <View style={styles.avatar}>
-                          <Icon name="user" size={16} color={DfxColors.primary} />
+                          <Icon name="user" size={16} color={colors.primary} />
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.memberLabel}>
@@ -159,145 +156,164 @@ export default function MultiSigManageScreen() {
               </View>
             )}
           </ScrollView>
-        </SafeAreaView>
-      </ImageBackground>
+    </SafeAreaView>
+  );
+
+  return (
+    <>
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
+      {scheme === 'dark' ? (
+        <View style={styles.bg}>
+          <DarkBackdrop baseColor={colors.background} />
+          {body}
+        </View>
+      ) : (
+        <ImageBackground
+          source={require('../../../assets/dashboard-bg.png')}
+          style={styles.bg}
+          resizeMode="cover"
+        >
+          {body}
+        </ImageBackground>
+      )}
     </>
   );
 }
 
-const styles = StyleSheet.create({
-  bg: { flex: 1, backgroundColor: DfxColors.background },
-  safeArea: { flex: 1 },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 32 },
-  emptyContent: {
-    alignItems: 'center',
-    gap: 16,
-    paddingTop: 32,
-  },
-  heroIcon: {
-    width: 84,
-    height: 84,
-    borderRadius: 22,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyTitle: {
-    ...Typography.headlineMedium,
-    color: DfxColors.text,
-    textAlign: 'center',
-  },
-  emptyBody: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-    paddingHorizontal: 8,
-    lineHeight: 24,
-  },
-  listContent: {
-    gap: 16,
-  },
-  summaryCard: {
-    backgroundColor: 'rgba(220,234,254,0.78)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    padding: 14,
-    gap: 4,
-  },
-  summaryLabel: {
-    ...Typography.bodySmall,
-    fontWeight: '700',
-    color: DfxColors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  summaryValue: {
-    ...Typography.bodyLarge,
-    color: DfxColors.text,
-    fontWeight: '600',
-  },
-  vaultCard: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    padding: 16,
-    gap: 12,
-  },
-  vaultHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  vaultLead: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  vaultLeadText: {
-    ...Typography.bodyLarge,
-    fontWeight: '700',
-    color: DfxColors.primary,
-  },
-  vaultName: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  vaultMeta: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    marginTop: 2,
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: DfxColors.border,
-  },
-  cosignerSectionLabel: {
-    ...Typography.bodySmall,
-    fontWeight: '700',
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  memberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 6,
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarYou: {
-    backgroundColor: DfxColors.primary,
-  },
-  memberLabel: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  memberDesc: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    marginTop: 1,
-  },
-  memberBadge: {
-    ...Typography.bodySmall,
-    fontWeight: '700',
-    color: DfxColors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  spacer: { minHeight: 16 },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    bg: { flex: 1, backgroundColor: colors.background },
+    safeArea: { flex: 1 },
+    scroll: { flex: 1 },
+    scrollContent: { paddingHorizontal: 20, paddingBottom: 32 },
+    emptyContent: {
+      alignItems: 'center',
+      gap: 16,
+      paddingTop: 32,
+    },
+    heroIcon: {
+      width: 84,
+      height: 84,
+      borderRadius: 22,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyTitle: {
+      ...Typography.headlineMedium,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    emptyBody: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      paddingHorizontal: 8,
+      lineHeight: 24,
+    },
+    listContent: {
+      gap: 16,
+    },
+    summaryCard: {
+      backgroundColor: 'rgba(220,234,254,0.78)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      gap: 4,
+    },
+    summaryLabel: {
+      ...Typography.bodySmall,
+      fontWeight: '700',
+      color: colors.primary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    summaryValue: {
+      ...Typography.bodyLarge,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    vaultCard: {
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 16,
+      gap: 12,
+    },
+    vaultHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    vaultLead: {
+      width: 52,
+      height: 52,
+      borderRadius: 14,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    vaultLeadText: {
+      ...Typography.bodyLarge,
+      fontWeight: '700',
+      color: colors.primary,
+    },
+    vaultName: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    vaultMeta: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    divider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+    },
+    cosignerSectionLabel: {
+      ...Typography.bodySmall,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    memberRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 6,
+    },
+    avatar: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarYou: {
+      backgroundColor: colors.primary,
+    },
+    memberLabel: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    memberDesc: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      marginTop: 1,
+    },
+    memberBadge: {
+      ...Typography.bodySmall,
+      fontWeight: '700',
+      color: colors.primary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    spacer: { minHeight: 16 },
+  });
