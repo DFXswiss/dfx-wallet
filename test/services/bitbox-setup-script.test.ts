@@ -25,7 +25,10 @@ import { join } from 'path';
 
 const SCRIPT_PATH = join(__dirname, '..', '..', 'scripts', 'setup-bitbox-wasm.sh');
 
-function runScript(args: string[], env: Record<string, string> = {}): {
+function runScript(
+  args: string[],
+  env: Record<string, string> = {},
+): {
   stdout: string;
   stderr: string;
   exitCode: number;
@@ -48,6 +51,7 @@ function runScript(args: string[], env: Record<string, string> = {}): {
 }
 
 describe('setup-bitbox-wasm.sh — pinned hashes', () => {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- test-time SCRIPT_PATH is a fixed join of __dirname + literal segments
   const source = readFileSync(SCRIPT_PATH, 'utf8');
 
   it('contains no REPLACE_* placeholder hashes', () => {
@@ -89,6 +93,7 @@ describe('setup-bitbox-wasm.sh — usage + cli', () => {
     // easily redirect it without rewriting the script. Instead, assert
     // that --check after a clean state would fail by inspecting the
     // staging dir directly.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- test-time fixed join
     if (existsSync(join(__dirname, '..', '..', 'assets', 'bitbox-bridge'))) {
       // Staging is set up — skip; this test runs cleanly only on a
       // fresh tree. The CI job exercises --check after --apply.

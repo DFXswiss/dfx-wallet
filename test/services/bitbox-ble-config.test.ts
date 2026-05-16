@@ -110,6 +110,7 @@ describe('BleTransport — structural contract (CC-19, H-1)', () => {
   const fs = require('fs');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const path = require('path');
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- test-time path.join over fixed segments; no user input
   const source = fs.readFileSync(
     path.join(__dirname, '..', '..', 'src/features/hardware-wallet/services/transport-ble.ts'),
     'utf8',

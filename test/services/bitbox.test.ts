@@ -932,9 +932,7 @@ describe('BitboxProvider — device-identity fingerprint (CC-22)', () => {
     await provider.connect(dev);
     await provider.disconnect();
     xpubOnDevice = 'xpub-deviceB';
-    const { HwAddressMismatchError } = await import(
-      '@/features/hardware-wallet/services/errors'
-    );
+    const { HwAddressMismatchError } = await import('@/features/hardware-wallet/services/errors');
     await expect(provider.connect(dev)).rejects.toBeInstanceOf(HwAddressMismatchError);
     expect((provider as unknown as { transport: object | null }).transport).toBeNull();
   });
@@ -963,9 +961,7 @@ describe('BitboxProvider — device-identity fingerprint (CC-22)', () => {
     const provider = new BitboxProvider(bridge as never);
     await provider.connect(dev);
     xpubOnDevice = 'xpub-deviceB';
-    const { HwAddressMismatchError } = await import(
-      '@/features/hardware-wallet/services/errors'
-    );
+    const { HwAddressMismatchError } = await import('@/features/hardware-wallet/services/errors');
     await expect(provider.attemptReconnect({ maxAttempts: 1 })).rejects.toBeInstanceOf(
       HwAddressMismatchError,
     );

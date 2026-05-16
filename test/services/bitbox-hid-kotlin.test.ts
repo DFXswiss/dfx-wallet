@@ -31,6 +31,7 @@ const KOTLIN_PATH = join(
 );
 
 describe('BitboxHidModule.kt — CC-20 (concurrency)', () => {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- test-time KOTLIN_PATH is a fixed join of __dirname + literal segments
   const source = readFileSync(KOTLIN_PATH, 'utf8');
 
   it('imports kotlinx.coroutines.sync.Mutex and Dispatchers', () => {
@@ -62,11 +63,14 @@ describe('BitboxHidModule.kt — CC-20 (concurrency)', () => {
   });
 
   it('closeDeviceLocked clears every connection-state field', () => {
-    expect(source).toMatch(/connection = null[\s\S]*usbInterface = null[\s\S]*endpointIn = null[\s\S]*endpointOut = null/);
+    expect(source).toMatch(
+      /connection = null[\s\S]*usbInterface = null[\s\S]*endpointIn = null[\s\S]*endpointOut = null/,
+    );
   });
 });
 
 describe('BitboxHidModule.kt — CC-21 (USB-permission BroadcastReceiver)', () => {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- test-time KOTLIN_PATH is a fixed join of __dirname + literal segments
   const source = readFileSync(KOTLIN_PATH, 'utf8');
 
   it('imports the BroadcastReceiver + IntentFilter + ContextCompat APIs', () => {
