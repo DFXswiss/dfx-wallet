@@ -59,7 +59,7 @@ export default function VerifyPinScreen() {
       if (success) {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setAuthenticated(true);
-        await unlockWallet();
+        void unlockWallet();
         goToDashboard();
       }
     } catch (err) {
@@ -105,7 +105,7 @@ export default function VerifyPinScreen() {
       if (isValid) {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setAuthenticated(true);
-        await unlockWallet();
+        void unlockWallet();
         goToDashboard();
         return;
       }
