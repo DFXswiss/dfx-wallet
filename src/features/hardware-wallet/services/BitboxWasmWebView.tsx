@@ -24,12 +24,21 @@ type Props = {
  *   - The HTML is rendered with the bridge's current session nonce baked
  *     in. The WebView's message handler checks every inbound message
  *     against that nonce.
- *   - originWhitelist is restricted to about:blank — no remote origins
- *     can be loaded into this hidden WebView. The bitbox-api WASM blob
- *     must come from the app bundle (configured via scripts/setup-bitbox-wasm.sh).
- *   - injectedJavaScriptBeforeContentLoaded plants the session nonce
- *     into a JS constant BEFORE the page script runs, so the page-level
- *     compare cannot be raced by a hostile message before init.
+ *   - originWhitelist is locked to about:blank exactly — no wildcard, no
+ *     remote origins. The bitbox-api WASM blob must come from the app
+ *     bundle (configured via scripts/setup-bitbox-wasm.sh).
+ *   - Native→WebView messaging uses `WebView.postMessage` (which the
+ *     page receives via `window.addEventListener('message', ...)`),
+ *     NOT `injectJavaScript`. The previous template-literal injection
+ *     was a latent XSS sink whenever a non-byte-array payload (an
+ *     error echo, a channel-hash string) was added to the protocol.
+ *   - The CSP in bridge-html drops 'unsafe-eval' for 'wasm-unsafe-eval',
+ *     drops style-src 'unsafe-inline', adds frame-ancestors 'none',
+ *     worker-src 'none', media-src 'none'. Defence in depth even if
+ *     the WASM blob is ever tampered with.
+ *   - File-URL escape props are explicitly off (allowFileAccessFromFileURLs,
+ *     allowUniversalAccessFromFileURLs); domStorage and third-party
+ *     cookies are off so nothing persists across the WebView's lifetime.
  */
 export function BitboxWasmWebView({ bridge, onReady }: Props) {
   const webViewRef = useRef<WebView>(null);
@@ -41,12 +50,16 @@ export function BitboxWasmWebView({ bridge, onReady }: Props) {
   const handleMessage = useCallback(
     (event: WebViewMessageEvent) => {
       const data = event.nativeEvent.data;
-      // Pre-parse only enough to spot wasm_ready / wasm_error markers we
-      // want to surface to the caller. The bridge's own onMessage runs the
-      // strict nonce check and dispatch.
+      // Pre-parse only enough to spot wasm_ready markers we want to
+      // surface to the caller. The bridge's own onMessage runs the strict
+      // nonce check and dispatch; we ALSO verify the nonce here so a
+      // foreign window with the right shape but the wrong nonce cannot
+      // flip our local readiness state.
       try {
         const msg = JSON.parse(data);
-        if (msg.type === 'wasm_ready') onReady?.();
+        if (msg && msg.type === 'wasm_ready' && msg.nonce === bridge.getSessionNonce()) {
+          onReady?.();
+        }
       } catch {
         // Not JSON — could be a probe or noise. Pass through to the bridge.
       }
@@ -59,13 +72,12 @@ export function BitboxWasmWebView({ bridge, onReady }: Props) {
     if (!webViewRef.current) return;
     bridge.setWebView({
       postMessage: (msg: string) => {
-        // injectJavaScript dispatches a real MessageEvent so addEventListener
-        // 'message' picks it up in the page. JSON.stringify is used twice:
-        // once by us (msg is already JSON), once by injectJavaScript to
-        // embed the JSON as a JS string literal.
-        webViewRef.current?.injectJavaScript(
-          `window.dispatchEvent(new MessageEvent('message', { data: ${JSON.stringify(msg)} })); true;`,
-        );
+        // react-native-webview's typed `postMessage` dispatches the
+        // string as a `message` event in the page (consumed by
+        // window.addEventListener('message', ...)). No `eval`, no
+        // string-template injection — JSON-stringified payloads are
+        // delivered byte-exact via the native bridge channel.
+        webViewRef.current?.postMessage(msg);
       },
     });
     return () => {
@@ -80,16 +92,29 @@ export function BitboxWasmWebView({ bridge, onReady }: Props) {
         source={{ html }}
         onMessage={handleMessage}
         javaScriptEnabled
-        // Only the about:blank origin (the inline-HTML page itself).
-        // The page imports its WASM asset via a relative URL — no remote
-        // origins must ever be reachable from this hidden WebView.
-        originWhitelist={['about:*']}
+        // Exactly about:blank — no wildcard. The page imports its WASM
+        // asset via a relative URL; no remote origins must ever be
+        // reachable from this hidden WebView.
+        originWhitelist={['about:blank']}
         // Bridge-side defence-in-depth: a hostile page that somehow loads
         // cannot navigate elsewhere.
         allowsBackForwardNavigationGestures={false}
         allowsInlineMediaPlayback={false}
         cacheEnabled={false}
+        // iOS-only — Android equivalents are the explicit props below.
         incognito
+        // Reject file:// escapes on Android; the bridge has no business
+        // reading the device's filesystem.
+        allowFileAccess={false}
+        allowFileAccessFromFileURLs={false}
+        allowUniversalAccessFromFileURLs={false}
+        // Refuse any mixed-content fetch; we make none, but defence in
+        // depth covers a future contributor adding a CSP-bypass fetch.
+        mixedContentMode="never"
+        // No DOM storage / IndexedDB / WebSQL — the bridge holds no
+        // state worth persisting between sessions.
+        domStorageEnabled={false}
+        thirdPartyCookiesEnabled={false}
         style={styles.webview}
       />
     </View>

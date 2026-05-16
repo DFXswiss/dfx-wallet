@@ -50,8 +50,26 @@ type OutboundMessage =
 
 type InboundMessage =
   | { nonce: string; type: 'wasm_ready' }
-  | { nonce: string; type: 'result'; id: number; result: unknown }
-  | { nonce: string; type: 'error'; id: number; error: { code?: number; message: string } }
+  | {
+      nonce: string;
+      type: 'wasm_error';
+      id: 0;
+      error: { code?: number; message: string };
+    }
+  | {
+      nonce: string;
+      type: 'result';
+      id: number;
+      method: string;
+      result: unknown;
+    }
+  | {
+      nonce: string;
+      type: 'error';
+      id: number;
+      method: string;
+      error: { code?: number; message: string };
+    }
   | { nonce: string; type: 'transport_write'; data: number[] }
   | { nonce: string; type: 'transport_read' };
 
@@ -72,6 +90,13 @@ export class WasmBridge {
    */
   private nonce: string = generateNonce();
   private wasmReady = false;
+  /**
+   * Cached bootstrap failure (e.g. WASM load 404, integrity failure).
+   * When set, every waitReady() call rejects immediately instead of
+   * waiting for the 5s timeout — that latency previously buried the real
+   * failure message behind a generic "bridge not ready" error.
+   */
+  private bootstrapError: HwBridgeNotReadyError | null = null;
   private readyWaiters: Array<{
     resolve: () => void;
     reject: (err: Error) => void;
@@ -96,6 +121,7 @@ export class WasmBridge {
     // weakened.
     this.callId = 0;
     this.wasmReady = false;
+    this.bootstrapError = null;
   }
 
   /** Returns the current session nonce — exposed for the HTML bootstrap to inject. */
@@ -110,6 +136,9 @@ export class WasmBridge {
    */
   waitReady(timeoutMs = 5_000): Promise<void> {
     if (this.wasmReady) return Promise.resolve();
+    if (this.bootstrapError) {
+      return Promise.reject(this.bootstrapError);
+    }
     if (!this.webViewRef) {
       return Promise.reject(new HwBridgeNotReadyError('no WebView attached'));
     }
@@ -192,12 +221,31 @@ export class WasmBridge {
     switch (parsed.type) {
       case 'wasm_ready':
         this.wasmReady = true;
+        this.bootstrapError = null;
         while (this.readyWaiters.length > 0) {
           const w = this.readyWaiters.shift()!;
           clearTimeout(w.timer);
           w.resolve();
         }
         return;
+
+      case 'wasm_error': {
+        // Bootstrap failure — WASM never made it to ready. Fail every
+        // queued waitReady caller immediately with the underlying cause,
+        // and stash the error so future waitReady() calls reject fast
+        // instead of waiting another 5 s.
+        const err = new HwBridgeNotReadyError(
+          parsed.error?.message ?? 'wasm bootstrap failed',
+        );
+        this.bootstrapError = err;
+        this.wasmReady = false;
+        for (const w of this.readyWaiters) {
+          clearTimeout(w.timer);
+          w.reject(err);
+        }
+        this.readyWaiters = [];
+        return;
+      }
 
       case 'transport_write':
         this.onTransportWrite?.(new Uint8Array(parsed.data ?? []));
@@ -208,8 +256,23 @@ export class WasmBridge {
         return;
 
       case 'result': {
+        if (
+          typeof parsed.id !== 'number' ||
+          !Number.isInteger(parsed.id) ||
+          parsed.id <= 0
+        ) {
+          return;
+        }
         const pending = this.pending.get(parsed.id);
         if (!pending) return;
+        // Method binding: reject results whose method doesn't match the
+        // pending entry. A forged result with the predicted next id can
+        // no longer satisfy a different in-flight call.
+        if (typeof parsed.method !== 'string' || parsed.method !== pending.method) {
+          // Silently drop — a method mismatch is an attack signal.
+          // The pending entry stays, will eventually time out.
+          return;
+        }
         this.pending.delete(parsed.id);
         clearTimeout(pending.timer);
         pending.resolve(parsed.result);
@@ -217,8 +280,18 @@ export class WasmBridge {
       }
 
       case 'error': {
+        if (
+          typeof parsed.id !== 'number' ||
+          !Number.isInteger(parsed.id) ||
+          parsed.id <= 0
+        ) {
+          return;
+        }
         const pending = this.pending.get(parsed.id);
         if (!pending) return;
+        if (typeof parsed.method !== 'string' || parsed.method !== pending.method) {
+          return;
+        }
         this.pending.delete(parsed.id);
         clearTimeout(pending.timer);
         const err = new Error(parsed.error?.message ?? 'unknown bridge error');
@@ -265,6 +338,7 @@ export class WasmBridge {
     this.webViewRef = null;
     this.nonce = '';
     this.wasmReady = false;
+    this.bootstrapError = null;
     this.onTransportWrite = null;
     this.onTransportRead = null;
   }

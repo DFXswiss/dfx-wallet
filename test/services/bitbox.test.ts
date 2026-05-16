@@ -603,3 +603,142 @@ describe('WasmBridge — constructor produces a usable nonce immediately', () =>
     await secondCall;
   });
 });
+
+/**
+ * Regression for CC-17 (method-binding) + bridge protocol hardening
+ * tests added in Commit 2.
+ */
+describe('WasmBridge — protocol hardening', () => {
+  async function readyBridge() {
+    const { WasmBridge } = await import('@/features/hardware-wallet/services/wasm-bridge');
+    const sent: unknown[] = [];
+    const bridge = new WasmBridge();
+    bridge.setWebView({ postMessage: (m) => sent.push(JSON.parse(m)) });
+    const nonce = bridge.getSessionNonce();
+    bridge.onMessage(JSON.stringify({ nonce, type: 'wasm_ready' }));
+    await bridge.waitReady();
+    return { bridge, sent, nonce };
+  }
+
+  it('rejects a result whose method does not match the pending call (CC-17)', async () => {
+    const { bridge, sent, nonce } = await readyBridge();
+    const inflight = bridge.call('deviceInfo', [], { timeoutMs: 100 });
+    const callId = (sent[0] as { id: number }).id;
+    // Inject a forged result for the same id but a different method —
+    // simulating an attacker who guessed the next id but cannot guess the
+    // pending method.
+    bridge.onMessage(
+      JSON.stringify({
+        nonce,
+        type: 'result',
+        id: callId,
+        method: 'ethSign1559Transaction',
+        result: { r: [], s: [], v: [27] },
+      }),
+    );
+    const { HwBridgeTimeoutError } = await import('@/features/hardware-wallet/services/errors');
+    // The forged result is dropped, the pending entry survives, the
+    // timer eventually fires.
+    jest.useFakeTimers();
+    const captured = inflight.catch((e) => e);
+    jest.advanceTimersByTime(150);
+    const err = await captured;
+    expect(err).toBeInstanceOf(HwBridgeTimeoutError);
+    jest.useRealTimers();
+  });
+
+  it('accepts a result with the matching method (CC-17 happy path)', async () => {
+    const { bridge, sent, nonce } = await readyBridge();
+    const inflight = bridge.call<string>('deviceInfo', [], { timeoutMs: 60_000 });
+    const callId = (sent[0] as { id: number }).id;
+    bridge.onMessage(
+      JSON.stringify({
+        nonce,
+        type: 'result',
+        id: callId,
+        method: 'deviceInfo',
+        result: 'v9.21.0',
+      }),
+    );
+    await expect(inflight).resolves.toBe('v9.21.0');
+  });
+
+  it('rejects results / errors with non-positive or non-integer id', async () => {
+    const { bridge, sent, nonce } = await readyBridge();
+    const inflight = bridge.call('m', [], { timeoutMs: 100 });
+    const callId = (sent[0] as { id: number }).id;
+    // Inject malformed ids — must be ignored.
+    bridge.onMessage(JSON.stringify({ nonce, type: 'result', id: 0, method: 'm', result: 1 }));
+    bridge.onMessage(JSON.stringify({ nonce, type: 'result', id: -1, method: 'm', result: 1 }));
+    bridge.onMessage(JSON.stringify({ nonce, type: 'result', id: 1.5, method: 'm', result: 1 }));
+    bridge.onMessage(JSON.stringify({ nonce, type: 'result', id: '1', method: 'm', result: 1 }));
+    // The correct envelope resolves.
+    bridge.onMessage(
+      JSON.stringify({ nonce, type: 'result', id: callId, method: 'm', result: 'ok' }),
+    );
+    await expect(inflight).resolves.toBe('ok');
+  });
+
+  // Regression for HIGH-6 (Agent B): a wasm_error envelope should fail
+  // readyWaiters fast instead of waiting for the 5s timeout.
+  it('wasm_error rejects waitReady immediately with the underlying message', async () => {
+    const { WasmBridge } = await import('@/features/hardware-wallet/services/wasm-bridge');
+    const { HwBridgeNotReadyError } = await import('@/features/hardware-wallet/services/errors');
+    const bridge = new WasmBridge();
+    bridge.setWebView({ postMessage: () => undefined });
+    const nonce = bridge.getSessionNonce();
+    // Fire the wasm_error before anyone calls waitReady — exercise the
+    // cached-bootstrap-error branch.
+    bridge.onMessage(
+      JSON.stringify({
+        nonce,
+        type: 'wasm_error',
+        id: 0,
+        error: { message: 'wasm load failed: 404' },
+      }),
+    );
+    await expect(bridge.waitReady(5000)).rejects.toBeInstanceOf(HwBridgeNotReadyError);
+    await expect(bridge.waitReady(5000)).rejects.toThrow(/wasm load failed: 404/);
+  });
+
+  it('wasm_error rejects all in-flight waitReady waiters synchronously', async () => {
+    const { WasmBridge } = await import('@/features/hardware-wallet/services/wasm-bridge');
+    const { HwBridgeNotReadyError } = await import('@/features/hardware-wallet/services/errors');
+    const bridge = new WasmBridge();
+    bridge.setWebView({ postMessage: () => undefined });
+    const nonce = bridge.getSessionNonce();
+    const waiterA = bridge.waitReady(5000).catch((e) => e);
+    const waiterB = bridge.waitReady(5000).catch((e) => e);
+    bridge.onMessage(
+      JSON.stringify({
+        nonce,
+        type: 'wasm_error',
+        id: 0,
+        error: { message: 'integrity mismatch' },
+      }),
+    );
+    await expect(waiterA).resolves.toBeInstanceOf(HwBridgeNotReadyError);
+    await expect(waiterB).resolves.toBeInstanceOf(HwBridgeNotReadyError);
+  });
+
+  // setWebView must clear the bootstrap-error so a fresh session is
+  // not pre-poisoned by the previous load failure.
+  it('setWebView clears the cached bootstrap error', async () => {
+    const { WasmBridge } = await import('@/features/hardware-wallet/services/wasm-bridge');
+    const bridge = new WasmBridge();
+    bridge.setWebView({ postMessage: () => undefined });
+    let nonce = bridge.getSessionNonce();
+    bridge.onMessage(
+      JSON.stringify({
+        nonce,
+        type: 'wasm_error',
+        id: 0,
+        error: { message: 'first failure' },
+      }),
+    );
+    bridge.setWebView({ postMessage: () => undefined });
+    nonce = bridge.getSessionNonce();
+    bridge.onMessage(JSON.stringify({ nonce, type: 'wasm_ready' }));
+    await expect(bridge.waitReady()).resolves.toBeUndefined();
+  });
+});
