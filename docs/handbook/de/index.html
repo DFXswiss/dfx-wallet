@@ -1,0 +1,1039 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DFX Wallet — Handbuch &amp; Test-Dokumentation</title>
+    <meta
+      name="description"
+      content="DFX Wallet — Handbuch und Test-Dokumentation. Jeder Screen mit Visual-Regression-Baseline."
+    />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://github.com/DFXswiss/dfx-wallet/blob/develop/docs/handbook/index.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="de"
+      href="https://github.com/DFXswiss/dfx-wallet/blob/develop/docs/handbook/de/index.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://github.com/DFXswiss/dfx-wallet/blob/develop/docs/handbook/index.html"
+    />
+    <style>
+      :root {
+        --bg: #0a0a0a;
+        --surface: #131313;
+        --surface-2: #1c1c1c;
+        --line: #2a2a2a;
+        --line-2: #353535;
+        --ink: #f5f5f5;
+        --ink-2: #c8c8c8;
+        --ink-3: #8a8a8a;
+        --ink-4: #5a5a5a;
+        --dfx: #2f7cf7;
+        --dfx-hover: #5599ff;
+        --dfx-red: #f5516c;
+        --ok: #4ade80;
+        --warn: #fbbf24;
+        --err: #f87171;
+        --content-width: 960px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
+          sans-serif;
+        font-size: 16px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+      .mono,
+      code {
+        font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      }
+
+      /* Layout */
+      .wrap {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        max-width: 1320px;
+        margin: 0 auto;
+      }
+      aside {
+        position: sticky;
+        top: 0;
+        align-self: start;
+        height: 100vh;
+        overflow-y: auto;
+        padding: 32px 20px 32px 28px;
+        border-right: 1px solid var(--line);
+        background: var(--surface);
+      }
+      main {
+        padding: 56px 56px 96px;
+        max-width: var(--content-width);
+      }
+      @media (max-width: 980px) {
+        .wrap {
+          grid-template-columns: 1fr;
+        }
+        aside {
+          position: static;
+          height: auto;
+          border-right: none;
+          border-bottom: 1px solid var(--line);
+        }
+        main {
+          padding: 32px 24px 64px;
+        }
+      }
+
+      /* Sidebar */
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 8px;
+      }
+      .brand .dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+        background: var(--dfx-red);
+      }
+      .brand .name {
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      .brand-sub {
+        font-size: 11px;
+        color: var(--ink-4);
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin: 0 0 18px;
+      }
+      .lang-switcher {
+        display: inline-flex;
+        gap: 1px;
+        background: var(--line);
+        padding: 1px;
+        border-radius: 4px;
+        margin: 0 0 24px;
+      }
+      .lang-switcher a {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        padding: 4px 10px;
+        color: var(--ink-3);
+        text-decoration: none;
+        border-radius: 3px;
+        background: var(--surface);
+        transition:
+          color 0.15s,
+          background 0.15s;
+      }
+      .lang-switcher a:hover {
+        color: var(--ink);
+      }
+      .lang-switcher a.active {
+        background: var(--dfx);
+        color: var(--bg);
+      }
+      .toc-label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        color: var(--ink-4);
+        text-transform: uppercase;
+        margin: 18px 0 6px;
+      }
+      nav.toc ol {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      nav.toc li {
+        margin: 0;
+      }
+      nav.toc a {
+        display: block;
+        padding: 5px 0;
+        font-size: 12.5px;
+        color: var(--ink-2);
+        text-decoration: none;
+        line-height: 1.45;
+        transition: color 0.15s;
+      }
+      nav.toc a:hover {
+        color: var(--dfx);
+      }
+      nav.toc .spec-num {
+        color: var(--ink-4);
+        font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+        font-size: 10.5px;
+        margin-right: 8px;
+      }
+
+      /* Headings & prose */
+      h1 {
+        font-size: 32px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin: 0 0 6px;
+      }
+      h2 {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.015em;
+        margin: 0;
+      }
+      h3 {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 32px 0 6px;
+        scroll-margin-top: 20px;
+        color: var(--ink);
+      }
+      p {
+        margin: 0 0 14px;
+        color: var(--ink-2);
+      }
+      .lede {
+        font-size: 18px;
+        color: var(--ink-2);
+        max-width: 800px;
+      }
+      a {
+        color: var(--dfx);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      strong {
+        color: var(--ink);
+      }
+      code {
+        font-size: 0.88em;
+        background: var(--surface-2);
+        padding: 2px 6px;
+        border-radius: 3px;
+        color: var(--dfx);
+      }
+      hr.sep {
+        border: none;
+        border-top: 1px solid var(--line);
+        margin: 56px 0 0;
+      }
+      ul,
+      ol {
+        color: var(--ink-2);
+        padding-left: 22px;
+      }
+      li {
+        margin: 4px 0;
+      }
+
+      /* Hero + meta */
+      .hero {
+        padding: 16px 0 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      .hero h1 {
+        margin-bottom: 10px;
+      }
+      .meta {
+        display: flex;
+        gap: 18px;
+        font-size: 12px;
+        color: var(--ink-3);
+        flex-wrap: wrap;
+        margin-top: 14px;
+      }
+      .meta span {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .meta b {
+        color: var(--ink);
+      }
+
+      /* Spec section header */
+      .spec-head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        margin: 64px 0 6px;
+        padding-bottom: 14px;
+        border-bottom: 2px solid var(--dfx);
+        scroll-margin-top: 20px;
+      }
+      .spec-head .lhs h2 {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+      }
+      .spec-head .num {
+        color: var(--dfx);
+        font-weight: 800;
+        font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+        font-size: 26px;
+      }
+      .spec-head .file {
+        font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+        font-size: 13px;
+        color: var(--ink-3);
+        margin-top: 6px;
+      }
+      .spec-head .rhs {
+        text-align: right;
+        font-size: 12px;
+        color: var(--ink-3);
+        line-height: 1.5;
+      }
+      .spec-head .rhs b {
+        color: var(--ink);
+      }
+      .spec-head .rhs .links {
+        margin-top: 4px;
+      }
+      .spec-head .rhs .links a {
+        font-size: 11px;
+        margin-left: 10px;
+      }
+
+      .spec-intro {
+        max-width: 800px;
+        color: var(--ink-2);
+        font-size: 15px;
+        margin: 18px 0 0;
+      }
+
+      /* Tag badges */
+      .tag {
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        padding: 2px 8px;
+        border-radius: 3px;
+        text-transform: uppercase;
+        border: 1px solid var(--line-2);
+        color: var(--ink-3);
+        margin-right: 6px;
+      }
+      .tag.mvp {
+        color: var(--dfx);
+        border-color: var(--dfx);
+      }
+      .tag.gate {
+        color: var(--warn);
+        border-color: rgba(251, 191, 36, 0.4);
+      }
+      .tag.gap-closed {
+        color: var(--ok);
+        border-color: rgba(74, 222, 128, 0.4);
+      }
+
+      /* Test grid */
+      .tests {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+        gap: 22px;
+        margin: 28px 0 8px;
+      }
+      .tests.cols-2 {
+        grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+      }
+      .test {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .test .head {
+        padding: 12px 14px 10px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .test .head .name {
+        font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+        font-size: 12px;
+        color: var(--dfx);
+        font-weight: 600;
+      }
+      .test .head .src {
+        font-size: 10px;
+        color: var(--ink-4);
+        white-space: nowrap;
+      }
+      .test .head .src a {
+        color: var(--ink-3);
+        font-size: 10px;
+      }
+      .test .img {
+        display: block;
+        background: #fff;
+      }
+      .test .img img {
+        display: block;
+        width: 100%;
+        height: auto;
+        max-height: 520px;
+        object-fit: contain;
+        background: #fff;
+      }
+      .test .img.no-shot {
+        background: var(--surface-2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 180px;
+        padding: 32px 20px;
+        text-align: center;
+      }
+      .test .img.no-shot p {
+        margin: 0;
+        font-size: 12px;
+        color: var(--ink-4);
+        font-style: italic;
+      }
+      .test .desc {
+        padding: 12px 14px 14px;
+        font-size: 12.5px;
+        color: var(--ink-2);
+        line-height: 1.55;
+      }
+
+      /* Callouts */
+      .callout {
+        border-left: 3px solid var(--dfx);
+        background: rgba(47, 124, 247, 0.05);
+        padding: 14px 18px;
+        margin: 24px 0;
+        border-radius: 0 4px 4px 0;
+      }
+      .callout.warn {
+        border-color: var(--warn);
+        background: rgba(251, 191, 36, 0.05);
+      }
+      .callout.info {
+        border-color: var(--ink-3);
+        background: var(--surface);
+      }
+      .callout p {
+        margin: 0;
+        color: var(--ink-2);
+        font-size: 13.5px;
+      }
+      .callout b {
+        color: var(--ink);
+      }
+
+      /* Table */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+        font-size: 13px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 9px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      th {
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink-4);
+      }
+      td {
+        color: var(--ink-2);
+      }
+      td .ok {
+        color: var(--ok);
+      }
+
+      /* Spec section spacer */
+      section.spec {
+        margin-bottom: 72px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <aside>
+        <div class="brand">
+          <span class="dot"></span><span class="name">DFX Wallet · Handbuch</span>
+        </div>
+        <p class="brand-sub">User-Guide &amp; Test-Doku in einem</p>
+
+        <div class="lang-switcher">
+          <a href="../" hreflang="en">EN</a>
+          <a href="./" hreflang="de" class="active">DE</a>
+        </div>
+
+        <div class="toc-label">Übersicht</div>
+        <nav class="toc">
+          <ol>
+            <li><a href="#intro">Was ist das hier?</a></li>
+            <li><a href="#architecture">Test-Architektur</a></li>
+          </ol>
+        </nav>
+
+        <div class="toc-label">MVP-Pfad (9 Baselines · 7 Maestro-Flows)</div>
+        <nav class="toc">
+          <ol>
+            <li>
+              <a href="#spec-01"><span class="spec-num">01</span>Welcome</a>
+            </li>
+            <li>
+              <a href="#spec-02"><span class="spec-num">02</span>Wallet erstellen — Seed</a>
+            </li>
+            <li>
+              <a href="#spec-03"><span class="spec-num">03</span>Dashboard</a>
+            </li>
+            <li>
+              <a href="#spec-04"><span class="spec-num">04</span>Bitcoin empfangen</a>
+            </li>
+            <li>
+              <a href="#spec-05"><span class="spec-num">05</span>Bitcoin senden</a>
+            </li>
+          </ol>
+        </nav>
+
+        <div class="toc-label">Coverage</div>
+        <nav class="toc">
+          <ol>
+            <li><a href="#coverage">Abdeckung &amp; Triage</a></li>
+          </ol>
+        </nav>
+      </aside>
+
+      <main>
+        <section class="hero" id="intro">
+          <h1>DFX Wallet — Handbuch</h1>
+          <p class="lede">
+            User-Doku und Test-Doku in einem. Jedes Bild auf dieser Seite ist gleichzeitig eine
+            Visual-Regression-Baseline aus <code>e2e/__baselines__/</code>, die in CI bei jedem PR
+            pixelgenau verglichen wird. Wenn das Handbuch aktuell aussieht, ist die Live-App es auch
+            — und umgekehrt.
+          </p>
+          <div class="meta">
+            <span>📱 <b>App:</b> React Native + Expo (iOS &amp; Android)</span>
+            <span
+              >📂 <b>Code:</b>
+              <a href="https://github.com/DFXswiss/dfx-wallet">DFXswiss/dfx-wallet</a></span
+            >
+            <span>🧪 <b>MVP-Tests:</b> 7 Maestro-Flows · 9 Detox-Baselines</span>
+          </div>
+        </section>
+
+        <section id="architecture" style="margin-top: 40px">
+          <h3 style="margin-top: 0">Single Source of Truth</h3>
+          <p>
+            Die kanonischen Baseline-Bilder liegen unter
+            <code>e2e/__baselines__/&lt;name&gt;.png</code> und sind das einzige committed Asset.
+            Die Bilder, die dieses Handbuch zeigt, sind keine Kopien — die
+            <code>&lt;img&gt;</code>-Tags zeigen direkt mit relativen Pfaden auf die Baselines. Kein
+            Drift möglich.
+          </p>
+          <p>
+            Aktualisieren der Baselines erfolgt über die <em>Visual Regression</em>-Workflow-Runs:
+            ein fehlendes oder pixelgenau abweichendes Snapshot lädt jest-image-snapshot in den
+            <code>detox-artifacts</code>-Bundle hoch, von dort kopiert ein Maintainer das PNG nach
+            <code>e2e/__baselines__/</code> und committet. Details in
+            <a
+              href="https://github.com/DFXswiss/dfx-wallet/blob/develop/docs/visual-regression.md"
+              >docs/visual-regression.md</a
+            >.
+          </p>
+
+          <div class="callout info">
+            <p>
+              <b>MVP-Pfad vs. Feature-gated:</b> Die App liefert jede deferred Funktion hinter einem
+              <code>EXPO_PUBLIC_ENABLE_*</code>-Flag aus, das im MVP-Build standardmäßig aus ist.
+              Dieses Handbuch zeigt den MVP-Pfad: Welcome → Create-Wallet → SetupPinDisabled-Bridge
+              → Dashboard → Receive/Send. PIN-Setup, Restore-from-Seed, Legal-Disclaimer,
+              Hardware-Wallet und Multi-Sig kommen, sobald die jeweiligen Flags shippen — die
+              Baselines existieren bereits unter <code>setup-pin.png</code>, <code>verify-pin.png</code>,
+              <code>restore-wallet.png</code> etc., und die Maestro-Flows tragen
+              <code>feature-*</code>-Tags, die der Workflow-Filter <code>--include-tags mvp</code>
+              heute ausblendet.
+            </p>
+          </div>
+        </section>
+
+        <hr class="sep" />
+
+        <!-- SPEC 01 -->
+        <section id="spec-01" class="spec">
+          <div class="spec-head">
+            <div class="lhs">
+              <h2><span class="num">01</span>Welcome</h2>
+              <div class="file">.maestro/01-welcome.yaml · e2e/visual/onboarding.test.ts</div>
+            </div>
+            <div class="rhs">
+              <b>1 Maestro · 1 Baseline</b>
+              <div class="links">
+                <a
+                  href="https://github.com/DFXswiss/dfx-wallet/blob/develop/.maestro/01-welcome.yaml"
+                  >Maestro ↗</a
+                >
+                <a
+                  href="https://github.com/DFXswiss/dfx-wallet/blob/develop/e2e/__baselines__/welcome.png"
+                  >Baseline ↗</a
+                >
+              </div>
+            </div>
+          </div>
+          <p class="spec-intro">
+            Der allererste Screen nach fresh install. <em>Create with Seed Phrase</em> startet den
+            einzigen MVP-Onboarding-Pfad — Restore-from-Seed und Passkey-basiertes Onboarding sind
+            hinter <code>EXPO_PUBLIC_ENABLE_RESTORE</code> bzw. <code>_PASSKEY</code> gegated und
+            werden im MVP-Build nicht gerendert.
+          </p>
+
+          <div class="tests">
+            <div class="test">
+              <div class="head">
+                <span class="name">welcome</span>
+                <span class="src">
+                  <a href="https://github.com/DFXswiss/dfx-wallet/blob/develop/app/(onboarding)/welcome.tsx"
+                    >welcome.tsx</a
+                  >
+                </span>
+              </div>
+              <div class="img">
+                <img src="../../../e2e/__baselines__/welcome.png" alt="Welcome screen" />
+              </div>
+              <div class="desc">
+                <span class="tag mvp">MVP</span> Hero-Background mit Bergpanorama, DFX-Logo, Headline
+                „Welcome to DFX" und das einzige sichtbare CTA: <em>Create with Seed Phrase</em>.
+                Der <code>welcome-restore-toggle</code> wäre hier — er rendert nur bei aktiviertem
+                <code>FEATURES.RESTORE || FEATURES.PASSKEY</code>.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SPEC 02 -->
+        <section id="spec-02" class="spec">
+          <div class="spec-head">
+            <div class="lhs">
+              <h2><span class="num">02</span>Wallet erstellen — Seed Phrase</h2>
+              <div class="file">.maestro/10-onboarding-create.yaml · e2e/visual/onboarding.test.ts</div>
+            </div>
+            <div class="rhs">
+              <b>1 Maestro · 2 Baselines</b>
+              <div class="links">
+                <a
+                  href="https://github.com/DFXswiss/dfx-wallet/blob/develop/.maestro/10-onboarding-create.yaml"
+                  >Maestro ↗</a
+                >
+                <a
+                  href="https://github.com/DFXswiss/dfx-wallet/tree/develop/e2e/__baselines__"
+                  >Baselines ↗</a
+                >
+              </div>
+            </div>
+          </div>
+          <p class="spec-intro">
+            Tap auf <em>Create with Seed Phrase</em> öffnet den Seed-Reveal-Screen. Der User muss
+            seine 12-Wort-Mnemonic einsehen, bevor er weitergehen kann — die <em>Continue</em>-CTA
+            ist disabled bis der Reveal-Button gedrückt wurde. Anschließend springt der Flow im
+            MVP-Build via <code>SetupPinDisabled</code>-Stub direkt zum Dashboard (kein PIN- oder
+            Legal-Screen dazwischen).
+          </p>
+
+          <div class="tests cols-2">
+            <div class="test">
+              <div class="head">
+                <span class="name">create-wallet</span>
+                <span class="src">vor reveal</span>
+              </div>
+              <div class="img">
+                <img
+                  src="../../../e2e/__baselines__/create-wallet.png"
+                  alt="Create-Wallet vor Seed-Reveal"
+                />
+              </div>
+              <div class="desc">
+                Default-State: Seed verdeckt, Continue disabled. Tap auf
+                <em>Reveal seed phrase</em> zeigt die 12 Wörter.
+              </div>
+            </div>
+            <div class="test">
+              <div class="head">
+                <span class="name">create-wallet-revealed</span>
+                <span class="src">nach reveal</span>
+              </div>
+              <div class="img">
+                <img
+                  src="../../../e2e/__baselines__/create-wallet-revealed.png"
+                  alt="Create-Wallet mit sichtbarer Seed Phrase"
+                />
+              </div>
+              <div class="desc">
+                Die 12 BIP39-Wörter sind sichtbar (Numerierung 1–12), Continue aktiviert. Maestro
+                tappt direkt Continue, real-User sollte die Phrase aufschreiben und sicher
+                verwahren.
+              </div>
+            </div>
+          </div>
+
+          <div class="callout warn">
+            <p>
+              <b>WDK-Init nach Continue:</b> der Tether-WDK initialisiert beim ersten Wallet-Setup
+              jede Chain (Bitcoin SegWit, Taproot, Plasma, Ethereum &amp; L2s, Solana, TON, TRON,
+              Spark). Auf einem frischen CI-Simulator kann das bis zu 120s dauern — der Maestro-Flow
+              und der Detox-Test gewähren explizit <code>--withTimeout(120_000)</code>.
+            </p>
+          </div>
+        </section>
+
+        <!-- SPEC 03 -->
+        <section id="spec-03" class="spec">
+          <div class="spec-head">
+            <div class="lhs">
+              <h2><span class="num">03</span>Dashboard</h2>
+              <div class="file">
+                .maestro/22-dashboard-balance-toggle.yaml · e2e/visual/onboarding.test.ts
+              </div>
+            </div>
+            <div class="rhs">
+              <b>1 Maestro · 2 Baselines</b>
+              <div class="links">
+                <a
+                  href="https://github.com/DFXswiss/dfx-wallet/blob/develop/.maestro/22-dashboard-balance-toggle.yaml"
+                  >Maestro ↗</a
+                >
+                <a
+                  href="https://github.com/DFXswiss/dfx-wallet/blob/develop/app/(auth)/(tabs)/dashboard.tsx"
+                  >Source ↗</a
+                >
+              </div>
+            </div>
+          </div>
+          <p class="spec-intro">
+            Die Landing-Surface nach Onboarding. Im MVP-Build sind Receive und Send die einzigen
+            Action-Pills — Portfolio, Pay, Transactions, Settings und Multi-Sig leben hinter ihren
+            jeweiligen Feature-Flags. Das Augen-Icon neben „Total Wallet Balance" toggelt die
+            Balance auf vier Bullets (für Public-Privacy beim Demo).
+          </p>
+
+          <div class="tests cols-2">
+            <div class="test">
+              <div class="head">
+                <span class="name">dashboard</span>
+                <span class="src">balance sichtbar</span>
+              </div>
+              <div class="img">
+                <img
+                  src="../../../e2e/__baselines__/dashboard.png"
+                  alt="Dashboard mit sichtbarem Balance"
+                />
+              </div>
+              <div class="desc">
+                Default-State direkt nach Onboarding: CHF 0.00, Bergpanorama-Background,
+                Bottom-Pill mit Receive (links) und Send (rechts).
+              </div>
+            </div>
+            <div class="test">
+              <div class="head">
+                <span class="name">dashboard-balance-hidden</span>
+                <span class="src">balance versteckt</span>
+              </div>
+              <div class="img">
+                <img
+                  src="../../../e2e/__baselines__/dashboard-balance-hidden.png"
+                  alt="Dashboard mit verstecktem Balance"
+                />
+              </div>
+              <div class="desc">
+                Nach Tap auf das Augen-Icon: <code>CHF ●●●●</code>. State ist nur in-memory, beim
+                nächsten Re-Mount der Tab-Komponente zurück auf sichtbar.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SPEC 04 -->
+        <section id="spec-04" class="spec">
+          <div class="spec-head">
+            <div class="lhs">
+              <h2><span class="num">04</span>Bitcoin empfangen</h2>
+              <div class="file">
+                .maestro/20-receive.yaml · .maestro/23-receive-chain-switch.yaml ·
+                e2e/visual/onboarding.test.ts
+              </div>
+            </div>
+            <div class="rhs">
+              <b>2 Maestro · 2 Baselines</b>
+              <div class="links">
+                <a
+                  href="https://github.com/DFXswiss/dfx-wallet/blob/develop/.maestro/20-receive.yaml"
+                  >Maestro 20 ↗</a
+                >
+                <a
+                  href="https://github.com/DFXswiss/dfx-wallet/blob/develop/.maestro/23-receive-chain-switch.yaml"
+                  >Maestro 23 ↗</a
+                >
+              </div>
+            </div>
+          </div>
+          <p class="spec-intro">
+            Zwei Schritte: Asset wählen → QR-Code anzeigen. BTC ist der einzige MVP-Asset mit
+            mehreren Chains (SegWit und EVM/Wrapped); die Stablecoins (CHF, EUR, USD) shippen nur
+            auf Ethereum, der Chain-Selector ist dort versteckt. Taproot- und Lightning-Layer sind
+            hinter <code>EXPO_PUBLIC_ENABLE_DFX_BACKEND</code> gegated.
+          </p>
+
+          <div class="tests cols-2">
+            <div class="test">
+              <div class="head">
+                <span class="name">receive</span>
+                <span class="src">asset-step</span>
+              </div>
+              <div class="img">
+                <img
+                  src="../../../e2e/__baselines__/receive.png"
+                  alt="Receive — Asset-Auswahl"
+                />
+              </div>
+              <div class="desc">
+                Vier Asset-Karten in fixierter Reihenfolge: BTC, CHF, EUR, USD. Tap öffnet den
+                QR-Step. Header trägt den Standard-Back-Button (zurück zum Dashboard).
+              </div>
+            </div>
+            <div class="test">
+              <div class="head">
+                <span class="name">receive-qr-step</span>
+                <span class="src">BTC SegWit</span>
+              </div>
+              <div class="img">
+                <img
+                  src="../../../e2e/__baselines__/receive-qr-step.png"
+                  alt="Receive — QR-Code für BTC SegWit"
+                />
+              </div>
+              <div class="desc">
+                Selected-Asset-Pill (BTC) oben, Chain-Bar mit <em>SegWit</em> / <em>EVM</em>,
+                QR-Code für die abgeleitete Adresse, kopierbarer Address-Text, Copy-CTA. Tap auf
+                die Pill bringt zurück zur Asset-Liste.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SPEC 05 -->
+        <section id="spec-05" class="spec">
+          <div class="spec-head">
+            <div class="lhs">
+              <h2><span class="num">05</span>Bitcoin senden</h2>
+              <div class="file">
+                .maestro/21-send.yaml · .maestro/24-send-chain-switch.yaml ·
+                e2e/visual/onboarding.test.ts
+              </div>
+            </div>
+            <div class="rhs">
+              <b>2 Maestro · 2 Baselines</b>
+              <div class="links">
+                <a href="https://github.com/DFXswiss/dfx-wallet/blob/develop/.maestro/21-send.yaml"
+                  >Maestro 21 ↗</a
+                >
+                <a
+                  href="https://github.com/DFXswiss/dfx-wallet/blob/develop/.maestro/24-send-chain-switch.yaml"
+                  >Maestro 24 ↗</a
+                >
+              </div>
+            </div>
+          </div>
+          <p class="spec-intro">
+            Drei Schritte hat der echte Send-Flow: Asset → Input (Empfänger + Amount + Network-Fee)
+            → Confirm. Die MVP-E2E-Suite stoppt am Input-Step — der <em>Confirm</em>-Button auf der
+            Bestätigungsseite ruft <code>handleSend()</code> auf und broadcastet eine echte
+            Transaktion, das gehört nicht in einen Smoke-Test. Die Recipient-/Amount-Validierung
+            (mind. 26 Zeichen, &gt; 0 für Continue) ist hingegen ohne Tx-Risiko testbar.
+          </p>
+
+          <div class="tests cols-2">
+            <div class="test">
+              <div class="head">
+                <span class="name">send</span>
+                <span class="src">asset-step</span>
+              </div>
+              <div class="img">
+                <img src="../../../e2e/__baselines__/send.png" alt="Send — Asset-Auswahl" />
+              </div>
+              <div class="desc">
+                Asset-Liste wie bei Receive (BTC, CHF, EUR, USD). BTC im Send-Flow läuft
+                ausschließlich über Spark/Lightning — andere Bitcoin-Layer sind hinter
+                Feature-Flags gegated. Die Stablecoin-Sends bieten vier Chains.
+              </div>
+            </div>
+            <div class="test">
+              <div class="head">
+                <span class="name">send-input-step</span>
+                <span class="src">BTC Spark</span>
+              </div>
+              <div class="img">
+                <img
+                  src="../../../e2e/__baselines__/send-input-step.png"
+                  alt="Send — Input-Step für BTC"
+                />
+              </div>
+              <div class="desc">
+                Selected-Asset-Pill, Adress-Input mit Scan-Button, Amount-Input, disabled
+                Continue-CTA bis Input gültig ist. BTC hat nur einen Chain (Spark), daher kein
+                Chain-Selector.
+              </div>
+            </div>
+          </div>
+
+          <div class="callout warn">
+            <p>
+              <b>Confirm wird nie getappt:</b> beide Maestro- und der Detox-Flow assertieren den
+              <code>send-confirm-button</code> nur auf Sichtbarkeit. Ein Klick würde
+              <code>handleSend()</code> aufrufen und auf Testnet eine echte Transaktion broadcasten.
+              Die Recipient-/Amount-Validation, Fee-Estimate-Loading und Cancel-Round-Trip sind
+              separat in einem zukünftigen Test mit gemocktem WDK-Signer abgedeckt.
+            </p>
+          </div>
+        </section>
+
+        <!-- COVERAGE -->
+        <section id="coverage" style="margin-top: 80px">
+          <h2 style="margin-bottom: 12px">Abdeckung &amp; Triage</h2>
+          <p>
+            Die MVP-Coverage deckt den Onboarding-Pfad und die zwei Wallet-Hauptaktionen (Receive,
+            Send) End-to-End ab. Feature-gated Pfade haben bereits Baselines und Maestro-Flows,
+            werden aber bis zum Shipping der jeweiligen Flags vom CI-Workflow ausgeblendet.
+          </p>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Bereich</th>
+                <th>Status</th>
+                <th>Flags</th>
+                <th>Maestro</th>
+                <th>Detox</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Welcome &amp; Create-Wallet (MVP)</td>
+                <td><span class="ok">grün</span></td>
+                <td>—</td>
+                <td><code>01-welcome</code>, <code>10-onboarding-create</code></td>
+                <td>3 Baselines</td>
+              </tr>
+              <tr>
+                <td>Dashboard &amp; Balance-Toggle</td>
+                <td><span class="ok">grün</span></td>
+                <td>—</td>
+                <td><code>22-dashboard-balance-toggle</code></td>
+                <td>2 Baselines</td>
+              </tr>
+              <tr>
+                <td>Receive (Asset + Chain)</td>
+                <td><span class="ok">grün</span></td>
+                <td>—</td>
+                <td><code>20-receive</code>, <code>23-receive-chain-switch</code></td>
+                <td>2 Baselines</td>
+              </tr>
+              <tr>
+                <td>Send (Asset + Input + Chain)</td>
+                <td><span class="ok">grün</span></td>
+                <td>—</td>
+                <td><code>21-send</code>, <code>24-send-chain-switch</code></td>
+                <td>2 Baselines</td>
+              </tr>
+              <tr>
+                <td>PIN-Setup &amp; Legal-Disclaimer</td>
+                <td>gated</td>
+                <td><code>PIN</code>, <code>LEGAL</code></td>
+                <td><code>11-onboarding-create-pin-legal</code>, <code>13-pin-unlock</code></td>
+                <td>Baselines vorhanden, Tests <code>describe.skip</code></td>
+              </tr>
+              <tr>
+                <td>Restore-from-Seed</td>
+                <td>gated</td>
+                <td><code>RESTORE</code></td>
+                <td><code>02-welcome-restore-toggle</code>, <code>12-onboarding-restore</code></td>
+                <td>Baselines vorhanden</td>
+              </tr>
+              <tr>
+                <td>Confirm/Send-Transaktion</td>
+                <td>offen</td>
+                <td>—</td>
+                <td>—</td>
+                <td>braucht gemockten WDK-Signer</td>
+              </tr>
+              <tr>
+                <td>Hardware-Wallet (BitBox02)</td>
+                <td>offen</td>
+                <td><code>HARDWARE_WALLET</code></td>
+                <td>—</td>
+                <td>Maestro kann BLE/USB nicht treiben</td>
+              </tr>
+              <tr>
+                <td>Multi-Sig</td>
+                <td>offen</td>
+                <td><code>MULTISIG</code></td>
+                <td>—</td>
+                <td>—</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>Wie Baselines aktualisiert werden</h3>
+          <p>
+            Wenn eine intendierte UI-Änderung eine Baseline brechen würde:
+          </p>
+          <ol>
+            <li>Lokal: <code>rm e2e/__baselines__/&lt;name&gt;.png</code>, dann <code>npm run e2e:test:ios</code>. jest-image-snapshot schreibt die neue Baseline.</li>
+            <li>CI: PR pushen, der Visual-Regression-Run failt, das fehlende Snapshot landet im <code>detox-artifacts</code>-Bundle, von dort nach <code>e2e/__baselines__/</code> kopieren und committen.</li>
+          </ol>
+          <p>
+            Details zum Workflow-Trigger (das <code>needs-visual</code>-Label, Nightly-Cron) sowie
+            zu Detox-Pitfalls wie der strikten <code>toBeVisible</code>-Heuristik (&gt;75% des
+            Elements müssen sichtbar sein) stehen in
+            <a
+              href="https://github.com/DFXswiss/dfx-wallet/blob/develop/docs/visual-regression.md"
+              >docs/visual-regression.md</a
+            >. Maestro-Konvention, Tag-System und CI-Setup in
+            <a href="https://github.com/DFXswiss/dfx-wallet/blob/develop/docs/maestro.md"
+              >docs/maestro.md</a
+            >.
+          </p>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
