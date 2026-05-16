@@ -16,6 +16,7 @@ jest.mock('expo-router', () => ({
 // the DFX backend wrapper or the pricing service.
 const mockAuthenticate = jest.fn(async () => true);
 jest.mock('@/hooks', () => ({
+  useReduceMotion: () => false,
   useDfxAuth: () => ({
     authenticate: mockAuthenticate,
     authenticateSilent: jest.fn(),
