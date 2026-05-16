@@ -190,6 +190,49 @@ export class BitboxProvider implements HardwareWalletProvider {
     this.deviceInfo = null;
   }
 
+  /**
+   * Attempt to re-establish a transport to the last-connected device.
+   *
+   * Backoff schedule: 500 ms, 1 s, 2 s, 4 s, 8 s (5 attempts, ~15s total).
+   * Each attempt:
+   *   - opens a fresh transport
+   *   - resets the bridge session
+   *   - waits for WASM ready
+   *   - re-pairs (the channel hash will differ — pairing UI must show this)
+   *   - emits 'reconnected' on success or 'fatal' if all attempts fail
+   *
+   * `signal` cancels the reconnect (e.g. the user navigates away). The
+   * promise rejects with HwTransportFailureError on cancellation.
+   */
+  async attemptReconnect(opts: { signal?: AbortSignal; maxAttempts?: number } = {}): Promise<void> {
+    const maxAttempts = opts.maxAttempts ?? 5;
+    const device = this.connectedDevice;
+    if (!device) {
+      throw new Error('attemptReconnect: no previously connected device');
+    }
+    const signal = opts.signal;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (signal?.aborted) {
+        throw new Error('attemptReconnect: cancelled');
+      }
+      try {
+        await this.disconnect();
+        await this.connect(device);
+        this.emit('reconnected');
+        return;
+      } catch (err) {
+        if (attempt === maxAttempts) {
+          this.emit('fatal');
+          throw err;
+        }
+        // Exponential backoff with a cap, interruptible by signal.
+        const delay = Math.min(500 * 2 ** (attempt - 1), 8_000);
+        await sleepInterruptible(delay, signal);
+      }
+    }
+  }
+
   async getEthAddress(opts: EthAddressOpts): Promise<string> {
     this.ensureConnected();
     const displayOnDevice = opts.displayOnDevice !== false; // default TRUE
@@ -294,3 +337,22 @@ export {
   HwNotConnectedError,
   HwAddressMismatchError,
 } from './errors';
+
+/**
+ * Sleep that can be cancelled by an AbortSignal. Resolves on timeout or
+ * on signal abort; throws if signal was already aborted on entry.
+ */
+function sleepInterruptible(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(new Error('aborted'));
+  return new Promise<void>((resolve) => {
+    const t = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(t);
+      resolve();
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}

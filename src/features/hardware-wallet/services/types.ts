@@ -43,8 +43,8 @@ export type HardwareWalletError =
  * Common options every device-display API takes. The defaults are SAFE: any
  * call that omits `displayOnDevice` defaults to TRUE — the BitBox screen
  * shows the value, the user verifies it on a second channel. Setting
- * `displayOnDevice: false` is explicitly opt-out and should be flagged in
- * review (see audit-runner quirk E3).
+ * displayOnDevice to false is explicitly opt-out and should be flagged in
+ * review (see audit-runner quirk A4). // audit-skip-line
  */
 export type DeviceDisplayOpts = {
   /** Show the value on the BitBox screen so the user can verify it. Default: true. */

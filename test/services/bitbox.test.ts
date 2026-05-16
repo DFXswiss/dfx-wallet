@@ -417,6 +417,32 @@ describe('BitboxProvider — transport event subscription', () => {
   });
 });
 
+// ─── Reconnect logic (HIGH-8) ───────────────────────────────────────────────
+
+describe('BitboxProvider — attemptReconnect', () => {
+  it('rejects when no device was previously connected', async () => {
+    const provider = new BitboxProvider();
+    await expect(provider.attemptReconnect()).rejects.toThrow(/no previously connected/);
+  });
+
+  it('honours AbortSignal to cancel mid-backoff', async () => {
+    const provider = new BitboxProvider();
+    // Inject a connected device into private state so attemptReconnect has
+    // something to retry — but the connect attempts will fail (no mock).
+    (provider as unknown as { connectedDevice: { id: string; transport: string } }).connectedDevice = {
+      id: 'fake',
+      transport: 'ble',
+    } as never;
+
+    const controller = new AbortController();
+    // Abort almost immediately so the loop exits before doing real I/O.
+    setTimeout(() => controller.abort(), 10);
+    await expect(
+      provider.attemptReconnect({ signal: controller.signal, maxAttempts: 3 }),
+    ).rejects.toBeDefined();
+  });
+});
+
 // ─── Bridge per-call timeout (HIGH-7) ───────────────────────────────────────
 
 describe('WasmBridge — per-call timeout', () => {

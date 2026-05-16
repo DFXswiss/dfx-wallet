@@ -36,7 +36,7 @@ describe('Hw* error classes carry their kind discriminant', () => {
   ];
   for (const [err, kind] of cases) {
     it(`${err.constructor.name}.kind === ${kind}`, () => {
-      expect((err as { kind: string }).kind).toBe(kind);
+      expect((err as unknown as { kind: string }).kind).toBe(kind);
     });
   }
 });
