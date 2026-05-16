@@ -14,6 +14,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Icon } from '@/components';
+import { isOpenCryptoPayQR } from '@/services/opencryptopay';
 import { DfxColors, Typography } from '@/theme';
 
 const CUTOUT_PCT = {
@@ -37,6 +38,16 @@ export default function PayScreen() {
   const handleScan = ({ data }: { data: string }) => {
     if (scanned) return;
     setScanned(true);
+    // OpenCryptoPay is the DFX-standard pay protocol — bare `LNURL1…`
+    // or a BIP-21 URI with `lightning=lnurl…`. When the scan matches,
+    // hand off to the dedicated quote screen which fetches transfer
+    // options from the LNURL endpoint and walks the user through asset
+    // pick → confirm → sign. Anything else falls back to the generic
+    // "coming soon" stub until additional schemes are wired up.
+    if (isOpenCryptoPayQR(data)) {
+      router.replace({ pathname: '/(auth)/pay/opencryptopay', params: { lnurl: data } });
+      return;
+    }
     Alert.alert(t('pay.comingSoonTitle'), t('pay.comingSoonMessage', { data }), [
       { text: t('common.ok'), onPress: () => router.back() },
     ]);

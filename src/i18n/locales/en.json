@@ -432,6 +432,24 @@
     "step3": "No seed phrase to write down — your passkey is your key.",
     "useSeedInstead": "Use Seed Phrase"
   },
+  "opencryptopay": {
+    "assetLabel": "Asset",
+    "confirm": "Pay {{amount}} {{asset}}",
+    "confirmHint": "Signing this on-chain via WDK is the next iteration — the LNURL quote is loaded and confirmed.",
+    "errors": {
+      "commitFailed": "Could not confirm the payment with the merchant.",
+      "fetchFailed": "Could not load the payment request.",
+      "invalidQr": "This QR code is not an OpenCryptoPay payment request.",
+      "invalidResponse": "The payment provider responded in an unexpected format."
+    },
+    "expired": "Payment request expired. Scan the QR again.",
+    "expiresIn": "Expires in {{time}}",
+    "loading": "Loading payment request…",
+    "methodLabel": "Network",
+    "payTo": "Pay to",
+    "title": "OpenCryptoPay",
+    "unknownMerchant": "Unknown merchant"
+  },
   "pay": {
     "cameraPermission": "Camera access is needed to scan QR codes.",
     "comingSoonMessage": "Payments are not yet available. Scanned: {{data}}",
