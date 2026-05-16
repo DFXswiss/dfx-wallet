@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { useWalletManager, useWdkApp } from '@tetherto/wdk-react-native-core';
 import { Icon } from '@/components';
+import { needsPinRehash } from '@/services/pin';
 import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
@@ -29,7 +30,8 @@ const MAX_ATTEMPTS = 5;
 export default function VerifyPinScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { verifyPin, setAuthenticated, authenticateBiometric, biometricEnabled } = useAuthStore();
+  const { verifyPin, setAuthenticated, authenticateBiometric, biometricEnabled, pinHash } =
+    useAuthStore();
   const { unlock } = useWalletManager();
   const { state } = useWdkApp();
   const [pin, setPinValue] = useState('');
@@ -88,12 +90,16 @@ export default function VerifyPinScreen() {
     if (newPin.length > 6) return;
     setPinValue(newPin);
 
+    if (pinHash && needsPinRehash(pinHash) && newPin.length >= 4 && newPin.length < 6) {
+      void checkPin(newPin, { showInvalid: false });
+    }
+
     if (newPin.length === 6) {
-      void checkPin(newPin);
+      void checkPin(newPin, { showInvalid: true });
     }
   };
 
-  const checkPin = async (pinValue: string) => {
+  const checkPin = async (pinValue: string, { showInvalid }: { showInvalid: boolean }) => {
     try {
       const isValid = await verifyPin(pinValue);
       if (isValid) {
@@ -108,6 +114,7 @@ export default function VerifyPinScreen() {
       // Fall through so the user sees the wrong-PIN feedback instead of
       // a silent crash.
     }
+    if (!showInvalid) return;
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     setError(true);
     setAttempts((a) => a + 1);
