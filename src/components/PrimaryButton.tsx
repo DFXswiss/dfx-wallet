@@ -1,5 +1,6 @@
+import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type Props = {
   title: string;
@@ -19,6 +20,8 @@ export function PrimaryButton({
   testID,
 }: Props) {
   const isFilled = variant === 'filled';
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
     <Pressable
@@ -34,7 +37,7 @@ export function PrimaryButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isFilled ? DfxColors.white : DfxColors.primary} />
+        <ActivityIndicator color={isFilled ? colors.white : colors.primary} />
       ) : (
         <Text style={[styles.text, !isFilled && styles.outlinedText]}>{title}</Text>
       )}
@@ -42,40 +45,41 @@ export function PrimaryButton({
   );
 }
 
-const styles = StyleSheet.create({
-  button: {
-    height: 56,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  filled: {
-    backgroundColor: DfxColors.primary,
-    shadowColor: DfxColors.primaryDark,
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 3,
-  },
-  outlined: {
-    backgroundColor: 'rgba(255,255,255,0.72)',
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-  },
-  disabled: {
-    opacity: 0.5,
-  },
-  pressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.99 }],
-  },
-  text: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.white,
-  },
-  outlinedText: {
-    color: DfxColors.primary,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    button: {
+      height: 56,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+    },
+    filled: {
+      backgroundColor: colors.primary,
+      shadowColor: colors.primaryDark,
+      shadowOpacity: 0.22,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 7 },
+      elevation: 3,
+    },
+    outlined: {
+      backgroundColor: colors.cardOverlay,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    disabled: {
+      opacity: 0.5,
+    },
+    pressed: {
+      opacity: 0.88,
+      transform: [{ scale: 0.99 }],
+    },
+    text: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.white,
+    },
+    outlinedText: {
+      color: colors.primary,
+    },
+  });

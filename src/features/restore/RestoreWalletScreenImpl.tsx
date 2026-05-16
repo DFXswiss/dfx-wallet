@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -11,13 +11,15 @@ import {
   PrimaryButton,
 } from '@/components';
 import { validateSeedPhrase, seedToWords, wordsToSeed } from '@/services/wallet';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 function isWalletAlreadyExistsError(err: unknown): boolean {
   return err instanceof Error && err.message.toLowerCase().includes('already exists');
 }
 
 export default function RestoreWalletScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { restoreWallet, deleteWallet } = useWalletManager();
   const { t } = useTranslation();
@@ -85,7 +87,7 @@ export default function RestoreWalletScreen() {
             setError(null);
           }}
           placeholder={t('onboarding.restoreSeedPlaceholder')}
-          placeholderTextColor={DfxColors.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           multiline
           blurOnSubmit
           returnKeyType="done"
@@ -117,54 +119,55 @@ export default function RestoreWalletScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingTop: 4,
-    paddingBottom: 24,
-    gap: 24,
-  },
-  intro: {
-    gap: 12,
-  },
-  description: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-  },
-  warning: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-    textAlign: 'center',
-  },
-  inputCard: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    padding: 14,
-    gap: 10,
-  },
-  input: {
-    backgroundColor: 'rgba(243,246,251,0.9)',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    padding: 14,
-    minHeight: 160,
-    color: DfxColors.text,
-    ...Typography.bodyLarge,
-    textAlignVertical: 'top',
-  },
-  wordCount: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    textAlign: 'right',
-  },
-  error: {
-    ...Typography.bodyMedium,
-    color: DfxColors.error,
-  },
-  spacer: {
-    flex: 1,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      paddingTop: 4,
+      paddingBottom: 24,
+      gap: 24,
+    },
+    intro: {
+      gap: 12,
+    },
+    description: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    warning: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    inputCard: {
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      gap: 10,
+    },
+    input: {
+      backgroundColor: 'rgba(243,246,251,0.9)',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      minHeight: 160,
+      color: colors.text,
+      ...Typography.bodyLarge,
+      textAlignVertical: 'top',
+    },
+    wordCount: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+      textAlign: 'right',
+    },
+    error: {
+      ...Typography.bodyMedium,
+      color: colors.error,
+    },
+    spacer: {
+      flex: 1,
+    },
+  });

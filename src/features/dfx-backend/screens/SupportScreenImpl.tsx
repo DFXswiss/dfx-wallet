@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -11,20 +11,24 @@ import {
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { PrimaryButton, ScreenContainer } from '@/components';
+import { EmptyState, PrimaryButton, ScreenContainer, Skeleton } from '@/components';
 import { dfxSupportService, type SupportIssueDto } from '@/features/dfx-backend/services';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type SupportView = 'list' | 'create' | 'chat';
 
+// Semantic accent colours — theme-agnostic so the map can be referenced
+// at module scope before the component mounts.
 const STATE_COLORS: Record<string, string> = {
-  Open: DfxColors.warning,
-  InProgress: DfxColors.info,
-  Resolved: DfxColors.success,
-  Closed: DfxColors.textTertiary,
+  Open: '#EAB308',
+  InProgress: '#2F7CF7',
+  Resolved: '#16A34A',
+  Closed: '#8D98AA',
 };
 
 export default function SupportScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
   const [view, setView] = useState<SupportView>('list');
@@ -98,13 +102,24 @@ export default function SupportScreen() {
   const renderList = () => (
     <View style={styles.stepContent}>
       {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator color={DfxColors.primary} />
+        <View style={styles.skeletonList}>
+          {[0, 1, 2].map((i) => (
+            <View key={i} style={styles.skeletonRow}>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Skeleton width={'70%'} height={14} radius={6} />
+                <Skeleton width={'40%'} height={11} radius={6} />
+              </View>
+              <Skeleton width={68} height={20} radius={10} />
+            </View>
+          ))}
         </View>
       ) : issues.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No support tickets</Text>
-        </View>
+        <EmptyState
+          icon="support"
+          title={t('support.noTickets')}
+          description={t('support.emptyHint')}
+          testID="support-empty"
+        />
       ) : (
         <ScrollView contentContainerStyle={styles.ticketList} showsVerticalScrollIndicator={false}>
           {issues.map((issue) => (
@@ -125,7 +140,7 @@ export default function SupportScreen() {
               <View
                 style={[
                   styles.statusBadge,
-                  { backgroundColor: STATE_COLORS[issue.state] ?? DfxColors.textTertiary },
+                  { backgroundColor: STATE_COLORS[issue.state] ?? colors.textTertiary },
                 ]}
               >
                 <Text style={styles.statusText}>{issue.state}</Text>
@@ -148,7 +163,7 @@ export default function SupportScreen() {
         value={subject}
         onChangeText={setSubject}
         placeholder="Subject"
-        placeholderTextColor={DfxColors.textTertiary}
+        placeholderTextColor={colors.textTertiary}
       />
 
       <TextInput
@@ -156,7 +171,7 @@ export default function SupportScreen() {
         value={message}
         onChangeText={setMessage}
         placeholder="Describe your issue..."
-        placeholderTextColor={DfxColors.textTertiary}
+        placeholderTextColor={colors.textTertiary}
         multiline
         textAlignVertical="top"
       />
@@ -200,7 +215,7 @@ export default function SupportScreen() {
           value={chatMessage}
           onChangeText={setChatMessage}
           placeholder="Type a message..."
-          placeholderTextColor={DfxColors.textTertiary}
+          placeholderTextColor={colors.textTertiary}
         />
         <Pressable style={styles.sendButton} onPress={handleSendMessage}>
           <Text style={styles.sendText}>Send</Text>
@@ -234,148 +249,160 @@ export default function SupportScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    flex: 1,
-    paddingVertical: 16,
-    gap: 16,
-  },
-  errorText: {
-    ...Typography.bodySmall,
-    color: DfxColors.error,
-    textAlign: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    fontSize: 24,
-    color: DfxColors.text,
-    width: 32,
-  },
-  title: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-  },
-  stepContent: {
-    flex: 1,
-    gap: 16,
-  },
-  stepTitle: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textTertiary,
-  },
-  ticketList: {
-    gap: 8,
-  },
-  ticketItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: DfxColors.surface,
-    borderRadius: 12,
-  },
-  ticketInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  ticketSubject: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  ticketDate: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  statusText: {
-    ...Typography.bodySmall,
-    fontWeight: '600',
-    color: DfxColors.black,
-  },
-  input: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 12,
-    padding: 16,
-    color: DfxColors.text,
-    ...Typography.bodyLarge,
-  },
-  messageInput: {
-    minHeight: 160,
-  },
-  chatMessages: {
-    flex: 1,
-  },
-  chatBubble: {
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
-    maxWidth: '85%',
-  },
-  userBubble: {
-    backgroundColor: DfxColors.primary,
-    alignSelf: 'flex-end',
-  },
-  supportBubble: {
-    backgroundColor: DfxColors.surface,
-    alignSelf: 'flex-start',
-  },
-  chatAuthor: {
-    ...Typography.bodySmall,
-    fontWeight: '600',
-    color: DfxColors.textSecondary,
-    marginBottom: 4,
-  },
-  chatText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-  },
-  chatDate: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    marginTop: 4,
-  },
-  chatInputRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  chatInput: {
-    flex: 1,
-  },
-  sendButton: {
-    backgroundColor: DfxColors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    justifyContent: 'center',
-  },
-  sendText: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.white,
-  },
-  spacer: {
-    flex: 1,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      flex: 1,
+      paddingVertical: 16,
+      gap: 16,
+    },
+    errorText: {
+      ...Typography.bodySmall,
+      color: colors.error,
+      textAlign: 'center',
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    backButton: {
+      fontSize: 24,
+      color: colors.text,
+      width: 32,
+    },
+    title: {
+      ...Typography.headlineSmall,
+      color: colors.text,
+    },
+    stepContent: {
+      flex: 1,
+      gap: 16,
+    },
+    stepTitle: {
+      ...Typography.headlineSmall,
+      color: colors.text,
+    },
+    loadingContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyState: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyText: {
+      ...Typography.bodyLarge,
+      color: colors.textTertiary,
+    },
+    skeletonList: {
+      paddingHorizontal: 4,
+      paddingTop: 8,
+      gap: 12,
+    },
+    skeletonRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 14,
+    },
+    ticketList: {
+      gap: 8,
+    },
+    ticketItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 16,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+    },
+    ticketInfo: {
+      flex: 1,
+      gap: 4,
+    },
+    ticketSubject: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    ticketDate: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+    },
+    statusBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 8,
+    },
+    statusText: {
+      ...Typography.bodySmall,
+      fontWeight: '600',
+      color: colors.black,
+    },
+    input: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      color: colors.text,
+      ...Typography.bodyLarge,
+    },
+    messageInput: {
+      minHeight: 160,
+    },
+    chatMessages: {
+      flex: 1,
+    },
+    chatBubble: {
+      padding: 12,
+      borderRadius: 12,
+      marginBottom: 8,
+      maxWidth: '85%',
+    },
+    userBubble: {
+      backgroundColor: colors.primary,
+      alignSelf: 'flex-end',
+    },
+    supportBubble: {
+      backgroundColor: colors.surface,
+      alignSelf: 'flex-start',
+    },
+    chatAuthor: {
+      ...Typography.bodySmall,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      marginBottom: 4,
+    },
+    chatText: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+    },
+    chatDate: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+      marginTop: 4,
+    },
+    chatInputRow: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    chatInput: {
+      flex: 1,
+    },
+    sendButton: {
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      paddingHorizontal: 20,
+      justifyContent: 'center',
+    },
+    sendText: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.white,
+    },
+    spacer: {
+      flex: 1,
+    },
+  });
