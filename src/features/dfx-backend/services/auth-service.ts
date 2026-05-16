@@ -42,7 +42,9 @@ export class DfxAuthService {
 
   /** Get the sign message challenge for an address */
   async getSignMessage(address: string): Promise<SignMessageDto> {
-    return dfxApi.get<SignMessageDto>(`/v1/auth/signMessage?address=${address}`);
+    return dfxApi.get<SignMessageDto>(
+      `/v1/auth/signMessage?address=${encodeURIComponent(address)}`,
+    );
   }
 
   /** Authenticate with a signed message and get a JWT */

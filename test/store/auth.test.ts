@@ -1,3 +1,14 @@
+jest.mock('@noble/hashes/argon2', () => ({
+  argon2idAsync: jest.fn(async (password: string, salt: Uint8Array, opts: { dkLen: number }) => {
+    const bytes = new Uint8Array(opts.dkLen);
+    const input = `${password}:${Array.from(salt).join(',')}`;
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = input.charCodeAt(i % input.length) ^ i;
+    }
+    return bytes;
+  }),
+}));
+
 import { useAuthStore } from '../../src/store/auth';
 import * as SecureStore from 'expo-secure-store';
 import * as LA from 'expo-local-authentication';
@@ -10,6 +21,15 @@ const isEnrolledMock = LA.isEnrolledAsync as jest.Mock;
 const authenticateMock = LA.authenticateAsync as jest.Mock;
 
 const initialState = useAuthStore.getState();
+
+const legacyHashPin = async (pin: string): Promise<string> => {
+  const Crypto = await import('expo-crypto');
+  let hash = `dfx-wallet-pin-v1:${pin}`;
+  for (let i = 0; i < 10000; i++) {
+    hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, hash);
+  }
+  return hash;
+};
 
 beforeEach(() => {
   setItemMock.mockReset();
@@ -76,12 +96,12 @@ describe('useAuthStore', () => {
       expect(useAuthStore.getState().pinHash).toBe(hash);
     });
 
-    it('produces the same hash for the same input (deterministic)', async () => {
+    it('uses a fresh salt for the same PIN', async () => {
       await useAuthStore.getState().setPin('123456');
       const first = useAuthStore.getState().pinHash;
       await useAuthStore.getState().setPin('123456');
       const second = useAuthStore.getState().pinHash;
-      expect(first).toBe(second);
+      expect(first).not.toBe(second);
     });
 
     it('produces different hashes for different inputs', async () => {
@@ -115,6 +135,20 @@ describe('useAuthStore', () => {
       await useAuthStore.getState().setPin('123456');
       const ok = await useAuthStore.getState().verifyPin('999999');
       expect(ok).toBe(false);
+    });
+
+    it('migrates a valid legacy PIN hash after successful verification', async () => {
+      const legacyHash = await legacyHashPin('123456');
+      useAuthStore.setState({ pinHash: legacyHash });
+
+      const ok = await useAuthStore.getState().verifyPin('123456');
+
+      expect(ok).toBe(true);
+      expect(setItemMock).toHaveBeenCalledWith(
+        'pinHash',
+        expect.stringMatching(/^pin\$argon2id\$/),
+      );
+      expect(useAuthStore.getState().pinHash).toBe(setItemMock.mock.calls.at(-1)?.[1]);
     });
   });
 
