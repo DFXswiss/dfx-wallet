@@ -45,7 +45,7 @@
     "bare-crypto": "1.13.7",
     "bare-dns": "2.1.4",
     "bare-net": "2.2.0",
-    "bare-node-runtime": "1.1.4",
+    "bare-node-runtime": "1.3.1",
     "bare-performance": "1.3.0",
     "bare-pipe": "4.1.2",
     "bare-signals": "4.2.0",
