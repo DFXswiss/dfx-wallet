@@ -6,7 +6,7 @@ name: bitbox-simulator (slash)
 # user-triggered instead of path-triggered.
 #
 # Variants:
-#   /bitbox-simulator            — defaults (testkit v0.3.0)
+#   /bitbox-simulator            — defaults (testkit v0.4.5)
 #   /bitbox-simulator ref=main   — bleeding-edge scenarios
 
 on:
@@ -60,7 +60,7 @@ jobs:
           script: |
             const body = (context.payload.comment.body || '').trim();
             const args = body.replace(/^\/bitbox-simulator\s*/, '').split(/\s+/).filter(Boolean);
-            let testkitRef = 'v0.3.0';
+            let testkitRef = 'v0.4.5';
             for (const tok of args) {
               const [k, v] = tok.split('=');
               if (k === 'ref' && v) testkitRef = v;
@@ -86,6 +86,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.guard.outputs.sha }}
-      - uses: joshuakrueger-dfx/bitbox-testkit/.github/actions/bitbox-simulator@v0.4.3
+      - uses: DFXswiss/bitbox-testkit/.github/actions/bitbox-simulator@a573ab07ad55884005458683cafc153fd0bf3b0a # v0.4.5
         with:
           testkit-ref: ${{ needs.guard.outputs.testkit-ref }}

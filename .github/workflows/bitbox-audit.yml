@@ -1,7 +1,7 @@
 name: bitbox-audit
 
 # Runs the BitBox firmware-quirk audit
-# (https://github.com/joshuakrueger-dfx/bitbox-testkit) against every PR
+# (https://github.com/DFXswiss/bitbox-testkit) against every PR
 # that touches BitBox-relevant code. The work happens inside the testkit's
 # composite action so a regression in audit semantics ships once via a
 # testkit tag bump; this workflow stays a thin caller.
@@ -49,11 +49,11 @@ jobs:
           bash scripts/setup-bitbox-wasm.sh --apply
           bash scripts/setup-bitbox-wasm.sh --check
 
-      - uses: joshuakrueger-dfx/bitbox-testkit/.github/actions/bitbox-audit@v0.4.4
+      - uses: DFXswiss/bitbox-testkit/.github/actions/bitbox-audit@a573ab07ad55884005458683cafc153fd0bf3b0a # v0.4.5
         with:
           # dfx-wallet uses Jest projects; the audit's Jest run needs
           # --selectProjects unit so the React Native + e2e projects
           # don't fight for the same runner.
           jest-extra-args: '--selectProjects unit'
           jest-pattern: 'test/services/bitbox.*\.test\.ts'
-          testkit-ref: v0.4.4
+          testkit-ref: v0.4.5
