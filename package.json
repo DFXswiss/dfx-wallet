@@ -70,7 +70,7 @@
     "expo-haptics": "~15.0.8",
     "expo-linking": "~8.0.11",
     "expo-local-authentication": "~17.0.8",
-    "expo-localization": "~17.0.8",
+    "expo-localization": "~55.0.14",
     "expo-router": "~6.0.23",
     "expo-screen-capture": "~8.0.9",
     "expo-secure-store": "~15.0.8",
