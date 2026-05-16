@@ -51,7 +51,7 @@ jobs:
 
       - name: Upload APK artifact
         if: env.APK_URL != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-apk
           path: dfx-wallet-*.apk
@@ -94,7 +94,7 @@ jobs:
 
       - name: Upload IPA artifact
         if: env.IPA_URL != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ios-ipa
           path: dfx-wallet-*.ipa
