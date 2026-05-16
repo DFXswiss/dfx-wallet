@@ -108,7 +108,6 @@ export class BleTransport implements BitboxTransport {
       }
       if (!char?.value) return;
       const bytes = base64ToBytes(char.value);
-      // Hand off to the first waiter, or buffer.
       const waiter = this.waiters.shift();
       if (waiter) {
         clearTimeout(waiter.timer);
@@ -141,7 +140,6 @@ export class BleTransport implements BitboxTransport {
   }
 
   async read(): Promise<Uint8Array> {
-    // Buffered notification: hand off immediately.
     const buffered = this.readBuffer.shift();
     if (buffered) return buffered;
 

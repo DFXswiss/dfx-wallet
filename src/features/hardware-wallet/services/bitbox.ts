@@ -124,7 +124,6 @@ export class BitboxProvider implements HardwareWalletProvider {
       throw new Error('USB connection is only available on Android');
     }
 
-    // Always start from a clean slate.
     await this.disconnect();
 
     // 1. Open physical transport.
