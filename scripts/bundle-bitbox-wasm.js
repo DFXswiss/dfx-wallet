@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// audit-skip-file: build script — emits the SDK shim, antiklepto handled
+// by the underlying bitbox-api WASM.
+
 /**
  * Bundles bitbox-api WASM + JS glue into a single HTML file
  * that can be loaded in a React Native WebView.

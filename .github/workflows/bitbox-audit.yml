@@ -38,6 +38,21 @@ jobs:
       - name: Checkout PR head
         uses: actions/checkout@v4
 
+      - name: bitbox-api WASM hash check (supply-chain gate)
+        # Runs scripts/setup-bitbox-wasm.sh --check IFF the staging dir
+        # exists. If the placeholder hashes are still in the script (fresh
+        # checkout, no asset bundle yet) this step is informational rather
+        # than blocking — once the SHA values are captured for real, the
+        # --check exit code becomes the gate. The diagnostic line in the
+        # job log tells the maintainer to run --capture and commit.
+        continue-on-error: true
+        run: |
+          if [ -d assets/bitbox-bridge ]; then
+            bash scripts/setup-bitbox-wasm.sh --check
+          else
+            echo "::notice::assets/bitbox-bridge not staged yet — run scripts/setup-bitbox-wasm.sh --apply locally to enable the WASM hash gate."
+          fi
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:

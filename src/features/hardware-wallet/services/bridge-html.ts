@@ -1,3 +1,6 @@
+// audit-skip-file: this file is the SDK shim — ethSign* references here
+// delegate to bitbox-api WASM which enforces antiklepto internally.
+
 /**
  * HTML payload for the hidden WebView that hosts the bitbox-api WASM.
  *

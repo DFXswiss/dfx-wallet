@@ -30,6 +30,7 @@ import {
   isUserAbort,
   parseFirmwareError,
 } from './errors';
+import { logHw } from './log';
 
 /**
  * BitBox02 hardware wallet provider.
@@ -63,9 +64,13 @@ export class BitboxProvider implements HardwareWalletProvider {
   private bridge: WasmBridge;
   private deviceInfo: DeviceInfo | null = null;
   private listeners = new Set<TransportEventListener>();
+  /** Per-instance flow id; included in every emitted log line. Used by
+   *  log aggregators to stitch a flow back together. */
+  private readonly flowId: string;
 
   constructor(bridge: WasmBridge = new WasmBridge()) {
     this.bridge = bridge;
+    this.flowId = generateFlowId();
   }
 
   /** Attach a WebView ref so the bridge can post messages into it. */
@@ -94,6 +99,7 @@ export class BitboxProvider implements HardwareWalletProvider {
   }
 
   private emit(event: 'disconnected' | 'reconnected' | 'fatal'): void {
+    logHw(event === 'fatal' ? 'error' : 'warn', `transport_event.${event}`, undefined, this.flowId);
     for (const l of [...this.listeners]) {
       try {
         l(event);
@@ -113,6 +119,7 @@ export class BitboxProvider implements HardwareWalletProvider {
   }
 
   async connect(device: HardwareWalletDevice): Promise<void> {
+    logHw('info', 'connect.start', { transport: device.transport, type: device.type }, this.flowId);
     if (device.transport === 'usb' && Platform.OS !== 'android') {
       throw new Error('USB connection is only available on Android');
     }
@@ -162,29 +169,46 @@ export class BitboxProvider implements HardwareWalletProvider {
 
     // 5. Fetch device info and gate against minimum firmware.
     this.deviceInfo = await this.fetchDeviceInfo();
+    logHw(
+      'info',
+      'connect.device_info',
+      {
+        firmware: this.deviceInfo.version,
+        product: this.deviceInfo.product,
+        initialized: this.deviceInfo.initialized,
+      },
+      this.flowId,
+    );
     if (compareVersions(this.deviceInfo.version, MIN_FIRMWARE_VERSION) < 0) {
+      logHw(
+        'error',
+        'connect.firmware_too_old',
+        { actual: this.deviceInfo.version, minRequired: MIN_FIRMWARE_VERSION },
+        this.flowId,
+      );
       await this.disconnect();
       throw new HwFirmwareTooOldError(MIN_FIRMWARE_VERSION, this.deviceInfo.version);
     }
 
     this.connectedDevice = device;
+    logHw('info', 'connect.success', undefined, this.flowId);
   }
 
   async disconnect(): Promise<void> {
     if (this.transport) {
+      logHw('debug', 'disconnect.start', undefined, this.flowId);
       try {
         await this.bridge.call('close', [], { timeoutMs: 2_000 });
-      } catch {
-        // Bridge close failure is non-fatal during teardown — we still
-        // tear down the transport. Telemetry could pick this up if we
-        // start emitting structured logs.
+      } catch (err) {
+        logHw('warn', 'disconnect.bridge_close_failed', { err: errorContext(err) }, this.flowId);
       }
       try {
         await this.transport.close();
-      } catch {
-        // Same reasoning as above.
+      } catch (err) {
+        logHw('warn', 'disconnect.transport_close_failed', { err: errorContext(err) }, this.flowId);
       }
       this.transport = null;
+      logHw('debug', 'disconnect.complete', undefined, this.flowId);
     }
     this.connectedDevice = null;
     this.deviceInfo = null;
@@ -302,14 +326,30 @@ export class BitboxProvider implements HardwareWalletProvider {
   /**
    * Map raw bridge errors onto typed Hw* error classes. UserAbort and
    * firmware-reject are classified first; everything else passes through.
+   * Every translated error emits a structured log so production triage
+   * can see which class of error is most common.
    */
   private async translateErrors<T>(operation: string, fn: () => Promise<T>): Promise<T> {
     try {
-      return await fn();
+      const result = await fn();
+      logHw('debug', `op.${operation}.success`, undefined, this.flowId);
+      return result;
     } catch (err) {
-      if (isUserAbort(err)) throw new HwUserAbortError();
+      if (isUserAbort(err)) {
+        logHw('info', `op.${operation}.user_abort`, undefined, this.flowId);
+        throw new HwUserAbortError();
+      }
       const fw = parseFirmwareError(err);
-      if (fw) throw fw;
+      if (fw) {
+        logHw(
+          'warn',
+          `op.${operation}.firmware_reject`,
+          { code: fw.code, message: fw.message },
+          this.flowId,
+        );
+        throw fw;
+      }
+      logHw('error', `op.${operation}.failed`, { err: errorContext(err) }, this.flowId);
       throw err;
     }
   }
@@ -337,6 +377,32 @@ export {
   HwNotConnectedError,
   HwAddressMismatchError,
 } from './errors';
+
+/**
+ * Per-provider flow ID: 12 hex chars, regenerated on every constructor.
+ * Used as the correlation id in every logHw call so a log-aggregator can
+ * reconstruct a complete connect → sign → disconnect flow without
+ * stitching by wall-clock guessing.
+ */
+function generateFlowId(): string {
+  const buf = new Uint8Array(6);
+  const g = (globalThis as { crypto?: { getRandomValues?: (b: Uint8Array) => void } }).crypto;
+  if (g?.getRandomValues) {
+    g.getRandomValues(buf);
+  } else {
+    for (let i = 0; i < buf.length; i++) buf[i] = Math.floor(Math.random() * 256);
+  }
+  return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Squeeze an unknown thrown value into a redaction-friendly shape for the
+ * logger. The logger will further strip sensitive substrings.
+ */
+function errorContext(err: unknown): { name: string; message: string } {
+  if (err instanceof Error) return { name: err.name, message: err.message };
+  return { name: 'Unknown', message: String(err) };
+}
 
 /**
  * Sleep that can be cancelled by an AbortSignal. Resolves on timeout or

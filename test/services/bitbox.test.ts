@@ -17,6 +17,11 @@ import {
   HwNotConnectedError,
   HwUserAbortError,
 } from '@/features/hardware-wallet/services/errors';
+import { setHwLogger } from '@/features/hardware-wallet/services/log';
+
+// Silence the structured logger for the duration of this test file so
+// log lines from BitboxProvider don't drown out test output.
+beforeAll(() => setHwLogger({ log: () => undefined }));
 import {
   scenarioRegressionUmlautEIP712,
   scenarioPanicMidQuery,

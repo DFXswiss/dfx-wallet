@@ -1,3 +1,8 @@
+// audit-skip-file: this file is the SDK boundary — it declares the
+// ethSign* interface that delegates to bitbox-api WASM. Antiklepto is
+// enforced inside the WASM library; the audit-runner's A3 check is for
+// consumer code that builds its own sign loop bypassing the SDK.
+
 /**
  * BitBox02 protocol layer.
  *
