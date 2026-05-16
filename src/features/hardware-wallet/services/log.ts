@@ -109,6 +109,7 @@ function redactValue(key: string | undefined, value: unknown): unknown {
   if (typeof value === 'object') {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      // eslint-disable-next-line security/detect-object-injection -- k is from Object.entries on a freshly-cloned record
       out[k] = redactValue(k, v);
     }
     return out;
@@ -166,7 +167,12 @@ export function setHwLogger(logger: HwLogger): void {
 }
 
 /** Convenience: emit one log entry through the active logger. */
-export function logHw(level: HwLogLevel, msg: string, ctx?: Record<string, unknown>, flowId?: string): void {
+export function logHw(
+  level: HwLogLevel,
+  msg: string,
+  ctx?: Record<string, unknown>,
+  flowId?: string,
+): void {
   const entry: Omit<HwLogEntry, 'ts'> = { level, msg };
   if (ctx !== undefined) entry.ctx = ctx;
   if (flowId !== undefined) entry.flowId = flowId;

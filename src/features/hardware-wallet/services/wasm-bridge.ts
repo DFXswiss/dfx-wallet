@@ -277,6 +277,7 @@ function generateNonce(): string {
   if (g?.getRandomValues) {
     g.getRandomValues(buf);
   } else {
+    // eslint-disable-next-line security/detect-object-injection -- i is bounded by buf.length above
     for (let i = 0; i < buf.length; i++) buf[i] = Math.floor(Math.random() * 256);
   }
   return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');

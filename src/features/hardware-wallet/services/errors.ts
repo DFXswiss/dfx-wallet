@@ -176,8 +176,11 @@ export function compareVersions(a: string, b: string): number {
     .replace(/^v/, '')
     .split('.')
     .map((p) => parseInt(p, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+  const max = Math.max(pa.length, pb.length);
+  for (let i = 0; i < max; i++) {
+    // eslint-disable-next-line security/detect-object-injection -- i is bounded by max above
     const av = pa[i] ?? 0;
+    // eslint-disable-next-line security/detect-object-injection -- i is bounded by max above
     const bv = pb[i] ?? 0;
     if (av !== bv) return av - bv;
   }
