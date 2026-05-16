@@ -320,9 +320,13 @@ const makeStyles = (colors: ThemeColors) =>
       borderRadius: 18,
     },
     bottomPillSeparator: {
-      width: StyleSheet.hairlineWidth,
-      height: 32,
-      backgroundColor: colors.border,
+      width: 1,
+      height: 28,
+      // `colors.divider` is tuned per-theme: a near-invisible 10%-white
+      // overlay in dark (where `border` sits ≤ 1 RGB unit from the pill
+      // surface and disappears), and the standard hairline grey in light.
+      backgroundColor: colors.divider,
+      borderRadius: 1,
     },
     bottomPillLabel: {
       ...Typography.bodyMedium,

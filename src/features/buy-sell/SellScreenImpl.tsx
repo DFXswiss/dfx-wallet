@@ -951,7 +951,7 @@ const makeStyles = (colors: ThemeColors) =>
       borderColor: colors.border,
       minHeight: 54,
     },
-    assetTileActive: { borderColor: colors.primary, backgroundColor: 'rgba(220,234,254,0.72)' },
+    assetTileActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
     assetTileSymbol: {
       ...Typography.bodyLarge,
       color: colors.text,
