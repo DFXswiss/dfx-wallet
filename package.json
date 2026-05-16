@@ -23,7 +23,6 @@
     "e2e:test:ios:debug": "npx detox test --configuration ios.debug",
     "e2e:baseline:update": "npx detox test --configuration ios.release -- --update-snapshot",
     "prebuild": "expo prebuild --clean",
-    "bundle:bitbox": "node scripts/bundle-bitbox-wasm.js",
     "bundle:wdk": "wdk-worklet-bundler generate --keep-artifacts",
     "check": "npm run typecheck && npm run lint && npm run format"
   },
