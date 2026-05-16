@@ -103,3 +103,61 @@ describe('hardware-wallet logger — pluggability', () => {
     setHwLogger({ log: () => undefined });
   });
 });
+
+/**
+ * Regression for CC-12: top-level msg argument must be pattern-redacted
+ * before dispatch. Without this guard, a caller that interpolates an
+ * address or long hex into the msg (e.g. `logHw('warn', `failed for
+ * ${address}`)`) leaks it to every downstream logger — including any
+ * Sentry forwarder a maintainer wires up later.
+ */
+describe('hardware-wallet logger — top-level msg redaction', () => {
+  function captureOne(act: () => void): { msg: string; ctx?: Record<string, unknown> } {
+    const entries: Array<{ msg: string; ctx?: Record<string, unknown> }> = [];
+    setHwLogger({
+      log: (e) => {
+        const captured: { msg: string; ctx?: Record<string, unknown> } = { msg: e.msg };
+        if (e.ctx !== undefined) captured.ctx = e.ctx;
+        entries.push(captured);
+      },
+    });
+    try {
+      act();
+    } finally {
+      setHwLogger({ log: () => undefined });
+    }
+    expect(entries).toHaveLength(1);
+    return entries[0]!;
+  }
+
+  it('redacts an EVM address interpolated into msg', () => {
+    const addr = '0x' + 'a'.repeat(40);
+    const { msg } = captureOne(() => logHw('warn', `connected to ${addr}`));
+    expect(msg).not.toContain(addr);
+    expect(msg).toContain('[REDACTED]');
+  });
+
+  it('redacts a long hex string interpolated into msg', () => {
+    const hex = '0x' + 'deadbeef'.repeat(16);
+    const { msg } = captureOne(() => logHw('error', `failed: ${hex}`));
+    expect(msg).not.toContain('deadbeef');
+    expect(msg).toContain('[REDACTED]');
+  });
+
+  it('passes plain operational text through unchanged', () => {
+    const { msg } = captureOne(() => logHw('info', 'connected to BitBox via USB'));
+    expect(msg).toBe('connected to BitBox via USB');
+  });
+
+  it('redacts a bech32-prefixed address in msg', () => {
+    const addr = 'bc1' + 'q'.repeat(40);
+    const { msg } = captureOne(() => logHw('warn', `unexpected output to ${addr}`));
+    expect(msg).not.toContain(addr);
+    expect(msg).toContain('[REDACTED]');
+  });
+
+  it('redacts ctx by structural key-name + value-pattern', () => {
+    const { ctx } = captureOne(() => logHw('info', 'pair done', { keypath: "m/44'/60'/0'/0/0" }));
+    expect(ctx?.keypath).toBe('[REDACTED]');
+  });
+});

@@ -87,6 +87,17 @@ describe('isUserAbort', () => {
     expect(isUserAbort(null)).toBe(false);
     expect(isUserAbort(undefined)).toBe(false);
   });
+
+  // Regression: previously /\b104\b/.test(err.message) would misclassify
+  // transport errors whose message coincidentally contained the number 104.
+  // The fix removes the message-regex match for 104, keeping only the
+  // structural code === 104 check.
+  it('does NOT misclassify transport errors that mention 104 in text', () => {
+    expect(isUserAbort(new Error('BLE timeout after 104ms'))).toBe(false);
+    expect(isUserAbort(new Error('ENOENT errno 104'))).toBe(false);
+    expect(isUserAbort(new Error('Transport read failed at offset 104'))).toBe(false);
+    expect(isUserAbort(new Error('Got 104 bytes; expected 65'))).toBe(false);
+  });
 });
 
 describe('parseFirmwareError', () => {
@@ -125,6 +136,36 @@ describe('parseFirmwareError', () => {
     expect(parseFirmwareError('a string')).toBeNull();
     expect(parseFirmwareError(null)).toBeNull();
   });
+
+  // Regression: previously /firmware[^0-9]*?(\d{1,3})\b/i would over-match
+  // unrelated text like "firmware update available v9" → code=9 → spurious
+  // HwFirmwareRejectError. The fix tightens the regex to the literal
+  // "firmware error NNN" form AND requires NNN ∈ [100,199] \ {104}.
+  it('does NOT extract a code from unrelated firmware-mentioning text', () => {
+    expect(parseFirmwareError(new Error('firmware update available v9'))).toBeNull();
+    expect(parseFirmwareError(new Error('current firmware 9.21.0 is outdated'))).toBeNull();
+    expect(parseFirmwareError(new Error('please update firmware to 1.0'))).toBeNull();
+  });
+
+  it('rejects codes outside the bitbox-api firmware-reject range (100-199)', () => {
+    const tooLow = new Error('firmware error 099: ?');
+    expect(parseFirmwareError(tooLow)).toBeNull();
+    const tooHigh = new Error('firmware error 200: ?');
+    expect(parseFirmwareError(tooHigh)).toBeNull();
+
+    const lowStructural = new Error('?');
+    (lowStructural as Error & { code?: number }).code = 50;
+    expect(parseFirmwareError(lowStructural)).toBeNull();
+    const highStructural = new Error('?');
+    (highStructural as Error & { code?: number }).code = 9999;
+    expect(parseFirmwareError(highStructural)).toBeNull();
+  });
+
+  it('accepts the explicit "firmware error NNN" pattern for valid codes', () => {
+    expect(parseFirmwareError(new Error('firmware error 101: invalid input'))?.code).toBe(101);
+    expect(parseFirmwareError(new Error('FIRMWARE ERROR 199'))?.code).toBe(199);
+    expect(parseFirmwareError(new Error('firmware  error   150  bad'))?.code).toBe(150);
+  });
 });
 
 describe('compareVersions', () => {
@@ -147,5 +188,28 @@ describe('compareVersions', () => {
   it('does not crash on empty strings', () => {
     expect(compareVersions('', '')).toBe(0);
     expect(compareVersions('9.0.0', '')).toBeGreaterThan(0);
+  });
+
+  // Regression: pre-release suffixes (-rc1, -beta) must sort STRICTLY
+  // BELOW the corresponding release (semver §11). Previously parseInt
+  // would consume only the numeric prefix and drop the suffix entirely,
+  // so 9.20.0-rc1 compared equal to 9.20.0 — letting unreleased firmware
+  // past the MIN_FIRMWARE gate as if it were the final.
+  it('orders pre-release strictly below the corresponding release', () => {
+    expect(compareVersions('9.20.0-rc1', '9.20.0')).toBeLessThan(0);
+    expect(compareVersions('9.20.0', '9.20.0-rc1')).toBeGreaterThan(0);
+    expect(compareVersions('9.20.0-rc1', '9.20.0-rc2')).toBeLessThan(0);
+    expect(compareVersions('9.20.0-rc1', '9.20.0-rc1')).toBe(0);
+    expect(compareVersions('9.20.0-beta', '9.20.0-rc1')).toBeLessThan(0);
+  });
+
+  it('still orders by numeric segments before comparing pre-release', () => {
+    // A higher-numeric pre-release outranks a lower-numeric release.
+    expect(compareVersions('9.21.0-rc1', '9.20.0')).toBeGreaterThan(0);
+  });
+
+  it('treats garbage versions as 0.0.0 (fail-closed)', () => {
+    expect(compareVersions('latest', '9.19.0')).toBeLessThan(0);
+    expect(compareVersions('not-a-version', '9.19.0')).toBeLessThan(0);
   });
 });

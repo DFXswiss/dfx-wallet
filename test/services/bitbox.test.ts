@@ -539,3 +539,67 @@ describe('WasmBridge — bridge not ready', () => {
     await expect(bridge.waitReady(50)).resolves.toBeUndefined();
   });
 });
+
+/**
+ * Regression for the WebView mount-crash class.
+ *
+ * Pre-fix: `WasmBridge` constructor set `this.nonce = ''`. `renderBridgeHtml`
+ * throws on empty nonce. `BitboxWasmWebView`'s `useMemo` evaluates during
+ * render — i.e. BEFORE the `useEffect` that calls `setWebView`. The result
+ * was a synchronous throw at first render that no test caught, because every
+ * test stubs the bridge instance.
+ *
+ * Post-fix: constructor generates a real nonce immediately; setWebView only
+ * rotates it. renderBridgeHtml succeeds without setWebView ever having run.
+ */
+describe('WasmBridge — constructor produces a usable nonce immediately', () => {
+  it('exposes a 32-hex nonce without any setWebView call (CC-1 regression)', async () => {
+    const { WasmBridge } = await import('@/features/hardware-wallet/services/wasm-bridge');
+    const bridge = new WasmBridge();
+    const nonce = bridge.getSessionNonce();
+    expect(nonce).toMatch(/^[0-9a-f]{32}$/);
+  });
+
+  it('renderBridgeHtml accepts the freshly-constructed nonce', async () => {
+    const { WasmBridge } = await import('@/features/hardware-wallet/services/wasm-bridge');
+    const { renderBridgeHtml } = await import('@/features/hardware-wallet/services/bridge-html');
+    const bridge = new WasmBridge();
+    expect(() => renderBridgeHtml(bridge.getSessionNonce())).not.toThrow();
+  });
+
+  it('setWebView rotates the nonce so cross-session traffic is rejected', async () => {
+    const { WasmBridge } = await import('@/features/hardware-wallet/services/wasm-bridge');
+    const bridge = new WasmBridge();
+    const before = bridge.getSessionNonce();
+    bridge.setWebView({ postMessage: () => undefined });
+    const after = bridge.getSessionNonce();
+    expect(after).not.toBe(before);
+    expect(after).toMatch(/^[0-9a-f]{32}$/);
+  });
+
+  it('setWebView resets callId so id-based replay across sessions is impossible', async () => {
+    const { WasmBridge } = await import('@/features/hardware-wallet/services/wasm-bridge');
+    const sent: string[] = [];
+    const bridge = new WasmBridge();
+    bridge.setWebView({ postMessage: (m) => sent.push(m) });
+    const nonce1 = bridge.getSessionNonce();
+    bridge.onMessage(JSON.stringify({ nonce: nonce1, type: 'wasm_ready' }));
+    await bridge.waitReady();
+    // Issue a call to allocate callId=1; capture its rejection because
+    // the next setWebView will destroy the pending entry.
+    const firstCall = bridge.call('m', [], { timeoutMs: 60_000 }).catch(() => undefined);
+    // Re-bind WebView; pending call rejects, callId resets to 0.
+    bridge.setWebView({ postMessage: (m) => sent.push(m) });
+    await firstCall;
+    const nonce2 = bridge.getSessionNonce();
+    bridge.onMessage(JSON.stringify({ nonce: nonce2, type: 'wasm_ready' }));
+    await bridge.waitReady();
+    sent.length = 0;
+    const secondCall = bridge.call('m2', [], { timeoutMs: 60_000 }).catch(() => undefined);
+    const parsed = JSON.parse(sent[0]!);
+    expect(parsed.id).toBe(1); // First call after reset has id 1, not e.g. 2.
+    // Clean up — destroying the bridge rejects the pending call.
+    bridge.destroy();
+    await secondCall;
+  });
+});

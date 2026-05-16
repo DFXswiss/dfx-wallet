@@ -111,36 +111,54 @@ export class HwAddressMismatchError extends Error {
 }
 
 /**
- * isUserAbort heuristically classifies an unknown error as the on-device
- * user-rejected case. Used at the layer that converts bridge errors into
- * the typed classes above. Pattern-matches the bitbox-api conventions
- * (`Error.isUserAbort` flag, code 104, "user abort" in message).
+ * Valid firmware reject code range. bitbox-api convention: 100-199 for
+ * device rejects; 104 is reserved for user-abort and handled separately.
+ */
+const FIRMWARE_REJECT_CODE_MIN = 100;
+const FIRMWARE_REJECT_CODE_MAX = 199;
+const USER_ABORT_CODE = 104;
+
+/**
+ * isUserAbort classifies an unknown error as the on-device user-rejected
+ * case. Used at the layer that converts bridge errors into the typed
+ * classes above. Only relies on structural signals (`code === 104`,
+ * `isUserAbort === true`) and the explicit `"user abort"` token in the
+ * message — never on `\b104\b` alone, which previously misclassified
+ * transport errors that happened to mention "104ms" or "errno 104".
  */
 export function isUserAbort(err: unknown): boolean {
   if (err instanceof HwUserAbortError) return true;
-  if (err instanceof Error) {
-    if (/\buser[ -]?abort\b/i.test(err.message)) return true;
-    if (/\b104\b/.test(err.message)) return true;
-  }
   if (typeof err === 'object' && err !== null) {
     const o = err as { isUserAbort?: boolean; code?: number };
     if (o.isUserAbort === true) return true;
-    if (o.code === 104) return true;
+    if (o.code === USER_ABORT_CODE) return true;
+  }
+  if (err instanceof Error) {
+    if (/\buser[ -]?abort\b/i.test(err.message)) return true;
   }
   return false;
 }
 
-/** Parse a firmware-reject from a raw bridge error. */
+/**
+ * Parse a firmware-reject from a raw bridge error.
+ *
+ * Strict by design — only returns a HwFirmwareRejectError when:
+ *   • The error carries `code: number` in the bitbox-api reject range
+ *     (100-199, excluding 104), OR
+ *   • The message contains the explicit phrase "firmware error NNN" where
+ *     NNN is a 3-digit code in the reject range.
+ *
+ * The previous heuristic (`/firmware[^0-9]*?(\d{1,3})\b/i`) over-matched on
+ * unrelated text like "firmware update available v9" → code 9, surfacing
+ * spurious HwFirmwareRejectErrors to users.
+ */
 export function parseFirmwareError(err: unknown): HwFirmwareRejectError | null {
   if (err instanceof HwFirmwareRejectError) return err;
-  // Bridges that preserve the firmware code attach it as `code` on the
-  // Error (see WasmBridge.onMessage). Fast-path that case — keeps the
-  // original message intact instead of trying to regex it.
   if (typeof err === 'object' && err !== null) {
     const o = err as { code?: unknown; message?: unknown; name?: unknown };
     if (typeof o.code === 'number' && typeof o.message === 'string') {
-      // Don't reclassify user-aborts here; isUserAbort() handles those.
-      if (o.code === 104) return null;
+      if (o.code === USER_ABORT_CODE) return null;
+      if (o.code < FIRMWARE_REJECT_CODE_MIN || o.code > FIRMWARE_REJECT_CODE_MAX) return null;
       // Don't reclassify our own non-firmware error classes.
       if (
         typeof o.name === 'string' &&
@@ -153,36 +171,55 @@ export function parseFirmwareError(err: unknown): HwFirmwareRejectError | null {
     }
   }
   if (!(err instanceof Error)) return null;
-  // Fallback: bitbox-api may surface firmware errors as messages like
-  // "firmware error 101: invalid input". Extract a (code, message) pair.
-  const m = err.message.match(/firmware[^0-9]*?(\d{1,3})\b/i);
+  // Require the literal pattern "firmware error NNN" (3 digits exactly).
+  // No more loose `\d{1,3}` that matches `"v9"` in "firmware update v9".
+  const m = err.message.match(/firmware\s+error\s+(\d{3})\b/i);
   if (!m) return null;
   const code = parseInt(m[1]!, 10);
-  if (code === 104) return null;
+  if (code === USER_ABORT_CODE) return null;
+  if (code < FIRMWARE_REJECT_CODE_MIN || code > FIRMWARE_REJECT_CODE_MAX) return null;
   return new HwFirmwareRejectError(code, err.message);
 }
 
 /**
- * Compare two firmware version strings ("9.21.0" vs "9.24.0"). Returns
- * negative if a < b, zero if equal, positive if a > b. Non-numeric
- * suffixes are treated as 0.
+ * Compare two semver-ish firmware version strings ("9.21.0" vs "9.24.0").
+ * Returns negative if a < b, zero if equal, positive if a > b.
+ *
+ * Pre-release suffixes (`9.20.0-rc1`, `9.20.0-beta`) sort STRICTLY BELOW
+ * the corresponding release (`9.20.0`) per semver §11. A numeric segment
+ * with a non-digit tail is interpreted as `numeric.preRelease`. Garbage
+ * inputs (empty, non-numeric prefix, "latest") parse as `0.0.0`, which
+ * the MIN_FIRMWARE gate then rejects as too-old — fail-closed.
  */
 export function compareVersions(a: string, b: string): number {
-  const pa = a
-    .replace(/^v/, '')
-    .split('.')
-    .map((p) => parseInt(p, 10) || 0);
-  const pb = b
-    .replace(/^v/, '')
-    .split('.')
-    .map((p) => parseInt(p, 10) || 0);
-  const max = Math.max(pa.length, pb.length);
+  const pa = parseVersion(a);
+  const pb = parseVersion(b);
+  const max = Math.max(pa.numeric.length, pb.numeric.length);
   for (let i = 0; i < max; i++) {
     // eslint-disable-next-line security/detect-object-injection -- i is bounded by max above
-    const av = pa[i] ?? 0;
+    const av = pa.numeric[i] ?? 0;
     // eslint-disable-next-line security/detect-object-injection -- i is bounded by max above
-    const bv = pb[i] ?? 0;
+    const bv = pb.numeric[i] ?? 0;
     if (av !== bv) return av - bv;
   }
+  // Numeric segments equal — apply semver pre-release rule.
+  // Release (no pre-release) > pre-release (any pre-release).
+  if (!pa.preRelease && pb.preRelease) return 1;
+  if (pa.preRelease && !pb.preRelease) return -1;
+  if (pa.preRelease && pb.preRelease) {
+    return pa.preRelease < pb.preRelease ? -1 : pa.preRelease > pb.preRelease ? 1 : 0;
+  }
   return 0;
+}
+
+function parseVersion(v: string): { numeric: number[]; preRelease: string } {
+  const cleaned = v.replace(/^v/, '');
+  const dashIdx = cleaned.indexOf('-');
+  const head = dashIdx >= 0 ? cleaned.slice(0, dashIdx) : cleaned;
+  const preRelease = dashIdx >= 0 ? cleaned.slice(dashIdx + 1) : '';
+  const numeric = head.split('.').map((p) => {
+    const n = parseInt(p, 10);
+    return Number.isFinite(n) ? n : 0;
+  });
+  return { numeric, preRelease };
 }

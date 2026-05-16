@@ -9,6 +9,7 @@ import {
   BLE_DEFAULT_READ_TIMEOUT_MS,
   BLE_DEFAULT_SCAN_TIMEOUT_MS,
   isBleEnabled,
+  uuidsArePlaceholders,
 } from './ble-config';
 import { HwPermissionDeniedError, HwTransportFailureError } from './errors';
 
@@ -54,6 +55,16 @@ export class BleTransport implements BitboxTransport {
     if (!isBleEnabled()) {
       throw new HwTransportFailureError(
         'BLE transport is disabled in this build. Set EXPO_PUBLIC_ENABLE_BITBOX_BLE=true and verify BitBox Nova UUIDs before enabling.',
+      );
+    }
+    // Defence-in-depth: even when the env flag is on, refuse to construct
+    // a transport against placeholder UUIDs. The flag is easy to flip in
+    // dogfood EAS profiles; the UUID-verification step is not, and must
+    // not be silently bypassed.
+    if (uuidsArePlaceholders()) {
+      throw new HwTransportFailureError(
+        'BLE transport refused to start: placeholder UUIDs (BLE_CONFIG_VERSION marks them as unverified). ' +
+          'Replace the placeholder constants in ble-config.ts with audited BitBox Nova UUIDs before enabling BLE.',
       );
     }
     this.readTimeoutMs = opts.readTimeoutMs ?? BLE_DEFAULT_READ_TIMEOUT_MS;
@@ -186,7 +197,9 @@ export class BleTransport implements BitboxTransport {
 export async function scanBleDevices(
   opts: { timeoutMs?: number } = {},
 ): Promise<HardwareWalletDevice[]> {
-  if (!isBleEnabled()) return [];
+  // Two-layer gate — env-flag AND UUID-verification. Placeholder UUIDs
+  // are never scanned, even if the env flag is on.
+  if (!isBleEnabled() || uuidsArePlaceholders()) return [];
   const timeoutMs = opts.timeoutMs ?? BLE_DEFAULT_SCAN_TIMEOUT_MS;
 
   const manager = getManager();

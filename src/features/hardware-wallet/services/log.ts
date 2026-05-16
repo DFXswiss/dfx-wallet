@@ -127,15 +127,16 @@ function redactString(s: string): string {
 
 class ConsoleHwLogger implements HwLogger {
   log(entry: Omit<HwLogEntry, 'ts'>): void {
+    // entry.msg and entry.ctx are already redacted by logHw() before it
+    // dispatched into us — see the redaction comment over logHw. We only
+    // add the timestamp here.
     const safe: HwLogEntry = {
       level: entry.level,
       msg: entry.msg,
       ts: new Date().toISOString(),
     };
     if (entry.flowId !== undefined) safe.flowId = entry.flowId;
-    if (entry.ctx !== undefined) {
-      safe.ctx = redactValue(undefined, entry.ctx) as Record<string, unknown>;
-    }
+    if (entry.ctx !== undefined) safe.ctx = entry.ctx;
     const out = JSON.stringify(safe);
     switch (entry.level) {
       case 'error':
@@ -166,15 +167,28 @@ export function setHwLogger(logger: HwLogger): void {
   currentLogger = logger;
 }
 
-/** Convenience: emit one log entry through the active logger. */
+/**
+ * Emit one log entry through the active logger.
+ *
+ * Redaction runs HERE — at the dispatch boundary — so every downstream
+ * logger (Console, a Sentry forwarder, a capturing test fake) receives
+ * pre-scrubbed strings. `msg` is pattern-redacted because callers
+ * occasionally interpolate user-controlled state (addresses, paths,
+ * device names) into the message; `ctx` is structurally redacted by
+ * key-name and value-pattern. Doing the work once, here, removes the
+ * possibility that a future custom logger ships unredacted content to
+ * a crash-reporter.
+ */
 export function logHw(
   level: HwLogLevel,
   msg: string,
   ctx?: Record<string, unknown>,
   flowId?: string,
 ): void {
-  const entry: Omit<HwLogEntry, 'ts'> = { level, msg };
-  if (ctx !== undefined) entry.ctx = ctx;
+  const entry: Omit<HwLogEntry, 'ts'> = { level, msg: redactString(msg) };
+  if (ctx !== undefined) {
+    entry.ctx = redactValue(undefined, ctx) as Record<string, unknown>;
+  }
   if (flowId !== undefined) entry.flowId = flowId;
   currentLogger.log(entry);
 }

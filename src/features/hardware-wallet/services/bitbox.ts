@@ -361,10 +361,14 @@ export class BitboxProvider implements HardwareWalletProvider {
 
 /**
  * Compile-time assertion that BitboxProvider implements the full provider
- * surface. Forces a build break if the interface drifts ahead.
+ * surface. Forces a build break if the interface drifts ahead. Pure
+ * type-level — no runtime instantiation, so importing this module does
+ * not allocate a WasmBridge or a flowId.
  */
-const _check: HardwareWalletProvider = new BitboxProvider();
-void _check;
+type _ProviderImplCheck =
+  BitboxProvider extends HardwareWalletProvider ? true : never;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _providerImplCheck: _ProviderImplCheck = true;
 
 // Re-export so consumers can construct one without reaching into types.
 export type { HardwareWalletProvider } from './types';

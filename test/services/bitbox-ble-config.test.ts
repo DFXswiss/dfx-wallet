@@ -52,3 +52,36 @@ describe('ble-config — CRIT-2 placeholder gating', () => {
     expect(BITBOX_NOVA_WRITE_CHAR_UUID).not.toBe(BITBOX_NOVA_NOTIFY_CHAR_UUID);
   });
 });
+
+/**
+ * Regression for CC-18: BLE transport must refuse to construct against
+ * placeholder UUIDs, EVEN when the env flag is enabled. The env flag is
+ * easy to flip in EAS dogfood profiles; the UUID-verification step is
+ * not, and must never be silently bypassed.
+ */
+describe('BleTransport — placeholder-UUID hard gate', () => {
+  afterEach(() => enableBleForTest(false));
+
+  it('refuses to construct while uuidsArePlaceholders() is true', async () => {
+    enableBleForTest(true);
+    expect(uuidsArePlaceholders()).toBe(true);
+    const { BleTransport } = await import('@/features/hardware-wallet/services/transport-ble');
+    const { HwTransportFailureError } = await import('@/features/hardware-wallet/services/errors');
+    expect(() => new BleTransport()).toThrow(HwTransportFailureError);
+    expect(() => new BleTransport()).toThrow(/placeholder/i);
+  });
+
+  it('scanBleDevices returns empty while placeholders are in effect', async () => {
+    enableBleForTest(true);
+    const { scanBleDevices } = await import('@/features/hardware-wallet/services/transport-ble');
+    await expect(scanBleDevices()).resolves.toEqual([]);
+  });
+
+  it('refuses to construct when the env flag is OFF even without placeholders', async () => {
+    enableBleForTest(false);
+    const { BleTransport } = await import('@/features/hardware-wallet/services/transport-ble');
+    const { HwTransportFailureError } = await import('@/features/hardware-wallet/services/errors');
+    expect(() => new BleTransport()).toThrow(HwTransportFailureError);
+    expect(() => new BleTransport()).toThrow(/disabled/i);
+  });
+});

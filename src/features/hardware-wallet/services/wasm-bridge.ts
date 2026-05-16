@@ -66,12 +66,11 @@ export class WasmBridge {
   private pending = new Map<number, PendingCall>();
   private webViewRef: WebViewRef | null = null;
   /**
-   * Session nonce — regenerated on every setWebView call. Every message
-   * exchanged across the bridge must carry this exact nonce. Messages
-   * without (or with a mismatched) nonce are silently dropped. Keeps a
-   * stale WebView from injecting into a fresh session.
+   * Session nonce — generated in the constructor so renderBridgeHtml never
+   * sees an empty nonce. setWebView rotates it on each session rebind so
+   * stale traffic from a previous WebView can never satisfy a pending call.
    */
-  private nonce = '';
+  private nonce: string = generateNonce();
   private wasmReady = false;
   private readyWaiters: Array<{
     resolve: () => void;
@@ -92,6 +91,10 @@ export class WasmBridge {
     this.destroyInternal(new HwBridgeNotReadyError('session re-bound to a new WebView'));
     this.webViewRef = ref;
     this.nonce = generateNonce();
+    // Reset call ID so id-based replays from the previous session cannot
+    // satisfy calls of the new session even if the nonce check were ever
+    // weakened.
+    this.callId = 0;
     this.wasmReady = false;
   }
 
