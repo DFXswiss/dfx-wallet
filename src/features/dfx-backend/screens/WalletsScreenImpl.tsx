@@ -177,9 +177,7 @@ export default function WalletsScreen() {
               testID="wallets-error"
               action={
                 <PrimaryButton
-                  title={
-                    isMergedState ? t('wallets.reauthCta') : t('wallets.loadErrorCta')
-                  }
+                  title={isMergedState ? t('wallets.reauthCta') : t('wallets.loadErrorCta')}
                   loading={isAuthenticating || loadingUser}
                   onPress={() => {
                     if (isMergedState) void reauthenticate();
