@@ -6,8 +6,13 @@ import { AppHeader, DfxBackgroundScreen, PrimaryButton } from '@/components';
 import { BitboxProvider, BitboxWasmWebView } from './services';
 import type { HardwareWalletDevice } from './services';
 import {
+  HwAddressMismatchError,
+  HwBridgeNotReadyError,
+  HwBridgeTimeoutError,
   HwFirmwareRejectError,
   HwFirmwareTooOldError,
+  HwInvalidPayloadError,
+  HwNotConnectedError,
   HwPermissionDeniedError,
   HwTransportFailureError,
   HwUserAbortError,
@@ -19,15 +24,47 @@ import { Typography, useColors, type ThemeColors } from '@/theme';
  * Maps a hardware-wallet error to a localised, user-visible message. The
  * UI MUST surface UserAbort and FirmwareReject distinctly — they need
  * different copy ("You rejected on device" vs "Connection failed").
+ *
+ * Each typed Hw* class maps to its own localisation key. The fallback
+ * for an untyped Error returns the generic key (NOT err.message) so a
+ * native-library jargon string never reaches the user.
  */
-function userMessage(err: unknown, t: (k: string) => string): string {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function userMessage(err: unknown, t: any): string {
   if (err instanceof HwUserAbortError) return t('hardware.error.userAbort');
-  if (err instanceof HwFirmwareTooOldError) return t('hardware.error.firmwareTooOld');
+  if (err instanceof HwFirmwareTooOldError)
+    return t('hardware.error.firmwareTooOld', {
+      actual: err.actual,
+      minRequired: err.minRequired,
+    });
   if (err instanceof HwFirmwareRejectError) return t('hardware.error.firmwareReject');
   if (err instanceof HwPermissionDeniedError) return t('hardware.error.permissionDenied');
   if (err instanceof HwTransportFailureError) return t('hardware.error.transport');
-  if (err instanceof Error) return err.message;
+  if (err instanceof HwAddressMismatchError) return t('hardware.error.addressMismatch');
+  if (err instanceof HwInvalidPayloadError) return t('hardware.error.invalidPayload');
+  if (err instanceof HwBridgeTimeoutError) return t('hardware.error.transport');
+  if (err instanceof HwBridgeNotReadyError) return t('hardware.error.transport');
+  if (err instanceof HwNotConnectedError) return t('hardware.error.transport');
   return t('hardware.error.unknown');
+}
+
+/**
+ * Format a hex channel-hash into 4-char groups for human comparison
+ * against the BitBox display. The device renders the first 32 hex
+ * chars of the Noise XX channel hash in groups of 4; we mirror that
+ * format here so the user can compare line-by-line.
+ */
+function formatChannelHash(hash: string): string {
+  // Lowercase for consistency with what generateNonce/bridge produce.
+  const lower = hash.toLowerCase();
+  // Use the first 32 chars (= first 16 bytes); that's what the BitBox
+  // firmware displays. Grouped into 4-char chunks.
+  const head = lower.slice(0, 32);
+  const groups: string[] = [];
+  for (let i = 0; i < head.length; i += 4) {
+    groups.push(head.slice(i, i + 4));
+  }
+  return groups.join(' ');
 }
 
 export default function HardwareConnectScreen() {
@@ -35,8 +72,18 @@ export default function HardwareConnectScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
-  const { status, device, setStatus, setDevice, setAddress, setError, reset } =
-    useHardwareWalletStore();
+  const {
+    status,
+    device,
+    error,
+    channelHash,
+    setStatus,
+    setDevice,
+    setAddress,
+    setChannelHash,
+    setErrorState,
+    reset,
+  } = useHardwareWalletStore();
   const [devices, setDevices] = useState<HardwareWalletDevice[]>([]);
   const [, setWasmReady] = useState(false);
 
@@ -56,7 +103,7 @@ export default function HardwareConnectScreen() {
       setDevices(found);
       setStatus(found.length > 0 ? 'detected' : 'disconnected');
     } catch (err) {
-      setError(userMessage(err, t));
+      setErrorState(userMessage(err, t));
     }
   };
 
@@ -65,17 +112,27 @@ export default function HardwareConnectScreen() {
     setStatus('connecting');
     try {
       await provider.connect(dev);
+      // Surface the pairing channel hash so the user can compare it
+      // against the value on the BitBox display before any sensitive
+      // operation runs. Without that comparison the Noise XX pairing's
+      // MITM-resistance is not realised.
+      setChannelHash(provider.getChannelHash());
       setStatus('verifying');
-      // Receive-address always shown on-device so the user can verify.
+      // Receive-address with displayOnDevice + verifyByXpub:
+      //  - on-device verify: BitBox screen shows the address.
+      //  - xpub verify: we re-derive it client-side from ethXpub and
+      //    throw HwAddressMismatchError if the device-returned string
+      //    differs. Both layers together protect against a malicious
+      //    WASM that lies via the JSON-RPC bridge.
       const address = await provider.getEthAddress({
         chainId: 1n,
         displayOnDevice: true,
+        verifyByXpub: true,
       });
       setAddress(address);
       setStatus('connected');
     } catch (err) {
-      setError(userMessage(err, t));
-      setStatus('error');
+      setErrorState(userMessage(err, t));
     }
   };
 
@@ -84,15 +141,14 @@ export default function HardwareConnectScreen() {
       if (event === 'disconnected') {
         setStatus('reconnecting');
       } else if (event === 'fatal') {
-        setError(t('hardware.error.transport'));
-        setStatus('error');
+        setErrorState(t('hardware.error.transport'));
       }
     });
     return () => {
       unsubscribe();
       void provider.disconnect();
     };
-  }, [provider, setError, setStatus, t]);
+  }, [provider, setErrorState, setStatus, t]);
 
   return (
     <DfxBackgroundScreen contentStyle={styles.screen} testID="hardware-connect-screen">
@@ -158,7 +214,26 @@ export default function HardwareConnectScreen() {
             </View>
           )}
 
-          {status === 'verifying' && <Text style={styles.hint}>{t('hardware.pairingHint')}</Text>}
+          {status === 'verifying' && (
+            <View style={styles.verifyingContainer} testID="hardware-verifying">
+              <Text style={styles.hint}>{t('hardware.pairingHint')}</Text>
+              {channelHash ? (
+                <>
+                  <Text style={styles.channelHashLabel}>{t('hardware.channelHashLabel')}</Text>
+                  <Text
+                    style={styles.channelHashValue}
+                    testID="hardware-channel-hash"
+                    selectable
+                  >
+                    {formatChannelHash(channelHash)}
+                  </Text>
+                  <Text style={styles.hint}>{t('hardware.channelHashCompare')}</Text>
+                </>
+              ) : (
+                <Text style={styles.hint}>{t('hardware.channelHashMissing')}</Text>
+              )}
+            </View>
+          )}
 
           {status === 'connected' && (
             <View style={styles.successContainer}>
@@ -166,6 +241,12 @@ export default function HardwareConnectScreen() {
               <Text style={styles.successText}>
                 {device?.name} connected via {device?.transport.toUpperCase()}
               </Text>
+            </View>
+          )}
+
+          {status === 'error' && error && (
+            <View style={styles.errorBanner} testID="hardware-error-banner">
+              <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
         </View>
@@ -184,6 +265,15 @@ export default function HardwareConnectScreen() {
               onPress={() => {
                 void provider.disconnect();
                 reset();
+              }}
+            />
+          )}
+          {(status === 'error' || status === 'reconnecting') && (
+            <PrimaryButton
+              title={t('hardware.retry')}
+              onPress={() => {
+                reset();
+                void handleScan();
               }}
             />
           )}
@@ -210,6 +300,40 @@ const makeStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       gap: 24,
       paddingTop: 24,
+    },
+    verifyingContainer: {
+      gap: 12,
+      alignItems: 'center',
+      paddingHorizontal: 16,
+    },
+    channelHashLabel: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    channelHashValue: {
+      ...Typography.bodyLarge,
+      color: colors.text,
+      backgroundColor: colors.surfaceLight,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 8,
+      letterSpacing: 2,
+      fontFamily: 'Menlo',
+    },
+    errorBanner: {
+      width: '100%',
+      padding: 16,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.error,
+      backgroundColor: colors.surfaceLight,
+    },
+    errorText: {
+      ...Typography.bodyMedium,
+      color: colors.error,
+      textAlign: 'center',
     },
     illustration: {
       width: 200,

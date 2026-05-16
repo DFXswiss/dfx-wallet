@@ -69,6 +69,14 @@ export class BitboxProvider implements HardwareWalletProvider {
   private connectedDevice: HardwareWalletDevice | null = null;
   private bridge: WasmBridge;
   private deviceInfo: DeviceInfo | null = null;
+  /**
+   * Pairing channel hash returned by bitbox-api's Noise XX handshake.
+   * Hex-encoded. Surfaced via getChannelHash(); the UI MUST render it
+   * during verifying so the user can compare against what the BitBox
+   * displays on its trusted screen. Until the user confirms a match,
+   * we don't know if we paired with their device or with a relay.
+   */
+  private channelHash: string | null = null;
   private listeners = new Set<TransportEventListener>();
   /** Per-instance flow id; included in every emitted log line. Used by
    *  log aggregators to stitch a flow back together. */
@@ -111,6 +119,17 @@ export class BitboxProvider implements HardwareWalletProvider {
 
   getDeviceInfo(): DeviceInfo | null {
     return this.deviceInfo;
+  }
+
+  /**
+   * Returns the pairing channel hash from the last successful connect,
+   * hex-encoded, or null before pairing. The UI MUST surface this and
+   * require the user to compare it against the value on the BitBox
+   * screen — without that comparison the pairing's MITM-resistance is
+   * not actually realised.
+   */
+  getChannelHash(): string | null {
+    return this.channelHash;
   }
 
   subscribeTransport(listener: TransportEventListener): () => void {
@@ -226,9 +245,17 @@ export class BitboxProvider implements HardwareWalletProvider {
 
       // 4. Initiate pairing — wrapped in translateErrors so a user
       //    rejecting on-device surfaces as a typed HwUserAbortError.
-      await this.translateErrors('pair', () =>
-        this.bridge.call('pair', [], { timeoutMs: 60_000, signal }),
+      //    Capture the channel hash so the UI can require the user to
+      //    compare it against the BitBox display before signing.
+      const pairResult = await this.translateErrors('pair', () =>
+        this.bridge.call<{ channelHash: number[] | null }>('pair', [], {
+          timeoutMs: 60_000,
+          signal,
+        }),
       );
+      this.channelHash = pairResult.channelHash
+        ? bytesToLowerHex(new Uint8Array(pairResult.channelHash))
+        : null;
       checkAbort();
 
       // 5. Fetch device info — also wrapped so firmware-rejects surface typed.
@@ -279,6 +306,7 @@ export class BitboxProvider implements HardwareWalletProvider {
     await this.teardownTransport();
     this.connectedDevice = null;
     this.deviceInfo = null;
+    this.channelHash = null;
   }
 
   /**
@@ -546,6 +574,12 @@ export class BitboxProvider implements HardwareWalletProvider {
     const raw = await this.bridge.call<DeviceInfo>('deviceInfo', [], opts);
     return raw;
   }
+}
+
+function bytesToLowerHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 /**

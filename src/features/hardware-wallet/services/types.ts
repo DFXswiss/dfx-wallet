@@ -164,6 +164,15 @@ export interface HardwareWalletProvider {
   /** Return cached device info (populated during connect). null before connect. */
   getDeviceInfo(): DeviceInfo | null;
 
+  /**
+   * Return the pairing channel hash from the last successful connect,
+   * hex-encoded, or null before pairing. The UI MUST surface this and
+   * require the user to visually compare it against the value on the
+   * BitBox display. Without that comparison the Noise XX pairing's
+   * man-in-the-middle resistance is unrealised.
+   */
+  getChannelHash(): string | null;
+
   /** Subscribe to transport-level disconnect / reconnect events. */
   subscribeTransport(listener: TransportEventListener): () => void;
 

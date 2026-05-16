@@ -157,6 +157,9 @@
     "deviceConnect": "Verbinden",
     "notConnected": "Nicht verbunden",
     "pairingHint": "Bitte bestätige den Pairing-Code auf deiner BitBox02.",
+    "channelHashLabel": "Pairing-Fingerprint",
+    "channelHashCompare": "Vergleiche diese Zeichen mit dem Code auf dem Bildschirm deiner BitBox. Bei Übereinstimmung bestätige auf dem Gerät. Bei Abweichung trenne sofort die Verbindung.",
+    "channelHashMissing": "Kein Pairing-Fingerprint vom Gerät erhalten.",
     "scanDevices": "Nach Geräten suchen",
     "scanning": "Suche nach Geräten...",
     "status": {
@@ -164,10 +167,23 @@
       "connecting": "Verbinde...",
       "detected": "Gerät gefunden",
       "disconnected": "Nicht verbunden",
+      "error": "Verbindungsfehler",
+      "reconnecting": "Verbinde erneut mit BitBox …",
       "scanning": "Suche nach Geräten...",
       "verifying": "Auf Gerät bestätigen..."
     },
-    "verifyOnDevice": "Bitte bestätige auf deinem Gerät."
+    "verifyOnDevice": "Bitte bestätige auf deinem Gerät.",
+    "error": {
+      "userAbort": "Du hast die Aktion auf deiner BitBox abgebrochen. Tippe erneut auf Verbinden, um es zu wiederholen.",
+      "firmwareTooOld": "Deine BitBox-Firmware ({{actual}}) ist älter als die erforderliche Mindestversion ({{minRequired}}). Aktualisiere über die BitBoxApp auf deinem Computer und kehre dann hierher zurück. Dein Seed bleibt vom Update unberührt.",
+      "firmwareReject": "Deine BitBox hat die Anfrage abgelehnt. Die Daten könnten ungültig sein – bitte prüfe die Aktion und versuche es erneut.",
+      "permissionDenied": "USB- oder Bluetooth-Berechtigung fehlt. Öffne die Systemeinstellungen, gib DFX den Zugriff frei und versuche es erneut.",
+      "transport": "Die Verbindung zu deiner BitBox wurde unterbrochen. Stecke das Kabel neu an oder gehe näher in den Bluetooth-Bereich und versuche es erneut.",
+      "addressMismatch": "Die von der BitBox zurückgegebene Adresse stimmt nicht mit dem Wert überein, den wir aus ihrem öffentlichen Schlüssel abgeleitet haben. Nutze dieses Gerät nicht, bis du sicher bist, dass es echt ist.",
+      "invalidPayload": "Transaktionsdaten sind inkonsistent (die Chain oder der Empfänger stimmt nicht mit der Anfrage überein). Aus Sicherheitsgründen wurde die Signatur abgelehnt.",
+      "unknown": "Verbindung fehlgeschlagen. Trenne das Gerät, schließe es erneut an und versuche es nochmal."
+    },
+    "retry": "Erneut versuchen"
   },
   "contact": {
     "docs": "Dokumentation",
@@ -588,6 +604,7 @@
     "createError": "Ticket konnte nicht erstellt werden. Bitte erneut versuchen.",
     "createTicket": "Ticket erstellen",
     "noTickets": "Keine Support-Tickets",
+    "emptyHint": "Stelle eine Frage an unser Support-Team — wir melden uns normalerweise innert weniger Stunden.",
     "sendError": "Nachricht konnte nicht gesendet werden. Bitte erneut versuchen.",
     "title": "Support"
   },
@@ -602,6 +619,7 @@
     "merchant": "Händler",
     "network": "Netzwerk",
     "noTransactions": "Noch keine Transaktionen",
+    "emptyHint": "Sobald du Krypto kaufst, sendest oder empfängst, erscheint hier dein Verlauf.",
     "notFound": "Transaktion nicht gefunden",
     "output": "Nach",
     "payout": "Auszahlung an",
@@ -649,6 +667,8 @@
     "linkError": "Wallet konnte nicht angebunden werden.",
     "linkedLabel": "Verknüpfte Adressen",
     "loadError": "DFX-Profil konnte nicht geladen werden.",
+    "loadErrorTitle": "Profil aktuell nicht erreichbar",
+    "mergedTitle": "Konto-Zusammenführung",
     "mergedExplanation": "Dein DFX-Konto wurde mit einem anderen Konto zusammengeführt. Bitte erneut anmelden, damit wir das aktuelle Profil laden können.",
     "noAddresses": "Noch keine Adressen verknüpft.",
     "reauthCta": "Erneut bei DFX anmelden",

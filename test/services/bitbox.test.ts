@@ -845,6 +845,50 @@ function makeBridgeStub(callImpl: (m: string, a: readonly unknown[], o?: CallOpt
   };
 }
 
+describe('BitboxProvider — channel hash plumbing (CC-4)', () => {
+  it('captures the channel-hash bytes from pair and exposes them hex-encoded', async () => {
+    const bridge = makeBridgeStub(async (method) => {
+      if (method === 'pair') return { channelHash: [0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe] };
+      if (method === 'deviceInfo') {
+        return { version: '9.21.0', product: 'bitbox02-multi', name: 'BB', initialized: true };
+      }
+      return null;
+    });
+    const provider = new BitboxProvider(bridge as never);
+    expect(provider.getChannelHash()).toBeNull();
+    await provider.connect({ id: 'X', name: 'BB', type: 'bitbox02', transport: 'ble' });
+    expect(provider.getChannelHash()).toBe('deadbeefcafe');
+  });
+
+  it('returns null when bitbox-api emits a missing channel-hash', async () => {
+    const bridge = makeBridgeStub(async (method) => {
+      if (method === 'pair') return { channelHash: null };
+      if (method === 'deviceInfo') {
+        return { version: '9.21.0', product: 'bitbox02-multi', name: 'BB', initialized: true };
+      }
+      return null;
+    });
+    const provider = new BitboxProvider(bridge as never);
+    await provider.connect({ id: 'X', name: 'BB', type: 'bitbox02', transport: 'ble' });
+    expect(provider.getChannelHash()).toBeNull();
+  });
+
+  it('clears the channel hash on disconnect', async () => {
+    const bridge = makeBridgeStub(async (method) => {
+      if (method === 'pair') return { channelHash: [0x01, 0x02] };
+      if (method === 'deviceInfo') {
+        return { version: '9.21.0', product: 'bitbox02-multi', name: 'BB', initialized: true };
+      }
+      return null;
+    });
+    const provider = new BitboxProvider(bridge as never);
+    await provider.connect({ id: 'X', name: 'BB', type: 'bitbox02', transport: 'ble' });
+    expect(provider.getChannelHash()).toBe('0102');
+    await provider.disconnect();
+    expect(provider.getChannelHash()).toBeNull();
+  });
+});
+
 describe('BitboxProvider — translateErrors over pair / deviceInfo (CC-8)', () => {
   it('pair user-abort surfaces as HwUserAbortError, not raw Error', async () => {
     const bridge = makeBridgeStub(async (method) => {
