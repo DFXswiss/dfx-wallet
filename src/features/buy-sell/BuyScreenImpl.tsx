@@ -1028,7 +1028,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
     assetTileActive: {
       borderColor: colors.primary,
-      backgroundColor: 'rgba(220,234,254,0.72)',
+      backgroundColor: colors.primaryLight,
     },
     assetTileSymbol: {
       ...Typography.bodyLarge,

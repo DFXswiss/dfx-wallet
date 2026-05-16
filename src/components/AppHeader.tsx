@@ -1,8 +1,8 @@
-import { ReactNode } from 'react';
+import { ReactNode, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icon } from './Icon';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type Props = {
   title: string;
@@ -20,6 +20,8 @@ type Props = {
  */
 export function AppHeader({ title, onBack, rightAction, testID }: Props) {
   const router = useRouter();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   // When a screen is mounted directly via deep-link (e.g. simctl openurl,
   // a push-notification tap, or app-clip launch), the navigation stack has
   // no parent — `router.back()` then crashes the navigator with
@@ -42,7 +44,7 @@ export function AppHeader({ title, onBack, rightAction, testID }: Props) {
         accessibilityLabel="Back"
         testID={testID ? `${testID}-back` : undefined}
       >
-        <Icon name="arrow-left" size={26} color={DfxColors.text} />
+        <Icon name="arrow-left" size={26} color={colors.text} />
       </Pressable>
 
       <Text style={styles.title} numberOfLines={1}>
@@ -58,30 +60,31 @@ export function AppHeader({ title, onBack, rightAction, testID }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 8,
-  },
-  iconSlot: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconButton: {
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.78)',
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-  },
-  title: {
-    flex: 1,
-    textAlign: 'center',
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingTop: 4,
+      paddingBottom: 8,
+    },
+    iconSlot: {
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iconButton: {
+      borderRadius: 12,
+      backgroundColor: colors.cardOverlay,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    title: {
+      flex: 1,
+      textAlign: 'center',
+      ...Typography.headlineSmall,
+      color: colors.text,
+    },
+  });

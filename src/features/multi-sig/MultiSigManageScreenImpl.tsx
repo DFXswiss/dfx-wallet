@@ -215,7 +215,7 @@ const makeStyles = (colors: ThemeColors) =>
       gap: 16,
     },
     summaryCard: {
-      backgroundColor: 'rgba(220,234,254,0.78)',
+      backgroundColor: colors.primaryLight,
       borderRadius: 12,
       borderWidth: 1,
       borderColor: colors.border,

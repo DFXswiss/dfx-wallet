@@ -29,6 +29,14 @@ export type ThemeColors = {
 
   cardOverlay: string;
   cardOverlayBorder: string;
+  /**
+   * Visible hairline used for in-card dividers (e.g. between two pills
+   * inside a single rounded container). Tuned to read on either theme —
+   * use this instead of `border` when the divider sits inside a card
+   * whose surface is too close in luminance to register a standard
+   * border-grey.
+   */
+  divider: string;
   shadow: string;
   statusBar: 'dark' | 'light';
 };
@@ -64,6 +72,7 @@ export const lightColors: ThemeColors = {
 
   cardOverlay: 'rgba(255,255,255,0.94)',
   cardOverlayBorder: 'rgba(221,229,240,0.9)',
+  divider: '#DDE5F0',
   shadow: '#0B1426',
   statusBar: 'dark',
 };
@@ -91,11 +100,11 @@ export const darkColors: ThemeColors = {
   primaryDark: '#3B82F6',
   primaryLight: 'rgba(95,168,255,0.14)',
 
-  background: '#0B0F18',
-  surface: '#141923',
-  surfaceLight: '#1C222F',
-  surfaceRaised: '#262D3C',
-  card: '#141923',
+  background: '#0F1521',
+  surface: '#171D29',
+  surfaceLight: '#1F2633',
+  surfaceRaised: '#293041',
+  card: '#171D29',
 
   text: '#EEF2F8',
   textSecondary: '#9BA8BC',
@@ -117,6 +126,7 @@ export const darkColors: ThemeColors = {
 
   cardOverlay: '#1C222F',
   cardOverlayBorder: 'rgba(255,255,255,0.04)',
+  divider: 'rgba(255,255,255,0.10)',
   shadow: '#000000',
   statusBar: 'light',
 };
