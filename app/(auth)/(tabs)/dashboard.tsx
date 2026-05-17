@@ -87,7 +87,10 @@ export default function DashboardScreen() {
             </View>
           </Pressable>
 
-          <View style={styles.balanceValueRow}>
+          <View
+            style={styles.balanceValueRow}
+            testID={balanceVisible ? 'dashboard-balance-value' : 'dashboard-balance-hidden'}
+          >
             <Text style={styles.balanceSymbol}>{symbol}</Text>
             {balanceVisible ? (
               <>
