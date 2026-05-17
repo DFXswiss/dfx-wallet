@@ -12,7 +12,10 @@ let cache: Promise<DfxFiat[]> | null = null;
 export class DfxFiatService {
   /** Fetch all DFX-supported fiat currencies. Cached per app session. */
   list(): Promise<DfxFiat[]> {
-    cache ??= dfxApi.getPublic<DfxFiat[]>('/v1/fiat');
+    cache ??= dfxApi.getPublic<DfxFiat[]>('/v1/fiat').catch((err) => {
+      cache = null;
+      throw err;
+    });
     return cache;
   }
 

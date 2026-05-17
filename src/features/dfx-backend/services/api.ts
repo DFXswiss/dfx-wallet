@@ -11,8 +11,20 @@ type RequestOptions = {
   headers?: Record<string, string>;
 };
 
+export function normalizeDfxApiBaseUrl(url: string): string {
+  const withoutTrailingSlash = url.replace(/\/+$/, '');
+  return withoutTrailingSlash.replace(/\/v\d+$/i, '');
+}
+
+export function buildDfxApiUrl(baseUrl: string, path: string): string {
+  if (path.startsWith('http')) return path;
+  const normalizedBase = normalizeDfxApiBaseUrl(baseUrl);
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}`;
+}
+
 class DfxApi {
-  private baseUrl = env.dfxApiUrl;
+  private baseUrl = normalizeDfxApiBaseUrl(env.dfxApiUrl);
   private authToken: string | null = null;
   private onUnauthorized: (() => Promise<string | null>) | null = null;
 
@@ -47,7 +59,7 @@ class DfxApi {
    * contain the asset/fiat the buy/sell flow needs.
    */
   async getPublic<T>(path: string, options?: { signal?: AbortSignal }): Promise<T> {
-    const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
+    const url = buildDfxApiUrl(this.baseUrl, path);
     const response = await fetch(url, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
@@ -95,7 +107,7 @@ class DfxApi {
     body?: unknown,
     options?: RequestOptions,
   ): Promise<Response> {
-    const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
+    const url = buildDfxApiUrl(this.baseUrl, path);
     return fetch(url, {
       method,
       headers: this.getHeaders(options?.headers),

@@ -1,4 +1,8 @@
-import { DfxApiError } from '../../src/features/dfx-backend/services/api';
+import {
+  buildDfxApiUrl,
+  DfxApiError,
+  normalizeDfxApiBaseUrl,
+} from '../../src/features/dfx-backend/services/api';
 
 describe('DfxApiError', () => {
   it('should create error with correct properties', () => {
@@ -33,5 +37,30 @@ describe('DfxApiError', () => {
     const error = new DfxApiError(500, 'SERVER_ERROR', 'Internal server error');
     expect(error).toBeInstanceOf(Error);
     expect(error).toBeInstanceOf(DfxApiError);
+  });
+});
+
+describe('DFX API URL helpers', () => {
+  it('normalizes versioned DFX API base URLs back to the API root', () => {
+    expect(normalizeDfxApiBaseUrl('https://api.dfx.swiss/v1')).toBe('https://api.dfx.swiss');
+    expect(normalizeDfxApiBaseUrl('https://api.dfx.swiss/v1/')).toBe('https://api.dfx.swiss');
+    expect(normalizeDfxApiBaseUrl('https://api.dfx.swiss/api/v2/')).toBe(
+      'https://api.dfx.swiss/api',
+    );
+  });
+
+  it('builds versioned endpoint URLs without duplicating /v1', () => {
+    expect(buildDfxApiUrl('https://api.dfx.swiss/v1', '/v1/asset')).toBe(
+      'https://api.dfx.swiss/v1/asset',
+    );
+    expect(buildDfxApiUrl('https://api.dfx.swiss/v1/', 'v2/user')).toBe(
+      'https://api.dfx.swiss/v2/user',
+    );
+  });
+
+  it('keeps absolute URLs untouched', () => {
+    expect(buildDfxApiUrl('https://api.dfx.swiss/v1', 'https://example.com/file.csv')).toBe(
+      'https://example.com/file.csv',
+    );
   });
 });
