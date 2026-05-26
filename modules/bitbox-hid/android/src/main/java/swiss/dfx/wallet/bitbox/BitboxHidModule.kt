@@ -140,7 +140,12 @@ class BitboxHidModule : Module() {
                 }
         }
 
-        AsyncFunction("open") { deviceId: String ->
+        // `Coroutine` makes the lambda body a `suspend` block so the
+        // calls below (awaitPermission, ioMutex.withLock, withContext)
+        // run inside Expo's module coroutine scope. Without it, the
+        // Kotlin 2.1 compiler rejects calling suspend functions from a
+        // plain lambda.
+        AsyncFunction("open") Coroutine { deviceId: String ->
             val manager = usbManager ?: throw Exception("USB Manager not available")
             val device = manager.deviceList.values
                 .find { it.deviceId.toString() == deviceId }
@@ -165,7 +170,7 @@ class BitboxHidModule : Module() {
             true
         }
 
-        AsyncFunction("write") { data: List<Int> ->
+        AsyncFunction("write") Coroutine { data: List<Int> ->
             ioMutex.withLock {
                 withContext(Dispatchers.IO) {
                     val conn = connection ?: throw Exception("No device connected")
@@ -184,7 +189,7 @@ class BitboxHidModule : Module() {
             }
         }
 
-        AsyncFunction("read") { timeoutMs: Int ->
+        AsyncFunction("read") Coroutine { timeoutMs: Int ->
             ioMutex.withLock {
                 withContext(Dispatchers.IO) {
                     val conn = connection ?: throw Exception("No device connected")
@@ -198,7 +203,7 @@ class BitboxHidModule : Module() {
             }
         }
 
-        AsyncFunction("close") {
+        AsyncFunction("close") Coroutine {
             ioMutex.withLock {
                 withContext(Dispatchers.IO) {
                     closeDeviceLocked()
