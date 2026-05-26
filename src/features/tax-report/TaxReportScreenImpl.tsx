@@ -3,7 +3,12 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'rea
 import { useTranslation } from 'react-i18next';
 import { Directory, File, Paths } from 'expo-file-system';
 import { AppHeader, PrimaryButton, ScreenContainer } from '@/components';
-import { dfxTransactionService, type TaxReportType } from '@/features/dfx-backend/services';
+import {
+  decodeDfxJwt,
+  dfxTransactionService,
+  type TaxReportType,
+} from '@/features/dfx-backend/services';
+import { secureStorage, StorageKeys } from '@/services/storage';
 import { DfxColors, Typography } from '@/theme';
 
 /**
@@ -64,9 +69,17 @@ export default function TaxReportScreen() {
   const handleDownload = async () => {
     setBusy(true);
     try {
+      const token = await secureStorage.get(StorageKeys.DFX_AUTH_TOKEN);
+      const userAddress = token ? (decodeDfxJwt(token)?.address ?? null) : null;
+      if (!userAddress) {
+        Alert.alert(t('taxReport.title'), t('taxReport.noAddress'));
+        setBusy(false);
+        return;
+      }
       const from = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0));
       const to = new Date(Date.UTC(year + 1, 0, 1, 0, 0, 0, 0));
       const { downloadUrl } = await dfxTransactionService.createCsvExport({
+        userAddress,
         from,
         to,
         type: reportType,
