@@ -169,6 +169,7 @@ reach the MVP runtime).
 | `EXPO_PUBLIC_ENABLE_MULTISIG`        | Multi-sig vault setup (local cosigner list)                                                                                                                         | off     |
 | `EXPO_PUBLIC_ENABLE_DEEPLINKS`       | Deep-link payment URL handler                                                                                                                                       | off     |
 | `EXPO_PUBLIC_ENABLE_WEBVIEW`         | In-app WebView (KYC iframe, payment hand-off) and the `safe-url` allow-list                                                                                         | off     |
+| `EXPO_PUBLIC_ENABLE_DEMO_TRANSACTIONS` | Substitute a 10-row demo dataset for the transaction list when the DFX API returns empty / errors — local screenshot + E2E helper, never wired into production builds | off     |
 
 ### Build-time configuration (`EXPO_PUBLIC_*`)
 

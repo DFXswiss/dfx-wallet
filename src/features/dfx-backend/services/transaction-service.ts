@@ -1,4 +1,7 @@
+import { FEATURES } from '@/config/features';
+
 import { dfxApi } from './api';
+import { DEMO_TRANSACTIONS } from './transaction-service.mocks';
 
 export type TransactionDto = {
   id: number;
@@ -27,6 +30,14 @@ export type TaxReportType = 'CoinTracking' | 'ChainReport' | 'Compact';
 
 export class DfxTransactionService {
   async getTransactions(): Promise<TransactionDto[]> {
+    if (FEATURES.DEMO_TRANSACTIONS) {
+      try {
+        const live = await dfxApi.get<TransactionDto[]>('/v1/transaction/detail');
+        return live.length > 0 ? live : DEMO_TRANSACTIONS;
+      } catch {
+        return DEMO_TRANSACTIONS;
+      }
+    }
     return dfxApi.get<TransactionDto[]>('/v1/transaction/detail');
   }
 

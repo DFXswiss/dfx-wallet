@@ -42,6 +42,7 @@ export const FEATURES = {
   MULTISIG: process.env.EXPO_PUBLIC_ENABLE_MULTISIG === 'true',
   DEEPLINKS: process.env.EXPO_PUBLIC_ENABLE_DEEPLINKS === 'true',
   WEBVIEW: process.env.EXPO_PUBLIC_ENABLE_WEBVIEW === 'true',
+  DEMO_TRANSACTIONS: process.env.EXPO_PUBLIC_ENABLE_DEMO_TRANSACTIONS === 'true',
 } as const;
 
 export type FeatureFlag = keyof typeof FEATURES;
