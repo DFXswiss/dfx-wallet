@@ -21,6 +21,7 @@ describe('FEATURES', () => {
       'BIOMETRIC',
       'BUY_SELL',
       'DEEPLINKS',
+      'DEMO_TRANSACTIONS',
       'DFX_BACKEND',
       'HARDWARE_WALLET',
       'LEGAL',
