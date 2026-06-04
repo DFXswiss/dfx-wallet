@@ -1,0 +1,23 @@
+BitBox native core — Go layer verification (the code wrapped by Api.xcframework / api.aar)
+Run on Mac Studio 2026-06-04, Go 1.24.2, module github.com/DFXswiss/bitbox_flutter (go/).
+
+$ go test ./api/ -run 'Fake|ETH|TypedMessage|Pairing|Capabilit' -v
+
+=== RUN   TestFakeBitboxHarnessSimulatesPairingAndCapabilities
+--- PASS: TestFakeBitboxHarnessSimulatesPairingAndCapabilities (0.00s)
+=== RUN   TestFakeBitboxHarnessSimulatesEthereumAndBitcoinOperations
+--- PASS: TestFakeBitboxHarnessSimulatesEthereumAndBitcoinOperations (0.00s)
+=== RUN   TestFakeBitboxHarnessSimulatesErrorsAndPanicsWithoutCrashing
+[InitDevice] error: init failed
+[ETHGetAddress] device error: address rejected
+[ETHSignMessage] device error: message rejected
+[BTCXPub] device error: xpub rejected
+[ETHSignTypedMessage] recovered from panic: simulated typed-data panic
+--- PASS: TestFakeBitboxHarnessSimulatesErrorsAndPanicsWithoutCrashing (0.00s)
+PASS
+ok  	github.com/DFXswiss/bitbox_flutter/api	0.353s
+
+Conclusion: the exported surface (InitDevice, GetChannelHash/Verify, DeviceInfo,
+ETHGetAddress, ETHSignMessage, ETHSignTypedMessage/EIP-712, BTCXPub/PSBT) drives a
+simulated BitBox correctly and survives device errors + panics. This is exactly what
+the native iOS/Android binaries wrap, and RealUnit already ships them in production.
