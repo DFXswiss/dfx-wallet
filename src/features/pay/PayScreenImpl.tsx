@@ -34,6 +34,7 @@ export default function PayScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [pay, setPay] = useState<{ config: string; amount: string } | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
   const [status, setStatus] = useState('');
   const [scan, setScan] = useState<string | null>(null);
 
@@ -51,7 +52,6 @@ export default function PayScreen() {
       config: params.get('config') ?? `http://${DEFAULT_LAN}:8790/config`,
       amount: params.get('amount') ?? '250',
     });
-    setStatus('Engine lädt…');
   };
 
   const onMessage = (e: WebViewMessageEvent) => {
@@ -69,7 +69,25 @@ export default function PayScreen() {
     }
   };
 
-  if (pay) {
+  // Bestätigungsschritt — die Tx wird erst nach „Bezahlen bestätigen" gebaut & gesendet.
+  if (pay && !confirmed) {
+    return (
+      <View style={[styles.payWrap, styles.payCenter]}>
+        <Text style={styles.payConfirmLabel}>Zahlung bestätigen</Text>
+        <Text style={styles.payAmount}>{pay.amount} USDC</Text>
+        <Text style={styles.payRecipient}>an DFX Merchant · Base Sepolia</Text>
+        <Text style={styles.payPrivacy}>Abgeschirmt — niemand sieht, dass du zahlst.</Text>
+        <TouchableOpacity style={styles.payConfirmBtn} onPress={() => { setConfirmed(true); setStatus('Engine lädt…'); }}>
+          <Text style={styles.scanBtnText}>Bezahlen bestätigen</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.payCancelBtn} onPress={() => { setPay(null); setConfirmed(false); setScanned(false); }}>
+          <Text style={styles.payCancelText}>Abbrechen</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (pay && confirmed) {
     const host = pay.config.replace(/^https?:\/\//, '').split(':')[0];
     const payUrl = `http://${host}:8799/cloister-pay.html?auto=1&amount=${pay.amount}&config=${encodeURIComponent(pay.config)}`;
     return (
@@ -170,6 +188,14 @@ export default function PayScreen() {
 
 const styles = StyleSheet.create({
   payWrap: { flex: 1, backgroundColor: '#0b0b0f', paddingTop: 60, paddingHorizontal: 16 },
+  payCenter: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  payConfirmLabel: { color: '#888', fontSize: 15, marginBottom: 8 },
+  payAmount: { color: '#fff', fontSize: 44, fontWeight: '800', marginBottom: 4 },
+  payRecipient: { color: '#ccc', fontSize: 16, marginBottom: 20 },
+  payPrivacy: { color: '#0a8', fontSize: 13, marginBottom: 40, textAlign: 'center' },
+  payConfirmBtn: { backgroundColor: '#1769ff', borderRadius: 14, paddingVertical: 16, paddingHorizontal: 32, width: '100%', alignItems: 'center', marginBottom: 12 },
+  payCancelBtn: { paddingVertical: 12, alignItems: 'center' },
+  payCancelText: { color: '#888', fontSize: 15 },
   payTitle: { color: '#fff', fontSize: 18, fontWeight: '600', marginBottom: 12 },
   payStatus: { color: '#0f0', fontSize: 14, marginBottom: 12 },
   payWebview: { flex: 1, borderRadius: 8, overflow: 'hidden' },
