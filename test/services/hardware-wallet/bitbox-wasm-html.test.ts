@@ -50,7 +50,9 @@ function bootWebView(opts: SandboxOptions = {}) {
     },
   };
 
-  const match = /<script>([\s\S]*?)<\/script>/.exec(BITBOX_WASM_HTML);
+  // Case-insensitive: a tag filter that misses <SCRIPT> is exactly the
+  // footgun CodeQL's js/bad-tag-filter exists for — even in test code.
+  const match = /<script>([\s\S]*?)<\/script>/i.exec(BITBOX_WASM_HTML);
   if (!match) throw new Error('No <script> block found in BITBOX_WASM_HTML');
 
   // new Function: deliberately executing the production WebView script under test.
