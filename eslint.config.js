@@ -74,6 +74,23 @@ module.exports = defineConfig([
     },
   },
   {
+    // CI gate scripts (ESM). They print status to stdout by design, and their
+    // fs paths are repo-relative constants / CI-provided argv — not user input
+    // reaching the app, which is what detect-non-literal-fs-filename targets.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      sourceType: 'module',
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+      },
+    },
+    rules: {
+      'no-console': 'off',
+      'security/detect-non-literal-fs-filename': 'off',
+    },
+  },
+  {
     files: ['scripts/**/*.js', 'eslint.config.js'],
     languageOptions: {
       sourceType: 'commonjs',

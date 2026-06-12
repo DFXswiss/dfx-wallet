@@ -26,6 +26,21 @@ const sharedNameMapper = {
 };
 
 module.exports = {
+  // Coverage scope is the logic surface only: services + stores. Screens and
+  // feature UI are owned by component tests, visual regression and Maestro —
+  // forcing line coverage on JSX produces useless render tests, not safety.
+  // The floor is enforced by scripts/check-coverage-floor.mjs against the
+  // committed .coverage-floor-lines file (see that script for the ratchet
+  // protocol).
+  collectCoverageFrom: [
+    'src/services/**/*.{ts,tsx}',
+    'src/store/**/*.{ts,tsx}',
+    'src/features/**/services/**/*.{ts,tsx}',
+    'src/hooks/**/*.{ts,tsx}',
+    '!**/*.d.ts',
+    '!**/types.ts',
+  ],
+  coverageReporters: ['json-summary', 'lcov', 'text-summary'],
   projects: [
     {
       displayName: 'unit',
