@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import {
-  Alert,
   Image,
   ImageBackground,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -13,8 +14,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { Icon } from '@/components';
 import { DfxColors, Typography } from '@/theme';
+
+const DEFAULT_LAN = process.env.EXPO_PUBLIC_CLOISTER_LAN ?? '192.168.178.110';
 
 const CUTOUT_PCT = {
   left: 0.0925,
@@ -29,6 +33,9 @@ export default function PayScreen() {
   const { width, height } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  const [pay, setPay] = useState<{ config: string; amount: string } | null>(null);
+  const [status, setStatus] = useState('');
+  const [scan, setScan] = useState<string | null>(null);
 
   useEffect(() => {
     if (!permission?.granted) void requestPermission();
@@ -36,11 +43,57 @@ export default function PayScreen() {
 
   const handleScan = ({ data }: { data: string }) => {
     if (scanned) return;
+    if (!data.includes('cloister-pay')) return; // nur Cloister-QRs
     setScanned(true);
-    Alert.alert(t('pay.comingSoonTitle'), t('pay.comingSoonMessage', { data }), [
-      { text: t('common.ok'), onPress: () => router.back() },
-    ]);
+    const qi = data.indexOf('?');
+    const params = new URLSearchParams(qi >= 0 ? data.slice(qi + 1) : '');
+    setPay({
+      config: params.get('config') ?? `http://${DEFAULT_LAN}:8790/config`,
+      amount: params.get('amount') ?? '250',
+    });
+    setStatus('Engine lädt…');
   };
+
+  const onMessage = (e: WebViewMessageEvent) => {
+    try {
+      const msg = JSON.parse(e.nativeEvent.data);
+      if (msg.type === 'ready') setStatus('Baue Proof on-device…');
+      if (msg.type === 'paid') {
+        if (msg.ok) {
+          setStatus(`✅ Bezahlt (${msg.ms} ms)\n${msg.txHash}`);
+          setScan(msg.scan);
+        } else setStatus('❌ ' + (msg.error ?? 'Fehler'));
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  if (pay) {
+    const host = pay.config.replace(/^https?:\/\//, '').split(':')[0];
+    const payUrl = `http://${host}:8799/cloister-pay.html?auto=1&amount=${pay.amount}&config=${encodeURIComponent(pay.config)}`;
+    return (
+      <View style={styles.payWrap}>
+        <Text style={styles.payTitle}>Cloister — privat zahlen ({pay.amount} USDC)</Text>
+        <Text style={styles.payStatus}>{status}</Text>
+        {scan ? (
+          <TouchableOpacity style={styles.scanBtn} onPress={() => Linking.openURL(scan)}>
+            <Text style={styles.scanBtnText}>Auf Basescan öffnen ↗</Text>
+          </TouchableOpacity>
+        ) : null}
+        <WebView
+          source={{ uri: payUrl }}
+          onMessage={onMessage}
+          onError={(ev) => setStatus('WebView-Fehler: ' + ev.nativeEvent.description)}
+          javaScriptEnabled
+          domStorageEnabled
+          originWhitelist={['*']}
+          mixedContentMode="always"
+          style={styles.payWebview}
+        />
+      </View>
+    );
+  }
 
   const cutoutStyle = {
     left: width * CUTOUT_PCT.left,
@@ -114,6 +167,12 @@ export default function PayScreen() {
 }
 
 const styles = StyleSheet.create({
+  payWrap: { flex: 1, backgroundColor: '#0b0b0f', paddingTop: 60, paddingHorizontal: 16 },
+  payTitle: { color: '#fff', fontSize: 18, fontWeight: '600', marginBottom: 12 },
+  payStatus: { color: '#0f0', fontSize: 14, marginBottom: 12 },
+  payWebview: { flex: 1, borderRadius: 8, overflow: 'hidden' },
+  scanBtn: { backgroundColor: '#1769ff', borderRadius: 8, padding: 12, marginBottom: 12, alignItems: 'center' },
+  scanBtnText: { color: '#fff', fontWeight: '600' },
   bg: {
     flex: 1,
     backgroundColor: DfxColors.background,

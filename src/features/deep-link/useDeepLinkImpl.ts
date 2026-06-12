@@ -43,6 +43,12 @@ export function useDeepLink() {
         case 'settings':
           router.push('/(auth)/(tabs)/settings');
           break;
+        case 'cloister-pay':
+          router.push({
+            pathname: '/cloister-pay',
+            params: parsed.queryParams ?? {},
+          } as never);
+          break;
       }
     };
 
