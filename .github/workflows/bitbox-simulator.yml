@@ -1,0 +1,50 @@
+name: BitBox Simulator
+
+# Tier 2: runs the real BitBox02 firmware simulator (official binary from
+# BitBoxSwiss/bitbox02-firmware, SHA256-pinned inside the testkit) and
+# exercises the firmware surface this wallet depends on: Noise XX pairing,
+# ETH address derivation (chainId 1 + 137), ETH personal-message signing
+# (incl. the 1024-byte boundary), EIP-1559 signing, EIP-712 typed data and
+# BTC address/sign scenarios — 15 scenarios total, asserted against known
+# vectors by the testkit CLI.
+#
+# The app-side counterpart (BitboxProvider → WasmBridge protocol) is covered
+# by the behavioral fake in test/helpers/fake-bitbox.ts on every PR; this
+# workflow covers the firmware side. A future tier connects the bitbox-api
+# WASM npm package itself to the simulator over TCP (needs a Go seeder —
+# restoreFromMnemonic is not exported in the WASM bindings yet).
+#
+# NOTE: the dual pin is deliberate — the `uses:` SHA pins action.yml, the
+# `testkit-ref` input pins the go-installed CLI. Keep both in sync.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches-ignore: [main]
+    paths:
+      - 'src/features/hardware-wallet/**'
+      - 'test/services/hardware-wallet/**'
+      - 'test/helpers/fake-bitbox.ts'
+      - 'modules/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/bitbox-simulator.yml'
+
+concurrency:
+  group: bitbox-simulator-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write # sticky result comment on the PR (skipped for forks)
+
+jobs:
+  simulator:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: DFXswiss/bitbox-testkit/.github/actions/bitbox-simulator@45a1253d23b545d801cf5a1f42c040b85e389c7d # v0.5.0
+        with:
+          testkit-ref: v0.5.0
