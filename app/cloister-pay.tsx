@@ -52,6 +52,8 @@ export default function CloisterPay() {
         domStorageEnabled
         originWhitelist={['*']}
         mixedContentMode="always"
+        cacheEnabled={false}
+        incognito
         style={styles.webview}
       />
     </View>

@@ -89,6 +89,8 @@ export default function PayScreen() {
           domStorageEnabled
           originWhitelist={['*']}
           mixedContentMode="always"
+          cacheEnabled={false}
+          incognito
           style={styles.payWebview}
         />
       </View>
