@@ -1,0 +1,4 @@
+# Build artifacts — regenerate with cloister-protocol/packages/prover-gnark/scripts/build-ios.sh
+ios/Cloister.xcframework/
+ios/keys/*.bin
+ios/keys/*.r1cs
