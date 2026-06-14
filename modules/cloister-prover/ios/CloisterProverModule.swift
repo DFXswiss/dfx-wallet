@@ -2,6 +2,9 @@
 
 import ExpoModulesCore
 import Cloister
+import os.log
+
+private let cloisterLog = OSLog(subsystem: "swiss.cloister.prover", category: "prove")
 
 // CloisterProverModule exposes the on-device gnark prover (Cloister.xcframework,
 // built via gomobile) to JavaScript. All heavy work runs on Expo's async queue, so
@@ -41,10 +44,15 @@ public class CloisterProverModule: Module {
     AsyncFunction("prove") { (witnessInputJSON: String) -> String in
       try Self.ensureInitialized()
       var err: NSError?
+      let start = DispatchTime.now()
       let out = MobileProve(witnessInputJSON, &err)
+      let ms = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000
       if let e = err {
         throw Exception(name: "CloisterProveError", description: e.localizedDescription)
       }
+      // authoritative on-device timing (capture via: log stream --device --predicate
+      // 'subsystem == "swiss.cloister.prover"')
+      os_log("CLOISTER_PROVE_MS=%.1f", log: cloisterLog, type: .info, ms)
       return out
     }
   }

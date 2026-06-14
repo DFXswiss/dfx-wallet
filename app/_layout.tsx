@@ -63,6 +63,29 @@ export default function RootLayout() {
     return () => pricingService.stopAutoRefresh();
   }, []);
 
+  // Cloister on-device prover self-test (measurement builds only; gated by env).
+  // Fires at root mount — independent of auth/routing — so a Release build on the
+  // device exercises the native gnark prover. Authoritative timing is the Swift
+  // os_log (subsystem swiss.cloister.prover); console is a fallback.
+  useEffect(() => {
+    if (process.env.EXPO_PUBLIC_CLOISTER_SELFTEST !== '1') return;
+    (async () => {
+      try {
+        const { initProver, prove } = require('cloister-prover');
+        const wi = require('@/features/cloister/sample-witness.json');
+        const t0 = Date.now();
+        await initProver();
+        console.log('[cloister-selftest] init', Date.now() - t0, 'ms');
+        await prove(wi); // warm
+        const t1 = Date.now();
+        const res = await prove(wi);
+        console.log('[cloister-selftest] prove', Date.now() - t1, 'ms; proofBytes', (res.proofHex.length - 2) / 2);
+      } catch (e: any) {
+        console.log('[cloister-selftest] ERROR', String(e?.message ?? e));
+      }
+    })();
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
