@@ -44,6 +44,8 @@ type AuthState = {
   biometricEnabled: boolean;
   /** User opt-in for Cloister shielded ("Private") payments. */
   cloisterEnabled: boolean;
+  /** "Don't show again" was ticked on the private-payments info popup. */
+  cloisterInfoDismissed: boolean;
   pinHash: string | null;
   isHydrated: boolean;
 
@@ -56,6 +58,7 @@ type AuthState = {
   authenticateBiometric: () => Promise<boolean>;
   setBiometricEnabled: (enabled: boolean) => Promise<void>;
   setCloisterEnabled: (enabled: boolean) => Promise<void>;
+  setCloisterInfoDismissed: (dismissed: boolean) => Promise<void>;
   reset: () => Promise<void>;
 };
 
@@ -67,16 +70,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isDfxAuthenticated: false,
   biometricEnabled: false,
   cloisterEnabled: false,
+  cloisterInfoDismissed: false,
   pinHash: null,
   isHydrated: false,
 
   hydrate: async () => {
-    const [pinHash, isOnboarded, dfxToken, biometric, cloister] = await Promise.all([
+    const [pinHash, isOnboarded, dfxToken, biometric, cloister, cloisterInfo] = await Promise.all([
       secureStorage.get(StorageKeys.PIN_HASH),
       secureStorage.get(StorageKeys.IS_ONBOARDED),
       secureStorage.get(StorageKeys.DFX_AUTH_TOKEN),
       secureStorage.get(BIOMETRIC_KEY),
       secureStorage.get(StorageKeys.CLOISTER_ENABLED),
+      secureStorage.get(StorageKeys.CLOISTER_INFO_DISMISSED),
     ]);
 
     // Re-arm both the API client and the auth service with the persisted
@@ -101,6 +106,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isDfxAuthenticated: dfxToken !== null,
       biometricEnabled: biometric === 'true',
       cloisterEnabled: cloister === 'true',
+      cloisterInfoDismissed: cloisterInfo === 'true',
       isHydrated: true,
     });
   },
@@ -164,6 +170,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ cloisterEnabled: enabled });
   },
 
+  setCloisterInfoDismissed: async (dismissed) => {
+    await secureStorage.set(StorageKeys.CLOISTER_INFO_DISMISSED, String(dismissed));
+    set({ cloisterInfoDismissed: dismissed });
+  },
+
   reset: async () => {
     await Promise.all([
       secureStorage.remove(StorageKeys.PIN_HASH),
@@ -175,6 +186,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       secureStorage.remove(StorageKeys.PASSKEY_DERIVATION_VERSION),
       secureStorage.remove(BIOMETRIC_KEY),
       secureStorage.remove(StorageKeys.CLOISTER_ENABLED),
+      secureStorage.remove(StorageKeys.CLOISTER_INFO_DISMISSED),
     ]);
     set({
       isOnboarded: false,
@@ -182,6 +194,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isDfxAuthenticated: false,
       biometricEnabled: false,
       cloisterEnabled: false,
+      cloisterInfoDismissed: false,
       pinHash: null,
     });
   },

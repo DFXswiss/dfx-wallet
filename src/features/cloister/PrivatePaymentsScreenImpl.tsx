@@ -19,6 +19,12 @@ import { DfxColors, Typography } from '@/theme';
 // deliberate compliance bar for a privacy-preserving rail.
 const REQUIRED_KYC_LEVEL = 50;
 
+// Testnet evaluation builds have no real DFX KYC session, so the level-50 gate
+// would make the feature impossible to try. This flag (set only on eval builds)
+// lets the user opt in without KYC; production builds leave it unset and the
+// strict gate applies.
+const EVAL_BYPASS = process.env.EXPO_PUBLIC_CLOISTER_EVAL === '1';
+
 export default function PrivatePaymentsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
@@ -48,7 +54,8 @@ export default function PrivatePaymentsScreen() {
     }, [refresh]),
   );
 
-  const verified = kycLevel !== null && kycLevel >= REQUIRED_KYC_LEVEL;
+  const kycOk = kycLevel !== null && kycLevel >= REQUIRED_KYC_LEVEL;
+  const verified = EVAL_BYPASS || kycOk;
 
   // If the user is no longer verified (e.g. KYC reset) but the opt-in is still
   // on, turn it off — the pay flow gate would block it anyway; keep state honest.
@@ -105,7 +112,11 @@ export default function PrivatePaymentsScreen() {
                 <View style={styles.toggleText}>
                   <Text style={styles.toggleLabel}>{t('privatePayments.enableLabel')}</Text>
                   <Text style={styles.toggleHint}>
-                    {verified ? t('privatePayments.enableHint') : t('privatePayments.kycRequiredHint')}
+                    {EVAL_BYPASS && !kycOk
+                      ? t('privatePayments.evalBypassHint')
+                      : verified
+                        ? t('privatePayments.enableHint')
+                        : t('privatePayments.kycRequiredHint')}
                   </Text>
                 </View>
                 {loading ? (

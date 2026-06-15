@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Image,
   ImageBackground,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -14,12 +15,18 @@ import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Icon } from '@/components';
+import { useKycFlow } from '@/features/dfx-backend/useKycFlow';
 import { isOpenCryptoPayQR } from '@/services/opencryptopay';
 import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
 // LAN fallback for the Cloister config endpoint when a scanned QR omits it.
 const DEFAULT_LAN = process.env.EXPO_PUBLIC_CLOISTER_LAN ?? '192.168.178.110';
+
+// Shielded payments require the highest KYC level in production. Testnet eval
+// builds set EXPO_PUBLIC_CLOISTER_EVAL=1 to bypass that (no real KYC session).
+const REQUIRED_KYC_LEVEL = 50;
+const EVAL_BYPASS = process.env.EXPO_PUBLIC_CLOISTER_EVAL === '1';
 
 // Camera cut-out window — positioned as screen-size percentages so the live
 // camera lands exactly inside the scanner-frame artwork baked into pay-bg.png
@@ -38,9 +45,33 @@ export default function PayScreen() {
   const { t } = useTranslation();
   const { width, height } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
-  const { cloisterEnabled } = useAuthStore();
-  const [scanned, setScanned] = useState(false);
-  const [mode, setMode] = useState<PayMode>('silent');
+  const { cloisterEnabled, setCloisterEnabled, cloisterInfoDismissed, setCloisterInfoDismissed } =
+    useAuthStore();
+  // Synchronous guard: React state updates are async, so the camera can fire
+  // several frames before `scanned` flips — a ref blocks the duplicate pushes
+  // that otherwise stacked multiple confirm screens for one QR.
+  const scanLock = useRef(false);
+  const [, setScanned] = useState(false);
+  const [mode, setMode] = useState<PayMode>('normal');
+  const [infoVisible, setInfoVisible] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+
+  // KYC level for the Private gate. Skip the network call on eval builds.
+  const { loadKycStatus } = useKycFlow();
+  const [kycLevel, setKycLevel] = useState<number | null>(null);
+  useEffect(() => {
+    if (EVAL_BYPASS) return;
+    let mounted = true;
+    void loadKycStatus()
+      .then((dto) => {
+        if (mounted) setKycLevel(dto?.kycLevel ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      mounted = false;
+    };
+  }, [loadKycStatus]);
+  const verified = EVAL_BYPASS || (kycLevel !== null && kycLevel >= REQUIRED_KYC_LEVEL);
 
   useEffect(() => {
     if (!permission?.granted) void requestPermission();
@@ -50,29 +81,58 @@ export default function PayScreen() {
   // out of the confirm/invoice screen) so a second scan works.
   useFocusEffect(
     useCallback(() => {
+      scanLock.current = false;
       setScanned(false);
     }, []),
   );
 
+  // Enter Private mode (caller has already cleared the KYC + info gates).
+  const enablePrivate = () => {
+    setMode('silent');
+    if (!cloisterEnabled) void setCloisterEnabled(true);
+  };
+
+  // Tapping the Private segment. No KYC → the info/verify screen; first time
+  // with KYC → the info popup; otherwise switch straight over.
+  const handlePrivatePress = () => {
+    if (mode === 'silent') return;
+    if (!verified) {
+      router.push('/(auth)/private-payments');
+      return;
+    }
+    if (!cloisterInfoDismissed) {
+      setInfoVisible(true);
+      return;
+    }
+    enablePrivate();
+  };
+
+  const confirmInfo = () => {
+    if (dontShowAgain) void setCloisterInfoDismissed(true);
+    setInfoVisible(false);
+    enablePrivate();
+  };
+
+  // Re-arm the scanner so the next frame is processed (used after a dismissable
+  // alert, where the user should be able to retry without leaving the screen).
+  const releaseScan = () => {
+    scanLock.current = false;
+  };
+
   const handleScan = ({ data }: { data: string }) => {
-    if (scanned) return;
+    // Engage the lock on the very first frame and process exactly one scan.
+    // Every subsequent camera frame bails here until the lock is released
+    // (on focus after navigating, or when a dismissable alert is closed).
+    if (scanLock.current || infoVisible) return;
+    scanLock.current = true;
 
     if (mode === 'silent') {
-      // Shielded payments are an opt-in feature gated on the highest KYC level
-      // (set in Settings → Private Payments). If it isn't enabled, send the
-      // user there instead of onto the shielded rail.
-      if (!cloisterEnabled) {
-        Alert.alert(t('settings.privatePayments'), t('privatePayments.notEnabled'), [
-          { text: t('common.cancel'), style: 'cancel' },
-          { text: t('common.continue'), onPress: () => router.push('/(auth)/private-payments') },
-        ]);
-        return;
-      }
-      // Silent → Cloister shielded payment. Only Cloister Pay QR codes carry
-      // the shielded-pool config; reject anything else rather than silently
-      // dropping the user onto the wrong rail.
+      // Only Cloister Pay QR codes carry the shielded-pool config; reject
+      // anything else and re-arm so the user can try another code.
       if (!data.includes('cloister-pay')) {
-        Alert.alert(t('pay.modeSilent'), t('pay.wrongQrSilent'));
+        Alert.alert(t('pay.modeSilent'), t('pay.wrongQrSilent'), [
+          { text: t('common.ok'), onPress: releaseScan },
+        ]);
         return;
       }
       setScanned(true);
@@ -89,13 +149,13 @@ export default function PayScreen() {
     }
 
     // Normal → DFX OpenCryptoPay standard.
-    setScanned(true);
     if (isOpenCryptoPayQR(data)) {
+      setScanned(true);
       router.push({ pathname: '/(auth)/pay/opencryptopay', params: { lnurl: data } });
       return;
     }
     Alert.alert(t('pay.comingSoonTitle'), t('pay.comingSoonMessage', { data }), [
-      { text: t('common.ok'), onPress: () => setScanned(false) },
+      { text: t('common.ok'), onPress: releaseScan },
     ]);
   };
 
@@ -107,6 +167,12 @@ export default function PayScreen() {
   };
 
   const isSilent = mode === 'silent';
+
+  const bullets = [
+    t('privatePayments.detailAmount'),
+    t('privatePayments.detailLink'),
+    t('privatePayments.detailCompliant'),
+  ];
 
   return (
     <>
@@ -166,7 +232,7 @@ export default function PayScreen() {
               </Pressable>
               <Pressable
                 style={[styles.segment, isSilent && styles.segmentActive]}
-                onPress={() => setMode('silent')}
+                onPress={handlePrivatePress}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: isSilent }}
                 testID="pay-mode-silent"
@@ -201,8 +267,9 @@ export default function PayScreen() {
           {permission?.granted && (
             <CameraView
               style={StyleSheet.absoluteFill}
+              active={!infoVisible}
               barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-              onBarcodeScanned={handleScan}
+              onBarcodeScanned={infoVisible ? undefined : handleScan}
             />
           )}
           {!permission?.granted && (
@@ -215,6 +282,66 @@ export default function PayScreen() {
           )}
         </View>
       </ImageBackground>
+
+      {/* First-run info popup for Private payments (brand sheet). */}
+      <Modal
+        visible={infoVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setInfoVisible(false)}
+      >
+        <View style={styles.modalScrim}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetIcon}>
+                <Icon name="shield" size={24} color={DfxColors.primary} />
+              </View>
+              <Pressable
+                onPress={() => setInfoVisible(false)}
+                hitSlop={12}
+                testID="private-info-close"
+                style={styles.sheetClose}
+              >
+                <Icon name="close" size={20} color={DfxColors.textTertiary} />
+              </Pressable>
+            </View>
+
+            <Text style={styles.sheetTitle}>{t('privatePayments.heroTitle')}</Text>
+            <Text style={styles.sheetIntro}>{t('privatePayments.modalIntro')}</Text>
+
+            <View style={styles.sheetBullets}>
+              {bullets.map((b, i) => (
+                <View key={i} style={styles.bulletRow}>
+                  <Icon name="shield" size={15} color={DfxColors.primary} strokeWidth={2.3} />
+                  <Text style={styles.bulletText}>{b}</Text>
+                </View>
+              ))}
+            </View>
+
+            <Pressable
+              style={styles.checkboxRow}
+              onPress={() => setDontShowAgain((v) => !v)}
+              testID="private-info-dontshow"
+            >
+              <View style={[styles.checkbox, dontShowAgain && styles.checkboxOn]}>
+                {dontShowAgain ? <Icon name="check" size={14} color={DfxColors.white} strokeWidth={3} /> : null}
+              </View>
+              <Text style={styles.checkboxLabel}>{t('privatePayments.dontShowAgain')}</Text>
+            </Pressable>
+
+            <Pressable style={styles.primaryBtn} onPress={confirmInfo} testID="private-info-activate">
+              <Text style={styles.primaryBtnText}>{t('privatePayments.activate')}</Text>
+            </Pressable>
+            <Pressable
+              style={styles.secondaryBtn}
+              onPress={() => setInfoVisible(false)}
+              testID="private-info-cancel"
+            >
+              <Text style={styles.secondaryBtnText}>{t('common.cancel')}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -342,6 +469,109 @@ const styles = StyleSheet.create({
   permissionButtonText: {
     ...Typography.bodyMedium,
     color: DfxColors.white,
+    fontWeight: '600',
+  },
+  // ---- Private-payments info sheet ----
+  modalScrim: {
+    flex: 1,
+    backgroundColor: 'rgba(11,20,38,0.55)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: DfxColors.white,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 24,
+    paddingTop: 18,
+    paddingBottom: 36,
+    gap: 14,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sheetIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: DfxColors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetClose: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetTitle: {
+    ...Typography.headlineSmall,
+    color: DfxColors.text,
+  },
+  sheetIntro: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textSecondary,
+    lineHeight: 21,
+  },
+  sheetBullets: {
+    gap: 12,
+    paddingVertical: 2,
+  },
+  bulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  bulletText: {
+    flex: 1,
+    ...Typography.bodyMedium,
+    color: DfxColors.text,
+    lineHeight: 20,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    paddingVertical: 6,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: DfxColors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxOn: {
+    backgroundColor: DfxColors.primary,
+    borderColor: DfxColors.primary,
+  },
+  checkboxLabel: {
+    flex: 1,
+    ...Typography.bodyMedium,
+    color: DfxColors.text,
+  },
+  primaryBtn: {
+    backgroundColor: DfxColors.primary,
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  primaryBtnText: {
+    ...Typography.bodyLarge,
+    color: DfxColors.white,
+    fontWeight: '700',
+  },
+  secondaryBtn: {
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  secondaryBtnText: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textSecondary,
     fontWeight: '600',
   },
 });

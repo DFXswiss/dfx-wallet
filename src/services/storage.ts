@@ -42,4 +42,7 @@ export const StorageKeys = {
    *  highest KYC level; the pay screen only offers the silent/shielded rail
    *  when this is 'true'. */
   CLOISTER_ENABLED: 'cloisterEnabled',
+  /** Set once the user ticks "don't show again" on the private-payments info
+   *  popup — then switching to the Private tab never shows the popup again. */
+  CLOISTER_INFO_DISMISSED: 'cloisterInfoDismissed',
 } as const;
