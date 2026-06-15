@@ -55,6 +55,32 @@ public class CloisterProverModule: Module {
       os_log("CLOISTER_PROVE_MS=%.1f", log: cloisterLog, type: .info, ms)
       return out
     }
+
+    // Build + prove a deposit (shield) entirely on-device from the relayer's insertion
+    // context. No witness needs to be built in JS.
+    AsyncFunction("proveDeposit") { (paramsJSON: String) -> String in
+      try Self.ensureInitialized()
+      var err: NSError?
+      let start = DispatchTime.now()
+      let out = MobileProveDeposit(paramsJSON, &err)
+      let ms = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000
+      if let e = err {
+        throw Exception(name: "CloisterProveDepositError", description: e.localizedDescription)
+      }
+      os_log("CLOISTER_DEPOSIT_PROVE_MS=%.1f", log: cloisterLog, type: .info, ms)
+      return out
+    }
+
+    // Prove a deposit on-device AND broadcast it straight to a public RPC (no relayer/LAN).
+    AsyncFunction("depositDirect") { (paramsJSON: String) -> String in
+      try Self.ensureInitialized()
+      var err: NSError?
+      let out = MobileDepositDirect(paramsJSON, &err)
+      if let e = err {
+        throw Exception(name: "CloisterDepositDirectError", description: e.localizedDescription)
+      }
+      return out
+    }
   }
 
   // Idempotently load circuit + keys. MobileInit itself is a no-op once loaded.

@@ -13,11 +13,37 @@ export interface CloisterProveResult {
   publicSignals: string[]; // length 10, on-chain order
 }
 
+export interface CloisterDepositParams {
+  amount: string;
+  ownerPriv: string;
+  root: string;
+  pairIndex: number;
+  pairPathEls: string[];
+  extDataHash: string;
+}
+
 interface CloisterProverNative {
   initProver(): Promise<boolean>;
   isReady(): boolean;
   hash(itemsJSON: string): Promise<string>;
   prove(witnessInputJSON: string): Promise<string>;
+  proveDeposit(paramsJSON: string): Promise<string>;
+  depositDirect(paramsJSON: string): Promise<string>;
+}
+
+export interface CloisterDepositDirectParams {
+  rpc: string;
+  pool: string;
+  token: string;
+  deployerKey: string;
+  amount: string;
+  ownerPriv: string;
+}
+
+export interface CloisterDepositDirectResult {
+  txHash: string;
+  basescan: string;
+  proveMs: number;
 }
 
 // Throws at import time only if the native module is entirely absent (e.g. running
@@ -61,4 +87,16 @@ export async function hash(items: (string | bigint)[]): Promise<bigint> {
 export async function prove(witnessInput: unknown): Promise<CloisterProveResult> {
   const out = await native().prove(JSON.stringify(witnessInput));
   return JSON.parse(out) as CloisterProveResult;
+}
+
+/** Build + prove a deposit (shield) on-device from the relayer's insertion context. */
+export async function proveDeposit(params: CloisterDepositParams): Promise<CloisterProveResult> {
+  const out = await native().proveDeposit(JSON.stringify(params));
+  return JSON.parse(out) as CloisterProveResult;
+}
+
+/** Prove a deposit on-device AND broadcast it directly to a public RPC (no relayer/LAN). */
+export async function depositDirect(params: CloisterDepositDirectParams): Promise<CloisterDepositDirectResult> {
+  const out = await native().depositDirect(JSON.stringify(params));
+  return JSON.parse(out) as CloisterDepositDirectResult;
 }

@@ -3,7 +3,7 @@ import { ActivityIndicator, ImageBackground, Linking, StyleSheet, Text, View } f
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { WebView, type WebViewMessageEvent } from 'react-native-webview';
+import { initProver, depositDirect } from 'cloister-prover';
 import { AppHeader, Icon, PrimaryButton } from '@/components';
 import { useCloisterTxStore } from '@/store/cloister-tx';
 import { DfxColors, Typography } from '@/theme';
@@ -14,14 +14,22 @@ const ACCENT = DfxColors.primary;
 const ACCENT_BG = DfxColors.primaryLight;
 const ASSET = 'USDC';
 
-// Watchdog windows — a payment must never be able to hang forever. If the
-// (locally cached) engine doesn't announce itself, READY_TIMEOUT_MS trips; if
-// it loads but never reports a result (stalled RPC / dead relayer),
-// PAY_TIMEOUT_MS does. Both surface a clear, retryable error.
-const READY_TIMEOUT_MS = 20_000;
+// Watchdog window — a payment must never hang forever. Proving runs on-device
+// (~0.4s); the only network steps are the relayer prepare + submit. If anything
+// stalls (dead relayer / RPC), PAY_TIMEOUT_MS trips with a clear, retryable error.
 const PAY_TIMEOUT_MS = 90_000;
-// First-run artifact download (~32 MB over HTTPS) gets its own generous window.
-const PREPARE_TIMEOUT_MS = 120_000;
+
+// Direct-to-RPC config (relayer-optional fallback): the app proves on-device AND
+// broadcasts straight to the public Base Sepolia RPC — works on any network (WiFi or
+// cellular), no relayer/LAN needed. Injected at build time (EXPO_PUBLIC_*) so no
+// addresses/keys live in source.
+// NOTE: the deployer key here is a TESTNET demo key only — production signs with the
+// user's own wallet key (the wallet already manages keys).
+const RPC = process.env.EXPO_PUBLIC_CLOISTER_RPC ?? 'https://base-sepolia-rpc.publicnode.com';
+const POOL = process.env.EXPO_PUBLIC_CLOISTER_POOL ?? '';
+const TOKEN = process.env.EXPO_PUBLIC_CLOISTER_TOKEN ?? '';
+const DEPLOYER_KEY = process.env.EXPO_PUBLIC_CLOISTER_KEY ?? '';
+const OWNER_PRIV = process.env.EXPO_PUBLIC_CLOISTER_OWNER ?? '12345';
 
 type Phase = 'review' | 'paying' | 'success' | 'error';
 
@@ -37,29 +45,15 @@ export default function CloisterPayScreen() {
 
   const [phase, setPhase] = useState<Phase>('review');
   const [status, setStatus] = useState('');
-  const [result, setResult] = useState<{
-    txHash?: string | undefined;
-    scan?: string | undefined;
-    ms?: number | undefined;
-  } | null>(null);
+  const [result, setResult] = useState<{ txHash?: string; scan?: string; ms?: number } | null>(null);
   const [error, setError] = useState('');
-  // Bump to force a fresh WebView mount on retry.
-  const [runId, setRunId] = useState(0);
-  // Engine URL (same origin as relayer/indexer) once resolved from config.
-  const [engineUri, setEngineUri] = useState<string | null>(null);
-  const recordedRef = useRef(false);
-  // Watchdog bookkeeping. `settledRef` flips the moment a terminal outcome
-  // (paid / failed / cancelled) is reached so a late timer can't override it;
-  // `readyRef` tracks whether the engine ever loaded.
+  // `settledRef` flips on the first terminal outcome so a late watchdog can't override it.
   const settledRef = useRef(false);
-  const readyRef = useRef(false);
-  const readyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recordedRef = useRef(false);
   const payTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearTimers = useCallback(() => {
-    if (readyTimer.current) clearTimeout(readyTimer.current);
     if (payTimer.current) clearTimeout(payTimer.current);
-    readyTimer.current = null;
     payTimer.current = null;
   }, []);
 
@@ -77,43 +71,59 @@ export default function CloisterPayScreen() {
     [clearTimers],
   );
 
+  // Native shielded deposit, fully on-device + direct-to-RPC: the proof is generated on
+  // the phone (~0.4s) and the transaction is broadcast straight to the public Base Sepolia
+  // RPC. No relayer, no LAN, no WebView — works on any network. The private witness never
+  // leaves the device.
   const startPaying = useCallback(async () => {
-    recordedRef.current = false;
     settledRef.current = false;
-    readyRef.current = false;
+    recordedRef.current = false;
     setError('');
     setResult(null);
-    setEngineUri(null);
     setStatus(t('cloister.preparing'));
-    setRunId((n) => n + 1);
     setPhase('paying');
     clearTimers();
+    payTimer.current = setTimeout(() => failWith(t('cloister.errorTimeout')), PAY_TIMEOUT_MS);
 
-    // Resolve the engine origin from config. The engine is served on the SAME
-    // origin as the relayer/indexer, so over an HTTPS tunnel the whole flow
-    // (engine load + its relayer/config fetches) works through ANY network —
-    // VPN, cellular, foreign WiFi — with no cross-origin/cleartext issues.
-    payTimer.current = setTimeout(() => failWith(t('cloister.errorTimeout')), PREPARE_TIMEOUT_MS);
+    const t0 = Date.now();
     try {
-      const cfgRes = await fetch(config);
-      if (!cfgRes.ok) throw new Error(`config HTTP ${cfgRes.status}`);
-      const cfg = (await cfgRes.json()) as { engine?: string };
-      const origin = (cfg.engine || config.replace(/\/config.*$/, '')).replace(/\/$/, '');
-      if (settledRef.current) return; // cancelled meanwhile
+      if (!POOL || !DEPLOYER_KEY) throw new Error('missing build config (pool/key)');
+      await initProver();
+      if (settledRef.current) return;
 
-      setEngineUri(
-        `${origin}/cloister-pay.html?auto=1&amount=${encodeURIComponent(amountStr)}&config=${encodeURIComponent(config)}`,
-      );
+      // prove on-device + broadcast to the public RPC in one native call
       setStatus(t('cloister.proving'));
+      const res = await depositDirect({
+        rpc: RPC,
+        pool: POOL,
+        token: TOKEN,
+        deployerKey: DEPLOYER_KEY,
+        amount: amountStr,
+        ownerPriv: OWNER_PRIV,
+      });
+      if (settledRef.current) return;
+      if (!res.txHash) throw new Error('submit failed');
+
+      settledRef.current = true;
       clearTimers();
-      readyTimer.current = setTimeout(() => {
-        if (!readyRef.current) failWith(t('cloister.errorEngine'));
-      }, READY_TIMEOUT_MS);
-      payTimer.current = setTimeout(() => failWith(t('cloister.errorTimeout')), PAY_TIMEOUT_MS);
-    } catch {
-      failWith(t('cloister.errorEngine'));
+      setResult({ txHash: res.txHash, scan: res.basescan, ms: Date.now() - t0 });
+      if (!recordedRef.current) {
+        recordedRef.current = true;
+        addCloisterTx({
+          amount: amountNum,
+          asset: ASSET,
+          merchant: t('cloister.merchant'),
+          network: t('cloister.network'),
+          badge: t('cloister.historyBadge'),
+          ...(res.txHash ? { txId: res.txHash } : {}),
+          ...(res.basescan ? { explorerUrl: res.basescan } : {}),
+        });
+      }
+      setPhase('success');
+    } catch (e: unknown) {
+      failWith(e instanceof Error && e.message ? e.message : t('cloister.errorGeneric'));
     }
-  }, [config, amountStr, t, clearTimers, failWith]);
+  }, [amountStr, amountNum, t, clearTimers, failWith, addCloisterTx]);
 
   const cancelPaying = useCallback(() => {
     settledRef.current = true;
@@ -121,54 +131,6 @@ export default function CloisterPayScreen() {
     setStatus('');
     setPhase('review');
   }, [clearTimers]);
-
-  const onMessage = (e: WebViewMessageEvent) => {
-    let msg: {
-      type?: string;
-      ok?: boolean;
-      txHash?: string;
-      scan?: string;
-      ms?: number;
-      error?: string;
-    };
-    try {
-      msg = JSON.parse(e.nativeEvent.data);
-    } catch {
-      return;
-    }
-    if (msg.type === 'ready') {
-      readyRef.current = true;
-      if (readyTimer.current) clearTimeout(readyTimer.current);
-      readyTimer.current = null;
-      setStatus(t('cloister.proving'));
-      return;
-    }
-    if (msg.type === 'paid') {
-      if (settledRef.current) return;
-      settledRef.current = true;
-      clearTimers();
-      if (msg.ok) {
-        setStatus(t('cloister.submitting'));
-        setResult({ txHash: msg.txHash, scan: msg.scan, ms: msg.ms });
-        if (!recordedRef.current) {
-          recordedRef.current = true;
-          addCloisterTx({
-            amount: amountNum,
-            asset: ASSET,
-            merchant: t('cloister.merchant'),
-            network: t('cloister.network'),
-            badge: t('cloister.historyBadge'),
-            ...(msg.txHash ? { txId: msg.txHash } : {}),
-            ...(msg.scan ? { explorerUrl: msg.scan } : {}),
-          });
-        }
-        setPhase('success');
-      } else {
-        setError(msg.error ?? t('cloister.errorGeneric'));
-        setPhase('error');
-      }
-    }
-  };
 
   const amountHeader = (
     <View style={styles.amountBlock}>
@@ -197,24 +159,7 @@ export default function CloisterPayScreen() {
             testID="cloister-pay-header"
           />
 
-          {/* Off-screen prover engine — served from the relayer origin (HTTPS via
-              tunnel → reachable through any VPN/network). cacheEnabled lets the
-              WebView reuse the heavy wasm/zkey across payments. */}
-          {phase === 'paying' && engineUri && (
-            <WebView
-              key={runId}
-              source={{ uri: engineUri }}
-              onMessage={onMessage}
-              onError={(ev) => failWith(ev.nativeEvent.description || t('cloister.errorEngine'))}
-              onHttpError={() => failWith(t('cloister.errorEngine'))}
-              javaScriptEnabled
-              domStorageEnabled
-              originWhitelist={['*']}
-              mixedContentMode="always"
-              cacheEnabled
-              style={styles.hiddenWebview}
-            />
-          )}
+          {/* Proving runs on-device via the native module — no off-screen WebView. */}
 
           <View style={styles.body}>
             {phase === 'review' ? (

@@ -437,7 +437,14 @@
     "comingSoonMessage": "Zahlungen sind noch nicht verfügbar. Gescannt: {{data}}",
     "comingSoonTitle": "Coming soon",
     "grantPermission": "Zugriff erlauben",
-    "scanToPay": "QR-Code scannen"
+    "scanToPay": "QR-Code scannen",
+    "title": "Bezahlen",
+    "modeLabel": "Zahlungsart",
+    "modeNormal": "Normal",
+    "modeSilent": "Privat",
+    "modeNormalHint": "OpenCryptoPay — die Standard-Zahlung.",
+    "modeSilentHint": "Abgeschirmt mit Cloister — niemand sieht, dass du zahlst.",
+    "wrongQrSilent": "Kein Cloister-Code. Scanne einen Cloister-Pay-QR."
   },
   "pin": {
     "biometricCta": "Mit Face ID entsperren",
@@ -651,5 +658,45 @@
     "reauthCta": "Erneut bei DFX anmelden",
     "selectHint": "Hake eine Wallet an, damit sie im Portfolio erscheint und du direkt in sie kaufen oder aus ihr verkaufen kannst.",
     "title": "DFX-Wallets"
+  },
+  "opencryptopay": {
+    "assetLabel": "Asset",
+    "confirm": "{{amount}} {{asset}} zahlen",
+    "confirmHint": "Der Sign-Schritt via WDK kommt in der nächsten Iteration — das LNURL-Quote ist geladen und bestätigt.",
+    "errors": {
+      "commitFailed": "Die Zahlung konnte beim Händler nicht bestätigt werden.",
+      "fetchFailed": "Die Zahlungsanfrage konnte nicht geladen werden.",
+      "invalidQr": "Dieser QR-Code ist keine OpenCryptoPay-Zahlung.",
+      "invalidResponse": "Der Zahlungs-Provider hat unerwartet geantwortet."
+    },
+    "expired": "Zahlungsanfrage abgelaufen. Bitte QR-Code erneut scannen.",
+    "expiresIn": "Läuft ab in {{time}}",
+    "loading": "Zahlungsanfrage wird geladen …",
+    "methodLabel": "Netzwerk",
+    "payTo": "Zahlung an",
+    "title": "OpenCryptoPay",
+    "unknownMerchant": "Unbekannter Empfänger"
+  },
+  "cloister": {
+    "confirmTitle": "Zahlung bestätigen",
+    "merchant": "DFX Merchant",
+    "network": "Base Sepolia",
+    "privateBadge": "Privat · Cloister",
+    "privacyNote": "Abgeschirmt — Betrag und Absender bleiben verborgen.",
+    "amountLabel": "Betrag",
+    "confirmPay": "Bezahlen bestätigen",
+    "preparing": "On-Device-Prover wird geladen …",
+    "proving": "Privater Nachweis wird on-device erzeugt …",
+    "submitting": "Wird an das Netzwerk gesendet …",
+    "successTitle": "Bezahlt",
+    "successSubtitle": "Deine private Zahlung wurde bestätigt.",
+    "viewOnExplorer": "Auf Basescan ansehen",
+    "done": "Fertig",
+    "failedTitle": "Zahlung fehlgeschlagen",
+    "retry": "Erneut versuchen",
+    "historyBadge": "Cloister · OpenCryptoPay",
+    "errorTimeout": "Zeitüberschreitung — die Zahlung hat zu lange gedauert. Bitte erneut versuchen.",
+    "errorEngine": "Zahl-Engine nicht erreichbar. Prüfe deine Verbindung und versuche es erneut.",
+    "errorGeneric": "Die Zahlung ist fehlgeschlagen. Bitte erneut versuchen."
   }
 }

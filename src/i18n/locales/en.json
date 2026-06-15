@@ -437,7 +437,14 @@
     "comingSoonMessage": "Payments are not yet available. Scanned: {{data}}",
     "comingSoonTitle": "Coming soon",
     "grantPermission": "Grant access",
-    "scanToPay": "Scan QR code to pay"
+    "scanToPay": "Scan QR code to pay",
+    "title": "Pay",
+    "modeLabel": "Payment mode",
+    "modeNormal": "Normal",
+    "modeSilent": "Private",
+    "modeNormalHint": "OpenCryptoPay — the standard payment.",
+    "modeSilentHint": "Shielded with Cloister — nobody sees you pay.",
+    "wrongQrSilent": "Not a Cloister code. Scan a Cloister Pay QR."
   },
   "pin": {
     "biometricCta": "Unlock with Face ID",
@@ -651,5 +658,45 @@
     "reauthCta": "Sign in to DFX again",
     "selectHint": "Tick a wallet to surface it in your Portfolio so you can buy or sell into it directly.",
     "title": "DFX wallets"
+  },
+  "opencryptopay": {
+    "assetLabel": "Asset",
+    "confirm": "Pay {{amount}} {{asset}}",
+    "confirmHint": "Signing this on-chain via WDK is the next iteration — the LNURL quote is loaded and confirmed.",
+    "errors": {
+      "commitFailed": "Could not confirm the payment with the merchant.",
+      "fetchFailed": "Could not load the payment request.",
+      "invalidQr": "This QR code is not an OpenCryptoPay payment request.",
+      "invalidResponse": "The payment provider responded in an unexpected format."
+    },
+    "expired": "Payment request expired. Scan the QR again.",
+    "expiresIn": "Expires in {{time}}",
+    "loading": "Loading payment request…",
+    "methodLabel": "Network",
+    "payTo": "Pay to",
+    "title": "OpenCryptoPay",
+    "unknownMerchant": "Unknown merchant"
+  },
+  "cloister": {
+    "confirmTitle": "Confirm payment",
+    "merchant": "DFX Merchant",
+    "network": "Base Sepolia",
+    "privateBadge": "Private · Cloister",
+    "privacyNote": "Shielded — amount and sender stay hidden.",
+    "amountLabel": "Amount",
+    "confirmPay": "Confirm & pay",
+    "preparing": "Loading on-device prover…",
+    "proving": "Generating private proof on-device…",
+    "submitting": "Submitting to the network…",
+    "successTitle": "Paid",
+    "successSubtitle": "Your private payment is confirmed.",
+    "viewOnExplorer": "View on Basescan",
+    "done": "Done",
+    "failedTitle": "Payment failed",
+    "retry": "Try again",
+    "historyBadge": "Cloister · OpenCryptoPay",
+    "errorTimeout": "Timed out — the payment took too long. Please try again.",
+    "errorEngine": "Payment engine unreachable. Check your connection and try again.",
+    "errorGeneric": "The payment failed. Please try again."
   }
 }
