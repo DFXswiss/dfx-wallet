@@ -3,7 +3,7 @@ import { ActivityIndicator, ImageBackground, Linking, StyleSheet, Text, View } f
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { initProver, depositDirect } from 'cloister-prover';
+import { runDeposit } from '@/features/cloister/deposit';
 import { AppHeader, Icon, PrimaryButton } from '@/components';
 import { useCloisterTxStore } from '@/store/cloister-tx';
 import { DfxColors, Typography } from '@/theme';
@@ -27,11 +27,13 @@ const PAY_TIMEOUT_MS = 90_000;
 // user's own wallet key (the wallet already manages keys).
 const RPC = process.env.EXPO_PUBLIC_CLOISTER_RPC ?? 'https://base-sepolia-rpc.publicnode.com';
 const POOL = process.env.EXPO_PUBLIC_CLOISTER_POOL ?? '';
-const TOKEN = process.env.EXPO_PUBLIC_CLOISTER_TOKEN ?? '';
 const DEPLOYER_KEY = process.env.EXPO_PUBLIC_CLOISTER_KEY ?? '';
 const OWNER_PRIV = process.env.EXPO_PUBLIC_CLOISTER_OWNER ?? '12345';
-// Pool deploy block — the native tree-sync scans NewCommitment events from here
-// (chunked) so the full Merkle tree is rebuilt, not just a recent window.
+// Relayer that serves the tree-insertion context (/v1/deposit/prepare). Optional —
+// if unset/unreachable the warm on-device leaf cache is used instead.
+const RELAYER_URL = process.env.EXPO_PUBLIC_CLOISTER_RELAYER || undefined;
+// Pool deploy block — the tree-sync (relayer or fallback cache) scans NewCommitment
+// events from here so the full Merkle tree is rebuilt, not just a recent window.
 const FROM_BLOCK = Number(process.env.EXPO_PUBLIC_CLOISTER_FROM_BLOCK ?? '0');
 
 type Phase = 'review' | 'paying' | 'success' | 'error';
@@ -91,19 +93,17 @@ export default function CloisterPayScreen() {
     const t0 = Date.now();
     try {
       if (!POOL || !DEPLOYER_KEY) throw new Error('missing build config (pool/key)');
-      await initProver();
-      if (settledRef.current) return;
 
-      // prove on-device + broadcast to the public RPC in one native call
+      // prove on-device (gnark) then broadcast transact() with the wallet's signer.
+      // Tree context comes from the relayer (primary) or the warm leaf cache (fallback).
       setStatus(t('cloister.proving'));
-      const res = await depositDirect({
+      const res = await runDeposit(amountStr, {
         rpc: RPC,
         pool: POOL,
-        token: TOKEN,
         deployerKey: DEPLOYER_KEY,
-        amount: amountStr,
         ownerPriv: OWNER_PRIV,
         fromBlock: FROM_BLOCK,
+        relayerUrl: RELAYER_URL,
       });
       if (settledRef.current) return;
       if (!res.txHash) throw new Error('submit failed');

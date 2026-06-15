@@ -71,14 +71,18 @@ public class CloisterProverModule: Module {
       return out
     }
 
-    // Prove a deposit on-device AND broadcast it straight to a public RPC (no relayer/LAN).
-    AsyncFunction("depositDirect") { (paramsJSON: String) -> String in
+    // Prove a deposit on-device from the pool's existing commitments (fallback path).
+    // Pure proving — no chain access here; the wallet broadcasts the tx itself.
+    AsyncFunction("proveDepositFromLeaves") { (paramsJSON: String) -> String in
       try Self.ensureInitialized()
       var err: NSError?
-      let out = MobileDepositDirect(paramsJSON, &err)
+      let start = DispatchTime.now()
+      let out = MobileProveDepositFromLeaves(paramsJSON, &err)
+      let ms = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000
       if let e = err {
-        throw Exception(name: "CloisterDepositDirectError", description: e.localizedDescription)
+        throw Exception(name: "CloisterProveDepositFromLeavesError", description: e.localizedDescription)
       }
+      os_log("CLOISTER_DEPOSIT_PROVE_MS=%.1f", log: cloisterLog, type: .info, ms)
       return out
     }
   }

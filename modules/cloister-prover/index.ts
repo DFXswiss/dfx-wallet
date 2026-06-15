@@ -28,24 +28,17 @@ interface CloisterProverNative {
   hash(itemsJSON: string): Promise<string>;
   prove(witnessInputJSON: string): Promise<string>;
   proveDeposit(paramsJSON: string): Promise<string>;
-  depositDirect(paramsJSON: string): Promise<string>;
+  proveDepositFromLeaves(paramsJSON: string): Promise<string>;
 }
 
-export interface CloisterDepositDirectParams {
-  rpc: string;
-  pool: string;
-  token: string;
-  deployerKey: string;
+/** Fallback deposit input: the wallet supplies the pool's existing commitments
+ *  (fetched via ethers) and the native prover rebuilds the tree + proves — no
+ *  chain access in native code (the wallet broadcasts the tx itself). */
+export interface CloisterDepositFromLeavesParams {
   amount: string;
   ownerPriv: string;
-  /** Pool deploy block — native tree-sync scans NewCommitment events from here. */
-  fromBlock?: number;
-}
-
-export interface CloisterDepositDirectResult {
-  txHash: string;
-  basescan: string;
-  proveMs: number;
+  leaves: string[];
+  extDataHash: string;
 }
 
 // Throws at import time only if the native module is entirely absent (e.g. running
@@ -97,8 +90,11 @@ export async function proveDeposit(params: CloisterDepositParams): Promise<Clois
   return JSON.parse(out) as CloisterProveResult;
 }
 
-/** Prove a deposit on-device AND broadcast it directly to a public RPC (no relayer/LAN). */
-export async function depositDirect(params: CloisterDepositDirectParams): Promise<CloisterDepositDirectResult> {
-  const out = await native().depositDirect(JSON.stringify(params));
-  return JSON.parse(out) as CloisterDepositDirectResult;
+/** Prove a deposit on-device from the pool's existing commitments (fallback when no
+ *  relayer-supplied context is available). The wallet broadcasts the tx itself. */
+export async function proveDepositFromLeaves(
+  params: CloisterDepositFromLeavesParams,
+): Promise<CloisterProveResult> {
+  const out = await native().proveDepositFromLeaves(JSON.stringify(params));
+  return JSON.parse(out) as CloisterProveResult;
 }

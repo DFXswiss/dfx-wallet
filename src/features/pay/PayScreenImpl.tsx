@@ -15,10 +15,15 @@ import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Icon } from '@/components';
+import { warmDepositContext } from '@/features/cloister/deposit';
 import { useKycFlow } from '@/features/dfx-backend/useKycFlow';
 import { isOpenCryptoPayQR } from '@/services/opencryptopay';
 import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
+
+// Cloister build config for warming the fallback leaf cache (incremental/cheap).
+const CLOISTER_POOL = process.env.EXPO_PUBLIC_CLOISTER_POOL ?? '';
+const CLOISTER_FROM_BLOCK = Number(process.env.EXPO_PUBLIC_CLOISTER_FROM_BLOCK ?? '0');
 
 // LAN fallback for the Cloister config endpoint when a scanned QR omits it.
 const DEFAULT_LAN = process.env.EXPO_PUBLIC_CLOISTER_LAN ?? '192.168.178.110';
@@ -45,8 +50,7 @@ export default function PayScreen() {
   const { t } = useTranslation();
   const { width, height } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
-  const { cloisterEnabled, setCloisterEnabled, cloisterInfoDismissed, setCloisterInfoDismissed } =
-    useAuthStore();
+  const { cloisterEnabled, cloisterInfoDismissed, setCloisterInfoDismissed } = useAuthStore();
   // Synchronous guard: React state updates are async, so the camera can fire
   // several frames before `scanned` flips — a ref blocks the duplicate pushes
   // that otherwise stacked multiple confirm screens for one QR.
@@ -77,6 +81,15 @@ export default function PayScreen() {
     if (!permission?.granted) void requestPermission();
   }, [permission, requestPermission]);
 
+  // Warm the fallback leaf cache when entering Pay with private payments on — an
+  // incremental delta-sync (only new commitments since the last cached block), so the
+  // shielded rail is ready instantly without drawing meaningful power.
+  useEffect(() => {
+    if (cloisterEnabled && CLOISTER_POOL) {
+      void warmDepositContext({ pool: CLOISTER_POOL, fromBlock: CLOISTER_FROM_BLOCK });
+    }
+  }, [cloisterEnabled]);
+
   // Re-arm the scanner whenever the screen regains focus (e.g. after backing
   // out of the confirm/invoice screen) so a second scan works.
   useFocusEffect(
@@ -86,17 +99,23 @@ export default function PayScreen() {
     }, []),
   );
 
-  // Enter Private mode (caller has already cleared the KYC + info gates).
-  const enablePrivate = () => {
-    setMode('silent');
-    if (!cloisterEnabled) void setCloisterEnabled(true);
-  };
+  // Private payments are switched on/off in Settings (the master toggle). If
+  // they're turned off there while this screen still shows the Private tab,
+  // fall back to Normal so a scan can't use the shielded rail behind a
+  // disabled setting.
+  useEffect(() => {
+    if (mode === 'silent' && !cloisterEnabled) setMode('normal');
+  }, [mode, cloisterEnabled]);
 
-  // Tapping the Private segment. No KYC → the info/verify screen; first time
-  // with KYC → the info popup; otherwise switch straight over.
+  // Enter Private mode (caller has already cleared the gates).
+  const enablePrivate = () => setMode('silent');
+
+  // Tapping the Private segment. Blocked unless the user is verified AND has
+  // switched private payments on in Settings → send them there to verify /
+  // enable. First time after that, show the info popup; otherwise switch over.
   const handlePrivatePress = () => {
     if (mode === 'silent') return;
-    if (!verified) {
+    if (!verified || !cloisterEnabled) {
       router.push('/(auth)/private-payments');
       return;
     }
