@@ -3,7 +3,9 @@ import { ActivityIndicator, ImageBackground, Linking, StyleSheet, Text, View } f
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { useAccount } from '@tetherto/wdk-react-native-core';
 import { runDeposit } from '@/features/cloister/deposit';
+import { getOwnerKey } from '@/features/cloister/ownerKey';
 import { AppHeader, Icon, PrimaryButton } from '@/components';
 import { useCloisterTxStore } from '@/store/cloister-tx';
 import { DfxColors, Typography } from '@/theme';
@@ -27,8 +29,9 @@ const PAY_TIMEOUT_MS = 90_000;
 // user's own wallet key (the wallet already manages keys).
 const RPC = process.env.EXPO_PUBLIC_CLOISTER_RPC ?? 'https://base-sepolia-rpc.publicnode.com';
 const POOL = process.env.EXPO_PUBLIC_CLOISTER_POOL ?? '';
+// TESTNET PILOT ONLY: embedded demo key (the user's mainnet WDK wallet can't transact on
+// the Sepolia pilot pool). Empty in a production build → the user's own wallet signs (WDK).
 const DEPLOYER_KEY = process.env.EXPO_PUBLIC_CLOISTER_KEY ?? '';
-const OWNER_PRIV = process.env.EXPO_PUBLIC_CLOISTER_OWNER ?? '12345';
 // Relayer that serves the tree-insertion context (/v1/deposit/prepare). Optional —
 // if unset/unreachable the warm on-device leaf cache is used instead.
 const RELAYER_URL = process.env.EXPO_PUBLIC_CLOISTER_RELAYER || undefined;
@@ -41,6 +44,9 @@ type Phase = 'review' | 'paying' | 'success' | 'error';
 
 export default function CloisterPayScreen() {
   const router = useRouter();
+  // Production signer: the user's own ERC-4337 wallet (no embedded key). Used only when
+  // no pilot DEPLOYER_KEY is present (mainnet). Safe to call on the pilot — unused there.
+  const evmAccount = useAccount({ network: 'base', accountIndex: 0 });
   const { t } = useTranslation();
   const params = useLocalSearchParams<{ config?: string; amount?: string }>();
   const addCloisterTx = useCloisterTxStore((s) => s.add);
@@ -93,7 +99,20 @@ export default function CloisterPayScreen() {
 
     const t0 = Date.now();
     try {
-      if (!POOL || !DEPLOYER_KEY) throw new Error('missing build config (pool/key)');
+      if (!POOL) throw new Error('missing build config (pool)');
+
+      // Production signs with the user's own wallet (WDK); the pilot uses the embedded
+      // demo key on Sepolia. Per-install note-owner key (never a constant).
+      const ownerPriv = await getOwnerKey();
+      const sendTx = DEPLOYER_KEY
+        ? undefined
+        : async ({ to, data }: { to: string; data: string }) => {
+            const evm = evmAccount.extension() as {
+              sendTransaction: (tx: { to: string; data: string; gasLimit?: bigint }) => Promise<{ hash: string }>;
+            };
+            const r = await evm.sendTransaction({ to, data, gasLimit: 900000n });
+            return { hash: r.hash };
+          };
 
       // prove on-device (gnark) then broadcast transact() with the wallet's signer.
       // Tree context comes from the relayer (primary) or the warm leaf cache (fallback).
@@ -102,10 +121,11 @@ export default function CloisterPayScreen() {
         rpc: RPC,
         pool: POOL,
         chainId: CHAIN_ID,
-        deployerKey: DEPLOYER_KEY,
-        ownerPriv: OWNER_PRIV,
+        ownerPriv,
         fromBlock: FROM_BLOCK,
         relayerUrl: RELAYER_URL,
+        deployerKey: DEPLOYER_KEY || undefined,
+        sendTx,
       });
       if (settledRef.current) return;
       if (!res.txHash) throw new Error('submit failed');
@@ -129,7 +149,7 @@ export default function CloisterPayScreen() {
     } catch (e: unknown) {
       failWith(e instanceof Error && e.message ? e.message : t('cloister.errorGeneric'));
     }
-  }, [amountStr, amountNum, t, clearTimers, failWith, addCloisterTx]);
+  }, [amountStr, amountNum, t, clearTimers, failWith, addCloisterTx, evmAccount]);
 
   const cancelPaying = useCallback(() => {
     settledRef.current = true;
@@ -289,7 +309,6 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   bg: { flex: 1, backgroundColor: DfxColors.background },
   safe: { flex: 1 },
-  hiddenWebview: { position: 'absolute', width: 1, height: 1, opacity: 0 },
   body: {
     flex: 1,
     paddingHorizontal: 20,

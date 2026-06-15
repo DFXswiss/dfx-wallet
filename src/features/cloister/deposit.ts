@@ -10,7 +10,7 @@
 // extDataHash is computed locally and is byte-for-byte identical to the contract's
 // keccak(extData) % FIELD (verified against the relayer/contract value).
 
-import { AbiCoder, Contract, JsonRpcProvider, Wallet, ZeroAddress, keccak256 } from 'ethers';
+import { AbiCoder, Contract, Interface, JsonRpcProvider, Wallet, ZeroAddress, keccak256 } from 'ethers';
 import { initProver, proveDeposit, proveDepositFromLeaves } from 'cloister-prover';
 import { cacheVerifiedLeaves, fetchLeavesFull, getLogsRpcs, loadCachedLeaves, warmLeafCache } from './treeCache';
 
@@ -29,10 +29,15 @@ export interface CloisterDepositConfig {
   rpc: string;
   pool: string;
   chainId: number; // static network → skips ethers' eth_chainId auto-detection round-trip
-  deployerKey: string; // pilot signer; production swaps in the user's WDK wallet
   ownerPriv: string;
   fromBlock: number;
-  relayerUrl?: string; // primary prepare source; falls back to the warm leaf cache
+  relayerUrl?: string | undefined; // primary prepare source; falls back to the warm leaf cache
+  // Exactly one signing path:
+  //  • sendTx  — PRODUCTION: the user's own wallet (WDK) signs + broadcasts. No key here.
+  //  • deployerKey — TESTNET PILOT ONLY: embedded demo key (the user's mainnet WDK wallet
+  //    can't transact on the Sepolia pilot pool). Must NOT be present in a production build.
+  sendTx?: ((req: { to: string; data: string }) => Promise<{ hash: string }>) | undefined;
+  deployerKey?: string | undefined;
 }
 
 export interface CloisterDepositResult {
@@ -129,6 +134,9 @@ async function proveViaFallback(
 }
 
 export async function runDeposit(amount: string, cfg: CloisterDepositConfig): Promise<CloisterDepositResult> {
+  if (!cfg.sendTx && !cfg.deployerKey) {
+    throw new Error('no signer configured (need the user wallet sendTx, or a pilot deployerKey)');
+  }
   const ext = depositExtData(amount);
   const extDataHash = extDataHashOf(ext);
 
@@ -137,8 +145,7 @@ export async function runDeposit(amount: string, cfg: CloisterDepositConfig): Pr
   // ethers polls receipts every 4s by default — a ~2s-block tx then waits up to 4s to be
   // seen. Poll faster so confirmation is detected close to when the block lands.
   provider.pollingInterval = 1000;
-  const wallet = new Wallet(cfg.deployerKey, provider);
-  const pool = new Contract(cfg.pool, POOL_ABI, wallet) as unknown as PoolView;
+  const pool = new Contract(cfg.pool, POOL_ABI, provider) as unknown as PoolView;
 
   // Warm the prover and read the on-chain root concurrently with everything else; the
   // root is needed for the pre-broadcast safety check in both paths.
@@ -182,8 +189,8 @@ export async function runDeposit(amount: string, cfg: CloisterDepositConfig): Pr
     throw new Error('shielded root drift: a deposit landed during preparation — please retry');
   }
 
-  // 3) broadcast transact() with the user's wallet (publicSignals are 0x-hex uint256)
-  const tx = await pool.transact(
+  // 3) broadcast transact() (publicSignals are 0x-hex uint256)
+  const args = [
     [proof.a, proof.b, proof.c],
     ps[0],
     ps[7],
@@ -191,9 +198,20 @@ export async function runDeposit(amount: string, cfg: CloisterDepositConfig): Pr
     [ps[3], ps[4]],
     [ps[5], ps[6]],
     [ext.recipient, ext.extAmount, ext.relayer, ext.fee, ext.encryptedOutput1, ext.encryptedOutput2],
-    { gasLimit: 900000 },
-  );
-  const rc = await tx.wait();
-  if (!rc || rc.status !== 1) throw new Error(`transact reverted (${tx.hash})`);
-  return { txHash: tx.hash, basescan: `https://sepolia.basescan.org/tx/${tx.hash}`, via };
+  ];
+  let hash: string;
+  if (cfg.sendTx) {
+    // PRODUCTION: the user's own wallet signs + broadcasts (no embedded key).
+    const data = new Interface(POOL_ABI).encodeFunctionData('transact', args);
+    ({ hash } = await cfg.sendTx({ to: cfg.pool, data }));
+  } else {
+    // TESTNET PILOT: embedded demo key signs (Sepolia; user's mainnet wallet can't).
+    const wallet = new Wallet(cfg.deployerKey!, provider);
+    const signed = new Contract(cfg.pool, POOL_ABI, wallet) as unknown as PoolView;
+    const tx = await signed.transact(...args, { gasLimit: 900000 });
+    hash = tx.hash;
+  }
+  const rc = await provider.waitForTransaction(hash, 1, 90_000);
+  if (!rc || rc.status !== 1) throw new Error(`transact reverted (${hash})`);
+  return { txHash: hash, basescan: `https://sepolia.basescan.org/tx/${hash}`, via };
 }
