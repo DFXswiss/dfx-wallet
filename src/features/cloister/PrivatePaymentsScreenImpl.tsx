@@ -151,7 +151,7 @@ export default function PrivatePaymentsScreen() {
             <View style={styles.card}>
               {bullets.map((b, i) => (
                 <View key={i} style={[styles.bulletRow, i < bullets.length - 1 && styles.bulletDivider]}>
-                  <Icon name="shield" size={16} color={DfxColors.primary} />
+                  <Icon name="shield" size={15} color={DfxColors.primary} strokeWidth={2.3} />
                   <Text style={styles.bulletText}>{b}</Text>
                 </View>
               ))}
@@ -220,12 +220,12 @@ const styles = StyleSheet.create({
   toggleHint: { ...Typography.bodySmall, color: DfxColors.textSecondary, lineHeight: 18 },
   kycBtn: {
     marginBottom: 12,
-    paddingVertical: 13,
-    borderRadius: 10,
+    paddingVertical: 15,
+    borderRadius: 14,
     backgroundColor: DfxColors.primary,
     alignItems: 'center',
   },
-  kycBtnText: { ...Typography.bodyMedium, color: '#fff', fontWeight: '700' },
+  kycBtnText: { ...Typography.bodyLarge, color: DfxColors.white, fontWeight: '700' },
   sectionTitle: {
     ...Typography.bodySmall,
     color: DfxColors.textSecondary,
