@@ -12,7 +12,11 @@
 
 import { AbiCoder, Contract, Interface, JsonRpcProvider, Wallet, ZeroAddress, keccak256 } from 'ethers';
 import { initProver, proveDeposit, proveDepositFromLeaves } from 'cloister-prover';
-import { cacheVerifiedLeaves, fetchLeavesFull, getLogsRpcs, loadCachedLeaves, warmLeafCache } from './treeCache';
+import { cacheVerifiedLeaves, clearLeafCache, fetchLeavesFull, getLogsRpcs, loadCachedLeaves, warmLeafCache } from './treeCache';
+
+// Merkle pair-path length = tree depth (20) − 1. The relayer-supplied path must match.
+const PAIR_PATH_LEN = 19;
+const BASE_MAINNET = 8453;
 
 // BN254 scalar field — extData hash is reduced into the field for the circuit.
 const FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
@@ -79,7 +83,16 @@ async function prepareViaRelayer(url: string, amount: string, timeoutMs: number)
     clearTimeout(t);
     if (!res.ok) return null;
     const j = (await res.json()) as Partial<PrepareCtx>;
-    return j && j.root && Array.isArray(j.pairPathEls) ? (j as PrepareCtx) : null;
+    // Validate the trust-boundary payload shape before it reaches the native prover
+    // (a wrong length would otherwise crash native code; the root check catches the rest).
+    const ok =
+      j &&
+      typeof j.root === 'string' &&
+      Array.isArray(j.pairPathEls) &&
+      j.pairPathEls.length === PAIR_PATH_LEN &&
+      Number.isInteger(j.pairIndex) &&
+      (j.pairIndex as number) >= 0;
+    return ok ? (j as PrepareCtx) : null;
   } catch {
     return null; // unreachable/timeout → fall back
   }
@@ -137,6 +150,10 @@ export async function runDeposit(amount: string, cfg: CloisterDepositConfig): Pr
   if (!cfg.sendTx && !cfg.deployerKey) {
     throw new Error('no signer configured (need the user wallet sendTx, or a pilot deployerKey)');
   }
+  // Hard guard: the embedded demo key is testnet-only — never let it sign on Base mainnet.
+  if (cfg.chainId === BASE_MAINNET && cfg.deployerKey) {
+    throw new Error('refusing the embedded demo key on Base mainnet — production must sign with the user wallet');
+  }
   const ext = depositExtData(amount);
   const extDataHash = extDataHashOf(ext);
 
@@ -186,6 +203,8 @@ export async function runDeposit(amount: string, cfg: CloisterDepositConfig): Pr
   const onchainRoot = await rootP;
   const ps = proof.publicSignals; // [root, amount, extHash, nf0, nf1, out0, out1, newRoot, _, assocRoot]
   if (BigInt(ps[0]!) !== onchainRoot) {
+    // The cached/synced leaf set is stale or wrong — evict it so the next attempt re-syncs.
+    await clearLeafCache(cfg.pool);
     throw new Error('shielded root drift: a deposit landed during preparation — please retry');
   }
 

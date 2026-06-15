@@ -65,17 +65,29 @@ export async function fetchLeavesFull(rpc: string, pool: string, fromBlock: numb
   const provider = new JsonRpcProvider(rpc);
   const c = poolContract(rpc, pool);
   const latest = await provider.getBlockNumber();
-  const out: { idx: number; c: string }[] = [];
+  const byIdx = new Map<number, string>();
   const filter = c.filters.NewCommitment();
   for (let start = fromBlock; start <= latest; ) {
     const end = Math.min(start + CHUNK, latest);
     const logs = await c.queryFilter(filter, start, end);
-    for (const l of logs) out.push({ idx: Number(l.args[1]), c: String(l.args[0]) });
+    for (const l of logs) byIdx.set(Number(l.args[1]), String(l.args[0]));
     if (end === latest) break;
     start = end + 1;
   }
-  out.sort((a, b) => a.idx - b.idx);
-  return out.map((o) => o.c);
+  // Return only the CONTIGUOUS prefix from leafIndex 0 — a gap means this RPC dropped
+  // logs, so the (shorter) prefix fails the caller's count check and the next RPC is tried.
+  const leaves: string[] = [];
+  for (let i = 0; byIdx.has(i); i += 1) leaves.push(byIdx.get(i)!);
+  return leaves;
+}
+
+/** Drop the cached leaves for a pool (e.g. after a root mismatch) so the next deposit re-syncs. */
+export async function clearLeafCache(pool: string): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(cacheKey(pool));
+  } catch {
+    /* non-fatal */
+  }
 }
 
 /**
@@ -105,17 +117,17 @@ export async function warmLeafCache(opts: { pool: string; fromBlock: number }): 
     const provider = new JsonRpcProvider(rpc);
     const c = poolContract(rpc, opts.pool);
     const latest = await provider.getBlockNumber();
-    const fresh: { idx: number; c: string }[] = [];
+    const byIdx = new Map<number, string>();
     const filter = c.filters.NewCommitment();
     for (let start = Math.max(cache.lastBlock + 1, opts.fromBlock); start <= latest; ) {
       const end = Math.min(start + CHUNK, latest);
       const logs = await c.queryFilter(filter, start, end);
-      for (const l of logs) fresh.push({ idx: Number(l.args[1]), c: String(l.args[0]) });
+      for (const l of logs) byIdx.set(Number(l.args[1]), String(l.args[0]));
       if (end === latest) break;
       start = end + 1;
     }
-    fresh.sort((a, b) => a.idx - b.idx);
-    for (const f of fresh) if (f.idx >= cache.leaves.length) cache.leaves.push(f.c);
+    // Append only strictly-contiguous next leaves so a delta gap can never misalign the cache.
+    while (byIdx.has(cache.leaves.length)) cache.leaves.push(byIdx.get(cache.leaves.length)!);
     await saveCache(opts.pool, latest, cache.leaves);
   } catch {
     /* best-effort warm-up */
