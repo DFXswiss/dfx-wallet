@@ -42,6 +42,8 @@ type AuthState = {
   isAuthenticated: boolean;
   isDfxAuthenticated: boolean;
   biometricEnabled: boolean;
+  /** User opt-in for Cloister shielded ("Private") payments. */
+  cloisterEnabled: boolean;
   pinHash: string | null;
   isHydrated: boolean;
 
@@ -53,6 +55,7 @@ type AuthState = {
   verifyPin: (pin: string) => Promise<boolean>;
   authenticateBiometric: () => Promise<boolean>;
   setBiometricEnabled: (enabled: boolean) => Promise<void>;
+  setCloisterEnabled: (enabled: boolean) => Promise<void>;
   reset: () => Promise<void>;
 };
 
@@ -63,15 +66,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   isDfxAuthenticated: false,
   biometricEnabled: false,
+  cloisterEnabled: false,
   pinHash: null,
   isHydrated: false,
 
   hydrate: async () => {
-    const [pinHash, isOnboarded, dfxToken, biometric] = await Promise.all([
+    const [pinHash, isOnboarded, dfxToken, biometric, cloister] = await Promise.all([
       secureStorage.get(StorageKeys.PIN_HASH),
       secureStorage.get(StorageKeys.IS_ONBOARDED),
       secureStorage.get(StorageKeys.DFX_AUTH_TOKEN),
       secureStorage.get(BIOMETRIC_KEY),
+      secureStorage.get(StorageKeys.CLOISTER_ENABLED),
     ]);
 
     // Re-arm both the API client and the auth service with the persisted
@@ -95,6 +100,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isOnboarded: isOnboarded === 'true',
       isDfxAuthenticated: dfxToken !== null,
       biometricEnabled: biometric === 'true',
+      cloisterEnabled: cloister === 'true',
       isHydrated: true,
     });
   },
@@ -151,6 +157,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ biometricEnabled: enabled });
   },
 
+  // Persist the shielded-payments opt-in. The KYC gate lives in the
+  // Private Payments screen / pay flow, not here — this only records intent.
+  setCloisterEnabled: async (enabled) => {
+    await secureStorage.set(StorageKeys.CLOISTER_ENABLED, String(enabled));
+    set({ cloisterEnabled: enabled });
+  },
+
   reset: async () => {
     await Promise.all([
       secureStorage.remove(StorageKeys.PIN_HASH),
@@ -161,12 +174,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       secureStorage.remove(StorageKeys.PASSKEY_CREDENTIAL_ID),
       secureStorage.remove(StorageKeys.PASSKEY_DERIVATION_VERSION),
       secureStorage.remove(BIOMETRIC_KEY),
+      secureStorage.remove(StorageKeys.CLOISTER_ENABLED),
     ]);
     set({
       isOnboarded: false,
       isAuthenticated: false,
       isDfxAuthenticated: false,
       biometricEnabled: false,
+      cloisterEnabled: false,
       pinHash: null,
     });
   },

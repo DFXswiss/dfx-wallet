@@ -43,7 +43,8 @@ type SettingsSection = {
 export default function SettingsScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
-  const { reset, isDfxAuthenticated, biometricEnabled, setBiometricEnabled } = useAuthStore();
+  const { reset, isDfxAuthenticated, biometricEnabled, setBiometricEnabled, cloisterEnabled } =
+    useAuthStore();
   const { selectedCurrency, setSelectedCurrency } = useWalletStore();
   const [biometricSupported, setBiometricSupported] = useState<boolean | null>(null);
 
@@ -173,6 +174,16 @@ export default function SettingsScreen() {
           label: t(walletOrigin === 'passkey' ? 'settings.seed' : 'settings.seedPhrase'),
           testID: 'settings-seed',
           route: '/(auth)/seed-export',
+        },
+        // Cloister shielded ("Private") payments. Opens an info + opt-in
+        // screen that gates the toggle on the highest KYC level and routes
+        // unverified users into KYC first.
+        {
+          icon: 'shield',
+          label: t('settings.privatePayments'),
+          value: cloisterEnabled ? t('common.on') : t('common.off'),
+          testID: 'settings-private-payments',
+          route: '/(auth)/private-payments',
         },
         {
           icon: 'shield',

@@ -1,25 +1,29 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
   Image,
   ImageBackground,
-  Linking,
   Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { Icon } from '@/components';
+import { isOpenCryptoPayQR } from '@/services/opencryptopay';
+import { useAuthStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
+// LAN fallback for the Cloister config endpoint when a scanned QR omits it.
 const DEFAULT_LAN = process.env.EXPO_PUBLIC_CLOISTER_LAN ?? '192.168.178.110';
 
+// Camera cut-out window — positioned as screen-size percentages so the live
+// camera lands exactly inside the scanner-frame artwork baked into pay-bg.png
+// (these values are pixel-aligned against that asset — do not retune).
 const CUTOUT_PCT = {
   left: 0.0925,
   top: 0.3257,
@@ -27,93 +31,73 @@ const CUTOUT_PCT = {
   height: 0.3838,
 };
 
+type PayMode = 'normal' | 'silent';
+
 export default function PayScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { width, height } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
+  const { cloisterEnabled } = useAuthStore();
   const [scanned, setScanned] = useState(false);
-  const [pay, setPay] = useState<{ config: string; amount: string } | null>(null);
-  const [confirmed, setConfirmed] = useState(false);
-  const [status, setStatus] = useState('');
-  const [scan, setScan] = useState<string | null>(null);
+  const [mode, setMode] = useState<PayMode>('silent');
 
   useEffect(() => {
     if (!permission?.granted) void requestPermission();
   }, [permission, requestPermission]);
 
+  // Re-arm the scanner whenever the screen regains focus (e.g. after backing
+  // out of the confirm/invoice screen) so a second scan works.
+  useFocusEffect(
+    useCallback(() => {
+      setScanned(false);
+    }, []),
+  );
+
   const handleScan = ({ data }: { data: string }) => {
     if (scanned) return;
-    if (!data.includes('cloister-pay')) return; // nur Cloister-QRs
-    setScanned(true);
-    const qi = data.indexOf('?');
-    const params = new URLSearchParams(qi >= 0 ? data.slice(qi + 1) : '');
-    setPay({
-      config: params.get('config') ?? `http://${DEFAULT_LAN}:8790/config`,
-      amount: params.get('amount') ?? '250',
-    });
-  };
 
-  const onMessage = (e: WebViewMessageEvent) => {
-    try {
-      const msg = JSON.parse(e.nativeEvent.data);
-      if (msg.type === 'ready') setStatus('Baue Proof on-device…');
-      if (msg.type === 'paid') {
-        if (msg.ok) {
-          setStatus(`✅ Bezahlt (${msg.ms} ms)\n${msg.txHash}`);
-          setScan(msg.scan);
-        } else setStatus('❌ ' + (msg.error ?? 'Fehler'));
+    if (mode === 'silent') {
+      // Shielded payments are an opt-in feature gated on the highest KYC level
+      // (set in Settings → Private Payments). If it isn't enabled, send the
+      // user there instead of onto the shielded rail.
+      if (!cloisterEnabled) {
+        Alert.alert(t('settings.privatePayments'), t('privatePayments.notEnabled'), [
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('common.continue'), onPress: () => router.push('/(auth)/private-payments') },
+        ]);
+        return;
       }
-    } catch {
-      // ignore
+      // Silent → Cloister shielded payment. Only Cloister Pay QR codes carry
+      // the shielded-pool config; reject anything else rather than silently
+      // dropping the user onto the wrong rail.
+      if (!data.includes('cloister-pay')) {
+        Alert.alert(t('pay.modeSilent'), t('pay.wrongQrSilent'));
+        return;
+      }
+      setScanned(true);
+      const qi = data.indexOf('?');
+      const params = new URLSearchParams(qi >= 0 ? data.slice(qi + 1) : '');
+      router.push({
+        pathname: '/(auth)/pay/cloister',
+        params: {
+          config: params.get('config') ?? `http://${DEFAULT_LAN}:8790/config`,
+          amount: params.get('amount') ?? '250',
+        },
+      });
+      return;
     }
+
+    // Normal → DFX OpenCryptoPay standard.
+    setScanned(true);
+    if (isOpenCryptoPayQR(data)) {
+      router.push({ pathname: '/(auth)/pay/opencryptopay', params: { lnurl: data } });
+      return;
+    }
+    Alert.alert(t('pay.comingSoonTitle'), t('pay.comingSoonMessage', { data }), [
+      { text: t('common.ok'), onPress: () => setScanned(false) },
+    ]);
   };
-
-  // Bestätigungsschritt — die Tx wird erst nach „Bezahlen bestätigen" gebaut & gesendet.
-  if (pay && !confirmed) {
-    return (
-      <View style={[styles.payWrap, styles.payCenter]}>
-        <Text style={styles.payConfirmLabel}>Zahlung bestätigen</Text>
-        <Text style={styles.payAmount}>{pay.amount} USDC</Text>
-        <Text style={styles.payRecipient}>an DFX Merchant · Base Sepolia</Text>
-        <Text style={styles.payPrivacy}>Abgeschirmt — niemand sieht, dass du zahlst.</Text>
-        <TouchableOpacity style={styles.payConfirmBtn} onPress={() => { setConfirmed(true); setStatus('Engine lädt…'); }}>
-          <Text style={styles.scanBtnText}>Bezahlen bestätigen</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.payCancelBtn} onPress={() => { setPay(null); setConfirmed(false); setScanned(false); }}>
-          <Text style={styles.payCancelText}>Abbrechen</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  if (pay && confirmed) {
-    const host = pay.config.replace(/^https?:\/\//, '').split(':')[0];
-    const payUrl = `http://${host}:8799/cloister-pay.html?auto=1&amount=${pay.amount}&config=${encodeURIComponent(pay.config)}`;
-    return (
-      <View style={styles.payWrap}>
-        <Text style={styles.payTitle}>Cloister — privat zahlen ({pay.amount} USDC)</Text>
-        <Text style={styles.payStatus}>{status}</Text>
-        {scan ? (
-          <TouchableOpacity style={styles.scanBtn} onPress={() => Linking.openURL(scan)}>
-            <Text style={styles.scanBtnText}>Auf Basescan öffnen ↗</Text>
-          </TouchableOpacity>
-        ) : null}
-        <WebView
-          source={{ uri: payUrl }}
-          onMessage={onMessage}
-          onError={(ev) => setStatus('WebView-Fehler: ' + ev.nativeEvent.description)}
-          javaScriptEnabled
-          domStorageEnabled
-          originWhitelist={['*']}
-          mixedContentMode="always"
-          cacheEnabled={false}
-          incognito
-          style={styles.payWebview}
-        />
-      </View>
-    );
-  }
 
   const cutoutStyle = {
     left: width * CUTOUT_PCT.left,
@@ -121,6 +105,8 @@ export default function PayScreen() {
     width: width * CUTOUT_PCT.width,
     height: height * CUTOUT_PCT.height,
   };
+
+  const isSilent = mode === 'silent';
 
   return (
     <>
@@ -161,7 +147,54 @@ export default function PayScreen() {
             </Pressable>
           </View>
 
-          <View style={{ flex: 1 }} />
+          <View style={styles.spacer} />
+
+          {/* Floating control card — solid surface keeps the labels readable
+              over the photographic background. */}
+          <View style={styles.panel}>
+            <View style={styles.toggle}>
+              <Pressable
+                style={[styles.segment, !isSilent && styles.segmentActive]}
+                onPress={() => setMode('normal')}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: !isSilent }}
+                testID="pay-mode-normal"
+              >
+                <Text style={[styles.segmentText, !isSilent && styles.segmentTextActive]}>
+                  {t('pay.modeNormal')}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.segment, isSilent && styles.segmentActive]}
+                onPress={() => setMode('silent')}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isSilent }}
+                testID="pay-mode-silent"
+              >
+                <Icon
+                  name="shield"
+                  size={15}
+                  color={isSilent ? DfxColors.white : DfxColors.textSecondary}
+                  strokeWidth={2.4}
+                />
+                <Text style={[styles.segmentText, isSilent && styles.segmentTextActive]}>
+                  {t('pay.modeSilent')}
+                </Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.hintRow}>
+              <Icon
+                name={isSilent ? 'shield' : 'lightning'}
+                size={14}
+                color={DfxColors.primary}
+                strokeWidth={2.2}
+              />
+              <Text style={styles.hintText} numberOfLines={2}>
+                {isSilent ? t('pay.modeSilentHint') : t('pay.modeNormalHint')}
+              </Text>
+            </View>
+          </View>
         </SafeAreaView>
 
         <View style={[styles.cutout, cutoutStyle]}>
@@ -187,20 +220,6 @@ export default function PayScreen() {
 }
 
 const styles = StyleSheet.create({
-  payWrap: { flex: 1, backgroundColor: '#0b0b0f', paddingTop: 60, paddingHorizontal: 16 },
-  payCenter: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
-  payConfirmLabel: { color: '#888', fontSize: 15, marginBottom: 8 },
-  payAmount: { color: '#fff', fontSize: 44, fontWeight: '800', marginBottom: 4 },
-  payRecipient: { color: '#ccc', fontSize: 16, marginBottom: 20 },
-  payPrivacy: { color: '#0a8', fontSize: 13, marginBottom: 40, textAlign: 'center' },
-  payConfirmBtn: { backgroundColor: '#1769ff', borderRadius: 14, paddingVertical: 16, paddingHorizontal: 32, width: '100%', alignItems: 'center', marginBottom: 12 },
-  payCancelBtn: { paddingVertical: 12, alignItems: 'center' },
-  payCancelText: { color: '#888', fontSize: 15 },
-  payTitle: { color: '#fff', fontSize: 18, fontWeight: '600', marginBottom: 12 },
-  payStatus: { color: '#0f0', fontSize: 14, marginBottom: 12 },
-  payWebview: { flex: 1, borderRadius: 8, overflow: 'hidden' },
-  scanBtn: { backgroundColor: '#1769ff', borderRadius: 8, padding: 12, marginBottom: 12, alignItems: 'center' },
-  scanBtnText: { color: '#fff', fontWeight: '600' },
   bg: {
     flex: 1,
     backgroundColor: DfxColors.background,
@@ -209,11 +228,8 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
-  cutout: {
-    position: 'absolute',
-    overflow: 'hidden',
-    borderRadius: 16,
-    backgroundColor: 'rgba(11, 20, 38, 0.18)',
+  spacer: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -235,7 +251,77 @@ const styles = StyleSheet.create({
     height: 30,
     width: 110,
   },
+  cutout: {
+    position: 'absolute',
+    overflow: 'hidden',
+    borderRadius: 16,
+    backgroundColor: 'rgba(11, 20, 38, 0.18)',
+  },
+  panel: {
+    backgroundColor: DfxColors.white,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: DfxColors.border,
+    padding: 8,
+    marginBottom: 10,
+    gap: 4,
+    shadowColor: '#0B1426',
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
+  },
+  toggle: {
+    flexDirection: 'row',
+    backgroundColor: DfxColors.surfaceLight,
+    borderRadius: 16,
+    padding: 4,
+    gap: 4,
+  },
+  segment: {
+    flex: 1,
+    flexDirection: 'row',
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+  segmentActive: {
+    backgroundColor: DfxColors.primary,
+    shadowColor: DfxColors.primaryDark,
+    shadowOpacity: 0.24,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  segmentText: {
+    ...Typography.bodyMedium,
+    fontWeight: '700',
+    color: DfxColors.textSecondary,
+  },
+  segmentTextActive: {
+    color: DfxColors.white,
+  },
+  hintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingHorizontal: 12,
+    // Fixed height fits up to 2 lines, so the panel — and therefore the
+    // camera cut-out above it — never shifts when the hint changes length
+    // between Normal (1 line) and Privat (2 lines).
+    height: 46,
+  },
+  hintText: {
+    ...Typography.bodySmall,
+    color: DfxColors.textSecondary,
+    textAlign: 'center',
+    flexShrink: 1,
+  },
   permissionFallback: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
