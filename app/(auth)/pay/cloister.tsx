@@ -30,6 +30,9 @@ const POOL = process.env.EXPO_PUBLIC_CLOISTER_POOL ?? '';
 const TOKEN = process.env.EXPO_PUBLIC_CLOISTER_TOKEN ?? '';
 const DEPLOYER_KEY = process.env.EXPO_PUBLIC_CLOISTER_KEY ?? '';
 const OWNER_PRIV = process.env.EXPO_PUBLIC_CLOISTER_OWNER ?? '12345';
+// Pool deploy block — the native tree-sync scans NewCommitment events from here
+// (chunked) so the full Merkle tree is rebuilt, not just a recent window.
+const FROM_BLOCK = Number(process.env.EXPO_PUBLIC_CLOISTER_FROM_BLOCK ?? '0');
 
 type Phase = 'review' | 'paying' | 'success' | 'error';
 
@@ -100,6 +103,7 @@ export default function CloisterPayScreen() {
         deployerKey: DEPLOYER_KEY,
         amount: amountStr,
         ownerPriv: OWNER_PRIV,
+        fromBlock: FROM_BLOCK,
       });
       if (settledRef.current) return;
       if (!res.txHash) throw new Error('submit failed');

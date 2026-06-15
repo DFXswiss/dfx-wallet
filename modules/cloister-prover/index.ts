@@ -38,6 +38,8 @@ export interface CloisterDepositDirectParams {
   deployerKey: string;
   amount: string;
   ownerPriv: string;
+  /** Pool deploy block — native tree-sync scans NewCommitment events from here. */
+  fromBlock?: number;
 }
 
 export interface CloisterDepositDirectResult {
