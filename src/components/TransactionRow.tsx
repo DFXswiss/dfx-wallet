@@ -15,9 +15,17 @@ const FIAT_LABEL = new Map<string, string>([
 ]);
 
 type IconConfig = {
-  iconName: 'arrow-down' | 'arrow-up' | 'swap' | 'storefront' | 'send' | 'receive';
+  iconName: 'arrow-down' | 'arrow-up' | 'swap' | 'storefront' | 'send' | 'receive' | 'shield';
   fg: string;
   bg: string;
+};
+
+// Cloister shielded payments get a shield identity (DFX brand blue) so a
+// private payment is instantly distinguishable from a normal merchant Pay.
+const CLOISTER_ICON: IconConfig = {
+  iconName: 'shield',
+  fg: DfxColors.primary,
+  bg: DfxColors.primaryLight,
 };
 
 // Buy/Sell are reserved for DFX on-/off-ramp.
@@ -47,10 +55,12 @@ type Props = {
  */
 export function TransactionRow({ tx, onPress, showState = true, testID }: Props) {
   const isOutgoing = OUTGOING_TYPES.has(tx.type);
+  const isPrivate = tx.private === true;
   const isPay = tx.type === 'Pay';
-  const iconConfig =
-    TYPE_ICON.get(tx.type) ??
-    ({ iconName: 'swap', fg: DfxColors.primary, bg: '#DCEAFE' } satisfies IconConfig);
+  const iconConfig = isPrivate
+    ? CLOISTER_ICON
+    : (TYPE_ICON.get(tx.type) ??
+      ({ iconName: 'swap', fg: DfxColors.primary, bg: '#DCEAFE' } satisfies IconConfig));
 
   const { selectedCurrency } = useWalletStore();
   const fiatCurrency = resolveFiatCurrency(selectedCurrency);
@@ -83,13 +93,15 @@ export function TransactionRow({ tx, onPress, showState = true, testID }: Props)
       : '';
 
   const dateStr = new Date(tx.date).toLocaleDateString();
-  const secondaryLabel = isPay
-    ? fiatLabel
-      ? `${tx.type} · ${dateStr} · ${fiatLabel}`
-      : `${tx.type} · ${dateStr}`
-    : tx.counterparty
-      ? tx.counterparty
-      : dateStr;
+  const secondaryLabel = isPrivate
+    ? (tx.badge ?? 'Cloister')
+    : isPay
+      ? fiatLabel
+        ? `${tx.type} · ${dateStr} · ${fiatLabel}`
+        : `${tx.type} · ${dateStr}`
+      : tx.counterparty
+        ? tx.counterparty
+        : dateStr;
 
   const Container = onPress ? Pressable : View;
   const containerProps = onPress
@@ -106,12 +118,16 @@ export function TransactionRow({ tx, onPress, showState = true, testID }: Props)
         <Icon name={iconConfig.iconName} size={18} color={iconConfig.fg} strokeWidth={2.2} />
       </View>
       <View style={styles.info}>
-        <Text style={isPay ? styles.payPrimary : styles.type} numberOfLines={1}>
+        <Text style={isPay || isPrivate ? styles.payPrimary : styles.type} numberOfLines={1}>
           {primaryLabel}
         </Text>
         <View style={styles.subtitleRow}>
-          {isPay ? <View style={styles.payDot} /> : null}
-          <Text style={styles.subtitle} numberOfLines={1}>
+          {isPrivate ? (
+            <Icon name="shield" size={11} color={CLOISTER_ICON.fg} strokeWidth={2.4} />
+          ) : isPay ? (
+            <View style={styles.payDot} />
+          ) : null}
+          <Text style={[styles.subtitle, isPrivate && styles.cloisterSubtitle]} numberOfLines={1}>
             {secondaryLabel}
           </Text>
         </View>
@@ -178,6 +194,10 @@ const styles = StyleSheet.create({
     ...Typography.bodySmall,
     color: DfxColors.textTertiary,
     flexShrink: 1,
+  },
+  cloisterSubtitle: {
+    color: DfxColors.primary,
+    fontWeight: '600',
   },
   amountColumn: {
     alignItems: 'flex-end',
