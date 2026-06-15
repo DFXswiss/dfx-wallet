@@ -1,4 +1,4 @@
-// Copyright (c) 2026 DFX AG. All rights reserved. Proprietary and confidential.
+// Copyright (c) 2026 DFX AG. Licensed under the MIT License.
 //
 // Per-install note-owner (spend) key for Cloister shielded notes. Replaces the former
 // hardcoded constant ('12345'), which made every user's notes share one trivially

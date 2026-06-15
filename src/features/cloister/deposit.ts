@@ -1,4 +1,4 @@
-// Copyright (c) 2026 DFX AG. All rights reserved. Proprietary and confidential.
+// Copyright (c) 2026 DFX AG. Licensed under the MIT License.
 //
 // Cloister shielded-deposit orchestration — runs entirely in the wallet (no go-ethereum
 // in the native binary):
@@ -10,24 +10,27 @@
 // extDataHash is computed locally and is byte-for-byte identical to the contract's
 // keccak(extData) % FIELD (verified against the relayer/contract value).
 
-import { AbiCoder, Contract, Interface, JsonRpcProvider, Wallet, ZeroAddress, keccak256 } from 'ethers';
+import { Contract, Interface, JsonRpcProvider, Wallet } from 'ethers';
 import { initProver, proveDeposit, proveDepositFromLeaves } from 'cloister-prover';
-import { cacheVerifiedLeaves, clearLeafCache, fetchLeavesFull, getLogsRpcs, loadCachedLeaves, warmLeafCache } from './treeCache';
+import { depositExtData, extDataHashOf } from './extData';
+import {
+  cacheVerifiedLeaves,
+  clearLeafCache,
+  fetchLeavesFull,
+  getLogsRpcs,
+  loadCachedLeaves,
+  warmLeafCache,
+} from './treeCache';
 
 // Merkle pair-path length = tree depth (20) − 1. The relayer-supplied path must match.
 const PAIR_PATH_LEN = 19;
 const BASE_MAINNET = 8453;
-
-// BN254 scalar field — extData hash is reduced into the field for the circuit.
-const FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 
 const POOL_ABI = [
   'function laneRoot(uint256) view returns (uint256)',
   'function laneNextIndex(uint256) view returns (uint32)',
   'function transact((uint256[2] a,uint256[2][2] b,uint256[2] c) proof,uint256 oldRoot,uint256 newRoot,uint256 associationRoot,uint256[2] inputNullifiers,uint256[2] outputCommitments,(address recipient,int256 extAmount,address relayer,uint256 fee,bytes encryptedOutput1,bytes encryptedOutput2) extData)',
 ];
-const EXTDATA_TUPLE =
-  'tuple(address recipient,int256 extAmount,address relayer,uint256 fee,bytes encryptedOutput1,bytes encryptedOutput2)';
 
 export interface CloisterDepositConfig {
   rpc: string;
@@ -50,32 +53,17 @@ export interface CloisterDepositResult {
   via: 'relayer' | 'fallback';
 }
 
-function depositExtData(amount: string) {
-  return {
-    recipient: ZeroAddress,
-    extAmount: amount,
-    relayer: ZeroAddress,
-    fee: '0',
-    encryptedOutput1: '0x',
-    encryptedOutput2: '0x',
-  };
-}
-
-function extDataHashOf(ext: ReturnType<typeof depositExtData>): string {
-  const encoded = AbiCoder.defaultAbiCoder().encode(
-    [EXTDATA_TUPLE],
-    [[ext.recipient, ext.extAmount, ext.relayer, ext.fee, ext.encryptedOutput1, ext.encryptedOutput2]],
-  );
-  return (BigInt(keccak256(encoded)) % FIELD).toString();
-}
-
 interface PrepareCtx {
   root: string;
   pairIndex: number;
   pairPathEls: string[];
 }
 
-async function prepareViaRelayer(url: string, amount: string, timeoutMs: number): Promise<PrepareCtx | null> {
+async function prepareViaRelayer(
+  url: string,
+  amount: string,
+  timeoutMs: number,
+): Promise<PrepareCtx | null> {
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -103,7 +91,9 @@ async function prepareViaRelayer(url: string, amount: string, timeoutMs: number)
  * incrementally sync the leaf cache, in parallel. This takes the ~1.5s key-load and the
  * tree-sync OUT of the payment's critical path so the deposit is just prove + broadcast.
  */
-export async function warmDepositContext(cfg: Pick<CloisterDepositConfig, 'pool' | 'fromBlock'>): Promise<void> {
+export async function warmDepositContext(
+  cfg: Pick<CloisterDepositConfig, 'pool' | 'fromBlock'>,
+): Promise<void> {
   await Promise.all([
     initProver().catch(() => false),
     warmLeafCache({ pool: cfg.pool, fromBlock: cfg.fromBlock }),
@@ -113,7 +103,9 @@ export async function warmDepositContext(cfg: Pick<CloisterDepositConfig, 'pool'
 type PoolView = {
   laneRoot: (lane: number) => Promise<bigint>;
   laneNextIndex: (lane: number) => Promise<bigint>;
-  transact: (...args: unknown[]) => Promise<{ hash: string; wait: () => Promise<{ status: number } | null> }>;
+  transact: (
+    ...args: unknown[]
+  ) => Promise<{ hash: string; wait: () => Promise<{ status: number } | null> }>;
 };
 
 // Fallback context: produce a COMPLETE commitment set (leaf count == on-chain leaf count),
@@ -127,7 +119,7 @@ async function proveViaFallback(
   expectedCount: number,
   cachedLeaves: string[],
 ): Promise<Awaited<ReturnType<typeof proveDeposit>>> {
-  const sources: Array<() => Promise<string[]>> = [
+  const sources: (() => Promise<string[]>)[] = [
     async () => cachedLeaves, // warm cache first (instant if complete)
     ...getLogsRpcs().map((rpc) => () => fetchLeavesFull(rpc, cfg.pool, cfg.fromBlock)),
   ];
@@ -139,20 +131,30 @@ async function proveViaFallback(
       continue;
     }
     if (leaves.length !== expectedCount) continue; // incomplete source → next
-    const proof = await proveDepositFromLeaves({ amount, ownerPriv: cfg.ownerPriv, leaves, extDataHash });
+    const proof = await proveDepositFromLeaves({
+      amount,
+      ownerPriv: cfg.ownerPriv,
+      leaves,
+      extDataHash,
+    });
     void cacheVerifiedLeaves(getLogsRpcs()[0]!, cfg.pool, leaves);
     return proof;
   }
   throw new Error(`shielded sync incomplete: no source returned all ${expectedCount} commitments`);
 }
 
-export async function runDeposit(amount: string, cfg: CloisterDepositConfig): Promise<CloisterDepositResult> {
+export async function runDeposit(
+  amount: string,
+  cfg: CloisterDepositConfig,
+): Promise<CloisterDepositResult> {
   if (!cfg.sendTx && !cfg.deployerKey) {
     throw new Error('no signer configured (need the user wallet sendTx, or a pilot deployerKey)');
   }
   // Hard guard: the embedded demo key is testnet-only — never let it sign on Base mainnet.
   if (cfg.chainId === BASE_MAINNET && cfg.deployerKey) {
-    throw new Error('refusing the embedded demo key on Base mainnet — production must sign with the user wallet');
+    throw new Error(
+      'refusing the embedded demo key on Base mainnet — production must sign with the user wallet',
+    );
   }
   const ext = depositExtData(amount);
   const extDataHash = extDataHashOf(ext);
@@ -216,7 +218,14 @@ export async function runDeposit(amount: string, cfg: CloisterDepositConfig): Pr
     ps[9],
     [ps[3], ps[4]],
     [ps[5], ps[6]],
-    [ext.recipient, ext.extAmount, ext.relayer, ext.fee, ext.encryptedOutput1, ext.encryptedOutput2],
+    [
+      ext.recipient,
+      ext.extAmount,
+      ext.relayer,
+      ext.fee,
+      ext.encryptedOutput1,
+      ext.encryptedOutput2,
+    ],
   ];
   let hash: string;
   if (cfg.sendTx) {

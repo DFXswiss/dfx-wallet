@@ -1,4 +1,4 @@
-// Copyright (c) 2026 DFX AG. All rights reserved. Proprietary and confidential.
+// Copyright (c) 2026 DFX AG. Licensed under the MIT License.
 //
 // Private ("shielded") payments opt-in + info screen. The toggle that turns on
 // the Cloister shielded-pay rail is gated on the highest DFX KYC level
@@ -6,7 +6,16 @@
 // shielding hides, what it does NOT, and that KYC is mandatory.
 
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ImageBackground, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  ImageBackground,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -86,7 +95,9 @@ export default function PrivatePaymentsScreen() {
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
           <View style={styles.header}>
             <Pressable
-              onPress={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/(tabs)/settings'))}
+              onPress={() =>
+                router.canGoBack() ? router.back() : router.replace('/(auth)/(tabs)/settings')
+              }
               hitSlop={12}
               style={styles.backBtn}
             >
@@ -140,7 +151,9 @@ export default function PrivatePaymentsScreen() {
                   onPress={() => router.push('/(auth)/kyc')}
                 >
                   <Text style={styles.kycBtnText}>
-                    {isDfxAuthenticated ? t('privatePayments.verifyCta') : t('privatePayments.loginCta')}
+                    {isDfxAuthenticated
+                      ? t('privatePayments.verifyCta')
+                      : t('privatePayments.loginCta')}
                   </Text>
                 </Pressable>
               ) : null}
@@ -150,7 +163,10 @@ export default function PrivatePaymentsScreen() {
             <Text style={styles.sectionTitle}>{t('privatePayments.howTitle')}</Text>
             <View style={styles.card}>
               {bullets.map((b, i) => (
-                <View key={i} style={[styles.bulletRow, i < bullets.length - 1 && styles.bulletDivider]}>
+                <View
+                  key={i}
+                  style={[styles.bulletRow, i < bullets.length - 1 && styles.bulletDivider]}
+                >
                   <Icon name="shield" size={15} color={DfxColors.primary} strokeWidth={2.3} />
                   <Text style={styles.bulletText}>{b}</Text>
                 </View>
@@ -199,7 +215,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   heroTitle: { ...Typography.headlineSmall, color: DfxColors.text, textAlign: 'center' },
-  heroBody: { ...Typography.bodyMedium, color: DfxColors.textSecondary, textAlign: 'center', lineHeight: 21 },
+  heroBody: {
+    ...Typography.bodyMedium,
+    color: DfxColors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 21,
+  },
   card: {
     backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: 12,
@@ -235,8 +256,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 12 },
-  bulletDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: DfxColors.border },
+  bulletDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: DfxColors.border,
+  },
   bulletText: { flex: 1, ...Typography.bodyMedium, color: DfxColors.text, lineHeight: 20 },
-  footnote: { ...Typography.bodySmall, color: DfxColors.textTertiary, textAlign: 'center', paddingHorizontal: 8 },
+  footnote: {
+    ...Typography.bodySmall,
+    color: DfxColors.textTertiary,
+    textAlign: 'center',
+    paddingHorizontal: 8,
+  },
   pressed: { opacity: 0.7 },
 });

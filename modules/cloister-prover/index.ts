@@ -1,4 +1,4 @@
-// Copyright (c) 2026 DFX AG. All rights reserved. Proprietary and confidential.
+// Copyright (c) 2026 DFX AG. Licensed under the MIT License.
 //
 // Native on-device Cloister prover (gnark/Groth16 + Poseidon2). This is the
 // production proving backend: the private witness never leaves the device.
@@ -46,7 +46,7 @@ export interface CloisterDepositFromLeavesParams {
 // `isCloisterNativeAvailable()`.
 let _native: CloisterProverNative | null = null;
 function native(): CloisterProverNative {
-  if (!_native) _native = requireNativeModule('CloisterProver');
+  if (!_native) _native = requireNativeModule<CloisterProverNative>('CloisterProver');
   return _native;
 }
 

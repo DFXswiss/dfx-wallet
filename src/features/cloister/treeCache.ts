@@ -1,4 +1,4 @@
-// Copyright (c) 2026 DFX AG. All rights reserved. Proprietary and confidential.
+// Copyright (c) 2026 DFX AG. Licensed under the MIT License.
 //
 // Warm, incremental, persisted Merkle-leaf cache for the Cloister shielded pool — the
 // relayer-less fallback source of the tree-insertion context. On app open (and before a
@@ -13,7 +13,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Contract, JsonRpcProvider } from 'ethers';
 
-const POOL_ABI = ['event NewCommitment(uint256 indexed commitment, uint32 leafIndex, bytes encryptedOutput)'];
+const POOL_ABI = [
+  'event NewCommitment(uint256 indexed commitment, uint32 leafIndex, bytes encryptedOutput)',
+];
 // Public RPCs cap eth_getLogs by block range — chunk to stay within the limit.
 const CHUNK = 40000;
 
@@ -25,7 +27,12 @@ const DEFAULT_GETLOGS_RPCS = [
 ];
 export function getLogsRpcs(): string[] {
   const env = process.env.EXPO_PUBLIC_CLOISTER_GETLOGS_RPCS;
-  const list = env ? env.split(',').map((s: string) => s.trim()).filter(Boolean) : DEFAULT_GETLOGS_RPCS;
+  const list = env
+    ? env
+        .split(',')
+        .map((s: string) => s.trim())
+        .filter(Boolean)
+    : DEFAULT_GETLOGS_RPCS;
   return list.length ? list : DEFAULT_GETLOGS_RPCS;
 }
 
@@ -47,7 +54,10 @@ export async function loadCachedLeaves(pool: string): Promise<string[]> {
 
 async function saveCache(pool: string, lastBlock: number, leaves: string[]): Promise<void> {
   try {
-    await AsyncStorage.setItem(cacheKey(pool), JSON.stringify({ lastBlock, leaves } satisfies LeafCache));
+    await AsyncStorage.setItem(
+      cacheKey(pool),
+      JSON.stringify({ lastBlock, leaves } satisfies LeafCache),
+    );
   } catch {
     /* non-fatal */
   }
@@ -56,12 +66,20 @@ async function saveCache(pool: string, lastBlock: number, leaves: string[]): Pro
 function poolContract(rpc: string, pool: string) {
   return new Contract(pool, POOL_ABI, new JsonRpcProvider(rpc)) as unknown as {
     filters: { NewCommitment: () => unknown };
-    queryFilter: (f: unknown, from?: number, to?: number) => Promise<Array<{ args: ReadonlyArray<unknown> }>>;
+    queryFilter: (
+      f: unknown,
+      from?: number,
+      to?: number,
+    ) => Promise<{ args: readonly unknown[] }[]>;
   };
 }
 
 /** Full chunked getLogs from one RPC → commitments in leaf-index order. */
-export async function fetchLeavesFull(rpc: string, pool: string, fromBlock: number): Promise<string[]> {
+export async function fetchLeavesFull(
+  rpc: string,
+  pool: string,
+  fromBlock: number,
+): Promise<string[]> {
   const provider = new JsonRpcProvider(rpc);
   const c = poolContract(rpc, pool);
   const latest = await provider.getBlockNumber();
@@ -94,7 +112,11 @@ export async function clearLeafCache(pool: string): Promise<void> {
  * Persist a verified-complete commitment set (called by the deposit flow once the leaf
  * count matches the on-chain leaf count), so the next deposit/warm-up starts warm.
  */
-export async function cacheVerifiedLeaves(rpc: string, pool: string, leaves: string[]): Promise<void> {
+export async function cacheVerifiedLeaves(
+  rpc: string,
+  pool: string,
+  leaves: string[],
+): Promise<void> {
   let lastBlock = 0;
   try {
     lastBlock = await new JsonRpcProvider(rpc).getBlockNumber();
@@ -113,7 +135,9 @@ export async function warmLeafCache(opts: { pool: string; fromBlock: number }): 
   const rpc = getLogsRpcs()[0]!;
   try {
     const raw = await AsyncStorage.getItem(cacheKey(opts.pool));
-    const cache: LeafCache = raw ? JSON.parse(raw) : { lastBlock: Math.max(0, opts.fromBlock - 1), leaves: [] };
+    const cache: LeafCache = raw
+      ? JSON.parse(raw)
+      : { lastBlock: Math.max(0, opts.fromBlock - 1), leaves: [] };
     const provider = new JsonRpcProvider(rpc);
     const c = poolContract(rpc, opts.pool);
     const latest = await provider.getBlockNumber();

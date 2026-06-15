@@ -51,13 +51,14 @@ export default function CloisterPayScreen() {
   const params = useLocalSearchParams<{ config?: string; amount?: string }>();
   const addCloisterTx = useCloisterTxStore((s) => s.add);
 
-  const config = typeof params.config === 'string' ? params.config : '';
   const amountStr = typeof params.amount === 'string' ? params.amount : '0';
   const amountNum = Number(amountStr) || 0;
 
   const [phase, setPhase] = useState<Phase>('review');
   const [status, setStatus] = useState('');
-  const [result, setResult] = useState<{ txHash?: string; scan?: string; ms?: number } | null>(null);
+  const [result, setResult] = useState<{ txHash?: string; scan?: string; ms?: number } | null>(
+    null,
+  );
   const [error, setError] = useState('');
   // `settledRef` flips on the first terminal outcome so a late watchdog can't override it.
   const settledRef = useRef(false);
@@ -108,7 +109,11 @@ export default function CloisterPayScreen() {
         ? undefined
         : async ({ to, data }: { to: string; data: string }) => {
             const evm = evmAccount.extension() as {
-              sendTransaction: (tx: { to: string; data: string; gasLimit?: bigint }) => Promise<{ hash: string }>;
+              sendTransaction: (tx: {
+                to: string;
+                data: string;
+                gasLimit?: bigint;
+              }) => Promise<{ hash: string }>;
             };
             const r = await evm.sendTransaction({ to, data, gasLimit: 900000n });
             return { hash: r.hash };
