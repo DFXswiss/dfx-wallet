@@ -28,6 +28,7 @@ const EXTDATA_TUPLE =
 export interface CloisterDepositConfig {
   rpc: string;
   pool: string;
+  chainId: number; // static network → skips ethers' eth_chainId auto-detection round-trip
   deployerKey: string; // pilot signer; production swaps in the user's WDK wallet
   ownerPriv: string;
   fromBlock: number;
@@ -79,9 +80,16 @@ async function prepareViaRelayer(url: string, amount: string, timeoutMs: number)
   }
 }
 
-/** Warm the fallback leaf cache (call on app open; cheap, incremental delta-sync). */
+/**
+ * Warm-up on entering Pay (cheap, non-blocking): load the prover keys into memory AND
+ * incrementally sync the leaf cache, in parallel. This takes the ~1.5s key-load and the
+ * tree-sync OUT of the payment's critical path so the deposit is just prove + broadcast.
+ */
 export async function warmDepositContext(cfg: Pick<CloisterDepositConfig, 'pool' | 'fromBlock'>): Promise<void> {
-  await warmLeafCache({ pool: cfg.pool, fromBlock: cfg.fromBlock });
+  await Promise.all([
+    initProver().catch(() => false),
+    warmLeafCache({ pool: cfg.pool, fromBlock: cfg.fromBlock }),
+  ]);
 }
 
 type PoolView = {
@@ -99,9 +107,10 @@ async function proveViaFallback(
   cfg: CloisterDepositConfig,
   extDataHash: string,
   expectedCount: number,
+  cachedLeaves: string[],
 ): Promise<Awaited<ReturnType<typeof proveDeposit>>> {
   const sources: Array<() => Promise<string[]>> = [
-    () => loadCachedLeaves(cfg.pool),
+    async () => cachedLeaves, // warm cache first (instant if complete)
     ...getLogsRpcs().map((rpc) => () => fetchLeavesFull(rpc, cfg.pool, cfg.fromBlock)),
   ];
   for (const get of sources) {
@@ -120,37 +129,54 @@ async function proveViaFallback(
 }
 
 export async function runDeposit(amount: string, cfg: CloisterDepositConfig): Promise<CloisterDepositResult> {
-  await initProver();
   const ext = depositExtData(amount);
   const extDataHash = extDataHashOf(ext);
 
-  const provider = new JsonRpcProvider(cfg.rpc);
+  // staticNetwork → no eth_chainId auto-detection round-trip per provider use
+  const provider = new JsonRpcProvider(cfg.rpc, cfg.chainId, { staticNetwork: true });
+  // ethers polls receipts every 4s by default — a ~2s-block tx then waits up to 4s to be
+  // seen. Poll faster so confirmation is detected close to when the block lands.
+  provider.pollingInterval = 1000;
   const wallet = new Wallet(cfg.deployerKey, provider);
   const pool = new Contract(cfg.pool, POOL_ABI, wallet) as unknown as PoolView;
 
+  // Warm the prover and read the on-chain root concurrently with everything else; the
+  // root is needed for the pre-broadcast safety check in both paths.
+  const ready = initProver();
+  const rootP = pool.laneRoot(0);
+
   // 1) tree context + on-device proof — relayer first, completeness-verified cache as fallback
-  let proof: Awaited<ReturnType<typeof proveDeposit>>;
-  let via: 'relayer' | 'fallback';
-  const prep = cfg.relayerUrl ? await prepareViaRelayer(cfg.relayerUrl, amount, 6000) : null;
-  if (prep) {
-    proof = await proveDeposit({
-      amount,
-      ownerPriv: cfg.ownerPriv,
-      root: prep.root,
-      pairIndex: prep.pairIndex,
-      pairPathEls: prep.pairPathEls,
-      extDataHash,
-    });
-    via = 'relayer';
-  } else {
-    const expectedCount = Number(await pool.laneNextIndex(0));
-    proof = await proveViaFallback(amount, cfg, extDataHash, expectedCount);
+  let proof: Awaited<ReturnType<typeof proveDeposit>> | null = null;
+  let via: 'relayer' | 'fallback' = 'fallback';
+  if (cfg.relayerUrl) {
+    const prep = await prepareViaRelayer(cfg.relayerUrl, amount, 2500);
+    if (prep) {
+      await ready;
+      proof = await proveDeposit({
+        amount,
+        ownerPriv: cfg.ownerPriv,
+        root: prep.root,
+        pairIndex: prep.pairIndex,
+        pairPathEls: prep.pairPathEls,
+        extDataHash,
+      });
+      via = 'relayer';
+    }
+  }
+  if (!proof) {
+    // fallback — read leaf count + warm cache in parallel, then prove
+    const [expectedCount, cached] = await Promise.all([
+      pool.laneNextIndex(0).then((n) => Number(n)),
+      loadCachedLeaves(cfg.pool),
+    ]);
+    await ready;
+    proof = await proveViaFallback(amount, cfg, extDataHash, expectedCount, cached);
     via = 'fallback';
   }
 
   // 2) safety: the proof's old-root MUST equal the current on-chain lane root, or the tx
   // would revert ("stale or unknown root"). Fail before broadcasting.
-  const onchainRoot = await pool.laneRoot(0);
+  const onchainRoot = await rootP;
   const ps = proof.publicSignals; // [root, amount, extHash, nf0, nf1, out0, out1, newRoot, _, assocRoot]
   if (BigInt(ps[0]!) !== onchainRoot) {
     throw new Error('shielded root drift: a deposit landed during preparation — please retry');

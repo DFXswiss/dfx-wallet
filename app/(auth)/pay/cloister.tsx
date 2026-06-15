@@ -35,6 +35,7 @@ const RELAYER_URL = process.env.EXPO_PUBLIC_CLOISTER_RELAYER || undefined;
 // Pool deploy block — the tree-sync (relayer or fallback cache) scans NewCommitment
 // events from here so the full Merkle tree is rebuilt, not just a recent window.
 const FROM_BLOCK = Number(process.env.EXPO_PUBLIC_CLOISTER_FROM_BLOCK ?? '0');
+const CHAIN_ID = Number(process.env.EXPO_PUBLIC_CLOISTER_CHAINID ?? '84532');
 
 type Phase = 'review' | 'paying' | 'success' | 'error';
 
@@ -100,6 +101,7 @@ export default function CloisterPayScreen() {
       const res = await runDeposit(amountStr, {
         rpc: RPC,
         pool: POOL,
+        chainId: CHAIN_ID,
         deployerKey: DEPLOYER_KEY,
         ownerPriv: OWNER_PRIV,
         fromBlock: FROM_BLOCK,
