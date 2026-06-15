@@ -12,6 +12,9 @@
       ],
       "@modules/*": [
         "modules/*"
+      ],
+      "cloister-prover": [
+        "modules/cloister-prover/index.ts"
       ]
     }
   },

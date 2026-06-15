@@ -343,12 +343,18 @@ export default function PayScreen() {
               testID="private-info-dontshow"
             >
               <View style={[styles.checkbox, dontShowAgain && styles.checkboxOn]}>
-                {dontShowAgain ? <Icon name="check" size={14} color={DfxColors.white} strokeWidth={3} /> : null}
+                {dontShowAgain ? (
+                  <Icon name="check" size={14} color={DfxColors.white} strokeWidth={3} />
+                ) : null}
               </View>
               <Text style={styles.checkboxLabel}>{t('privatePayments.dontShowAgain')}</Text>
             </Pressable>
 
-            <Pressable style={styles.primaryBtn} onPress={confirmInfo} testID="private-info-activate">
+            <Pressable
+              style={styles.primaryBtn}
+              onPress={confirmInfo}
+              testID="private-info-activate"
+            >
               <Text style={styles.primaryBtnText}>{t('privatePayments.activate')}</Text>
             </Pressable>
             <Pressable
