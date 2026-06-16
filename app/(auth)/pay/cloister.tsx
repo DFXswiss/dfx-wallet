@@ -3,9 +3,9 @@ import { ActivityIndicator, ImageBackground, Linking, StyleSheet, Text, View } f
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useAccount } from '@tetherto/wdk-react-native-core';
+import { useAccount, useWalletManager } from '@tetherto/wdk-react-native-core';
 import { runDeposit } from '@/features/cloister/deposit';
-import { getOwnerKey } from '@/features/cloister/ownerKey';
+import { deriveOwnerSpendKey } from '@/features/cloister/ownerKey';
 import { AppHeader, Icon, PrimaryButton } from '@/components';
 import { useCloisterTxStore } from '@/store/cloister-tx';
 import { DfxColors, Typography } from '@/theme';
@@ -47,6 +47,9 @@ export default function CloisterPayScreen() {
   // Production signer: the user's own ERC-4337 wallet (no embedded key). Used only when
   // no pilot DEPLOYER_KEY is present (mainnet). Safe to call on the pilot — unused there.
   const evmAccount = useAccount({ network: 'base', accountIndex: 0 });
+  // WDK is the authoritative store of the wallet mnemonic; the shielded note-owner key is
+  // derived from it (deterministic → recoverable after a reinstall/restore).
+  const wallet = useWalletManager();
   const { t } = useTranslation();
   const params = useLocalSearchParams<{ config?: string; amount?: string }>();
   const addCloisterTx = useCloisterTxStore((s) => s.add);
@@ -103,8 +106,12 @@ export default function CloisterPayScreen() {
       if (!POOL) throw new Error('missing build config (pool)');
 
       // Production signs with the user's own wallet (WDK); the pilot uses the embedded
-      // demo key on Sepolia. Per-install note-owner key (never a constant).
-      const ownerPriv = await getOwnerKey();
+      // demo key on Sepolia. The note-owner key is derived from the wallet seed so the
+      // shielded balance is recoverable after a reinstall/restore (never a constant, never
+      // a device-only random key).
+      const mnemonic = await wallet?.getMnemonic?.('default');
+      if (!mnemonic) throw new Error(t('cloister.errorNoSeed'));
+      const ownerPriv = deriveOwnerSpendKey(mnemonic);
       const sendTx = DEPLOYER_KEY
         ? undefined
         : async ({ to, data }: { to: string; data: string }) => {
@@ -154,7 +161,7 @@ export default function CloisterPayScreen() {
     } catch (e: unknown) {
       failWith(e instanceof Error && e.message ? e.message : t('cloister.errorGeneric'));
     }
-  }, [amountStr, amountNum, t, clearTimers, failWith, addCloisterTx, evmAccount]);
+  }, [amountStr, amountNum, t, clearTimers, failWith, addCloisterTx, evmAccount, wallet]);
 
   const cancelPaying = useCallback(() => {
     settledRef.current = true;

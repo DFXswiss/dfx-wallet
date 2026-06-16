@@ -720,6 +720,7 @@
     "historyBadge": "Cloister · OpenCryptoPay",
     "errorTimeout": "Timed out — the payment took too long. Please try again.",
     "errorEngine": "Payment engine unreachable. Check your connection and try again.",
+    "errorNoSeed": "Your wallet recovery phrase isn't available right now. Reopen the app and try again.",
     "errorGeneric": "The payment failed. Please try again."
   }
 }

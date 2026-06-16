@@ -720,6 +720,7 @@
     "historyBadge": "Cloister · OpenCryptoPay",
     "errorTimeout": "Zeitüberschreitung — die Zahlung hat zu lange gedauert. Bitte erneut versuchen.",
     "errorEngine": "Zahl-Engine nicht erreichbar. Prüfe deine Verbindung und versuche es erneut.",
+    "errorNoSeed": "Deine Wallet-Wiederherstellungsphrase ist gerade nicht verfügbar. Öffne die App neu und versuche es erneut.",
     "errorGeneric": "Die Zahlung ist fehlgeschlagen. Bitte erneut versuchen."
   }
 }
