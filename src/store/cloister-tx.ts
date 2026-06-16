@@ -36,6 +36,9 @@ export type NewCloisterTx = {
   network: string;
   badge: string;
   date?: string;
+  /** Settlement state. The optimistic flow records 'Processing' on broadcast, then reconciles to
+   *  'Completed' (mined) or 'Failed' (reverted) via update(). Defaults to 'Processing'. */
+  state?: CloisterTx['state'];
 };
 
 function load(): CloisterTx[] {
@@ -50,6 +53,8 @@ function load(): CloisterTx[] {
 type State = {
   entries: CloisterTx[];
   add: (tx: NewCloisterTx) => CloisterTx;
+  /** Reconcile an optimistic entry (by id) — e.g. flip 'Pending' → 'Completed'/'Failed'. */
+  update: (id: number, patch: Partial<CloisterTx>) => void;
   clear: () => void;
 };
 
@@ -61,7 +66,7 @@ export const useCloisterTxStore = create<State>((set, get) => ({
     const entry: CloisterTx = {
       id: -Date.now(),
       type: 'Pay',
-      state: 'Completed',
+      state: tx.state ?? 'Processing',
       inputAmount: tx.amount,
       inputAsset: tx.asset,
       outputAmount: tx.amount,
@@ -78,6 +83,11 @@ export const useCloisterTxStore = create<State>((set, get) => ({
     storage.set(KEY, JSON.stringify(next));
     set({ entries: next });
     return entry;
+  },
+  update: (id, patch) => {
+    const next = get().entries.map((e) => (e.id === id ? { ...e, ...patch } : e));
+    storage.set(KEY, JSON.stringify(next));
+    set({ entries: next });
   },
   clear: () => {
     storage.remove(KEY);

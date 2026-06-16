@@ -53,6 +53,7 @@ export default function CloisterPayScreen() {
   const { t } = useTranslation();
   const params = useLocalSearchParams<{ config?: string; amount?: string }>();
   const addCloisterTx = useCloisterTxStore((s) => s.add);
+  const updateCloisterTx = useCloisterTxStore((s) => s.update);
 
   const amountStr = typeof params.amount === 'string' ? params.amount : '0';
   const amountNum = Number(amountStr) || 0;
@@ -63,9 +64,13 @@ export default function CloisterPayScreen() {
     null,
   );
   const [error, setError] = useState('');
+  // On-chain confirmation runs in the background (commit-and-reconcile); the success screen shows
+  // immediately on broadcast and this resolves the subtle status line + the history record.
+  const [confirming, setConfirming] = useState<'confirming' | 'confirmed' | 'failed'>('confirming');
   // `settledRef` flips on the first terminal outcome so a late watchdog can't override it.
   const settledRef = useRef(false);
   const recordedRef = useRef(false);
+  const mountedRef = useRef(true);
   const payTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearTimers = useCallback(() => {
@@ -75,6 +80,12 @@ export default function CloisterPayScreen() {
 
   // Always tear timers down on unmount so a backgrounded screen never fires.
   useEffect(() => clearTimers, [clearTimers]);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
 
   const failWith = useCallback(
     (message: string) => {
@@ -142,26 +153,48 @@ export default function CloisterPayScreen() {
       if (settledRef.current) return;
       if (!res.txHash) throw new Error('submit failed');
 
+      // Commit-and-reconcile (OCP model): the tx is broadcast → show success NOW (no block-wait),
+      // record it as in-flight (Processing), then reconcile the 1-conf outcome in the background.
       settledRef.current = true;
       clearTimers();
       setResult({ txHash: res.txHash, scan: res.basescan, ms: Date.now() - t0 });
+      let entryId: number | undefined;
       if (!recordedRef.current) {
         recordedRef.current = true;
-        addCloisterTx({
+        const entry = addCloisterTx({
           amount: amountNum,
           asset: ASSET,
           merchant: t('cloister.merchant'),
           network: t('cloister.network'),
           badge: t('cloister.historyBadge'),
+          state: 'Processing',
           ...(res.txHash ? { txId: res.txHash } : {}),
           ...(res.basescan ? { explorerUrl: res.basescan } : {}),
         });
+        entryId = entry.id;
       }
+      setConfirming('confirming');
       setPhase('success');
+      // background: do NOT block the payer on block time — reconcile + flip the record.
+      void res.confirm().then((ok) => {
+        if (entryId !== undefined)
+          updateCloisterTx(entryId, { state: ok ? 'Completed' : 'Failed' });
+        if (mountedRef.current) setConfirming(ok ? 'confirmed' : 'failed');
+      });
     } catch (e: unknown) {
       failWith(e instanceof Error && e.message ? e.message : t('cloister.errorGeneric'));
     }
-  }, [amountStr, amountNum, t, clearTimers, failWith, addCloisterTx, evmAccount, wallet]);
+  }, [
+    amountStr,
+    amountNum,
+    t,
+    clearTimers,
+    failWith,
+    addCloisterTx,
+    updateCloisterTx,
+    evmAccount,
+    wallet,
+  ]);
 
   const cancelPaying = useCallback(() => {
     settledRef.current = true;
@@ -241,6 +274,13 @@ export default function CloisterPayScreen() {
                         <Icon name="check" size={40} color={DfxColors.white} strokeWidth={3} />
                       </View>
                       <Text style={styles.successTitle}>{t('cloister.successSubtitle')}</Text>
+                      <Text style={styles.statusSub}>
+                        {confirming === 'confirmed'
+                          ? t('cloister.confirmed')
+                          : confirming === 'failed'
+                            ? t('cloister.confirmFailed')
+                            : t('cloister.confirming')}
+                      </Text>
                       {result?.ms ? <Text style={styles.statusSub}>{result.ms} ms</Text> : null}
                     </View>
                   )}

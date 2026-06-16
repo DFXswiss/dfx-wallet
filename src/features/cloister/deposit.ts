@@ -51,6 +51,13 @@ export interface CloisterDepositResult {
   txHash: string;
   basescan: string;
   via: 'relayer' | 'fallback';
+  /**
+   * Reconcile the 1-confirmation outcome OFF the critical path (OCP-style commit-and-reconcile).
+   * runDeposit returns as soon as the tx is broadcast; the caller awaits confirm() in the
+   * background to flip the local record pending→confirmed/failed. true = mined OK, false =
+   * reverted/timeout. (A revert moves no funds — the deposit transferFrom is inside that tx.)
+   */
+  confirm: () => Promise<boolean>;
 }
 
 interface PrepareCtx {
@@ -243,7 +250,18 @@ export async function runDeposit(
     const tx = await signed.transact(...args, { gasLimit: 900000 });
     hash = tx.hash;
   }
-  const rc = await provider.waitForTransaction(hash, 1, 90_000);
-  if (!rc || rc.status !== 1) throw new Error(`transact reverted (${hash})`);
-  return { txHash: hash, basescan: `https://sepolia.basescan.org/tx/${hash}`, via };
+  // OCP commit-and-reconcile: do NOT block the payer on block time. The proof is already locally
+  // self-verified and the old-root was re-checked against chain immediately before broadcast, so
+  // the tx is overwhelmingly likely to land. Return on broadcast; confirm() reconciles the
+  // 1-confirmation outcome in the background.
+  const basescan = `https://sepolia.basescan.org/tx/${hash}`;
+  const confirm = async (): Promise<boolean> => {
+    try {
+      const rc = await provider.waitForTransaction(hash, 1, 120_000);
+      return !!rc && rc.status === 1;
+    } catch {
+      return false;
+    }
+  };
+  return { txHash: hash, basescan, via, confirm };
 }
