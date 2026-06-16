@@ -176,7 +176,11 @@ export async function runDeposit(
   let via: 'relayer' | 'fallback' = 'fallback';
   if (cfg.relayerUrl) {
     const prep = await prepareViaRelayer(cfg.relayerUrl, amount, 2500);
-    if (prep) {
+    // Fail-fast: only prove if the relayer's root STILL matches the chain. rootP already
+    // resolved concurrently, so this costs ~0ms — and it avoids burning a ~0.4s on-device
+    // proof against a stale relayer root (which step 2 below would reject post-proof anyway).
+    // On mismatch we fall through to the completeness-verified fallback, which re-syncs.
+    if (prep && BigInt(prep.root) === (await rootP)) {
       await ready;
       proof = await proveDeposit({
         amount,
