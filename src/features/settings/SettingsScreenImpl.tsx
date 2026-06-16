@@ -20,6 +20,10 @@ import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors, Typography } from '@/theme';
 
+// Cloister/Private Payments follows its deployment: the Settings entry only appears when a pool
+// is configured for this build, so a production build without Cloister never shows a dead entry.
+const CLOISTER_POOL = process.env.EXPO_PUBLIC_CLOISTER_POOL ?? '';
+
 type IconName = 'user' | 'wallet' | 'shield' | 'globe' | 'document' | 'support';
 
 type SettingsRow = {
@@ -175,16 +179,20 @@ export default function SettingsScreen() {
           testID: 'settings-seed',
           route: '/(auth)/seed-export',
         },
-        // Cloister shielded ("Private") payments. Opens an info + opt-in
-        // screen that gates the toggle on the highest KYC level and routes
+        // Cloister shielded ("Private") payments — only when a pool is configured for this build.
+        // Opens an info + opt-in screen that gates the toggle on the highest KYC level and routes
         // unverified users into KYC first.
-        {
-          icon: 'shield',
-          label: t('settings.privatePayments'),
-          value: cloisterEnabled ? t('common.on') : t('common.off'),
-          testID: 'settings-private-payments',
-          route: '/(auth)/private-payments',
-        },
+        ...(CLOISTER_POOL
+          ? [
+              {
+                icon: 'shield' as const,
+                label: t('settings.privatePayments'),
+                value: cloisterEnabled ? t('common.on') : t('common.off'),
+                testID: 'settings-private-payments',
+                route: '/(auth)/private-payments',
+              },
+            ]
+          : []),
         {
           icon: 'shield',
           label: t('settings.hardwareWallet'),
