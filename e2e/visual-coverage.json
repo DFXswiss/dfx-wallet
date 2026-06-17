@@ -102,14 +102,12 @@
     },
 
     "(onboarding)/create-passkey.tsx": {
-      "status": "pending",
-      "tracking": "DFXswiss/dfx-wallet#186",
-      "reason": "Passkey-create onboarding screen; reachable without a backend — capture after the passkey-variant build is wired into the visual workflow."
+      "status": "baselined",
+      "baselines": ["create-passkey"]
     },
     "(onboarding)/restore-passkey.tsx": {
-      "status": "pending",
-      "tracking": "DFXswiss/dfx-wallet#186",
-      "reason": "Passkey-restore onboarding screen; reachable without a backend — capture alongside create-passkey."
+      "status": "baselined",
+      "baselines": ["restore-passkey"]
     },
     "(onboarding)/verify-seed.tsx": {
       "status": "pending",
@@ -117,14 +115,13 @@
       "reason": "Seed-verification onboarding step; needs the generated-mnemonic state from create-wallet carried into the visual flow."
     },
     "(auth)/(tabs)/settings.tsx": {
-      "status": "pending",
-      "tracking": "DFXswiss/dfx-wallet#186",
-      "reason": "Settings tab; reachable from the onboarded dashboard — capture once a settings-tab testID anchor is added."
+      "status": "baselined",
+      "baselines": ["settings"]
     },
     "(auth)/wallets/index.tsx": {
       "status": "pending",
       "tracking": "DFXswiss/dfx-wallet#186",
-      "reason": "Wallets list; reachable from the onboarded dashboard — capture with the deterministic single-wallet seed."
+      "reason": "DFX-wallets list is backend-driven (fetches /v1/v2/user); against the testnet build with no live DFX API it renders an error state, not a meaningful baseline. Capture once the mocked DFX backend lands."
     },
     "(auth)/portfolio/index.tsx": {
       "status": "pending",
@@ -157,14 +154,12 @@
       "reason": "Pay landing; needs onboarded state — capture once a pay-screen testID anchor is added."
     },
     "(auth)/multi-sig/index.tsx": {
-      "status": "pending",
-      "tracking": "DFXswiss/dfx-wallet#186",
-      "reason": "Multi-sig overview; needs onboarded state — capture with the deterministic single-wallet seed."
+      "status": "baselined",
+      "baselines": ["multi-sig"]
     },
     "(auth)/multi-sig/setup.tsx": {
-      "status": "pending",
-      "tracking": "DFXswiss/dfx-wallet#186",
-      "reason": "Multi-sig setup; needs onboarded state — capture alongside the multi-sig overview."
+      "status": "baselined",
+      "baselines": ["multi-sig-setup"]
     },
     "(auth)/contact/index.tsx": {
       "status": "pending",
@@ -192,14 +187,12 @@
       "reason": "Tax-report screen; needs onboarded state and a mocked DFX transaction list before a deterministic baseline."
     },
     "(auth)/hardware-connect/index.tsx": {
-      "status": "pending",
-      "tracking": "DFXswiss/dfx-wallet#186",
-      "reason": "Hardware-wallet connect; needs onboarded state — capture with the simulated BitBox platform's empty-scan state."
+      "status": "baselined",
+      "baselines": ["hardware-connect"]
     },
     "(auth)/seed-export.tsx": {
-      "status": "pending",
-      "tracking": "DFXswiss/dfx-wallet#186",
-      "reason": "Seed-export screen; needs onboarded state with the deterministic single-wallet seed."
+      "status": "baselined",
+      "baselines": ["seed-export"]
     },
     "(auth)/transaction-history/index.tsx": {
       "status": "pending",
