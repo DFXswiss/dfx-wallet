@@ -1,0 +1,210 @@
+{
+  "_comment": [
+    "Visual-baseline coverage manifest — the source of truth for which screens",
+    "are pixel-baselined, which are exempt (and why), and which are still owed a",
+    "baseline. Enforced by scripts/check-visual-coverage.mjs (CI job",
+    "`visual-coverage`).",
+    "",
+    "Why this exists: a visual-regression suite that quietly skips screens gives",
+    "false confidence — a green run only means the screens someone remembered to",
+    "add are unchanged. This manifest forces every route under app/ to be",
+    "accounted for: a screen is either `baselined`, `exempt` with a documented",
+    "engineering reason, or `pending` with a tracking reference. A new screen",
+    "that is none of those fails the build, exactly like the README feature",
+    "matrix (scripts/check-feature-matrix.mjs) and the coverage floors.",
+    "",
+    "Ratchet protocol: drive `pending` entries to `baselined` by adding the",
+    "`expectScreenToMatchBaseline(...)` call (see docs/visual-regression.md",
+    "'Adding a new screenshot') and committing the captured PNG. Never move a",
+    "screen to `exempt` just to make the count go up — exemptions are reviewed.",
+    "Once `pending` is empty, flip the job to --strict to lock 100% in.",
+    "",
+    "Route keys are paths relative to app/ (matching the README matrix",
+    "shorthand). Names in `baselines`/`pendingBaselines` are the identifiers",
+    "passed to expectScreenToMatchBaseline() and the PNG file stem under",
+    "e2e/__baselines__/."
+  ],
+  "exemptCategories": {
+    "redirect": "Route renders only an expo-router <Redirect>; it has no visual surface of its own (its destinations are baselined separately).",
+    "external-content": "Route renders arbitrary remote content inside a WebView; there is no deterministic golden image to diff against.",
+    "external-launcher": "Route hands off to the OS browser or share sheet and renders no durable in-app surface of its own.",
+    "dynamic-detail": "Route is rendered entirely from a [param]; a meaningful pixel baseline needs a frozen data fixture and is tracked as a fixture-backed follow-up rather than a blank-state snapshot."
+  },
+  "routes": {
+    "(onboarding)/welcome.tsx": {
+      "status": "baselined",
+      "baselines": ["welcome", "welcome-restore-expanded"]
+    },
+    "(onboarding)/create-wallet.tsx": {
+      "status": "baselined",
+      "baselines": ["create-wallet", "create-wallet-revealed"]
+    },
+    "(onboarding)/setup-pin.tsx": {
+      "status": "baselined",
+      "baselines": ["setup-pin", "setup-pin-confirm"]
+    },
+    "(onboarding)/legal-disclaimer.tsx": {
+      "status": "baselined",
+      "baselines": ["legal-disclaimer"]
+    },
+    "(onboarding)/restore-wallet.tsx": {
+      "status": "baselined",
+      "baselines": ["restore-wallet", "restore-wallet-filled"]
+    },
+    "(pin)/verify.tsx": {
+      "status": "baselined",
+      "baselines": ["verify-pin", "verify-pin-error"]
+    },
+    "(auth)/(tabs)/dashboard.tsx": {
+      "status": "baselined",
+      "baselines": ["dashboard", "dashboard-balance-hidden", "pin-unlock-dashboard"],
+      "pendingBaselines": ["dashboard-with-pin-legal"],
+      "note": "dashboard-with-pin-legal is asserted only in the PIN+legal feature-variant run; its PNG is captured by that variant and not yet committed."
+    },
+    "(auth)/receive/index.tsx": {
+      "status": "baselined",
+      "baselines": ["receive", "receive-qr-step"]
+    },
+    "(auth)/send/index.tsx": {
+      "status": "baselined",
+      "baselines": ["send", "send-input-step"]
+    },
+
+    "index.tsx": {
+      "status": "exempt",
+      "category": "redirect",
+      "reason": "Entry route resolves auth state and returns only <Redirect> to welcome / verify / dashboard, all of which are baselined."
+    },
+    "(auth)/webview.tsx": {
+      "status": "exempt",
+      "category": "external-content",
+      "reason": "Loads external URLs (KYC iframe, payment hand-off) inside a <WebView> behind the safe-url allow-list; remote content has no stable golden."
+    },
+    "(auth)/legal/index.tsx": {
+      "status": "exempt",
+      "category": "external-launcher",
+      "reason": "Hands a list of legal-document URLs to the OS browser via Linking; the screen renders no durable in-app surface."
+    },
+    "(auth)/portfolio/[symbol].tsx": {
+      "status": "exempt",
+      "category": "dynamic-detail",
+      "reason": "Asset-detail view rendered entirely from the :symbol param and live price data; a stable baseline needs a frozen pricing fixture (tracked)."
+    },
+    "(auth)/transaction-history/[id].tsx": {
+      "status": "exempt",
+      "category": "dynamic-detail",
+      "reason": "Transaction-detail view rendered entirely from the :id param; a stable baseline needs a frozen transaction fixture (tracked)."
+    },
+    "(auth)/linked-wallet/[address].tsx": {
+      "status": "exempt",
+      "category": "dynamic-detail",
+      "reason": "Linked-wallet detail rendered entirely from the :address param; a stable baseline needs a frozen wallet fixture (tracked)."
+    },
+
+    "(onboarding)/create-passkey.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "Passkey-create onboarding screen; reachable without a backend — capture after the passkey-variant build is wired into the visual workflow."
+    },
+    "(onboarding)/restore-passkey.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "Passkey-restore onboarding screen; reachable without a backend — capture alongside create-passkey."
+    },
+    "(onboarding)/verify-seed.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "Seed-verification onboarding step; needs the generated-mnemonic state from create-wallet carried into the visual flow."
+    },
+    "(auth)/(tabs)/settings.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "Settings tab; reachable from the onboarded dashboard — capture once a settings-tab testID anchor is added."
+    },
+    "(auth)/wallets/index.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "Wallets list; reachable from the onboarded dashboard — capture with the deterministic single-wallet seed."
+    },
+    "(auth)/portfolio/index.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "Portfolio overview; needs onboarded state plus a frozen balance fixture for a stable baseline."
+    },
+    "(auth)/portfolio/manage.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "Asset-management screen; needs onboarded state plus the asset-list fixture."
+    },
+    "(auth)/buy/index.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "DFX buy flow; needs onboarded state and a mocked DFX backend response before a deterministic baseline."
+    },
+    "(auth)/sell/index.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "DFX sell flow; needs onboarded state and a mocked DFX backend response before a deterministic baseline."
+    },
+    "(auth)/kyc/index.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "KYC entry; needs onboarded state and a mocked DFX KYC-status response before a deterministic baseline."
+    },
+    "(auth)/pay/index.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "Pay landing; needs onboarded state — capture once a pay-screen testID anchor is added."
+    },
+    "(auth)/multi-sig/index.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "Multi-sig overview; needs onboarded state — capture with the deterministic single-wallet seed."
+    },
+    "(auth)/multi-sig/setup.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "Multi-sig setup; needs onboarded state — capture alongside the multi-sig overview."
+    },
+    "(auth)/contact/index.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "DFX contact screen; needs onboarded state with the DFX backend feature on."
+    },
+    "(auth)/support/index.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "DFX support screen; needs onboarded state with the DFX backend feature on."
+    },
+    "(auth)/email/index.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "DFX email screen; needs onboarded state with the DFX backend feature on."
+    },
+    "(auth)/dfx-login/index.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "DFX e-mail login; needs onboarded state with the DFX backend feature on."
+    },
+    "(auth)/tax-report/index.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "Tax-report screen; needs onboarded state and a mocked DFX transaction list before a deterministic baseline."
+    },
+    "(auth)/hardware-connect/index.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "Hardware-wallet connect; needs onboarded state — capture with the simulated BitBox platform's empty-scan state."
+    },
+    "(auth)/seed-export.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "Seed-export screen; needs onboarded state with the deterministic single-wallet seed."
+    },
+    "(auth)/transaction-history/index.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "Transaction-history list; needs onboarded state and a frozen transaction fixture for a stable baseline."
+    }
+  }
+}
