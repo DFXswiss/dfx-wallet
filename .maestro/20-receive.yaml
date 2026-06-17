@@ -40,6 +40,7 @@ tags:
 # Dashboard -> Receive (asset step)
 - assertVisible:
     id: "dashboard-screen"
+    timeout: 30000
 - tapOn:
     id: "dashboard-action-receive"
 

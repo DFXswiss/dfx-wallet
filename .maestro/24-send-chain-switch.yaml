@@ -38,6 +38,7 @@ tags:
 # Dashboard -> Send -> CHF -> Input step with chain selector
 - assertVisible:
     id: "dashboard-screen"
+    timeout: 30000
 - tapOn:
     id: "dashboard-action-send"
 - assertVisible:

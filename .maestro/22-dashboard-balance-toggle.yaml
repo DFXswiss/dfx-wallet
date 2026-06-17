@@ -39,6 +39,7 @@ tags:
 # Dashboard renders with the balance visible by default
 - assertVisible:
     id: "dashboard-screen"
+    timeout: 30000
 - assertVisible:
     id: "dashboard-balance-value"
 

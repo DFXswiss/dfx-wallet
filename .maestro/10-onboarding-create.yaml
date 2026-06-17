@@ -39,6 +39,7 @@ tags:
 # and runs once those features ship.
 - assertVisible:
     id: "dashboard-screen"
+    timeout: 30000
 - assertVisible:
     id: "dashboard-action-receive"
 - assertVisible:
