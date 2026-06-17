@@ -37,6 +37,9 @@ module.exports = {
     'src/store/**/*.{ts,tsx}',
     'src/features/**/services/**/*.{ts,tsx}',
     'src/hooks/**/*.{ts,tsx}',
+    // Security-critical feature logic that lives outside a `services/` folder
+    // but must still be measured (and is pinned in .coverage-floors.json).
+    'src/features/biometric/biometric.ts',
     '!**/*.d.ts',
     '!**/types.ts',
   ],

@@ -256,6 +256,24 @@ npm run prebuild
 | `npm run check`                         | `typecheck` + `lint` + `format` (run before pushing).  |
 | `npm run bundle:bitbox`                 | Rebuild the bundled BitBox WASM module.                |
 
+### Test coverage gates
+
+Coverage is scoped to the logic surface (`collectCoverageFrom` in
+`jest.config.js`: services, stores, feature services, hooks) — forcing line
+coverage on JSX produces render tests, not safety. Screens and UI flows are
+covered behaviourally instead (component tests, visual regression, Maestro).
+
+Two gates run in CI on top of that scope (job `coverage-floor`):
+
+- **Aggregate floor** — `.coverage-floor-lines` is the minimum overall scoped
+  line coverage (ratchet: raise it in the same commit when coverage climbs;
+  lowering needs the `coverage:lower-floor` label).
+- **Per-file Tier-A floors** — `.coverage-floors.json` pins each
+  security-critical file (key derivation, seed/wallet setup, signing, auth,
+  secure storage, biometric, hardware-wallet bridge) to its own minimum (100).
+  The aggregate floor alone would let one such file rot to zero behind a high
+  mean; this catches that. Enforced by `scripts/check-coverage-file-floors.mjs`.
+
 ## Project Structure
 
 ```

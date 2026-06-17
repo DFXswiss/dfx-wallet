@@ -1,0 +1,29 @@
+{
+  "_comment": [
+    "Per-file MINIMUM line coverage for Tier-A files: key derivation, wallet",
+    "seed/setup, signing, authentication, secure storage, biometric and the",
+    "hardware-wallet bridge. Enforced by scripts/check-coverage-file-floors.mjs",
+    "(see ci.yml job `coverage-floor`).",
+    "",
+    "Why this exists on top of .coverage-floor-lines: the aggregate floor lets",
+    "a single security-critical file rot to 0% as long as the mean stays high.",
+    "These files are the ones where a regression loses funds or leaks keys, so",
+    "they are pinned individually at 100. Lowering any entry is a deliberate,",
+    "reviewable act — do not weaken a number to make a red build pass."
+  ],
+  "files": {
+    "src/features/passkey/services/key-derivation.ts": 100,
+    "src/features/passkey/services/setup-wallet.ts": 100,
+    "src/features/passkey/services/passkey-service.ts": 100,
+    "src/features/dfx-backend/services/auth-service.ts": 100,
+    "src/features/dfx-backend/services/jwt.ts": 100,
+    "src/features/dfx-backend/services/kyc-service.ts": 100,
+    "src/features/biometric/biometric.ts": 100,
+    "src/features/hardware-wallet/services/bitbox.ts": 100,
+    "src/services/wallet/seed.ts": 100,
+    "src/services/pin.ts": 100,
+    "src/services/storage.ts": 100,
+    "src/services/evm/signature.ts": 100,
+    "src/services/evm/address.ts": 100
+  }
+}

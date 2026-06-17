@@ -78,6 +78,9 @@ jobs:
           name: coverage-summary
           path: coverage
       - run: node scripts/check-coverage-floor.mjs
+      # Per-file Tier-A floors: the aggregate floor above can't catch a single
+      # security-critical file rotting to zero. This pins each one individually.
+      - run: node scripts/check-coverage-file-floors.mjs
 
   # Lowering the coverage floor needs an explicit, visible decision: the
   # `coverage:lower-floor` label. Without it, a quiet floor-file edit inside a
