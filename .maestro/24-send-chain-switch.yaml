@@ -36,8 +36,9 @@ tags:
     id: "create-wallet-continue-button"
 
 # Dashboard -> Send -> CHF -> Input step with chain selector
-- assertVisible:
-    id: "dashboard-screen"
+- extendedWaitUntil:
+    visible:
+      id: "dashboard-screen"
     timeout: 30000
 - tapOn:
     id: "dashboard-action-send"
