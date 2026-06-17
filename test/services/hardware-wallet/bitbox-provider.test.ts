@@ -7,7 +7,9 @@
  * Every outcome mode of the fake mirrors a real ceremony outcome —
  * see test/helpers/fake-bitbox.ts.
  */
+import { Platform } from 'react-native';
 import { BitboxProvider } from '@/features/hardware-wallet/services/bitbox';
+import { UsbTransport } from '@/features/hardware-wallet/services/transport-usb';
 import {
   DEFAULT_ETH_DERIVATION_PATH,
   type HardwareWalletDevice,
@@ -87,6 +89,67 @@ describe('BitboxProvider', () => {
       expect(fake.isPaired).toBe(true);
       expect(provider.isConnected()).toBe(true);
       expect(provider.getConnectedDevice()).toEqual(BLE_DEVICE);
+    });
+
+    it('opens the USB transport and pairs when running on Android', async () => {
+      const originalOS = Platform.OS;
+      (Platform as { OS: string }).OS = 'android';
+      const usbOpen = jest.fn(async () => {});
+      (UsbTransport as jest.Mock).mockImplementation(() => ({
+        open: usbOpen,
+        write: (data: Uint8Array) => mockTransport.write(data),
+        read: () => mockTransport.read(),
+        close: () => mockTransport.close(),
+      }));
+      try {
+        const { provider, fake } = pairedProvider();
+
+        await provider.connect({ ...BLE_DEVICE, id: 'usb-1', transport: 'usb' });
+
+        expect(usbOpen).toHaveBeenCalledWith('usb-1');
+        expect(fake.isPaired).toBe(true);
+        expect(provider.isConnected()).toBe(true);
+        expect(provider.getConnectedDevice()?.transport).toBe('usb');
+      } finally {
+        (Platform as { OS: string }).OS = originalOS;
+      }
+    });
+
+    it('wires the WASM bridge to read from and write to the physical transport', async () => {
+      const { provider } = pairedProvider();
+      await provider.connect(BLE_DEVICE);
+      const bridge = provider.getBridge();
+      const writesBefore = mockTransport.writes.length;
+
+      // Outbound: the bridge's transport-write hook must reach the transport.
+      const outbound = new Uint8Array([0x01, 0x02, 0x03]);
+      await bridge.onTransportWrite?.(outbound);
+      expect(mockTransport.writes[writesBefore]).toEqual(outbound);
+
+      // Inbound: a byte frame from the transport must be handed back to the bridge.
+      const sendSpy = jest.spyOn(bridge, 'sendTransportData');
+      const inbound = new Uint8Array([0x09, 0x08]);
+      mockTransport.pushRead(inbound);
+      await bridge.onTransportRead?.();
+      expect(sendSpy).toHaveBeenCalledWith(inbound);
+    });
+
+    it('ignores bridge transport callbacks after the transport is gone', async () => {
+      const { provider } = pairedProvider();
+      await provider.connect(BLE_DEVICE);
+      const bridge = provider.getBridge();
+      await provider.disconnect(); // transport is now null
+
+      const sendSpy = jest.spyOn(bridge, 'sendTransportData');
+      const writesBefore = mockTransport.writes.length;
+
+      // Both hooks guard on `this.transport`; with none, they must no-op
+      // rather than throw on a stale frame arriving after disconnect.
+      await bridge.onTransportWrite?.(new Uint8Array([0xff]));
+      await bridge.onTransportRead?.();
+
+      expect(mockTransport.writes.length).toBe(writesBefore);
+      expect(sendSpy).not.toHaveBeenCalled();
     });
 
     it('disconnects the previous session before connecting again', async () => {
@@ -193,8 +256,9 @@ describe('BitboxProvider', () => {
   describe('signEthTransaction', () => {
     it('requires a connection', async () => {
       const { provider } = pairedProvider();
-      await expect(provider.signEthTransaction(1, "m/44'/60'/0'/0/0", new Uint8Array(), true))
-        .rejects.toThrow('BitBox02 not connected');
+      await expect(
+        provider.signEthTransaction(1, "m/44'/60'/0'/0/0", new Uint8Array(), true),
+      ).rejects.toThrow('BitBox02 not connected');
     });
 
     it('returns the signature as 0x-hex r/s and numeric v', async () => {
@@ -208,8 +272,10 @@ describe('BitboxProvider', () => {
         true,
       );
 
-      const expectedR = '0x' + FAKE_BITBOX.sig.r.map((b) => b.toString(16).padStart(2, '0')).join('');
-      const expectedS = '0x' + FAKE_BITBOX.sig.s.map((b) => b.toString(16).padStart(2, '0')).join('');
+      const expectedR =
+        '0x' + FAKE_BITBOX.sig.r.map((b) => b.toString(16).padStart(2, '0')).join('');
+      const expectedS =
+        '0x' + FAKE_BITBOX.sig.s.map((b) => b.toString(16).padStart(2, '0')).join('');
       expect(sig).toEqual({ r: expectedR, s: expectedS, v: 0x1b });
     });
 
