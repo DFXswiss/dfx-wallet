@@ -229,8 +229,7 @@ describe('BitboxProvider', () => {
       const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
       const { provider, fake } = pairedProvider();
       await provider.connect(BLE_DEVICE);
-      fake.mode = 'cancel'; // close still succeeds in cancel mode...
-      fake.mode = 'disconnect'; // ...but in disconnect mode close errors.
+      fake.mode = 'disconnect'; // in disconnect mode the WASM `close` call errors.
 
       await expect(provider.disconnect()).resolves.toBeUndefined();
       expect(mockTransport.closed).toBe(true);

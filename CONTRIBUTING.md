@@ -174,9 +174,9 @@ Use the `@/` path alias for everything under `src/`.
 
 ### API Client
 
-All DFX backend communication goes through `src/services/dfx/api.ts`:
+All DFX backend communication goes through `src/features/dfx-backend/services/api.ts`:
 
-- DTOs in `src/services/dfx/dto/` with explicit types (no `any`)
+- DTOs in `src/features/dfx-backend/services/dto/` with explicit types (no `any`)
 - Never call `fetch()` directly — always use the typed API client
 
 ## Localization (i18n)
@@ -218,7 +218,7 @@ BitBox02 integration is a MUST-HAVE requirement.
 - Protocol stack (Noise XX handshake, Protobuf, signing) is transport-agnostic
 - Only the ReadWrite transport layer needs native implementation
 
-**Implementation**: `src/services/hardware-wallet/`
+**Implementation**: `src/features/hardware-wallet/`
 
 - `types.ts` — `HardwareWalletProvider`, `BitboxTransport` interfaces
 - `bitbox.ts` — `BitboxProvider` (scans USB + BLE, auto-selects transport)

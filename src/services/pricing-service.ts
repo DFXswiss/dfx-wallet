@@ -203,8 +203,9 @@ class PricingService {
 
   /**
    * Reset all in-memory price state — cache, init flag, any in-flight fetch
-   * and the auto-refresh timer. Used after logout, and by tests that need a
-   * clean singleton between cases (the cache is otherwise process-global).
+   * and the auto-refresh timer. Intended for a logout/account-switch teardown;
+   * currently consumed by the tests, which need a clean singleton between cases
+   * (the cache is otherwise process-global).
    */
   reset(): void {
     this.stopAutoRefresh();

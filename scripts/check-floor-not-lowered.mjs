@@ -31,13 +31,28 @@ const parseFloors = (raw) => {
   }
 };
 
-const violations = [];
+/** Parse a floor value to a finite number, or null if it is not one. */
+const toFloor = (value) => {
+  const n = typeof value === 'number' ? value : Number(String(value).trim());
+  return Number.isFinite(n) ? n : null;
+};
+
+// A non-numeric floor is corruption, not an intentional change: it must HARD
+// FAIL regardless of the label. NaN comparisons are always false, so trusting
+// `Number(...)` blindly would silently disable the gate — the exact "the gate
+// quietly stops asserting" failure this whole PR exists to prevent.
+const corruptions = [];
+// Lowering a floor (or dropping a Tier-A file) is intentional and may proceed
+// only with the `coverage:lower-floor` label.
+const weakenings = [];
 
 // 1) Aggregate floor — a single number.
-const baseLines = Number((read('.floor-base/lines', '0').trim() || '0'));
-const headLines = Number((read('.coverage-floor-lines', '0').trim() || '0'));
-if (headLines < baseLines) {
-  violations.push(`.coverage-floor-lines lowered ${baseLines} -> ${headLines}`);
+const baseLines = toFloor(read('.floor-base/lines', '0')) ?? 0;
+const headLines = toFloor(read('.coverage-floor-lines', '0'));
+if (headLines === null) {
+  corruptions.push('.coverage-floor-lines is not a number');
+} else if (headLines < baseLines) {
+  weakenings.push(`.coverage-floor-lines lowered ${baseLines} -> ${headLines}`);
 }
 
 // 2) Per-file Tier-A floors — lowering a number OR dropping a file both weaken it.
@@ -47,18 +62,32 @@ const baseFloors = parseFloors(read('.floor-base/floors.json', '{"files":{}}'));
 const headFloors = new Map(Object.entries(parseFloors(read('.coverage-floors.json', '{"files":{}}'))));
 for (const [file, baseVal] of Object.entries(baseFloors)) {
   if (!headFloors.has(file)) {
-    violations.push(`.coverage-floors.json dropped Tier-A file "${file}" (was ${baseVal})`);
-  } else if (headFloors.get(file) < baseVal) {
-    violations.push(`.coverage-floors.json lowered "${file}" ${baseVal} -> ${headFloors.get(file)}`);
+    weakenings.push(`.coverage-floors.json dropped Tier-A file "${file}" (was ${baseVal})`);
+    continue;
+  }
+  const headVal = toFloor(headFloors.get(file));
+  if (headVal === null) {
+    corruptions.push(`.coverage-floors.json floor for "${file}" is not a number`);
+  } else if (headVal < baseVal) {
+    weakenings.push(`.coverage-floors.json lowered "${file}" ${baseVal} -> ${headVal}`);
   }
 }
 
-if (violations.length === 0) {
+if (corruptions.length > 0) {
+  for (const c of corruptions) console.log(`floor corrupted: ${c}`);
+  console.error(
+    '::error::A coverage floor value is not a number — refusing to evaluate a corrupted ' +
+      'floor file. This fails closed and cannot be bypassed with the label.',
+  );
+  process.exit(1);
+}
+
+if (weakenings.length === 0) {
   console.log('coverage floors not lowered — ok');
   process.exit(0);
 }
 
-for (const v of violations) console.log(`floor weakened: ${v}`);
+for (const w of weakenings) console.log(`floor weakened: ${w}`);
 
 if (!hasLabel) {
   console.error(

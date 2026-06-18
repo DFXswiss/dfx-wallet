@@ -140,7 +140,7 @@ ship per-screen or per-flow.
       backoff. After N (e.g. 10) failures: wipe `expo-secure-store`,
       `IS_ONBOARDED`, encrypted seed, and reset to onboarding.
 - [ ] UI shows remaining attempts and lockout time.
-- **Acceptance**: dedicated test in `src/services/pin/` covers backoff
+- **Acceptance**: dedicated test in `src/services/pin.ts` covers backoff
   schedule and wipe trigger; manual test confirms recovery flow.
 
 ### P1.4 — Biometric re-auth before signing
