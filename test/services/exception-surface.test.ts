@@ -13,9 +13,25 @@
  * `name` regresses to 'Error' breaks every `err.name === ...` branch
  * silently.
  */
-import { execSync } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { DfxApiError } from '@/features/dfx-backend/services/api';
 import { PasskeyPrfUnsupportedError } from '@/features/passkey/services/passkey-service';
+
+/** Recursively list every non-test .ts/.tsx file under a directory. */
+function tsSourceFiles(dir: string): string[] {
+  const out: string[] = [];
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- test-only walk rooted at the literal 'src'; paths derive solely from that subtree, no external input
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...tsSourceFiles(path));
+    } else if (/\.tsx?$/.test(entry.name) && !entry.name.includes('.test.')) {
+      out.push(path);
+    }
+  }
+  return out;
+}
 
 // passkey-service pulls in react-native-passkey, whose native module probes
 // Platform at import time — irrelevant for the error class under test.
@@ -24,12 +40,18 @@ jest.mock('react-native', () => ({ Platform: { OS: 'ios', select: () => undefine
 
 describe('exception surface', () => {
   it('enumerates every typed exception defined under src/', () => {
-    const declarations = execSync(
-      "grep -rn 'extends Error' src --include='*.ts' --include='*.tsx' | grep -v '\\.test\\.' || true",
-      { encoding: 'utf8' },
-    )
-      .split('\n')
-      .filter(Boolean);
+    // Node FS walk instead of `grep`: independent of the runner's CWD and of a
+    // POSIX `grep` being on PATH (a missing binary would have reddened this
+    // suite without anything being wrong). Matching is identical — any line
+    // containing `extends Error` in a non-test source file under src/.
+    const declarations = tsSourceFiles('src').flatMap((file) =>
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- `file` comes only from the literal-rooted tsSourceFiles('src') walk, no external input
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .map((line, i) => ({ line, n: i + 1 }))
+        .filter(({ line }) => line.includes('extends Error'))
+        .map(({ line, n }) => `${file}:${n}:${line}`),
+    );
 
     // One entry per typed exception. Adding a new `extends Error` class?
     // Register it below AND add identity tests for it in this file.

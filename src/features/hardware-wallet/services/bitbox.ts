@@ -76,8 +76,10 @@ export class BitboxProvider implements HardwareWalletProvider {
     } catch (err) {
       try {
         await this.transport.close();
-      } catch {
+      } catch (closeErr) {
         // Transport may already be gone (cable pulled) — state reset matters more.
+        // Surface it for diagnostics; the original pairing error is still re-thrown.
+        console.warn('BitBox: closing transport after failed pairing also failed', closeErr);
       }
       this.transport = null;
       throw err;
@@ -90,8 +92,10 @@ export class BitboxProvider implements HardwareWalletProvider {
     if (this.transport) {
       try {
         await this.bridge.call('close');
-      } catch {
-        // Ignore close errors
+      } catch (closeErr) {
+        // Best-effort: the device may already be gone. Disconnect proceeds
+        // regardless, but surface it instead of swallowing silently.
+        console.warn('BitBox: bridge close during disconnect failed', closeErr);
       }
       await this.transport.close();
       this.transport = null;

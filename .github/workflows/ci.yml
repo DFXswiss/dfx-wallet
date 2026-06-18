@@ -92,21 +92,19 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-      - name: Floor may only decrease with the coverage:lower-floor label
+      - name: Floors (aggregate + per-file) may only decrease with the coverage:lower-floor label
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'coverage:lower-floor') }}
         run: |
-          BASE=$(git show "$BASE_SHA:.coverage-floor-lines" 2>/dev/null || echo 0)
-          HEAD=$(cat .coverage-floor-lines)
-          echo "floor: base=$BASE head=$HEAD"
-          if awk -v a="$HEAD" -v b="$BASE" 'BEGIN { exit !(a < b) }'; then
-            if [ "$HAS_LABEL" != "true" ]; then
-              echo "::error::.coverage-floor-lines was lowered ($BASE -> $HEAD) without the 'coverage:lower-floor' label. Lowering the floor requires explicit reviewer sign-off via the label."
-              exit 1
-            fi
-            echo "floor lowered with label — allowed"
-          fi
+          # Compare against the merge-base, not the base-branch tip: a floor the
+          # base raised after this PR forked must not look like a decrease here.
+          MERGE_BASE=$(git merge-base "$BASE_SHA" HEAD)
+          echo "merge-base: $MERGE_BASE"
+          mkdir -p .floor-base
+          git show "$MERGE_BASE:.coverage-floor-lines" > .floor-base/lines 2>/dev/null || echo 0 > .floor-base/lines
+          git show "$MERGE_BASE:.coverage-floors.json" > .floor-base/floors.json 2>/dev/null || echo '{"files":{}}' > .floor-base/floors.json
+          node scripts/check-floor-not-lowered.mjs
 
   # The README feature matrix is the source of truth for what the wallet does.
   # This job makes matrix drift a merge blocker: referenced files must exist,

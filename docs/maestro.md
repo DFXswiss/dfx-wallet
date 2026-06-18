@@ -153,7 +153,7 @@ Feature-gated (run by removing `--include-tags mvp` against a build with all fla
 
 ## Limitations
 
-- **Hardware Wallet flows**: Maestro cannot drive physical BitBox02 devices or BLE pairing dialogs. Hardware-wallet tests must run against the mock provider in `src/services/hardware-wallet/`.
+- **Hardware Wallet flows**: Maestro cannot drive physical BitBox02 devices or BLE pairing dialogs. Hardware-wallet tests must run against the mock provider in `src/features/hardware-wallet/`.
 - **Biometrics**: Face ID / Fingerprint prompts are scriptable on simulators (`xcrun simctl ... biometric` / `adb emu finger touch`) but require an explicit step in the flow.
 - **Passkeys**: WebAuthn / Passkey ceremonies cannot be fully automated on simulators yet — gate passkey-dependent flows behind a feature flag for E2E builds.
 

@@ -182,6 +182,34 @@ describe('BitboxProvider', () => {
       expect(provider.getConnectedDevice()).toBeNull();
       expect(mockTransport.closed).toBe(true);
     });
+
+    // Regression guard: pairing fails AND closing the half-open transport also
+    // fails (cable already gone). The original pairing error must still
+    // propagate, the close failure is surfaced for diagnostics rather than
+    // swallowed, and the session is fully reset — never left half-open.
+    it('resets state and surfaces the close failure when pairing and close both fail', async () => {
+      jest.useFakeTimers();
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const closeSpy = jest
+        .spyOn(mockTransport, 'close')
+        .mockRejectedValueOnce(new Error('cable already gone'));
+      const { provider } = pairedProvider('timeout');
+
+      const attempt = provider.connect(BLE_DEVICE);
+      const assertion = expect(attempt).rejects.toThrow('WASM bridge call timeout: pair');
+      await jest.advanceTimersByTimeAsync(30_000);
+      await assertion;
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('closing transport after failed pairing also failed'),
+        expect.any(Error),
+      );
+      expect(provider.isConnected()).toBe(false);
+      expect(provider.getConnectedDevice()).toBeNull();
+
+      warn.mockRestore();
+      closeSpy.mockRestore();
+    });
   });
 
   describe('disconnect', () => {
@@ -198,6 +226,7 @@ describe('BitboxProvider', () => {
     });
 
     it('still closes the transport when the WASM close errors', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
       const { provider, fake } = pairedProvider();
       await provider.connect(BLE_DEVICE);
       fake.mode = 'cancel'; // close still succeeds in cancel mode...
@@ -206,6 +235,12 @@ describe('BitboxProvider', () => {
       await expect(provider.disconnect()).resolves.toBeUndefined();
       expect(mockTransport.closed).toBe(true);
       expect(provider.isConnected()).toBe(false);
+      // The swallowed WASM-close error is surfaced for diagnostics, not silent.
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('bridge close during disconnect failed'),
+        expect.any(Error),
+      );
+      warn.mockRestore();
     });
 
     it('is a no-op when nothing is connected', async () => {

@@ -79,7 +79,18 @@ export class BleTransport implements BitboxTransport {
     if (!notifyChar) throw new Error('Notify characteristic not found');
 
     this.notifySubscription = notifyChar.monitor((error, char) => {
-      if (error || !char?.value) return;
+      if (error) {
+        // Link loss / monitor failure mid-ceremony: wake every pending read with
+        // the real error instead of letting it wait out the full READ_TIMEOUT_MS
+        // and then fail with a generic 'BLE read timeout' that hides the cause.
+        // Fail fast and fail honest — the Noise ceremony aborts cleanly.
+        for (const waiter of this.readWaiters.splice(0)) {
+          clearTimeout(waiter.timer);
+          waiter.reject(error);
+        }
+        return;
+      }
+      if (!char?.value) return;
       const bytes = base64ToBytes(char.value);
       const waiter = this.readWaiters.shift();
       if (waiter) {

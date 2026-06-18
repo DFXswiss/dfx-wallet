@@ -12,6 +12,7 @@
 # Key handling & signing
 /src/services/wallet/        @Danswar @davidleomay @TaprootFreak
 /src/services/security/      @Danswar @davidleomay @TaprootFreak
+/src/services/evm/           @Danswar @davidleomay @TaprootFreak
 /src/services/storage.ts     @Danswar @davidleomay @TaprootFreak
 /src/services/pin.ts         @Danswar @davidleomay @TaprootFreak
 /src/features/hardware-wallet/ @Danswar @davidleomay @TaprootFreak
@@ -19,16 +20,24 @@
 /src/features/biometric/     @Danswar @davidleomay @TaprootFreak
 /src/features/pin/           @Danswar @davidleomay @TaprootFreak
 
+# Feature flags decide which security features are live
+/src/config/features.ts      @Danswar @davidleomay @TaprootFreak
+
+# Security-critical screens (seed export, PIN entry, onboarding/key creation)
+/app/(auth)/seed-export.tsx  @Danswar @davidleomay @TaprootFreak
+/app/(pin)/                  @Danswar @davidleomay @TaprootFreak
+/app/(onboarding)/           @Danswar @davidleomay @TaprootFreak
+
 # Backend trust boundary
 /src/features/dfx-backend/   @Danswar @davidleomay @TaprootFreak
 
 # Supply chain & build integrity
 /package.json                @Danswar @davidleomay @TaprootFreak
 /package-lock.json           @Danswar @davidleomay @TaprootFreak
-/patches/                    @Danswar @davidleomay @TaprootFreak
 /plugins/                    @Danswar @davidleomay @TaprootFreak
 
 # CI and the gates themselves (a gate nobody guards is not a gate)
 /.github/                    @Danswar @davidleomay @TaprootFreak
 /scripts/                    @Danswar @davidleomay @TaprootFreak
 /.coverage-floor-lines       @Danswar @davidleomay @TaprootFreak
+/.coverage-floors.json       @Danswar @davidleomay @TaprootFreak

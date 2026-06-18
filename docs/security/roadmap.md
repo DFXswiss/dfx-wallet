@@ -34,7 +34,7 @@ makes later phases possible. None of it requires design or product input.
 ### P0.3 — Test coverage gate
 
 - [ ] Add Jest coverage thresholds (`global: 60%`, `src/services/**: 70%`,
-      `src/services/hardware-wallet/**: 90%`).
+      `src/features/hardware-wallet/**: 90%`).
 - [ ] Wire `npm test -- --coverage` into CI as its own job.
 - **Acceptance**: CI fails if a PR drops coverage below the gate; baseline
   documented in this file.
@@ -347,8 +347,8 @@ phase if a structural change is needed.
 
 ### Reviews
 
-Any PR touching `src/services/hardware-wallet/`, `src/services/wallet/`,
-`src/services/dfx/`, `src/services/pin/`, `src/services/biometric/`, or
+Any PR touching `src/features/hardware-wallet/`, `src/services/wallet/`,
+`src/features/dfx-backend/`, `src/services/pin.ts`, `src/features/biometric/`, or
 secure storage requires a security-conscious review (one of the
 maintainers tagged for security). Document this requirement in
 `CODEOWNERS` once the file exists.

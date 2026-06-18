@@ -2,7 +2,8 @@
   "_comment": [
     "Per-file MINIMUM line coverage for Tier-A files: key derivation, wallet",
     "seed/setup, signing, authentication, secure storage, biometric and the",
-    "hardware-wallet bridge. Enforced by scripts/check-coverage-file-floors.mjs",
+    "hardware-wallet bridge and its BLE/USB transports. Enforced by",
+    "scripts/check-coverage-file-floors.mjs",
     "(see ci.yml job `coverage-floor`).",
     "",
     "Why this exists on top of .coverage-floor-lines: the aggregate floor lets",
@@ -20,6 +21,8 @@
     "src/features/dfx-backend/services/kyc-service.ts": 100,
     "src/features/biometric/biometric.ts": 100,
     "src/features/hardware-wallet/services/bitbox.ts": 100,
+    "src/features/hardware-wallet/services/transport-ble.ts": 100,
+    "src/features/hardware-wallet/services/transport-usb.ts": 100,
     "src/services/wallet/seed.ts": 100,
     "src/services/pin.ts": 100,
     "src/services/storage.ts": 100,

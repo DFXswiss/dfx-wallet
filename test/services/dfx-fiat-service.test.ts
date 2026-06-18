@@ -7,23 +7,11 @@
 import { dfxApi, DfxApiError } from '../../src/features/dfx-backend/services/api';
 import { dfxFiatService, type DfxFiat } from '../../src/features/dfx-backend/services/fiat-service';
 import { env } from '../../src/config/env';
+import { jsonOk, createDfxFetchMock } from '../helpers/dfx-http';
 
 const BASE = env.dfxApiUrl;
 
-function httpResponse(status: number, bodyText: string): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    text: async () => bodyText,
-    json: async () => JSON.parse(bodyText) as unknown,
-  } as unknown as Response;
-}
-
-const jsonOk = (body: unknown, status = 200): Response =>
-  httpResponse(status, body === undefined ? '' : JSON.stringify(body));
-
-const fetchMock = jest.fn<Promise<Response>, [string, RequestInit | undefined]>();
-const realFetch = globalThis.fetch;
+const { fetchMock, realFetch } = createDfxFetchMock();
 
 const FIATS: DfxFiat[] = [
   { id: 2, name: 'EUR', buyable: true, sellable: true },

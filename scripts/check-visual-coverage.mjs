@@ -369,6 +369,19 @@ function main() {
     matcherNames: discoverMatcherNames(),
     committedPngs: discoverCommittedBaselines(),
   };
+
+  // Refuse to pass vacuously: with zero discovered routes (wrong CWD, an empty
+  // or renamed app/), every per-route check is skipped and `baselineable === 0`
+  // would even report 100% coverage. That is a setup error, not a clean gate.
+  // (A missing app/ makes `find`/execSync throw and exit non-zero already.)
+  if (observed.routes.length === 0) {
+    console.error(
+      'visual-coverage: discovered 0 screens under app/ — the gate cannot validate ' +
+        'visual coverage. This is a setup error (wrong working directory or an empty app/), not a pass.',
+    );
+    process.exit(1);
+  }
+
   const { errors, stats } = validate(manifest, observed, { strict });
 
   if (errors.length > 0) {

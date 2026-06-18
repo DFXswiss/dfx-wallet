@@ -377,6 +377,32 @@ describe('BleTransport', () => {
       // Only the real frame is delivered; the garbage frames are dropped.
       await expect(transport.read()).resolves.toEqual(new Uint8Array([0x42]));
     });
+
+    // Regression guard (was a real bug): a monitor error (BLE link loss) while
+    // reads are in flight must wake every pending read with the REAL error,
+    // immediately — not let them wait out the full READ_TIMEOUT_MS and then
+    // surface a generic 'BLE read timeout' that hides the link loss. A signing
+    // ceremony aborts cleanly with the true cause instead of hanging 10s.
+    it('rejects in-flight reads with the real error on monitor link loss (fail fast, not timeout)', async () => {
+      jest.useFakeTimers();
+      const { transport, fake } = await connectedTransport();
+
+      const first = transport.read();
+      const second = transport.read();
+      const firstAssertion = expect(first).rejects.toThrow('link loss mid-ceremony');
+      const secondAssertion = expect(second).rejects.toThrow('link loss mid-ceremony');
+
+      // No timer advance: the rejection is immediate on link loss, not after 10s.
+      fake.notifyError(new Error('link loss mid-ceremony'));
+      await firstAssertion;
+      await secondAssertion;
+
+      // Waiters are consumed: a fresh read starts empty and times out on its own.
+      const next = transport.read();
+      const nextAssertion = expect(next).rejects.toThrow('BLE read timeout');
+      jest.advanceTimersByTime(10_000);
+      await nextAssertion;
+    });
   });
 
   describe('close', () => {

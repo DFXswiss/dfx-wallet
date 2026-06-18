@@ -15,18 +15,9 @@
 
 import { FiatCurrency, pricingService } from '../../src/services/pricing-service';
 
-type Internals = {
-  cache: unknown;
-  isInitialized: boolean;
-  inflight: Promise<void> | null;
-};
-
-const reset = () => {
-  const internals = pricingService as unknown as Internals;
-  internals.cache = undefined;
-  internals.isInitialized = false;
-  internals.inflight = null;
-};
+// Use the public reset() (added for logout) rather than casting into private
+// fields, so a refactor of the cache internals can't make this test lie.
+const reset = () => pricingService.reset();
 
 const okFetch = (payload: Record<string, Record<string, number> | null>): jest.Mock => {
   const fn = jest.fn(

@@ -84,6 +84,19 @@ const screenFiles = execSync(
   .split('\n')
   .filter(Boolean);
 
+// Refuse to pass vacuously: if `find` returns nothing (wrong CWD, an empty or
+// renamed `app/`), the loop below never runs and the gate would report success
+// while validating zero screens. Assert the gate's own precondition instead.
+// (A missing `app/` makes `execSync` throw and exit non-zero — that path is
+// already correct; this only covers the "exists but empty" case.)
+if (screenFiles.length === 0) {
+  console.error(
+    'feature-matrix: found 0 screens under app/ — the gate cannot validate matrix coverage. ' +
+      'This is a setup error (wrong working directory or an empty app/), not a pass.',
+  );
+  process.exit(1);
+}
+
 for (const f of screenFiles) {
   const short = f.replace(/^app\//, '');
   if (!readme.includes(f) && !readme.includes(short)) {

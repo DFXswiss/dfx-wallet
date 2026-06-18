@@ -10,23 +10,11 @@ import { dfxAssetService } from '../../src/features/dfx-backend/services/asset-s
 import { dfxFiatService } from '../../src/features/dfx-backend/services/fiat-service';
 import { dfxPaymentService } from '../../src/features/dfx-backend/services/payment-service';
 import { env } from '../../src/config/env';
+import { jsonOk, createDfxFetchMock } from '../helpers/dfx-http';
 
 const BASE = env.dfxApiUrl;
 
-function httpResponse(status: number, bodyText: string): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    text: async () => bodyText,
-    json: async () => JSON.parse(bodyText) as unknown,
-  } as unknown as Response;
-}
-
-const jsonOk = (body: unknown, status = 200): Response =>
-  httpResponse(status, body === undefined ? '' : JSON.stringify(body));
-
-const fetchMock = jest.fn<Promise<Response>, [string, RequestInit | undefined]>();
-const realFetch = globalThis.fetch;
+const { fetchMock, realFetch, findCall } = createDfxFetchMock();
 
 const FIATS = [
   { id: 2, name: 'EUR', buyable: true, sellable: true },
@@ -34,8 +22,27 @@ const FIATS = [
 ];
 
 const ASSETS = [
-  { id: 11, name: 'BTC', uniqueName: 'Bitcoin/BTC', blockchain: 'Bitcoin', category: 'PublicAsset', type: 'Coin', buyable: true, sellable: true },
-  { id: 12, name: 'ETH', uniqueName: 'Ethereum/ETH', blockchain: 'Ethereum', category: 'PublicAsset', type: 'Coin', buyable: true, sellable: true, evmChainId: 1 },
+  {
+    id: 11,
+    name: 'BTC',
+    uniqueName: 'Bitcoin/BTC',
+    blockchain: 'Bitcoin',
+    category: 'PublicAsset',
+    type: 'Coin',
+    buyable: true,
+    sellable: true,
+  },
+  {
+    id: 12,
+    name: 'ETH',
+    uniqueName: 'Ethereum/ETH',
+    blockchain: 'Ethereum',
+    category: 'PublicAsset',
+    type: 'Coin',
+    buyable: true,
+    sellable: true,
+    evmChainId: 1,
+  },
 ];
 
 /** Serve the public catalogs and delegate everything else to `main`. */
@@ -45,12 +52,6 @@ function routeFetch(main: (url: string, init?: RequestInit) => Response) {
     if (url === `${BASE}/v1/asset`) return jsonOk(ASSETS);
     return main(url, init);
   });
-}
-
-function findCall(url: string): RequestInit {
-  const c = fetchMock.mock.calls.find(([u]) => u === url);
-  if (!c) throw new Error(`expected a fetch to ${url}`);
-  return c[1] ?? {};
 }
 
 const AUTH_HEADERS = {
@@ -129,8 +130,18 @@ describe('dfxPaymentService buy flow', () => {
   it('reuses the cached catalogs across consecutive quotes', async () => {
     routeFetch(() => jsonOk({ isValid: true }));
 
-    await dfxPaymentService.getBuyQuote({ amount: 1, currency: 'EUR', asset: 'BTC', blockchain: 'Bitcoin' });
-    await dfxPaymentService.getBuyQuote({ amount: 2, currency: 'EUR', asset: 'BTC', blockchain: 'Bitcoin' });
+    await dfxPaymentService.getBuyQuote({
+      amount: 1,
+      currency: 'EUR',
+      asset: 'BTC',
+      blockchain: 'Bitcoin',
+    });
+    await dfxPaymentService.getBuyQuote({
+      amount: 2,
+      currency: 'EUR',
+      asset: 'BTC',
+      blockchain: 'Bitcoin',
+    });
 
     const catalogCalls = fetchMock.mock.calls.filter(
       ([u]) => u === `${BASE}/v1/fiat` || u === `${BASE}/v1/asset`,
@@ -143,7 +154,12 @@ describe('dfxPaymentService buy flow', () => {
     routeFetch(() => jsonOk({ isValid: true }));
 
     await expect(
-      dfxPaymentService.getBuyQuote({ amount: 1, currency: 'EUR', asset: 'DOGE', blockchain: 'Bitcoin' }),
+      dfxPaymentService.getBuyQuote({
+        amount: 1,
+        currency: 'EUR',
+        asset: 'DOGE',
+        blockchain: 'Bitcoin',
+      }),
     ).rejects.toThrow('Asset DOGE on Bitcoin not found');
 
     expect(fetchMock.mock.calls.some(([u]) => u === `${BASE}/v1/buy/quote`)).toBe(false);
@@ -153,7 +169,12 @@ describe('dfxPaymentService buy flow', () => {
     routeFetch(() => jsonOk({ isValid: true }));
 
     await expect(
-      dfxPaymentService.getBuyQuote({ amount: 1, currency: 'JPY', asset: 'BTC', blockchain: 'Bitcoin' }),
+      dfxPaymentService.getBuyQuote({
+        amount: 1,
+        currency: 'JPY',
+        asset: 'BTC',
+        blockchain: 'Bitcoin',
+      }),
     ).rejects.toThrow('Currency JPY not supported');
 
     expect(fetchMock.mock.calls.some(([u]) => u === `${BASE}/v1/buy/quote`)).toBe(false);
@@ -390,7 +411,12 @@ describe('dfxPaymentService error and hostile-response paths', () => {
     });
 
     await expect(
-      dfxPaymentService.getSellQuote({ amount: 1, asset: 'BTC', blockchain: 'Bitcoin', currency: 'EUR' }),
+      dfxPaymentService.getSellQuote({
+        amount: 1,
+        asset: 'BTC',
+        blockchain: 'Bitcoin',
+        currency: 'EUR',
+      }),
     ).rejects.toThrow('Network request failed');
   });
 
@@ -402,7 +428,12 @@ describe('dfxPaymentService error and hostile-response paths', () => {
     routeFetch(() => jsonOk({}));
 
     await expect(
-      dfxPaymentService.getBuyQuote({ amount: 1, currency: 'EUR', asset: 'BTC', blockchain: 'Bitcoin' }),
+      dfxPaymentService.getBuyQuote({
+        amount: 1,
+        currency: 'EUR',
+        asset: 'BTC',
+        blockchain: 'Bitcoin',
+      }),
     ).resolves.toEqual({});
   });
 
@@ -414,7 +445,12 @@ describe('dfxPaymentService error and hostile-response paths', () => {
     routeFetch(() => jsonOk(invalid));
 
     await expect(
-      dfxPaymentService.getBuyQuote({ amount: 9e9, currency: 'EUR', asset: 'BTC', blockchain: 'Bitcoin' }),
+      dfxPaymentService.getBuyQuote({
+        amount: 9e9,
+        currency: 'EUR',
+        asset: 'BTC',
+        blockchain: 'Bitcoin',
+      }),
     ).resolves.toEqual(invalid);
   });
 });

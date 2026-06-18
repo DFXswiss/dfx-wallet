@@ -8,6 +8,7 @@
 
 - [ ] No user-facing function added/changed/removed — matrix untouched
 - [ ] Matrix row(s) updated in this PR: <!-- which row(s)? -->
+- [ ] New screen added → classified in `e2e/visual-coverage.json` (CI enforces it)
 
 ## Tests
 
