@@ -9,19 +9,11 @@ const PricingServiceCtor = (pricingService as unknown as { constructor: unknown 
 describe('pricingService', () => {
   const originalFetch = globalThis.fetch;
 
-  // The pricing service is a module-level singleton. Reach into it to wipe
-  // the internal cache between cases so each test runs against a known
-  // empty state and forces a fresh upstream call.
-  const resetPricingService = () => {
-    const internals = pricingService as unknown as {
-      cache: unknown;
-      isInitialized: boolean;
-      inflight: Promise<void> | null;
-    };
-    internals.cache = undefined;
-    internals.isInitialized = false;
-    internals.inflight = null;
-  };
+  // The pricing service is a module-level singleton; reset it between cases
+  // via its public reset() so each test starts from a known-empty state and
+  // forces a fresh upstream call — and so a refactor of the cache internals
+  // cannot make these tests silently lie.
+  const resetPricingService = () => pricingService.reset();
 
   beforeEach(() => {
     resetPricingService();

@@ -1,4 +1,4 @@
-import { decodeDfxJwt } from '../../src/features/dfx-backend/services/jwt';
+import { decodeDfxJwt, jwtCoversBlockchain } from '../../src/features/dfx-backend/services/jwt';
 
 const base64UrlEncode = (input: string): string =>
   Buffer.from(input).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -33,5 +33,35 @@ describe('decodeDfxJwt', () => {
     const token = buildJwt({ account: 1 });
     expect(payload.length).toBeGreaterThan(0);
     expect(decodeDfxJwt(token)?.account).toBe(1);
+  });
+});
+
+describe('jwtCoversBlockchain', () => {
+  it('returns false for a null token (no active session)', () => {
+    expect(jwtCoversBlockchain(null, 'Ethereum')).toBe(false);
+  });
+
+  it('returns false when the token has no blockchains claim', () => {
+    expect(jwtCoversBlockchain(buildJwt({ account: 1 }), 'Ethereum')).toBe(false);
+  });
+
+  it('returns false when the token is structurally invalid', () => {
+    expect(jwtCoversBlockchain('not.a.jwt', 'Ethereum')).toBe(false);
+  });
+
+  it('returns true when the blockchain is present in the claim', () => {
+    const token = buildJwt({ blockchains: ['Ethereum', 'Polygon'] });
+    expect(jwtCoversBlockchain(token, 'Ethereum')).toBe(true);
+  });
+
+  it('matches case-insensitively in both directions', () => {
+    const token = buildJwt({ blockchains: ['ETHEREUM'] });
+    expect(jwtCoversBlockchain(token, 'ethereum')).toBe(true);
+    expect(jwtCoversBlockchain(buildJwt({ blockchains: ['arbitrum'] }), 'Arbitrum')).toBe(true);
+  });
+
+  it('returns false when the requested blockchain is not in the claim', () => {
+    const token = buildJwt({ blockchains: ['Ethereum'] });
+    expect(jwtCoversBlockchain(token, 'Bitcoin')).toBe(false);
   });
 });

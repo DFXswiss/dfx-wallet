@@ -2,6 +2,32 @@
 
 Pixel-by-pixel screenshot comparison for DFX Wallet using [Detox](https://wix.github.io/Detox/) and [jest-image-snapshot](https://github.com/americanexpress/jest-image-snapshot). Test sources live in `e2e/visual/*.test.ts`, baselines in `e2e/__baselines__/*.png`.
 
+## Baseline coverage gate
+
+A visual-regression suite is only as honest as the set of screens it actually snapshots — a green run that silently skips half the app reads as "appearance verified" when it is not. `e2e/visual-coverage.json` is the source of truth that closes that gap: **every** route under `app/` must be classified as exactly one of
+
+| Status      | Meaning                                                                                                                                         | Required fields                                                                            |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `baselined` | Has a committed PNG and a matching `expectScreenToMatchBaseline()` call                                                                         | `baselines: []` (optionally `pendingBaselines: []` for feature-variant captures in flight) |
+| `exempt`    | A documented engineering reason it can't be pixel-baselined (redirect, external WebView content, OS-browser launcher, dynamic `[param]` detail) | `category` (from `exemptCategories`) + `reason`                                            |
+| `pending`   | Owes a baseline; not yet captured                                                                                                               | `tracking` (issue/PR) + `reason`                                                           |
+
+`scripts/check-visual-coverage.mjs` (CI job `visual-coverage`, dependency-free `node`) enforces it fail-closed:
+
+- Route table on disk **==** manifest, both directions — a new screen with no entry fails the build, exactly like a missing README matrix row.
+- Every `baselines` name has both a matcher call **and** a committed PNG; every `pendingBaselines` name has a call but no PNG yet (in flight, not silently missing).
+- No orphan matcher calls, no orphan committed PNGs.
+
+The gate also `--self-test`s its own logic against synthetic fixtures so a refactor of the checker can't quietly stop catching regressions.
+
+### Ratchet to 100%
+
+This is the appearance-side sibling of the [coverage floors](../scripts/check-coverage-floor.mjs). Today the manifest reports route accountability at 100% (every screen classified) with baseline pixel-coverage ratcheting up as `pending` entries are captured. Drive a `pending` entry to `baselined` by adding the `expectScreenToMatchBaseline()` call (see [Adding a new screenshot](#adding-a-new-screenshot)) and committing the captured PNG — **never** reclassify a real screen as `exempt` to inflate the number; exemptions are reviewed. Once `pending` is empty, lock it in:
+
+```bash
+node scripts/check-visual-coverage.mjs --strict   # fails if any pending remains
+```
+
 ## Why Detox + jest-image-snapshot
 
 - Catches visual regressions the [Maestro flows](maestro.md) cannot — colour drift, layout shifts, missing assets, font rendering, etc.
@@ -32,7 +58,9 @@ e2e/
 
 ```ts
 await element(by.id('welcome-create-wallet-button')).tap();
-await waitFor(element(by.id('create-wallet-screen'))).toBeVisible().withTimeout(30_000);
+await waitFor(element(by.id('create-wallet-screen')))
+  .toBeVisible()
+  .withTimeout(30_000);
 await expectScreenToMatchBaseline('create-wallet');
 ```
 
@@ -112,11 +140,15 @@ Detox treats `toBeVisible` as "more than 75% of the element is on screen". A vie
 
 ```ts
 // ❌ receive-qr is inside the scroll view, may be partially clipped
-await waitFor(element(by.id('receive-qr'))).toBeVisible().withTimeout(30_000);
+await waitFor(element(by.id('receive-qr')))
+  .toBeVisible()
+  .withTimeout(30_000);
 
 // ✅ receive-selected-asset-pill is the topmost element on the QR step,
 // always fully visible, sufficient signal that the step transition fired
-await waitFor(element(by.id('receive-selected-asset-pill'))).toBeVisible().withTimeout(30_000);
+await waitFor(element(by.id('receive-selected-asset-pill')))
+  .toBeVisible()
+  .withTimeout(30_000);
 ```
 
 Pick top-of-screen anchors (header back buttons, the topmost card in a list, the selected-asset pill) over wrapper Views or content sitting deeper in a scroll view.
@@ -128,7 +160,9 @@ Pick top-of-screen anchors (header back buttons, the topmost card in a list, the
 ```ts
 // ✅ Add a pause() after every back-nav before the next test's first interaction
 await element(by.id('receive-screen-back')).tap();
-await waitFor(element(by.id('dashboard-balance-toggle'))).toBeVisible().withTimeout(30_000);
+await waitFor(element(by.id('dashboard-balance-toggle')))
+  .toBeVisible()
+  .withTimeout(30_000);
 await pause();
 ```
 

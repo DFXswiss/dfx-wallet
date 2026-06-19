@@ -67,8 +67,23 @@ export class BitboxProvider implements HardwareWalletProvider {
       }
     };
 
-    // 3. Initiate pairing via WASM
-    await this.bridge.call('pair');
+    // 3. Initiate pairing via WASM. If pairing fails (user declined the
+    // code, device hang, transport drop) the half-open transport must not
+    // survive — otherwise isConnected() reports true for a session that
+    // never completed the Noise handshake.
+    try {
+      await this.bridge.call('pair');
+    } catch (err) {
+      try {
+        await this.transport.close();
+      } catch (closeErr) {
+        // Transport may already be gone (cable pulled) — state reset matters more.
+        // Surface it for diagnostics; the original pairing error is still re-thrown.
+        console.warn('BitBox: closing transport after failed pairing also failed', closeErr);
+      }
+      this.transport = null;
+      throw err;
+    }
 
     this.connectedDevice = device;
   }
@@ -77,8 +92,10 @@ export class BitboxProvider implements HardwareWalletProvider {
     if (this.transport) {
       try {
         await this.bridge.call('close');
-      } catch {
-        // Ignore close errors
+      } catch (closeErr) {
+        // Best-effort: the device may already be gone. Disconnect proceeds
+        // regardless, but surface it instead of swallowing silently.
+        console.warn('BitBox: bridge close during disconnect failed', closeErr);
       }
       await this.transport.close();
       this.transport = null;
