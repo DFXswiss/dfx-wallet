@@ -127,6 +127,23 @@ describe('WasmBridge', () => {
       expect(jest.getTimerCount()).toBe(0);
     });
 
+    it('clears the call timeout on an error response (no leaked timer)', async () => {
+      // The clearTimeout sits before the success/error branch, so a rejected
+      // call must release its timer just like a resolved one.
+      jest.useFakeTimers();
+      const sent: number[] = [];
+      bridge.setWebView({ postMessage: (raw) => sent.push(JSON.parse(raw).id) });
+
+      const call = bridge.call('ethSign1559Transaction');
+      const assertion = expect(call).rejects.toThrow('device rejected');
+      expect(jest.getTimerCount()).toBe(1);
+
+      bridge.onMessage(JSON.stringify({ id: sent[0], error: 'device rejected' }));
+      await assertion;
+
+      expect(jest.getTimerCount()).toBe(0);
+    });
+
     it('clears pending call timeouts on destroy (no leaked timer)', async () => {
       jest.useFakeTimers();
       bridge.setWebView({ postMessage: () => {} });

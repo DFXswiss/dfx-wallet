@@ -119,9 +119,13 @@ export class WasmBridge {
       }
     } catch (err) {
       // Malformed/non-JSON frames are ignored by design, but surface them for
-      // diagnostics instead of swallowing silently. The raw payload is not
-      // logged — it can carry signing data.
-      console.warn('WasmBridge: ignoring malformed bridge message', err);
+      // diagnostics instead of swallowing silently. Only the error name is
+      // logged — never err.message or the raw payload, which can embed signing
+      // bytes from a truncated frame.
+      console.warn(
+        'WasmBridge: ignoring malformed bridge message',
+        err instanceof Error ? err.name : 'parse error',
+      );
     }
   }
 
