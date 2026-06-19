@@ -108,6 +108,54 @@ describe('WasmBridge', () => {
       jest.advanceTimersByTime(30_000);
       await assertion;
     });
+
+    it('clears the call timeout once the response arrives (no leaked timer)', async () => {
+      // Regression guard: the 30s timeout used to outlive every successful call
+      // (it was never cleared), leaking a live timer per RPC — which also made
+      // the Jest worker fail to exit gracefully.
+      jest.useFakeTimers();
+      const sent: number[] = [];
+      bridge.setWebView({ postMessage: (raw: string) => sent.push(JSON.parse(raw).id) });
+
+      const call = bridge.call<string>('ethAddress');
+      expect(jest.getTimerCount()).toBe(1); // timeout armed while in flight
+
+      bridge.onMessage(JSON.stringify({ id: sent[0], result: 'eth-result' }));
+      await expect(call).resolves.toBe('eth-result');
+
+      // The fix: the timeout is cleared on response — nothing outlives the call.
+      expect(jest.getTimerCount()).toBe(0);
+    });
+
+    it('clears the call timeout on an error response (no leaked timer)', async () => {
+      // The clearTimeout sits before the success/error branch, so a rejected
+      // call must release its timer just like a resolved one.
+      jest.useFakeTimers();
+      const sent: number[] = [];
+      bridge.setWebView({ postMessage: (raw: string) => sent.push(JSON.parse(raw).id) });
+
+      const call = bridge.call('ethSign1559Transaction');
+      const assertion = expect(call).rejects.toThrow('device rejected');
+      expect(jest.getTimerCount()).toBe(1);
+
+      bridge.onMessage(JSON.stringify({ id: sent[0], error: 'device rejected' }));
+      await assertion;
+
+      expect(jest.getTimerCount()).toBe(0);
+    });
+
+    it('clears pending call timeouts on destroy (no leaked timer)', async () => {
+      jest.useFakeTimers();
+      bridge.setWebView({ postMessage: () => {} });
+
+      const pending = bridge.call('pair');
+      const assertion = expect(pending).rejects.toThrow('Bridge destroyed');
+      expect(jest.getTimerCount()).toBe(1);
+
+      bridge.destroy();
+      await assertion;
+      expect(jest.getTimerCount()).toBe(0);
+    });
   });
 
   describe('transport callbacks', () => {
