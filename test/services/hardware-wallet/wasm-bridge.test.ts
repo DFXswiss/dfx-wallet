@@ -115,7 +115,7 @@ describe('WasmBridge', () => {
       // the Jest worker fail to exit gracefully.
       jest.useFakeTimers();
       const sent: number[] = [];
-      bridge.setWebView({ postMessage: (raw) => sent.push(JSON.parse(raw).id) });
+      bridge.setWebView({ postMessage: (raw: string) => sent.push(JSON.parse(raw).id) });
 
       const call = bridge.call<string>('ethAddress');
       expect(jest.getTimerCount()).toBe(1); // timeout armed while in flight
@@ -132,7 +132,7 @@ describe('WasmBridge', () => {
       // call must release its timer just like a resolved one.
       jest.useFakeTimers();
       const sent: number[] = [];
-      bridge.setWebView({ postMessage: (raw) => sent.push(JSON.parse(raw).id) });
+      bridge.setWebView({ postMessage: (raw: string) => sent.push(JSON.parse(raw).id) });
 
       const call = bridge.call('ethSign1559Transaction');
       const assertion = expect(call).rejects.toThrow('device rejected');
