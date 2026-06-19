@@ -95,16 +95,11 @@ jobs:
         # build snapshots the feature-gated authenticated screens. Each leg runs
         # only its own suite so a build never runs the other variant's screens
         # (which would render *Disabled stubs / real screens out of scope).
-        #
-        # --retries 1 reruns the whole failed spec file in a fresh app session.
-        # Onboarding runs WDK chain init on the main thread (90s+); an occasional
-        # overrun fails the onboard step and cascades to every later block that
-        # reuses its wallet state. A spec-level rerun absorbs that one-off stall.
         run: |
           if [ "${{ matrix.variant }}" = "full" ]; then
-            npm run e2e:test:ios -- --retries 1 e2e/visual/authenticated.test.ts
+            npm run e2e:test:ios -- e2e/visual/authenticated.test.ts
           else
-            npm run e2e:test:ios -- --retries 1 e2e/visual/onboarding.test.ts
+            npm run e2e:test:ios -- e2e/visual/onboarding.test.ts
           fi
 
       - name: Upload diff images on failure

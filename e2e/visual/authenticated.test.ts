@@ -39,11 +39,10 @@ async function onboardToDashboard(): Promise<void> {
   await element(by.id('create-wallet-reveal-button')).tap();
   await pause(2_000);
   await element(by.id('create-wallet-continue-button')).tap();
-  // WDK chain init on a fresh wallet can take 90s+; allow generous headroom
-  // over the observed ceiling so a loaded CI runner doesn't trip the timeout.
+  // WDK chain init on a fresh wallet can take 90s+.
   await waitFor(element(by.id('setup-pin-screen')))
     .toBeVisible()
-    .withTimeout(180_000);
+    .withTimeout(120_000);
   await enterPin(PIN);
   await waitFor(element(by.id('setup-pin-confirm-screen')))
     .toBeVisible()
