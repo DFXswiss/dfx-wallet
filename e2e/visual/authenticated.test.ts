@@ -39,23 +39,25 @@ async function onboardToDashboard(): Promise<void> {
   await element(by.id('welcome-create-wallet-button')).tap();
   await waitFor(element(by.id('create-wallet-screen')))
     .toBeVisible()
-    .withTimeout(30_000);
+    .withTimeout(60_000);
   // The continue button is gated behind revealing (acknowledging) the seed.
   await element(by.id('create-wallet-reveal-button')).tap();
   await pause(2_000);
   await element(by.id('create-wallet-continue-button')).tap();
-  // WDK chain init on a fresh wallet can take 90s+.
+  // WDK chain init on a fresh wallet is the slowest step here: ~40s locally,
+  // but the full-feature build on a cold GitHub macOS runner is ~4-5x slower
+  // (≈160-200s), so this wait has to be generous or the whole suite cascades.
   await waitFor(element(by.id('setup-pin-screen')))
     .toBeVisible()
-    .withTimeout(120_000);
+    .withTimeout(300_000);
   await enterPin(PIN);
   await waitFor(element(by.id('setup-pin-confirm-screen')))
     .toBeVisible()
-    .withTimeout(30_000);
+    .withTimeout(60_000);
   await enterPin(PIN);
   await waitFor(element(by.id('legal-disclaimer-screen')))
     .toBeVisible()
-    .withTimeout(30_000);
+    .withTimeout(60_000);
   await element(by.id('legal-accept-checkbox')).tap();
   // The continue button sits below a spacer at the bottom of the scroll view;
   // on shorter viewports it is clipped, so scroll it fully into view first.
@@ -66,7 +68,7 @@ async function onboardToDashboard(): Promise<void> {
   await element(by.id('legal-continue-button')).tap();
   await waitFor(element(by.id('dashboard-screen')))
     .toBeVisible()
-    .withTimeout(30_000);
+    .withTimeout(60_000);
 }
 
 async function openSettings(): Promise<void> {
@@ -75,7 +77,7 @@ async function openSettings(): Promise<void> {
   // anchor for the screen transition (the screen has no root testID).
   await waitFor(element(by.id('settings-user-data')))
     .toBeVisible()
-    .withTimeout(30_000);
+    .withTimeout(60_000);
   await pause();
 }
 
@@ -91,7 +93,7 @@ describe('Visual Regression (full variant)', () => {
       await element(by.id('welcome-create-passkey-button')).tap();
       await waitFor(element(by.id('create-passkey-screen')))
         .toBeVisible()
-        .withTimeout(30_000);
+        .withTimeout(60_000);
       await pause();
       await expectScreenToMatchBaseline('create-passkey');
     });
@@ -109,7 +111,7 @@ describe('Visual Regression (full variant)', () => {
       await element(by.id('welcome-restore-passkey-button')).tap();
       await waitFor(element(by.id('restore-passkey-screen')))
         .toBeVisible()
-        .withTimeout(30_000);
+        .withTimeout(60_000);
       await pause();
       await expectScreenToMatchBaseline('restore-passkey');
     });
@@ -143,7 +145,7 @@ describe('Visual Regression (full variant)', () => {
       await element(by.id('dashboard-shield-button')).tap();
       await waitFor(element(by.id('multi-sig-manage')))
         .toBeVisible()
-        .withTimeout(30_000);
+        .withTimeout(60_000);
       await pause();
       await expectScreenToMatchBaseline('multi-sig');
     });
@@ -152,7 +154,7 @@ describe('Visual Regression (full variant)', () => {
       await element(by.id('multi-sig-setup-cta')).tap();
       await waitFor(element(by.id('multi-sig')))
         .toBeVisible()
-        .withTimeout(30_000);
+        .withTimeout(60_000);
       await pause();
       await expectScreenToMatchBaseline('multi-sig-setup');
     });
@@ -162,12 +164,12 @@ describe('Visual Regression (full variant)', () => {
       await element(by.id('multi-sig-back')).tap();
       await waitFor(element(by.id('multi-sig-manage')))
         .toBeVisible()
-        .withTimeout(30_000);
+        .withTimeout(60_000);
       await pause();
       await element(by.id('multi-sig-manage-back')).tap();
       await waitFor(element(by.id('dashboard-screen')))
         .toBeVisible()
-        .withTimeout(30_000);
+        .withTimeout(60_000);
       await pause();
     });
 
@@ -186,7 +188,7 @@ describe('Visual Regression (full variant)', () => {
       await element(by.id('settings-seed')).tap();
       await waitFor(element(by.id('seed-export-screen')))
         .toBeVisible()
-        .withTimeout(30_000);
+        .withTimeout(60_000);
       await pause();
       await expectScreenToMatchBaseline('seed-export');
     });
@@ -195,7 +197,7 @@ describe('Visual Regression (full variant)', () => {
       await element(by.id('seed-export-back')).tap();
       await waitFor(element(by.id('settings-user-data')))
         .toBeVisible()
-        .withTimeout(30_000);
+        .withTimeout(60_000);
       await pause();
     });
 
@@ -203,7 +205,7 @@ describe('Visual Regression (full variant)', () => {
       await element(by.id('settings-hardware-wallet')).tap();
       await waitFor(element(by.id('hardware-connect-screen')))
         .toBeVisible()
-        .withTimeout(30_000);
+        .withTimeout(60_000);
       await pause();
       await expectScreenToMatchBaseline('hardware-connect');
     });
