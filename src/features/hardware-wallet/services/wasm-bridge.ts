@@ -31,9 +31,13 @@
  * - Message queue for async request/response matching
  */
 
+/** How long a bridge call waits for its WebView response before failing. */
+const CALL_TIMEOUT_MS = 30000;
+
 type PendingCall = {
   resolve: (result: unknown) => void;
   reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
 };
 
 export class WasmBridge {
@@ -60,20 +64,25 @@ export class WasmBridge {
     const id = ++this.callId;
 
     return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, {
-        resolve: resolve as (result: unknown) => void,
-        reject,
-      });
-
-      this.webViewRef!.postMessage(JSON.stringify({ id, method, params }));
-
-      // Timeout after 30 seconds
-      setTimeout(() => {
+      // The timer is stored on the pending entry and cleared the moment the
+      // response arrives (onMessage) or the bridge is destroyed. An un-cleared
+      // timer would outlive every successful call and leak for the full
+      // CALL_TIMEOUT_MS — dangling timers per RPC during a signing ceremony.
+      const timer = setTimeout(() => {
         if (this.pending.has(id)) {
           this.pending.delete(id);
           reject(new Error(`WASM bridge call timeout: ${method}`));
         }
-      }, 30000);
+      }, CALL_TIMEOUT_MS);
+
+      // Register before posting so a synchronously delivered response can match.
+      this.pending.set(id, {
+        resolve: resolve as (result: unknown) => void,
+        reject,
+        timer,
+      });
+
+      this.webViewRef!.postMessage(JSON.stringify({ id, method, params }));
     });
   }
 
@@ -100,6 +109,7 @@ export class WasmBridge {
       // Response to a call
       const pending = this.pending.get(msg.id);
       if (pending) {
+        clearTimeout(pending.timer);
         this.pending.delete(msg.id);
         if (msg.error) {
           pending.reject(new Error(msg.error));
@@ -107,8 +117,11 @@ export class WasmBridge {
           pending.resolve(msg.result);
         }
       }
-    } catch {
-      // Ignore malformed messages
+    } catch (err) {
+      // Malformed/non-JSON frames are ignored by design, but surface them for
+      // diagnostics instead of swallowing silently. The raw payload is not
+      // logged — it can carry signing data.
+      console.warn('WasmBridge: ignoring malformed bridge message', err);
     }
   }
 
@@ -132,7 +145,10 @@ export class WasmBridge {
 
   /** Clean up */
   destroy(): void {
-    this.pending.forEach((p) => p.reject(new Error('Bridge destroyed')));
+    this.pending.forEach((p) => {
+      clearTimeout(p.timer);
+      p.reject(new Error('Bridge destroyed'));
+    });
     this.pending.clear();
     this.webViewRef = null;
     this.onTransportWrite = null;
