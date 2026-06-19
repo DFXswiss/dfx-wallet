@@ -1,6 +1,6 @@
-import { by, element, waitFor } from 'detox';
+import { by, device, element, waitFor } from 'detox';
 import { expectScreenToMatchBaseline } from '../utils/screenshot';
-import { launchAndWaitForWelcome, launchWithExistingState } from '../utils/launch';
+import { launchAndWaitForWelcome } from '../utils/launch';
 import { enterPin } from '../utils/pin';
 
 // Small delay for UI transitions when synchronization is disabled.
@@ -20,11 +20,16 @@ const pause = (ms = 1_000) => new Promise((r) => setTimeout(r, ms));
  * e2e/__baselines__/ without clobbering each other — enforced by
  * scripts/check-visual-coverage.mjs.
  *
- * Navigation strategy: onboard once (PIN + legal flow), then for every screen
- * cold-restart via launchWithExistingState() + PIN unlock back to a clean
- * dashboard and navigate forward. No back-navigation between sibling screens —
- * with synchronization disabled (the WDK keeps the main queue busy) a tap after
- * a back-nav is the single most flake-prone action (see docs/visual-regression.md).
+ * Navigation strategy: onboard ONCE (PIN + legal flow) to the dashboard, then
+ * walk forward into each authenticated screen and back, all with Detox
+ * synchronization disabled — exactly like the green "Dashboard navigation"
+ * block in onboarding.test.ts. We do NOT cold-restart + PIN-unlock per screen:
+ * once a real WDK wallet exists its worklet keeps the JS thread permanently
+ * busy, so the app never reports "idle"; `device.launchApp()` re-enables
+ * synchronization on every new instance and then blocks forever waiting for an
+ * idle that never comes (and `enterPin()` re-enables sync for the same reason).
+ * Driving with explicit `waitFor` + `pause()` while staying sync-disabled is
+ * the only thing that works once the wallet is live (see docs/visual-regression.md).
  */
 
 const PIN = '111111';
@@ -62,18 +67,6 @@ async function onboardToDashboard(): Promise<void> {
   await waitFor(element(by.id('dashboard-screen')))
     .toBeVisible()
     .withTimeout(30_000);
-}
-
-/** Cold-restart the onboarded app and unlock to a clean dashboard. */
-async function relaunchToDashboard(): Promise<void> {
-  await launchWithExistingState();
-  await waitFor(element(by.id('verify-pin-screen')))
-    .toBeVisible()
-    .withTimeout(30_000);
-  await enterPin(PIN);
-  await waitFor(element(by.id('dashboard-screen')))
-    .toBeVisible()
-    .withTimeout(60_000);
 }
 
 async function openSettings(): Promise<void> {
@@ -122,66 +115,30 @@ describe('Visual Regression (full variant)', () => {
     });
   });
 
-  // Onboard the PIN wallet the authenticated blocks below reuse.
+  // Onboard the PIN wallet the authenticated screens below reuse. Every block
+  // after this one navigates from the state this leaves behind (the dashboard),
+  // without a fresh launch — see the navigation-strategy note in the header.
   describe('Onboard (PIN + legal)', () => {
     it('reaches the dashboard', async () => {
       await onboardToDashboard();
     });
   });
 
-  describe('Settings', () => {
+  // Authenticated screens, captured by navigating forward/back from the
+  // onboarded dashboard. Tests run in declaration order and carry the app's
+  // navigation state from one to the next, mirroring the MVP suite's
+  // "Dashboard navigation" block.
+  describe('Authenticated screens', () => {
     beforeAll(async () => {
-      await relaunchToDashboard();
+      // onboardToDashboard() runs enterPin(), which re-enables Detox
+      // synchronization. With a live WDK wallet the worklet keeps the JS
+      // thread permanently busy, so we must turn synchronization back off
+      // before navigating — otherwise every waitFor blocks on an "idle" the
+      // app never reaches (the relaunch design hit the same wall, forever).
+      await device.disableSynchronization();
     });
 
-    it('shows the settings screen', async () => {
-      await openSettings();
-      await expectScreenToMatchBaseline('settings');
-    });
-  });
-
-  // NOTE: the DFX-wallets screen is backend-driven (it fetches /v1/v2/user);
-  // against the testnet build with no live DFX API it renders an error state,
-  // which is not a meaningful baseline. It stays `pending` in the manifest
-  // until the mocked DFX backend lands. Same constraint as buy/sell/kyc/etc.
-
-  describe('Seed export', () => {
-    beforeAll(async () => {
-      await relaunchToDashboard();
-    });
-
-    it('shows the seed-export screen', async () => {
-      await openSettings();
-      await element(by.id('settings-seed')).tap();
-      await waitFor(element(by.id('seed-export-screen')))
-        .toBeVisible()
-        .withTimeout(30_000);
-      await pause();
-      await expectScreenToMatchBaseline('seed-export');
-    });
-  });
-
-  describe('Hardware wallet connect', () => {
-    beforeAll(async () => {
-      await relaunchToDashboard();
-    });
-
-    it('shows the hardware-connect screen', async () => {
-      await openSettings();
-      await element(by.id('settings-hardware-wallet')).tap();
-      await waitFor(element(by.id('hardware-connect-screen')))
-        .toBeVisible()
-        .withTimeout(30_000);
-      await pause();
-      await expectScreenToMatchBaseline('hardware-connect');
-    });
-  });
-
-  describe('Multi-sig', () => {
-    beforeAll(async () => {
-      await relaunchToDashboard();
-    });
-
+    // --- Multi-sig (reached from the dashboard shield button) ---
     it('shows the multi-sig manage screen', async () => {
       await element(by.id('dashboard-shield-button')).tap();
       await waitFor(element(by.id('multi-sig-manage')))
@@ -198,6 +155,57 @@ describe('Visual Regression (full variant)', () => {
         .withTimeout(30_000);
       await pause();
       await expectScreenToMatchBaseline('multi-sig-setup');
+    });
+
+    it('returns to the dashboard from multi-sig', async () => {
+      // setup (intro step) → manage → dashboard, one back tap each.
+      await element(by.id('multi-sig-back')).tap();
+      await waitFor(element(by.id('multi-sig-manage')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause();
+      await element(by.id('multi-sig-manage-back')).tap();
+      await waitFor(element(by.id('dashboard-screen')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause();
+    });
+
+    // --- Settings and its sub-screens (reached from the dashboard menu) ---
+    it('shows the settings screen', async () => {
+      await openSettings();
+      await expectScreenToMatchBaseline('settings');
+    });
+
+    // NOTE: the DFX-wallets screen is backend-driven (it fetches /v1/v2/user);
+    // against the testnet build with no live DFX API it renders an error state,
+    // which is not a meaningful baseline. It stays `pending` in the manifest
+    // until the mocked DFX backend lands. Same constraint as buy/sell/kyc/etc.
+
+    it('shows the seed-export screen', async () => {
+      await element(by.id('settings-seed')).tap();
+      await waitFor(element(by.id('seed-export-screen')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause();
+      await expectScreenToMatchBaseline('seed-export');
+    });
+
+    it('returns to settings from seed-export', async () => {
+      await element(by.id('seed-export-back')).tap();
+      await waitFor(element(by.id('settings-user-data')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause();
+    });
+
+    it('shows the hardware-connect screen', async () => {
+      await element(by.id('settings-hardware-wallet')).tap();
+      await waitFor(element(by.id('hardware-connect-screen')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause();
+      await expectScreenToMatchBaseline('hardware-connect');
     });
   });
 });
