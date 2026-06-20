@@ -14,8 +14,12 @@ tags:
     clearState: true
     clearKeychain: true
 
-- assertVisible:
-    id: "welcome-screen"
+# Cold boot warms the WDK worklet; wait for the first screen instead of
+# asserting against the short default timeout (avoids a flaky boot race).
+- extendedWaitUntil:
+    visible:
+      id: "welcome-screen"
+    timeout: 30000
 - tapOn:
     id: "welcome-create-wallet-button"
 
