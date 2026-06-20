@@ -11,6 +11,7 @@ import { bundle } from '../.wdk';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { getWdkConfigs } from '@/config/chains';
+import { IS_E2E } from '@/config/e2e';
 import { pricingService } from '@/services/pricing-service';
 import { useAuthStore, useWalletStore } from '@/store';
 import { DfxColors } from '@/theme';
@@ -55,6 +56,9 @@ export default function RootLayout() {
   // of fetching their own `/simple/price`, so without this timer they
   // showed the same rates from boot until the user pulled to refresh.
   useEffect(() => {
+    // The E2E build skips the live-price poller: its setInterval never lets the
+    // app report "idle" to Detox (and adds nothing to a pixel baseline).
+    if (IS_E2E) return;
     pricingService.startAutoRefresh(60_000);
     return () => pricingService.stopAutoRefresh();
   }, []);
