@@ -4,6 +4,11 @@ module.exports = {
     args: {
       $0: 'jest',
       config: 'e2e/jest.config.js',
+      // The app (WDK worklet thread + balance/pricing timers) keeps the Node
+      // event loop alive, so jest can hang after the suite passes instead of
+      // exiting — intermittently on CI, which then burns the whole job to the
+      // timeout. Force-exit once the run (and teardown) is done.
+      forceExit: true,
     },
     jest: {
       setupTimeout: 120_000,
