@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from './Icon';
 import { computeFiatValue, resolveFiatCurrency } from '@/config/portfolio-presentation';
@@ -6,7 +6,7 @@ import { getCanonicalForSymbol } from '@/config/tokens';
 import { pricingService } from '@/services/pricing-service';
 import type { TransactionDto } from '@/features/dfx-backend/services';
 import { useWalletStore } from '@/store';
-import { DfxColors, Typography } from '@/theme';
+import { useColors, useResolvedScheme, type ThemeColors, Typography } from '@/theme';
 
 const FIAT_LABEL = new Map<string, string>([
   ['CHF', 'CHF'],
@@ -23,14 +23,29 @@ type IconConfig = {
 // Buy/Sell are reserved for DFX on-/off-ramp.
 // Send/Receive are on-chain transfers between addresses.
 // Swap is in-wallet asset conversion. Pay is a merchant payment.
-const TYPE_ICON = new Map<TransactionDto['type'], IconConfig>([
-  ['Buy', { iconName: 'arrow-down', fg: DfxColors.success, bg: '#DCFCE7' }],
-  ['Sell', { iconName: 'arrow-up', fg: DfxColors.error, bg: '#FEE2E2' }],
-  ['Swap', { iconName: 'swap', fg: DfxColors.primary, bg: '#DCEAFE' }],
-  ['Pay', { iconName: 'storefront', fg: '#7C3AED', bg: '#EDE9FE' }],
-  ['Send', { iconName: 'send', fg: DfxColors.error, bg: '#FEE2E2' }],
-  ['Receive', { iconName: 'receive', fg: DfxColors.success, bg: '#DCFCE7' }],
-]);
+//
+// The icon-chip background is theme-aware: light mode uses soft pastel
+// fills; dark mode uses a low-alpha tint of the icon's own colour so the
+// chip reads as a glowing accent on navy instead of a bright pastel
+// sticker. The Pay purple is lightened in dark for contrast on navy.
+const makeTypeIcon = (
+  colors: ThemeColors,
+  isDark: boolean,
+): Map<TransactionDto['type'], IconConfig> => {
+  const payFg = isDark ? '#A78BFA' : '#7C3AED';
+  const greenBg = isDark ? 'rgba(52,211,153,0.16)' : '#DCFCE7';
+  const redBg = isDark ? 'rgba(248,113,113,0.16)' : '#FEE2E2';
+  const blueBg = isDark ? 'rgba(95,168,255,0.16)' : '#DCEAFE';
+  const purpleBg = isDark ? 'rgba(167,139,250,0.18)' : '#EDE9FE';
+  return new Map<TransactionDto['type'], IconConfig>([
+    ['Buy', { iconName: 'arrow-down', fg: colors.success, bg: greenBg }],
+    ['Sell', { iconName: 'arrow-up', fg: colors.error, bg: redBg }],
+    ['Swap', { iconName: 'swap', fg: colors.primary, bg: blueBg }],
+    ['Pay', { iconName: 'storefront', fg: payFg, bg: purpleBg }],
+    ['Send', { iconName: 'send', fg: colors.error, bg: redBg }],
+    ['Receive', { iconName: 'receive', fg: colors.success, bg: greenBg }],
+  ]);
+};
 
 const OUTGOING_TYPES = new Set<TransactionDto['type']>(['Sell', 'Pay', 'Send']);
 
@@ -46,11 +61,19 @@ type Props = {
  * preview, the global history list, and per-asset filtered lists.
  */
 export function TransactionRow({ tx, onPress, showState = true, testID }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const isDark = useResolvedScheme() === 'dark';
   const isOutgoing = OUTGOING_TYPES.has(tx.type);
   const isPay = tx.type === 'Pay';
+  const typeIcon = useMemo(() => makeTypeIcon(colors, isDark), [colors, isDark]);
   const iconConfig =
-    TYPE_ICON.get(tx.type) ??
-    ({ iconName: 'swap', fg: DfxColors.primary, bg: '#DCEAFE' } satisfies IconConfig);
+    typeIcon.get(tx.type) ??
+    ({
+      iconName: 'swap',
+      fg: colors.primary,
+      bg: isDark ? 'rgba(95,168,255,0.16)' : '#DCEAFE',
+    } satisfies IconConfig);
 
   const { selectedCurrency } = useWalletStore();
   const fiatCurrency = resolveFiatCurrency(selectedCurrency);
@@ -131,67 +154,68 @@ export function TransactionRow({ tx, onPress, showState = true, testID }: Props)
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    gap: 12,
-  },
-  pressed: {
-    opacity: 0.6,
-  },
-  payPrimary: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  icon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  info: {
-    flex: 1,
-    gap: 2,
-  },
-  type: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  subtitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  payDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#7C3AED',
-  },
-  subtitle: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    flexShrink: 1,
-  },
-  amountColumn: {
-    alignItems: 'flex-end',
-    gap: 2,
-    minWidth: 110,
-  },
-  amount: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  state: {
-    ...Typography.bodySmall,
-    fontWeight: '500',
-    color: DfxColors.textTertiary,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 4,
+      gap: 12,
+    },
+    pressed: {
+      opacity: 0.6,
+    },
+    payPrimary: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    icon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    info: {
+      flex: 1,
+      gap: 2,
+    },
+    type: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    subtitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    payDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#7C3AED',
+    },
+    subtitle: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+      flexShrink: 1,
+    },
+    amountColumn: {
+      alignItems: 'flex-end',
+      gap: 2,
+      minWidth: 110,
+    },
+    amount: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    state: {
+      ...Typography.bodySmall,
+      fontWeight: '500',
+      color: colors.textTertiary,
+    },
+  });

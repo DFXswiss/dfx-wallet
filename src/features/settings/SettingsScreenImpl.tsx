@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   ImageBackground,
@@ -13,12 +13,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { Icon } from '@/components';
+import * as Haptics from 'expo-haptics';
+import { DarkBackdrop, Icon } from '@/components';
 import { isBiometricAvailable } from '@/features/biometric/biometric';
 import { dfxUserService } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
-import { DfxColors, Typography } from '@/theme';
+import {
+  Typography,
+  useColors,
+  useResolvedScheme,
+  useThemeStore,
+  type ThemeColors,
+  type ThemeMode,
+} from '@/theme';
 
 type IconName = 'user' | 'wallet' | 'shield' | 'globe' | 'document' | 'support';
 
@@ -40,11 +48,27 @@ type SettingsSection = {
   rows: SettingsRow[];
 };
 
+const THEME_MODE_LABEL: Record<ThemeMode, string> = {
+  system: 'Dark',
+  light: 'Light',
+  dark: 'Dark',
+};
+// Only two appearance options: Light + Dark. "System" was redundant on
+// devices that mirror the app's dark mode anyway, so we keep the union
+// type for storage-compat but treat any persisted "system" value as Dark
+// in both the cycle and the label.
+const THEME_ORDER: ThemeMode[] = ['light', 'dark'];
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
   const { reset, isDfxAuthenticated, biometricEnabled, setBiometricEnabled } = useAuthStore();
   const { selectedCurrency, setSelectedCurrency } = useWalletStore();
+  const themeMode = useThemeStore((s) => s.mode);
+  const setThemeMode = useThemeStore((s) => s.setMode);
+  const colors = useColors();
+  const scheme = useResolvedScheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [biometricSupported, setBiometricSupported] = useState<boolean | null>(null);
 
   // Probe the OS for Face ID / Touch ID support so the toggle is greyed
@@ -144,21 +168,12 @@ export default function SettingsScreen() {
     {
       title: t('settings.sectionWalletSecurity'),
       rows: [
-        // Replaces the previous "Wallet address" entry (which deep-linked
-        // to the Receive screen, already reachable from the dashboard).
-        // The DFX-wallet hub holds the linked-address checkboxes that drive
-        // the Portfolio's "Linked DFX wallets" rail, so it earns the slot
-        // a user reaches for when looking for "their addresses".
         {
           icon: 'wallet',
           label: t('settings.dfxWallets'),
           testID: 'settings-dfx-wallets',
           route: '/(auth)/wallets',
         },
-        // Face ID / Touch ID toggle — the only place the user can flip
-        // `biometricEnabled`, which the lock-screen reads on mount to
-        // auto-prompt the system biometric sheet. Disabled when the OS
-        // reports no enrolled biometric.
         {
           icon: 'shield',
           label: t('settings.biometric'),
@@ -220,6 +235,18 @@ export default function SettingsScreen() {
           testID: 'settings-network',
           route: '/(auth)/portfolio/manage',
         },
+        {
+          icon: 'shield',
+          label: t('settings.appearance'),
+          // eslint-disable-next-line security/detect-object-injection -- themeMode is a typed ThemeMode union; lookup yields a label string from a static map
+          value: THEME_MODE_LABEL[themeMode],
+          testID: 'settings-appearance',
+          onPress: () => {
+            const idx = THEME_ORDER.indexOf(themeMode);
+            const next = THEME_ORDER[(idx + 1) % THEME_ORDER.length]!;
+            void setThemeMode(next);
+          },
+        },
       ],
     },
     {
@@ -258,233 +285,259 @@ export default function SettingsScreen() {
     },
   ];
 
+  const body = (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <View style={styles.header}>
+        <Pressable
+          onPress={() =>
+            router.canGoBack() ? router.back() : router.replace('/(auth)/(tabs)/dashboard')
+          }
+          hitSlop={12}
+          style={styles.backBtn}
+        >
+          <Icon name="arrow-left" size={24} color={colors.text} />
+        </Pressable>
+        <Text style={styles.headerTitle}>{t('settings.title')}</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={true}
+      >
+        {sections.map((section) => (
+          <View key={section.title} style={styles.section}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <View style={styles.sectionCard}>
+              {section.rows.map((row, index) => (
+                <SettingsRowView
+                  key={row.testID}
+                  row={row}
+                  colors={colors}
+                  styles={styles}
+                  isLast={index === section.rows.length - 1}
+                  onPress={() => {
+                    if (row.onPress) row.onPress();
+                    else if (row.route) router.push(row.route as never);
+                  }}
+                />
+              ))}
+            </View>
+          </View>
+        ))}
+
+        <Pressable
+          testID="settings-delete-wallet"
+          style={({ pressed }) => [styles.dangerCard, pressed && styles.pressed]}
+          onPress={handleDeleteWallet}
+        >
+          <Text style={styles.dangerLabel}>{t('settings.deleteWallet')}</Text>
+        </Pressable>
+
+        <Text style={styles.version}>DFX Wallet v0.1.0</Text>
+      </ScrollView>
+    </SafeAreaView>
+  );
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
-      <ImageBackground
-        source={require('../../../assets/dashboard-bg.png')}
-        style={styles.container}
-        resizeMode="cover"
-      >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-          <View style={styles.header}>
-            <Pressable
-              onPress={() =>
-                router.canGoBack() ? router.back() : router.replace('/(auth)/(tabs)/dashboard')
-              }
-              hitSlop={12}
-              style={styles.backBtn}
-            >
-              <Icon name="arrow-left" size={24} color={DfxColors.text} />
-            </Pressable>
-            <Text style={styles.headerTitle}>{t('settings.title')}</Text>
-            <View style={styles.headerSpacer} />
-          </View>
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={true}
-          >
-            {sections.map((section) => (
-              <View key={section.title} style={styles.section}>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
-                <View style={styles.sectionCard}>
-                  {section.rows.map((row, index) => (
-                    <SettingsRowView
-                      key={row.testID}
-                      row={row}
-                      isLast={index === section.rows.length - 1}
-                      onPress={() => {
-                        if (row.onPress) row.onPress();
-                        else if (row.route) router.push(row.route as never);
-                      }}
-                    />
-                  ))}
-                </View>
-              </View>
-            ))}
-
-            <Pressable
-              testID="settings-delete-wallet"
-              style={({ pressed }) => [styles.dangerCard, pressed && styles.pressed]}
-              onPress={handleDeleteWallet}
-            >
-              <Text style={styles.dangerLabel}>{t('settings.deleteWallet')}</Text>
-            </Pressable>
-
-            <Text style={styles.version}>DFX Wallet v0.1.0</Text>
-          </ScrollView>
-        </SafeAreaView>
-      </ImageBackground>
+      {scheme === 'dark' ? (
+        <View style={styles.container}>
+          <DarkBackdrop baseColor={colors.background} />
+          {body}
+        </View>
+      ) : (
+        <ImageBackground
+          source={require('../../../assets/dashboard-bg.png')}
+          style={styles.container}
+          resizeMode="cover"
+        >
+          {body}
+        </ImageBackground>
+      )}
     </>
   );
 }
+
+type SettingsStyles = ReturnType<typeof makeStyles>;
 
 type RowProps = {
   row: SettingsRow;
   isLast: boolean;
   onPress: () => void;
+  colors: ThemeColors;
+  styles: SettingsStyles;
 };
 
-function SettingsRowView({ row, isLast, onPress }: RowProps) {
-  // Toggle rows render a Switch instead of the chevron + skip the
-  // surrounding press handler so taps on the row body don't conflict
-  // with the Switch's own gesture recogniser.
+function SettingsRowView({ row, isLast, onPress, colors, styles }: RowProps) {
   if (row.toggle) {
     return (
       <View testID={row.testID} style={[styles.row, !isLast && styles.rowDivider]}>
         <View style={styles.rowIcon}>
-          <Icon name={row.icon} size={20} color={DfxColors.primary} />
+          <Icon name={row.icon} size={20} color={colors.primary} />
         </View>
         <Text style={styles.rowLabel}>{row.label}</Text>
         <Switch
           value={row.toggle.value}
           onValueChange={row.toggle.onChange}
           disabled={row.toggle.disabled}
-          trackColor={{ true: DfxColors.primary, false: DfxColors.border }}
-          ios_backgroundColor={DfxColors.border}
+          // Success-green for ON-state mirrors the iOS / macOS convention
+          // for positive opt-in toggles (Face ID, notifications, …). Blue
+          // is reserved for navigational / brand primary actions.
+          trackColor={{ true: colors.success, false: colors.border }}
+          ios_backgroundColor={colors.border}
         />
       </View>
     );
   }
+  const handlePress = () => {
+    // Light haptic on every settings tap — same "selection" feedback as
+    // iOS / Apple Pay row-selects. Confirms the press without competing
+    // with the navigation itself.
+    void Haptics.selectionAsync();
+    onPress();
+  };
   return (
     <Pressable
       testID={row.testID}
       style={({ pressed }) => [styles.row, !isLast && styles.rowDivider, pressed && styles.pressed]}
-      onPress={onPress}
+      onPress={handlePress}
     >
       <View style={styles.rowIcon}>
-        <Icon name={row.icon} size={20} color={DfxColors.primary} />
+        <Icon name={row.icon} size={20} color={colors.primary} />
       </View>
       <Text style={styles.rowLabel}>{row.label}</Text>
       {row.value ? <Text style={styles.rowValue}>{row.value}</Text> : null}
-      <Icon name="chevron-right" size={18} color={DfxColors.textTertiary} />
+      <Icon name="chevron-right" size={18} color={colors.textTertiary} />
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: DfxColors.background,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.78)',
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerSpacer: {
-    width: 40,
-    height: 40,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 120,
-    gap: 18,
-  },
-  section: {
-    gap: 8,
-  },
-  sectionTitle: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    fontWeight: '600',
-    paddingHorizontal: 4,
-  },
-  sectionCard: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    overflow: 'hidden',
-    shadowColor: '#0B1426',
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 60,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    gap: 12,
-  },
-  rowDivider: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: DfxColors.border,
-  },
-  rowIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowLabel: {
-    flex: 1,
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-    fontWeight: '500',
-  },
-  rowValue: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  dangerCard: {
-    marginTop: 8,
-    paddingVertical: 16,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    alignItems: 'center',
-    shadowColor: '#0B1426',
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-  },
-  dangerLabel: {
-    ...Typography.bodyLarge,
-    color: DfxColors.error,
-    fontWeight: '600',
-  },
-  version: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    textAlign: 'center',
-    marginTop: 16,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    safeArea: {
+      flex: 1,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 12,
+    },
+    backBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: colors.cardOverlay,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerSpacer: {
+      width: 40,
+      height: 40,
+    },
+    headerTitle: {
+      flex: 1,
+      textAlign: 'center',
+      ...Typography.headlineSmall,
+      color: colors.text,
+    },
+    scroll: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      paddingBottom: 120,
+      gap: 24,
+    },
+    section: {
+      gap: 10,
+    },
+    sectionTitle: {
+      fontSize: 13,
+      lineHeight: 16,
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1.5,
+      fontWeight: '700',
+      paddingHorizontal: 4,
+    },
+    sectionCard: {
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: 'hidden',
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 1,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      minHeight: 60,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      gap: 12,
+    },
+    rowDivider: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    rowIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    rowLabel: {
+      flex: 1,
+      ...Typography.bodyMedium,
+      color: colors.text,
+      fontWeight: '500',
+    },
+    rowValue: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+    dangerCard: {
+      marginTop: 8,
+      paddingVertical: 16,
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 3 },
+    },
+    dangerLabel: {
+      ...Typography.bodyLarge,
+      color: colors.error,
+      fontWeight: '600',
+    },
+    version: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+      textAlign: 'center',
+      marginTop: 16,
+    },
+  });

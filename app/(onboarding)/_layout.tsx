@@ -1,9 +1,10 @@
 import { Redirect, Stack, useSegments } from 'expo-router';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import { useAuthStore } from '@/store';
-import { DfxColors } from '@/theme';
+import { useColors } from '@/theme';
 
 export default function OnboardingLayout() {
+  const colors = useColors();
   const segments = useSegments();
   const { isOnboarded, isAuthenticated } = useAuthStore();
   const { activeWalletId } = useWalletManager();
@@ -27,7 +28,7 @@ export default function OnboardingLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: DfxColors.background },
+        contentStyle: { backgroundColor: colors.background },
         gestureEnabled: true,
         fullScreenGestureEnabled: true,
       }}

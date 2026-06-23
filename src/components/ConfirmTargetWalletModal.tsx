@@ -1,6 +1,7 @@
+import { useMemo } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { DfxColors, Typography } from '@/theme';
+import { useColors, type ThemeColors, Typography } from '@/theme';
 
 type Props = {
   visible: boolean;
@@ -33,7 +34,7 @@ type Props = {
  * unrecoverable, so we want the user to read the asset+wallet pairing once
  * more before any DFX session-switch happens. Custom Modal instead of the
  * RN Alert primitive because Alert can't render the truncated monospace
- * address, and inheriting our DfxColors keeps the look on-brand.
+ * address, and inheriting our theme colors keeps the look on-brand.
  */
 export function ConfirmTargetWalletModal({
   visible,
@@ -46,6 +47,8 @@ export function ConfirmTargetWalletModal({
   onConfirm,
   onCancel,
 }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { t } = useTranslation();
 
   return (
@@ -99,7 +102,7 @@ export function ConfirmTargetWalletModal({
               testID="confirm-target-confirm"
             >
               {loading ? (
-                <ActivityIndicator color={DfxColors.white} />
+                <ActivityIndicator color={colors.white} />
               ) : (
                 <Text style={[styles.buttonLabel, styles.buttonPrimaryLabel]}>
                   {t('common.confirm')}
@@ -113,82 +116,83 @@ export function ConfirmTargetWalletModal({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(11, 20, 38, 0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 380,
-    backgroundColor: DfxColors.surface,
-    borderRadius: 20,
-    padding: 22,
-    gap: 14,
-  },
-  title: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-  },
-  body: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    lineHeight: 22,
-  },
-  walletBlock: {
-    backgroundColor: DfxColors.background,
-    borderRadius: 14,
-    padding: 14,
-    gap: 4,
-  },
-  walletAddress: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-    fontWeight: '600',
-    fontFamily: 'monospace',
-  },
-  walletBlockchain: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-  },
-  errorText: {
-    ...Typography.bodySmall,
-    color: DfxColors.error,
-    textAlign: 'center',
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  button: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonGhost: {
-    backgroundColor: DfxColors.background,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-  },
-  buttonPrimary: {
-    backgroundColor: DfxColors.primary,
-  },
-  buttonLabel: {
-    ...Typography.bodyMedium,
-    fontWeight: '700',
-  },
-  buttonGhostLabel: {
-    color: DfxColors.textSecondary,
-  },
-  buttonPrimaryLabel: {
-    color: DfxColors.white,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(11, 20, 38, 0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+    },
+    card: {
+      width: '100%',
+      maxWidth: 380,
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      padding: 22,
+      gap: 14,
+    },
+    title: {
+      ...Typography.headlineSmall,
+      color: colors.text,
+    },
+    body: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      lineHeight: 22,
+    },
+    walletBlock: {
+      backgroundColor: colors.background,
+      borderRadius: 14,
+      padding: 14,
+      gap: 4,
+    },
+    walletAddress: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      fontWeight: '600',
+      fontFamily: 'monospace',
+    },
+    walletBlockchain: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+    },
+    errorText: {
+      ...Typography.bodySmall,
+      color: colors.error,
+      textAlign: 'center',
+    },
+    actions: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    button: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 999,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    buttonGhost: {
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    buttonPrimary: {
+      backgroundColor: colors.primary,
+    },
+    buttonLabel: {
+      ...Typography.bodyMedium,
+      fontWeight: '700',
+    },
+    buttonGhostLabel: {
+      color: colors.textSecondary,
+    },
+    buttonPrimaryLabel: {
+      color: colors.white,
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+  });

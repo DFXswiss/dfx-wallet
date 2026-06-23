@@ -1,5 +1,5 @@
 import Svg, { Path, Polyline, Rect, Line, Circle } from 'react-native-svg';
-import { DfxColors } from '@/theme';
+import { useColors } from '@/theme';
 
 type IconName =
   | 'menu'
@@ -33,8 +33,12 @@ type Props = {
   strokeWidth?: number;
 };
 
-export function Icon({ name, size = 24, color = DfxColors.primary, strokeWidth = 2 }: Props) {
-  const stroke = color;
+export function Icon({ name, size = 24, color, strokeWidth = 2 }: Props) {
+  const colors = useColors();
+  // Default to the active theme's primary so an Icon with no explicit
+  // `color` reads correctly in both light and dark (callers that pass a
+  // colour — the vast majority — are unaffected).
+  const stroke = color ?? colors.primary;
   const sw = strokeWidth;
 
   switch (name) {
@@ -135,6 +139,11 @@ export function Icon({ name, size = 24, color = DfxColors.primary, strokeWidth =
           />
         </Svg>
       );
+    // Send / Receive share the paper-plane glyph and form a 180° pair:
+    // Send points to the UPPER-LEFT (out + away from the user), Receive
+    // points to the LOWER-RIGHT (in + arriving). Both are pure mirrors
+    // of the source path — Send horizontally flipped, Receive vertically
+    // flipped — so the silhouette stays identical across the pair.
     case 'send':
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -145,6 +154,7 @@ export function Icon({ name, size = 24, color = DfxColors.primary, strokeWidth =
             strokeLinecap="round"
             strokeLinejoin="round"
             fill="none"
+            transform="matrix(-1, 0, 0, 1, 24, 0)"
           />
         </Svg>
       );
@@ -158,7 +168,7 @@ export function Icon({ name, size = 24, color = DfxColors.primary, strokeWidth =
             strokeLinecap="round"
             strokeLinejoin="round"
             fill="none"
-            transform="rotate(-90 12 12)"
+            transform="matrix(1, 0, 0, -1, 0, 24)"
           />
         </Svg>
       );

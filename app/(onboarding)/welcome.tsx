@@ -1,14 +1,16 @@
-import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { DfxBackgroundScreen, Icon, PrimaryButton } from '@/components';
+import { BrandLogo, DfxBackgroundScreen, Icon, PrimaryButton } from '@/components';
 import { FEATURES } from '@/config/features';
 import { isPasskeyOsSupported } from '@/config/platform';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { t } = useTranslation();
   const [showRestore, setShowRestore] = useState(false);
   // Passkey support is the AND of an OS gate (iOS 18+ / Android 14+)
@@ -35,16 +37,12 @@ export default function WelcomeScreen() {
           accessibilityLabel="Back"
           testID="welcome-back-button"
         >
-          <Icon name="arrow-left" size={24} color={DfxColors.text} />
+          <Icon name="arrow-left" size={24} color={colors.text} />
         </Pressable>
       </View>
 
       <View style={styles.header}>
-        <Image
-          source={require('../../assets/dfx-logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
+        <BrandLogo size="hero" style={styles.logo} />
         <Text style={styles.title}>{t('onboarding.title')}</Text>
         <Text style={styles.subtitle}>{t('onboarding.subtitle')}</Text>
       </View>
@@ -99,75 +97,74 @@ export default function WelcomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    justifyContent: 'space-between',
-    paddingTop: 4,
-    paddingBottom: 16,
-  },
-  topBar: {
-    height: 44,
-    justifyContent: 'center',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.88)',
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-  },
-  header: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    paddingBottom: 24,
-  },
-  logo: {
-    width: 172,
-    height: 54,
-    marginBottom: 20,
-  },
-  title: {
-    ...Typography.headlineMedium,
-    color: DfxColors.text,
-    textAlign: 'center',
-  },
-  subtitle: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-  },
-  actions: {
-    gap: 14,
-  },
-  restoreToggle: {
-    ...Typography.bodyLarge,
-    color: DfxColors.primary,
-    textAlign: 'center',
-    paddingVertical: 10,
-    fontWeight: '500',
-  },
-  restoreOptions: {
-    gap: 8,
-  },
-  restoreOption: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  restoreOptionText: {
-    ...Typography.bodyLarge,
-    color: DfxColors.text,
-    textAlign: 'center',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      justifyContent: 'space-between',
+      paddingTop: 4,
+      paddingBottom: 16,
+    },
+    topBar: {
+      height: 44,
+      justifyContent: 'center',
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.cardOverlay,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    header: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 12,
+      paddingBottom: 24,
+    },
+    logo: {
+      marginBottom: 20,
+    },
+    title: {
+      ...Typography.headlineMedium,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    subtitle: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    actions: {
+      gap: 14,
+    },
+    restoreToggle: {
+      ...Typography.bodyLarge,
+      color: colors.primary,
+      textAlign: 'center',
+      paddingVertical: 10,
+      fontWeight: '500',
+    },
+    restoreOptions: {
+      gap: 8,
+    },
+    restoreOption: {
+      paddingVertical: 16,
+      paddingHorizontal: 16,
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+    restoreOptionText: {
+      ...Typography.bodyLarge,
+      color: colors.text,
+      textAlign: 'center',
+    },
+  });

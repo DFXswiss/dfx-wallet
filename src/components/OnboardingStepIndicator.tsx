@@ -1,5 +1,6 @@
+import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { DfxColors } from '@/theme';
+import { useColors, type ThemeColors } from '@/theme';
 
 type Props = {
   current: number;
@@ -7,6 +8,8 @@ type Props = {
 };
 
 export function OnboardingStepIndicator({ current, total = 3 }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.container} accessibilityRole="progressbar">
       {Array.from({ length: total }).map((_, index) => {
@@ -17,19 +20,20 @@ export function OnboardingStepIndicator({ current, total = 3 }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignSelf: 'center',
-    gap: 8,
-  },
-  step: {
-    width: 28,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: DfxColors.border,
-  },
-  stepActive: {
-    backgroundColor: DfxColors.primary,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignSelf: 'center',
+      gap: 8,
+    },
+    step: {
+      width: 28,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.border,
+    },
+    stepActive: {
+      backgroundColor: colors.primary,
+    },
+  });

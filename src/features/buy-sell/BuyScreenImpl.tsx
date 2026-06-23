@@ -15,7 +15,13 @@ import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { AppHeader, ConfirmTargetWalletModal, Icon, PrimaryButton } from '@/components';
+import {
+  AppHeader,
+  ConfirmTargetWalletModal,
+  DarkBackdrop,
+  Icon,
+  PrimaryButton,
+} from '@/components';
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
 import type { ChainId } from '@/config/chains';
 import {
@@ -29,7 +35,7 @@ import { markChainLinkedInAutoLinkCache } from '@/features/dfx-backend/useDfxAut
 import { dfxAuthService, DfxApiError } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
 type BuyStep = 'amount' | 'payment' | 'confirm';
 
@@ -190,6 +196,9 @@ const BUY_ASSETS: BuyAsset[] = [
 ];
 
 export default function BuyScreen() {
+  const colors = useColors();
+  const scheme = useResolvedScheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
   const params = useLocalSearchParams<{
@@ -447,7 +456,7 @@ export default function BuyScreen() {
       {hasTargetWallet ? (
         <View style={styles.targetBanner} testID="buy-target-wallet-banner">
           <View style={styles.targetIcon}>
-            <Icon name="wallet" size={18} color={DfxColors.primary} />
+            <Icon name="wallet" size={18} color={colors.primary} />
           </View>
           <View style={styles.targetBody}>
             <Text style={styles.targetLabel}>{t('linkedWallet.banner.label')}</Text>
@@ -538,7 +547,7 @@ export default function BuyScreen() {
               value={amount}
               onChangeText={setAmount}
               placeholder="0.00"
-              placeholderTextColor={DfxColors.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               keyboardType="decimal-pad"
             />
             <View style={styles.currencyRow}>
@@ -576,7 +585,7 @@ export default function BuyScreen() {
               <View style={styles.quoteHeader}>
                 <Text style={styles.quoteTitle}>{t('buy.summary')}</Text>
                 {isLoading && !unsupportedChain ? (
-                  <ActivityIndicator size="small" color={DfxColors.primary} />
+                  <ActivityIndicator size="small" color={colors.primary} />
                 ) : null}
               </View>
               {unsupportedChain ? (
@@ -795,44 +804,53 @@ export default function BuyScreen() {
     </View>
   );
 
+  const body = (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <AppHeader
+        title={t('buy.title')}
+        onBack={() => {
+          if (step === 'payment') setStep('amount');
+          else router.back();
+        }}
+        testID="buy-screen"
+      />
+      <View style={styles.progressRow}>
+        {['amount', 'payment', 'confirm'].map((item, index) => {
+          const currentIndex = step === 'amount' ? 0 : step === 'payment' ? 1 : 2;
+          const active = index <= currentIndex;
+          return <View key={item} style={[styles.progressStep, active && styles.progressActive]} />;
+        })}
+      </View>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {step === 'amount' && renderAmountStep()}
+        {step === 'payment' && renderPaymentStep()}
+        {step === 'confirm' && renderConfirmStep()}
+      </ScrollView>
+    </SafeAreaView>
+  );
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      <ImageBackground
-        source={require('../../../assets/dashboard-bg.png')}
-        style={styles.bg}
-        resizeMode="cover"
-      >
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-          <AppHeader
-            title={t('buy.title')}
-            onBack={() => {
-              if (step === 'payment') setStep('amount');
-              else router.back();
-            }}
-            testID="buy-screen"
-          />
-          <View style={styles.progressRow}>
-            {['amount', 'payment', 'confirm'].map((item, index) => {
-              const currentIndex = step === 'amount' ? 0 : step === 'payment' ? 1 : 2;
-              const active = index <= currentIndex;
-              return (
-                <View key={item} style={[styles.progressStep, active && styles.progressActive]} />
-              );
-            })}
-          </View>
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {step === 'amount' && renderAmountStep()}
-            {step === 'payment' && renderPaymentStep()}
-            {step === 'confirm' && renderConfirmStep()}
-          </ScrollView>
-        </SafeAreaView>
-      </ImageBackground>
+      {scheme === 'dark' ? (
+        <View style={styles.bg}>
+          <DarkBackdrop baseColor={colors.background} />
+          {body}
+        </View>
+      ) : (
+        <ImageBackground
+          source={require('../../../assets/dashboard-bg.png')}
+          style={styles.bg}
+          resizeMode="cover"
+        >
+          {body}
+        </ImageBackground>
+      )}
       <DfxAuthGate gate={authGate} onClose={dismissAuthGate} onLinkChain={linkChainToDfx} />
       <ConfirmTargetWalletModal
         visible={confirmOpen}
@@ -894,6 +912,8 @@ function QuoteRow({
   sub?: string;
   emphasis?: boolean;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.quoteRow}>
       <Text style={styles.quoteLabel}>{label}</Text>
@@ -920,6 +940,8 @@ function CopyRow({
   highlight?: boolean;
   t: (key: string) => string;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Pressable
       style={({ pressed }) => [styles.copyRow, pressed && styles.pressed]}
@@ -936,379 +958,380 @@ function CopyRow({
         </Text>
       </View>
       <View style={styles.copyBadge}>
-        <Icon name="document" size={14} color={DfxColors.primary} />
+        <Icon name="document" size={14} color={colors.primary} />
         <Text style={styles.copyBadgeText}>{copied ? t('common.copied') : t('common.copy')}</Text>
       </View>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  bg: {
-    flex: 1,
-    backgroundColor: DfxColors.background,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 32,
-    gap: 18,
-  },
-  stepContent: {
-    gap: 18,
-  },
-  progressRow: {
-    flexDirection: 'row',
-    alignSelf: 'center',
-    gap: 8,
-    paddingTop: 4,
-    paddingBottom: 12,
-  },
-  progressStep: {
-    width: 34,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.72)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: DfxColors.border,
-  },
-  progressActive: {
-    backgroundColor: DfxColors.primary,
-    borderColor: DfxColors.primary,
-  },
-  stepSubtitle: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-    fontWeight: '500',
-  },
-  assetRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  assetTile: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 6,
-    gap: 2,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    minHeight: 54,
-  },
-  assetTileActive: {
-    borderColor: DfxColors.primary,
-    backgroundColor: 'rgba(220,234,254,0.72)',
-  },
-  assetTileSymbol: {
-    ...Typography.bodyLarge,
-    color: DfxColors.text,
-    fontWeight: '700',
-  },
-  assetTileSymbolActive: {
-    color: DfxColors.primary,
-  },
-  chainBar: {
-    flexGrow: 0,
-  },
-  chainChip: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    marginRight: 8,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  chainChipActive: {
-    borderColor: DfxColors.primary,
-    backgroundColor: DfxColors.primaryLight,
-  },
-  chainChipText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    fontWeight: '500',
-  },
-  chainChipTextActive: {
-    color: DfxColors.primary,
-    fontWeight: '600',
-  },
-  tokenRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  tokenChip: {
-    flex: 1,
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 10,
-    paddingVertical: 10,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  tokenChipActive: {
-    borderColor: DfxColors.primary,
-    backgroundColor: DfxColors.primaryLight,
-  },
-  tokenChipText: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.textSecondary,
-  },
-  tokenChipTextActive: {
-    color: DfxColors.primary,
-  },
-  amountCard: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    padding: 18,
-    gap: 16,
-  },
-  amountInput: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: DfxColors.text,
-    textAlign: 'center',
-    paddingVertical: 8,
-  },
-  currencyRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  currencyChip: {
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: DfxColors.background,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  currencyChipActive: {
-    backgroundColor: DfxColors.primary,
-    borderColor: DfxColors.primary,
-  },
-  currencyText: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.textSecondary,
-  },
-  currencyTextActive: {
-    color: DfxColors.white,
-  },
-  quickRow: {
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'space-between',
-  },
-  quickAmount: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: DfxColors.background,
-    alignItems: 'center',
-  },
-  quickAmountText: {
-    ...Typography.bodySmall,
-    fontWeight: '600',
-    color: DfxColors.textSecondary,
-  },
-  quoteCard: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    padding: 18,
-    gap: 14,
-  },
-  quoteHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  quoteTitle: {
-    ...Typography.bodySmall,
-    fontWeight: '600',
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  quotePlaceholder: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textTertiary,
-    paddingVertical: 8,
-  },
-  quoteError: {
-    ...Typography.bodyMedium,
-    color: DfxColors.error,
-    paddingVertical: 8,
-  },
-  quoteHint: {
-    ...Typography.bodyMedium,
-    color: DfxColors.primary,
-    paddingVertical: 8,
-  },
-  quoteRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  quoteLabel: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-  },
-  quoteValue: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-    fontWeight: '500',
-    textAlign: 'right',
-  },
-  quoteValueEmphasis: {
-    fontWeight: '700',
-  },
-  quoteSub: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    textAlign: 'right',
-    marginTop: 2,
-  },
-  quoteDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: DfxColors.border,
-    marginVertical: 4,
-  },
-  bankCard: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    paddingVertical: 4,
-  },
-  copyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: DfxColors.border,
-  },
-  copyLabel: {
-    ...Typography.bodySmall,
-    fontWeight: '600',
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  copyValue: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-    fontFamily: 'monospace',
-  },
-  copyValueHighlight: {
-    color: DfxColors.primary,
-    fontWeight: '700',
-  },
-  copyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    backgroundColor: DfxColors.primaryLight,
-    borderRadius: 999,
-  },
-  copyBadgeText: {
-    ...Typography.bodySmall,
-    color: DfxColors.primary,
-    fontWeight: '600',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  hint: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    textAlign: 'center',
-    paddingHorizontal: 16,
-  },
-  warning: {
-    ...Typography.bodySmall,
-    color: DfxColors.warning,
-    textAlign: 'center',
-  },
-  errorText: {
-    ...Typography.bodySmall,
-    color: DfxColors.error,
-    textAlign: 'center',
-  },
-  successBlock: {
-    alignItems: 'center',
-    paddingVertical: 48,
-    gap: 16,
-  },
-  successIcon: {
-    fontSize: 64,
-  },
-  successTitle: {
-    ...Typography.headlineMedium,
-    color: DfxColors.text,
-  },
-  successDescription: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-    paddingHorizontal: 16,
-  },
-  spacer: {
-    minHeight: 16,
-  },
-  targetBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    borderLeftWidth: 4,
-    borderLeftColor: DfxColors.primary,
-  },
-  targetIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: DfxColors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  targetBody: {
-    flex: 1,
-    gap: 2,
-  },
-  targetLabel: {
-    ...Typography.bodySmall,
-    fontWeight: '700',
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  targetAddress: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.text,
-    fontFamily: 'monospace',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    bg: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    safeArea: {
+      flex: 1,
+    },
+    scroll: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingHorizontal: 20,
+      paddingBottom: 32,
+      gap: 18,
+    },
+    stepContent: {
+      gap: 18,
+    },
+    progressRow: {
+      flexDirection: 'row',
+      alignSelf: 'center',
+      gap: 8,
+      paddingTop: 4,
+      paddingBottom: 12,
+    },
+    progressStep: {
+      width: 34,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.cardOverlay,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
+    progressActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    stepSubtitle: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    assetRow: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    assetTile: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 6,
+      gap: 2,
+      borderWidth: 1,
+      borderColor: colors.border,
+      minHeight: 54,
+    },
+    assetTileActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primaryLight,
+    },
+    assetTileSymbol: {
+      ...Typography.bodyLarge,
+      color: colors.text,
+      fontWeight: '700',
+    },
+    assetTileSymbolActive: {
+      color: colors.primary,
+    },
+    chainBar: {
+      flexGrow: 0,
+    },
+    chainChip: {
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      marginRight: 8,
+      borderWidth: 1.5,
+      borderColor: 'transparent',
+    },
+    chainChipActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primaryLight,
+    },
+    chainChipText: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    chainChipTextActive: {
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    tokenRow: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    tokenChip: {
+      flex: 1,
+      alignItems: 'center',
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 10,
+      paddingVertical: 10,
+      borderWidth: 1.5,
+      borderColor: 'transparent',
+    },
+    tokenChipActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primaryLight,
+    },
+    tokenChipText: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    tokenChipTextActive: {
+      color: colors.primary,
+    },
+    amountCard: {
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 18,
+      gap: 16,
+    },
+    amountInput: {
+      fontSize: 36,
+      fontWeight: '700',
+      color: colors.text,
+      textAlign: 'center',
+      paddingVertical: 8,
+    },
+    currencyRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    currencyChip: {
+      paddingHorizontal: 18,
+      paddingVertical: 8,
+      borderRadius: 999,
+      backgroundColor: colors.background,
+      borderWidth: 1.5,
+      borderColor: 'transparent',
+    },
+    currencyChipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    currencyText: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    currencyTextActive: {
+      color: colors.white,
+    },
+    quickRow: {
+      flexDirection: 'row',
+      gap: 8,
+      justifyContent: 'space-between',
+    },
+    quickAmount: {
+      flex: 1,
+      paddingVertical: 8,
+      borderRadius: 10,
+      backgroundColor: colors.background,
+      alignItems: 'center',
+    },
+    quickAmountText: {
+      ...Typography.bodySmall,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    quoteCard: {
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 18,
+      gap: 14,
+    },
+    quoteHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    quoteTitle: {
+      ...Typography.bodySmall,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    quotePlaceholder: {
+      ...Typography.bodyMedium,
+      color: colors.textTertiary,
+      paddingVertical: 8,
+    },
+    quoteError: {
+      ...Typography.bodyMedium,
+      color: colors.error,
+      paddingVertical: 8,
+    },
+    quoteHint: {
+      ...Typography.bodyMedium,
+      color: colors.primary,
+      paddingVertical: 8,
+    },
+    quoteRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: 12,
+    },
+    quoteLabel: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+    },
+    quoteValue: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      fontWeight: '500',
+      textAlign: 'right',
+    },
+    quoteValueEmphasis: {
+      fontWeight: '700',
+    },
+    quoteSub: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+      textAlign: 'right',
+      marginTop: 2,
+    },
+    quoteDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+      marginVertical: 4,
+    },
+    bankCard: {
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingVertical: 4,
+    },
+    copyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      gap: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    copyLabel: {
+      ...Typography.bodySmall,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    copyValue: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      fontFamily: 'monospace',
+    },
+    copyValueHighlight: {
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    copyBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      backgroundColor: colors.primaryLight,
+      borderRadius: 999,
+    },
+    copyBadgeText: {
+      ...Typography.bodySmall,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+    hint: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+      textAlign: 'center',
+      paddingHorizontal: 16,
+    },
+    warning: {
+      ...Typography.bodySmall,
+      color: colors.warning,
+      textAlign: 'center',
+    },
+    errorText: {
+      ...Typography.bodySmall,
+      color: colors.error,
+      textAlign: 'center',
+    },
+    successBlock: {
+      alignItems: 'center',
+      paddingVertical: 48,
+      gap: 16,
+    },
+    successIcon: {
+      fontSize: 64,
+    },
+    successTitle: {
+      ...Typography.headlineMedium,
+      color: colors.text,
+    },
+    successDescription: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      paddingHorizontal: 16,
+    },
+    spacer: {
+      minHeight: 16,
+    },
+    targetBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderLeftWidth: 4,
+      borderLeftColor: colors.primary,
+    },
+    targetIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    targetBody: {
+      flex: 1,
+      gap: 2,
+    },
+    targetLabel: {
+      ...Typography.bodySmall,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    targetAddress: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.text,
+      fontFamily: 'monospace',
+    },
+  });

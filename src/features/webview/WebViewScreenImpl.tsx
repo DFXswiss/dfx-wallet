@@ -1,10 +1,11 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import { ScreenContainer } from '@/components';
 import { dfxAuthService } from '@/features/dfx-backend/services';
 import { isAllowedDfxHost, isDfxOwnedHost } from '@/services/security/safe-url';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 /**
  * Generic WebView screen for opening external URLs (KYC ident, legal docs, …).
@@ -19,6 +20,8 @@ import { DfxColors, Typography } from '@/theme';
  * Usage: router.push({ pathname: '/(auth)/webview', params: { url, title } })
  */
 export default function WebViewScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { url, title } = useLocalSearchParams<{ url: string; title?: string }>();
   const safe = typeof url === 'string' && isAllowedDfxHost(url);
@@ -66,43 +69,44 @@ export default function WebViewScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  backButton: {
-    fontSize: 24,
-    color: DfxColors.text,
-    width: 32,
-  },
-  title: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.text,
-    flex: 1,
-    textAlign: 'center',
-  },
-  webview: {
-    flex: 1,
-  },
-  errorBox: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    gap: 8,
-  },
-  errorTitle: {
-    ...Typography.headlineSmall,
-    color: DfxColors.error,
-  },
-  errorBody: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+    },
+    backButton: {
+      fontSize: 24,
+      color: colors.text,
+      width: 32,
+    },
+    title: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+      flex: 1,
+      textAlign: 'center',
+    },
+    webview: {
+      flex: 1,
+    },
+    errorBox: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+      gap: 8,
+    },
+    errorTitle: {
+      ...Typography.headlineSmall,
+      color: colors.error,
+    },
+    errorBody: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+  });
