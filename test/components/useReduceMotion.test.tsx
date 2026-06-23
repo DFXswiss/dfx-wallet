@@ -11,12 +11,13 @@ describe('useReduceMotion', () => {
     changeHandler = undefined;
     remove.mockClear();
     jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
-    jest
-      .spyOn(AccessibilityInfo, 'addEventListener')
-      .mockImplementation((_event: string, handler: (value: boolean) => void) => {
-        changeHandler = handler;
-        return { remove } as unknown as ReturnType<typeof AccessibilityInfo.addEventListener>;
-      });
+    // `addEventListener` is overloaded; cast to a plain mock so we can capture
+    // the boolean handler without TS resolving the wrong overload signature.
+    const addSpy = jest.spyOn(AccessibilityInfo, 'addEventListener') as unknown as jest.Mock;
+    addSpy.mockImplementation((_event: string, handler: (value: boolean) => void) => {
+      changeHandler = handler;
+      return { remove };
+    });
   });
 
   afterEach(() => {
