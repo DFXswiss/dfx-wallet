@@ -358,43 +358,5 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
       color: colors.text,
       fontWeight: '600',
     },
-    // Receive/Send are the highest-frequency actions in a wallet — they
-    // earn primary-filled CTAs at the bottom instead of a single muted
-    // pill. Receive uses the brighter primary tint, Send uses primaryDark
-    // so the two reads as complementary (matching/inverse) actions.
-    primaryAction: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 10,
-      minHeight: 56,
-      paddingVertical: 14,
-      paddingHorizontal: 12,
-      borderRadius: 18,
-      backgroundColor: colors.primary,
-      shadowColor: colors.shadow,
-      shadowOpacity: 0.22,
-      shadowRadius: 14,
-      shadowOffset: { width: 0, height: 6 },
-      elevation: 3,
-    },
-    primaryActionAlt: {
-      backgroundColor: colors.primaryDark,
-    },
-    primaryActionPressed: {
-      opacity: 0.88,
-    },
-    primaryActionIcon: {
-      width: 24,
-      height: 24,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    primaryActionLabel: {
-      ...Typography.bodyLarge,
-      color: colors.white,
-      fontWeight: '700',
-    },
   });
 };

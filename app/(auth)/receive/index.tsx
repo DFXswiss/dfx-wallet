@@ -373,7 +373,7 @@ const makeStyles = (colors: ThemeColors) =>
       padding: 20,
       gap: 8,
       alignItems: 'center',
-      shadowColor: '#0B1426',
+      shadowColor: colors.shadow,
       shadowOpacity: 0.04,
       shadowRadius: 10,
       shadowOffset: { width: 0, height: 3 },

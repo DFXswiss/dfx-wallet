@@ -687,6 +687,8 @@
     "linkedLabel": "Linked addresses",
     "loadError": "Could not load DFX profile.",
     "loadErrorTitle": "Profile temporarily unavailable",
+    "loadErrorHint": "Please connect to your DFX account first via the \"Profile\" menu.",
+    "loadErrorCta": "Open profile",
     "mergedTitle": "Account merge",
     "mergedExplanation": "Your DFX account was merged into another account. Please sign in again so we can load the current profile.",
     "noAddresses": "No addresses linked yet.",

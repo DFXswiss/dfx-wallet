@@ -176,7 +176,7 @@ const makeStyles = (colors: ThemeColors) =>
       borderColor: colors.border,
       padding: 14,
       gap: 12,
-      shadowColor: '#0B1426',
+      shadowColor: colors.shadow,
       shadowOpacity: 0.05,
       shadowRadius: 10,
       shadowOffset: { width: 0, height: 3 },

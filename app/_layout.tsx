@@ -50,9 +50,11 @@ export default function RootLayout() {
 }
 
 function ThemedRoot() {
-  const { isHydrated, hydrate } = useAuthStore();
+  const { isHydrated: authHydrated, hydrate } = useAuthStore();
   const hydrateWallet = useWalletStore((s) => s.hydrate);
   const hydrateTheme = useThemeStore((s) => s.hydrate);
+  const themeHydrated = useThemeStore((s) => s.isHydrated);
+  const isHydrated = authHydrated && themeHydrated;
   const colors = useColors();
 
   useEffect(() => {

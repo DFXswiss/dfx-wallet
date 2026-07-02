@@ -133,7 +133,7 @@ export function TransactionRow({ tx, onPress, showState = true, testID }: Props)
           {primaryLabel}
         </Text>
         <View style={styles.subtitleRow}>
-          {isPay ? <View style={styles.payDot} /> : null}
+          {isPay ? <View style={[styles.payDot, { backgroundColor: iconConfig.fg }]} /> : null}
           <Text style={styles.subtitle} numberOfLines={1}>
             {secondaryLabel}
           </Text>
@@ -196,7 +196,6 @@ const makeStyles = (colors: ThemeColors) =>
       width: 6,
       height: 6,
       borderRadius: 3,
-      backgroundColor: '#7C3AED',
     },
     subtitle: {
       ...Typography.bodySmall,

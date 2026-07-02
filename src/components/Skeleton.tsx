@@ -51,7 +51,7 @@ export function Skeleton({ width = '100%', height = 16, radius = 8, style }: Pro
       importantForAccessibility="no-hide-descendants"
       style={[
         styles.base,
-        { width, height, borderRadius: radius, backgroundColor: colors.borderLight, opacity },
+        { width, height, borderRadius: radius, backgroundColor: colors.surfaceLight, opacity },
         style,
       ]}
     >

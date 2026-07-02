@@ -625,7 +625,7 @@ const makeStyles = (colors: ThemeColors) =>
       borderRadius: 15,
       alignItems: 'center',
       justifyContent: 'center',
-      shadowColor: '#0B1426',
+      shadowColor: colors.shadow,
       shadowOpacity: 0.12,
       shadowRadius: 6,
       shadowOffset: { width: 0, height: 2 },
