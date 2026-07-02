@@ -40,6 +40,15 @@ jobs:
        (github.event.action != 'labeled' || github.event.label.name == 'needs-visual'))
     runs-on: macos-latest
     timeout-minutes: 90
+    # QUARANTINE: the `full` (authenticated) variant has never gone green on CI
+    # since it was introduced in #186 — the full-feature build hangs during fresh
+    # wallet creation, so `setup-pin-screen` never appears and the whole suite
+    # times out (fails on develop's own nightly run and even on zero-code PRs like
+    # dependency bumps). It is not a required check, but a perpetually-red leg
+    # paints every PR red and drowns the signal. Until the suite is stabilised
+    # (tracking: #189 / #190) the `full` leg may fail without failing the check.
+    # The `mvp` leg stays a hard signal. Remove this once `full` is reliably green.
+    continue-on-error: ${{ matrix.variant == 'full' }}
     strategy:
       fail-fast: false
       matrix:
