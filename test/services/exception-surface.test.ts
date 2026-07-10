@@ -17,6 +17,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DfxApiError } from '@/features/dfx-backend/services/api';
 import { PasskeyPrfUnsupportedError } from '@/features/passkey/services/passkey-service';
+import { OpenCryptoPayError } from '@/services/opencryptopay/opencryptopay-service';
 
 /** Recursively list every non-test .ts/.tsx file under a directory. */
 function tsSourceFiles(dir: string): string[] {
@@ -55,7 +56,7 @@ describe('exception surface', () => {
 
     // One entry per typed exception. Adding a new `extends Error` class?
     // Register it below AND add identity tests for it in this file.
-    const registered = ['DfxApiError', 'PasskeyPrfUnsupportedError'];
+    const registered = ['DfxApiError', 'PasskeyPrfUnsupportedError', 'OpenCryptoPayError'];
 
     expect(declarations).toHaveLength(registered.length);
     for (const cls of registered) {
@@ -94,6 +95,17 @@ describe('exception surface', () => {
       expect(err).toBeInstanceOf(PasskeyPrfUnsupportedError);
       expect(err.name).toBe('PasskeyPrfUnsupportedError');
       expect(err.message).toBe('PRF extension not supported by this authenticator');
+    });
+  });
+
+  describe('OpenCryptoPayError', () => {
+    it('keeps its identity across the instanceof and name channels, and carries its code', () => {
+      const err = new OpenCryptoPayError('invalid-qr', 'Not an OpenCryptoPay QR code');
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(OpenCryptoPayError);
+      expect(err.name).toBe('OpenCryptoPayError');
+      expect(err.message).toBe('Not an OpenCryptoPay QR code');
+      expect(err.code).toBe('invalid-qr');
     });
   });
 });
