@@ -70,6 +70,13 @@ describe('verifyPin', () => {
     expect(await verifyPin('1234', 'not-a-real-hash')).toBe(false);
   });
 
+  it('returns false (fail-closed) when a well-formed hash record has invalid hex', async () => {
+    // Passes the FORMAT/version/params checks, but saltHex isn't valid hex —
+    // exercises the try/catch fail-closed path around hexToBytes/argon2idAsync.
+    const bogus = `pin$argon2id$v=19$m=32768,t=3,p=1$${'zz'.repeat(16)}$${'00'.repeat(32)}`;
+    expect(await verifyPin('1234', bogus)).toBe(false);
+  });
+
   it('accepts legacy hashes so existing users can migrate', async () => {
     const legacyHash = await legacyHashPin('1234');
     expect(await verifyPin('1234', legacyHash)).toBe(true);
