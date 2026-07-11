@@ -1,4 +1,4 @@
-import { DfxApiError } from '../../src/features/dfx-backend/services/api';
+import { dfxApi, DfxApiError } from '../../src/features/dfx-backend/services/api';
 
 describe('DfxApiError', () => {
   it('should create error with correct properties', () => {
@@ -33,5 +33,36 @@ describe('DfxApiError', () => {
     const error = new DfxApiError(500, 'SERVER_ERROR', 'Internal server error');
     expect(error).toBeInstanceOf(Error);
     expect(error).toBeInstanceOf(DfxApiError);
+  });
+});
+
+describe('dfxApi request hardening', () => {
+  beforeEach(() => {
+    globalThis.fetch = jest.fn(async () => ({
+      ok: true,
+      text: async () => '{}',
+    })) as jest.Mock;
+  });
+
+  it('rejects absolute authenticated URLs to avoid bearer leakage', async () => {
+    await expect(dfxApi.get('https://attacker.example/collect')).rejects.toMatchObject({
+      code: 'INVALID_API_PATH',
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects protocol-relative URLs', async () => {
+    await expect(dfxApi.get('//attacker.example/collect')).rejects.toMatchObject({
+      code: 'INVALID_API_PATH',
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('allows normal relative API paths', async () => {
+    await dfxApi.get('/v1/asset');
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'https://api.dfx.swiss/v1/asset',
+      expect.objectContaining({ method: 'GET' }),
+    );
   });
 });

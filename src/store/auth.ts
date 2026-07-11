@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { FEATURES } from '@/config/features';
-import { hashPin, verifyPin as verifyPinHash } from '@/services/pin';
+import { hashPin, needsPinRehash, verifyPin as verifyPinHash } from '@/services/pin';
 import { secureStorage, StorageKeys } from '@/services/storage';
 
 /**
@@ -116,7 +116,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   verifyPin: async (pin) => {
     const { pinHash } = get();
     if (!pinHash) return false;
-    return verifyPinHash(pin, pinHash);
+    const ok = await verifyPinHash(pin, pinHash);
+    if (ok && needsPinRehash(pinHash)) {
+      void (async () => {
+        try {
+          const migratedHash = await hashPin(pin);
+          await secureStorage.set(StorageKeys.PIN_HASH, migratedHash);
+          if (get().pinHash === pinHash) set({ pinHash: migratedHash });
+        } catch {
+          // Authentication succeeded; keep the legacy hash and retry migration
+          // on the next successful unlock rather than locking out the user.
+        }
+      })();
+    }
+    return ok;
   },
 
   authenticateBiometric: async () => {

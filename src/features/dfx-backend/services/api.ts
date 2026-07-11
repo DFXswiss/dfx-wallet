@@ -47,7 +47,7 @@ class DfxApi {
    * contain the asset/fiat the buy/sell flow needs.
    */
   async getPublic<T>(path: string, options?: { signal?: AbortSignal }): Promise<T> {
-    const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
+    const url = this.buildUrl(path);
     const response = await fetch(url, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
@@ -95,13 +95,24 @@ class DfxApi {
     body?: unknown,
     options?: RequestOptions,
   ): Promise<Response> {
-    const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
+    const url = this.buildUrl(path);
     return fetch(url, {
       method,
       headers: this.getHeaders(options?.headers),
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       ...(options?.signal ? { signal: options.signal } : {}),
     });
+  }
+
+  private buildUrl(path: string): string {
+    if (!path.startsWith('/') || path.startsWith('//')) {
+      throw new DfxApiError(
+        0,
+        'INVALID_API_PATH',
+        'DFX API requests must use relative paths so credentials cannot be sent off-domain.',
+      );
+    }
+    return `${this.baseUrl}${path}`;
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
