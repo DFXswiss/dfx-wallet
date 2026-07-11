@@ -153,6 +153,11 @@
       "tracking": "DFXswiss/dfx-wallet#186",
       "reason": "Pay landing; needs onboarded state — capture once a pay-screen testID anchor is added."
     },
+    "(auth)/pay/opencryptopay.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#186",
+      "reason": "OpenCryptoPay quote/invoice screen; needs onboarded state and a mocked OpenCryptoPay provider response before a deterministic baseline."
+    },
     "(auth)/multi-sig/index.tsx": {
       "status": "baselined",
       "baselines": ["multi-sig"]

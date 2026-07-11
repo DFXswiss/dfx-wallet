@@ -67,5 +67,33 @@ describe('opencryptopay lnurl', () => {
       expect(() => decodeLNURL('https://example.com/not-lnurl')).toThrow();
       expect(() => decodeLNURL('hello world')).toThrow();
     });
+
+    it('throws on a bech32 payload with no separator (no "1" after the hrp)', () => {
+      // Matches findLnUrl's "lnurl<digits><alnum>" shape but the digit is
+      // "2", not "1" — bech32Decode's lastIndexOf('1') then finds nothing.
+      expect(() => decodeLNURL('lnurl2abc')).toThrow(/bad separator position/);
+    });
+
+    it('throws on a bech32 payload containing a non-alphabet character', () => {
+      // "b" is deliberately excluded from the bech32 charset (visual
+      // ambiguity with "6"/"8") — trips the bad-character branch.
+      expect(() => decodeLNURL('lnurl1qqqqqqb')).toThrow(/bad character/);
+    });
+
+    it('throws on a bech32 payload whose data length leaves non-zero padding bits', () => {
+      expect(() => decodeLNURL('lnurl1qqqqqqqqpqqqqqq')).toThrow(/bad padding/);
+    });
+
+    it('falls back to manual UTF-8 decoding when TextDecoder is unavailable', () => {
+      const original = global.TextDecoder;
+      // @ts-expect-error -- deliberately removing TextDecoder to exercise the manual fallback path
+      delete global.TextDecoder;
+      try {
+        const url = decodeLNURL(TEST_LNURL);
+        expect(url.host).toBe('service.com');
+      } finally {
+        global.TextDecoder = original;
+      }
+    });
   });
 });

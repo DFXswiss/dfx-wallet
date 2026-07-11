@@ -3,12 +3,103 @@ import {
   commitTx,
   fetchQuote,
   getPaymentTarget,
+  lnurlToEndpoint,
   OpenCryptoPayError,
   parsePaymentUri,
 } from '../../src/services/opencryptopay/opencryptopay-service';
 
 describe('opencryptopay service', () => {
+  describe('lnurlToEndpoint', () => {
+    it('decodes a valid LUD-17 scheme into its https endpoint', () => {
+      const url = lnurlToEndpoint('lnurlp://service.com/.well-known/lnurlp/alice');
+      expect(url.protocol).toBe('https:');
+      expect(url.host).toBe('service.com');
+    });
+
+    it('wraps a decode failure into a typed invalid-qr error', () => {
+      let caught: unknown;
+      try {
+        lnurlToEndpoint('not a valid qr at all');
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(OpenCryptoPayError);
+      expect((caught as OpenCryptoPayError).code).toBe('invalid-qr');
+    });
+  });
+
   describe('fetchQuote', () => {
+    it('wraps a network-level failure into a typed fetch-failed error', async () => {
+      const fetchImpl = jest.fn(async () => {
+        throw new Error('offline');
+      });
+      await expect(
+        fetchQuote(new URL('https://lightning.space/foo'), {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+        }),
+      ).rejects.toMatchObject({ code: 'fetch-failed' });
+    });
+
+    it('wraps a non-JSON response body into a typed invalid-response error', async () => {
+      const fetchImpl = jest.fn(
+        async () =>
+          ({
+            ok: true,
+            status: 200,
+            json: async () => {
+              throw new SyntaxError('Unexpected token < in JSON');
+            },
+          }) as unknown as Response,
+      );
+      await expect(
+        fetchQuote(new URL('https://lightning.space/foo'), {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+        }),
+      ).rejects.toMatchObject({ code: 'invalid-response' });
+    });
+
+    it('throws when every offered transfer amount has no usable assets', async () => {
+      const fetchImpl = jest.fn(
+        async () =>
+          ({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              displayName: 'DFX Coffee Shop',
+              callback: 'https://lightning.space/cb/abc',
+              quote: { id: 'q-123' },
+              transferAmounts: [{ method: 'Ethereum', minFee: 1, assets: [] }],
+            }),
+          }) as unknown as Response,
+      );
+      await expect(
+        fetchQuote(new URL('https://lightning.space/foo'), {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+        }),
+      ).rejects.toMatchObject({ code: 'invalid-response' });
+    });
+
+    it('defaults expiresAt to 0 when the quote carries no parseable expiration', async () => {
+      const fetchImpl = jest.fn(
+        async () =>
+          ({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              displayName: 'DFX Coffee Shop',
+              callback: 'https://lightning.space/cb/abc',
+              quote: { id: 'q-123', expiration: 'not-a-date' },
+              transferAmounts: [
+                { method: 'Ethereum', minFee: 1, assets: [{ asset: 'ZCHF', amount: '1' }] },
+              ],
+            }),
+          }) as unknown as Response,
+      );
+      const invoice = await fetchQuote(new URL('https://lightning.space/foo'), {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      });
+      expect(invoice.quote.expiresAt).toBe(0);
+    });
     it('parses a happy-path response into the typed invoice shape', async () => {
       const fetchImpl = jest.fn(
         async () =>
@@ -96,11 +187,46 @@ describe('opencryptopay service', () => {
         'Ethereum',
         { fetchImpl: fetchImpl as unknown as typeof fetch },
       );
-      expect(target.paymentUri).toMatch(/transfer\?address=0xab1234567890ABCDEFabcdef1234567890ABCDEF/);
+      expect(target.paymentUri).toMatch(
+        /transfer\?address=0xab1234567890ABCDEFabcdef1234567890ABCDEF/,
+      );
       expect(target.expiresAt).toBe(1700000000000);
       expect(calls[0]).toContain('quote=q-123');
       expect(calls[0]).toContain('asset=ZCHF');
       expect(calls[0]).toContain('method=Ethereum');
+    });
+
+    it('wraps a network-level failure into a typed fetch-failed error', async () => {
+      const fetchImpl = jest.fn(async () => {
+        throw new Error('offline');
+      });
+      await expect(
+        getPaymentTarget('https://lightning.space/cb/abc', 'q-123', 'ZCHF', 'Ethereum', {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+        }),
+      ).rejects.toMatchObject({ code: 'fetch-failed' });
+    });
+
+    it('wraps an HTTP failure into a typed fetch-failed error', async () => {
+      const fetchImpl = jest.fn(
+        async () => ({ ok: false, status: 502, json: async () => ({}) }) as unknown as Response,
+      );
+      await expect(
+        getPaymentTarget('https://lightning.space/cb/abc', 'q-123', 'ZCHF', 'Ethereum', {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+        }),
+      ).rejects.toMatchObject({ code: 'fetch-failed' });
+    });
+
+    it('throws when the response carries no payment URI', async () => {
+      const fetchImpl = jest.fn(
+        async () => ({ ok: true, status: 200, json: async () => ({}) }) as unknown as Response,
+      );
+      await expect(
+        getPaymentTarget('https://lightning.space/cb/abc', 'q-123', 'ZCHF', 'Ethereum', {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+        }),
+      ).rejects.toMatchObject({ code: 'invalid-response' });
     });
   });
 
@@ -142,6 +268,45 @@ describe('opencryptopay service', () => {
       );
       expect(calls[0]).toMatch(/hex=0xdeadbeef(?!d)/);
     });
+
+    it('wraps a network-level failure into a typed commit-failed error', async () => {
+      const fetchImpl = jest.fn(async () => {
+        throw new Error('offline');
+      });
+      await expect(
+        commitTx(
+          'https://lightning.space/cb/abc',
+          { quoteId: 'q-1', asset: 'ZCHF', method: 'Ethereum', txHex: 'deadbeef' },
+          { fetchImpl: fetchImpl as unknown as typeof fetch },
+        ),
+      ).rejects.toMatchObject({ code: 'commit-failed' });
+    });
+
+    it('wraps an HTTP failure into a typed commit-failed error', async () => {
+      const fetchImpl = jest.fn(
+        async () => ({ ok: false, status: 500, json: async () => ({}) }) as unknown as Response,
+      );
+      await expect(
+        commitTx(
+          'https://lightning.space/cb/abc',
+          { quoteId: 'q-1', asset: 'ZCHF', method: 'Ethereum', txHex: 'deadbeef' },
+          { fetchImpl: fetchImpl as unknown as typeof fetch },
+        ),
+      ).rejects.toMatchObject({ code: 'commit-failed' });
+    });
+
+    it('throws when the response carries no txId', async () => {
+      const fetchImpl = jest.fn(
+        async () => ({ ok: true, status: 200, json: async () => ({}) }) as unknown as Response,
+      );
+      await expect(
+        commitTx(
+          'https://lightning.space/cb/abc',
+          { quoteId: 'q-1', asset: 'ZCHF', method: 'Ethereum', txHex: 'deadbeef' },
+          { fetchImpl: fetchImpl as unknown as typeof fetch },
+        ),
+      ).rejects.toMatchObject({ code: 'commit-failed' });
+    });
   });
 
   describe('cancelQuote', () => {
@@ -172,7 +337,9 @@ describe('opencryptopay service', () => {
 
   describe('parsePaymentUri', () => {
     it('parses a native-send ERC-681 URI', () => {
-      const r = parsePaymentUri('ethereum:0xab1234567890ABCDEFabcdef1234567890ABCDEF@1?value=12500000000000000000');
+      const r = parsePaymentUri(
+        'ethereum:0xab1234567890ABCDEFabcdef1234567890ABCDEF@1?value=12500000000000000000',
+      );
       expect(r.chainSlug).toBe('ethereum');
       expect(r.contract).toBeNull();
       expect(r.recipient).toBe('0xab1234567890ABCDEFabcdef1234567890ABCDEF');
