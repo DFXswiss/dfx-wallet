@@ -773,8 +773,8 @@ export default function BuyScreen() {
         <PrimaryButton
           title={t('buy.confirmTransfer')}
           onPress={async () => {
-            await confirmPayment(paymentInfo.id);
-            setStep('confirm');
+            const confirmed = await confirmPayment(paymentInfo.id);
+            if (confirmed) setStep('confirm');
           }}
           loading={isLoading}
         />
