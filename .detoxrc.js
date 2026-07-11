@@ -15,6 +15,18 @@ module.exports = {
     },
   },
 
+  behavior: {
+    cleanup: {
+      // forceExit above only kills the jest child. The detox CLI parent then
+      // closes its ws server, but the app still running in the simulator holds
+      // its connection open, so the close callback never fires ("Detox server
+      // has been closed abruptly") and the leaked handle keeps the CLI alive
+      // until the CI job timeout. Shutting the device down drops the
+      // connection so the CLI can actually exit after a passing run.
+      shutdownDevice: true,
+    },
+  },
+
   apps: {
     'ios.debug': {
       type: 'ios.app',
