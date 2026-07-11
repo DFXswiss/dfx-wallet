@@ -41,6 +41,7 @@ export class DfxTransactionService {
    * share-sheet (mirrors realunit-app's PDF flow).
    */
   async createCsvExport(params: {
+    userAddress: string;
     from?: Date;
     to?: Date;
     type?: TaxReportType;
@@ -50,9 +51,14 @@ export class DfxTransactionService {
     if (params.to) queryParts.push(`to=${encodeURIComponent(params.to.toISOString())}`);
     queryParts.push(`type=${params.type ?? 'CoinTracking'}`);
     const query = queryParts.length ? `?${queryParts.join('&')}` : '';
-    // PUT body must be present; an empty object is fine. The query string
-    // carries the actual filters.
-    const fileKey = await dfxApi.put<string>(`/v1/transaction/csv${query}`, {});
+    // The DFX `/v1/transaction/csv` endpoint rejects requests whose body
+    // is missing `userAddress` with `"userAddress must be a string,
+    // userAddress should not be empty"`. The query string carries the
+    // actual filters; the body just supplies the active linked-wallet
+    // address (the JWT's `address` claim — caller resolves it).
+    const fileKey = await dfxApi.put<string>(`/v1/transaction/csv${query}`, {
+      userAddress: params.userAddress,
+    });
     return {
       fileKey,
       downloadUrl: `${dfxApi.baseUrlPublic()}/v1/transaction/csv?key=${encodeURIComponent(fileKey)}`,

@@ -616,6 +616,7 @@
     "formatLabel": "Format",
     "generating": "Generating …",
     "intro": "Download your transaction journal for a given year as CSV — ready to import into CoinTracking, Blockpit & Co.",
+    "noAddress": "No DFX-linked wallet on this session — link a wallet under Settings first.",
     "savedAt": "File saved: {{uri}}",
     "shareTitle": "DFX tax report",
     "title": "Tax report",

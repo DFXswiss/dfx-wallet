@@ -119,10 +119,11 @@ describe('dfxTransactionService.getTransactions', () => {
 });
 
 describe('dfxTransactionService.createCsvExport', () => {
-  it('PUTs the filters in the query string with ISO dates URL-encoded and an empty-object body', async () => {
+  it('PUTs the filters in the query string with ISO dates URL-encoded and the userAddress in the body', async () => {
     fetchMock.mockResolvedValueOnce(jsonOk('0123abcd4567efgh'));
 
     const result = await dfxTransactionService.createCsvExport({
+      userAddress: '0xabc',
       from: new Date('2025-01-01T00:00:00.000Z'),
       to: new Date('2025-03-31T23:59:59.999Z'),
       type: 'ChainReport',
@@ -137,7 +138,7 @@ describe('dfxTransactionService.createCsvExport', () => {
       'Content-Type': 'application/json',
       Authorization: 'Bearer TEST_TOKEN',
     });
-    expect(init.body).toBe('{}');
+    expect(init.body).toBe('{"userAddress":"0xabc"}');
     expect(result.fileKey).toBe('0123abcd4567efgh');
     expect(result.downloadUrl).toBe(`${BASE}/v1/transaction/csv?key=0123abcd4567efgh`);
   });
@@ -145,7 +146,7 @@ describe('dfxTransactionService.createCsvExport', () => {
   it('defaults the report type to CoinTracking and omits absent date filters', async () => {
     fetchMock.mockResolvedValueOnce(jsonOk('key1'));
 
-    await dfxTransactionService.createCsvExport({});
+    await dfxTransactionService.createCsvExport({ userAddress: '0xabc' });
 
     expect(call().url).toBe(`${BASE}/v1/transaction/csv?type=CoinTracking`);
   });
@@ -154,6 +155,7 @@ describe('dfxTransactionService.createCsvExport', () => {
     fetchMock.mockResolvedValueOnce(jsonOk('key1'));
 
     await dfxTransactionService.createCsvExport({
+      userAddress: '0xabc',
       from: new Date('2025-06-01T00:00:00.000Z'),
       type: 'Compact',
     });
@@ -169,7 +171,7 @@ describe('dfxTransactionService.createCsvExport', () => {
     // smuggle extra query parameters into the download request.
     fetchMock.mockResolvedValueOnce(jsonOk('a+b/c=&d?e'));
 
-    const result = await dfxTransactionService.createCsvExport({});
+    const result = await dfxTransactionService.createCsvExport({ userAddress: '0xabc' });
 
     expect(result.downloadUrl).toBe(
       `${BASE}/v1/transaction/csv?key=a%2Bb%2Fc%3D%26d%3Fe`,
@@ -183,7 +185,7 @@ describe('dfxTransactionService.createCsvExport', () => {
     // share sheet.
     fetchMock.mockResolvedValueOnce(jsonOk(undefined));
 
-    const result = await dfxTransactionService.createCsvExport({});
+    const result = await dfxTransactionService.createCsvExport({ userAddress: '0xabc' });
 
     expect(result.fileKey).toBeUndefined();
     expect(result.downloadUrl).toBe(`${BASE}/v1/transaction/csv?key=undefined`);
@@ -194,7 +196,7 @@ describe('dfxTransactionService.createCsvExport', () => {
     // fileKey typed as string; an object body would yield key=[object Object].
     fetchMock.mockResolvedValueOnce(jsonOk(12345));
 
-    const result = await dfxTransactionService.createCsvExport({});
+    const result = await dfxTransactionService.createCsvExport({ userAddress: '0xabc' });
 
     expect(result.fileKey).toBe(12345 as unknown as string);
     expect(result.downloadUrl).toBe(`${BASE}/v1/transaction/csv?key=12345`);
@@ -206,7 +208,11 @@ describe('dfxTransactionService.createCsvExport', () => {
     );
 
     const err = await dfxTransactionService
-      .createCsvExport({ from: new Date('2025-02-01'), to: new Date('2025-01-01') })
+      .createCsvExport({
+        userAddress: '0xabc',
+        from: new Date('2025-02-01'),
+        to: new Date('2025-01-01'),
+      })
       .catch((e: unknown) => e);
 
     expect(err).toBeInstanceOf(DfxApiError);
@@ -216,7 +222,9 @@ describe('dfxTransactionService.createCsvExport', () => {
   it('falls back to UNKNOWN on a non-JSON 5xx body', async () => {
     fetchMock.mockResolvedValueOnce(httpResponse(503, 'Service Unavailable'));
 
-    const err = await dfxTransactionService.createCsvExport({}).catch((e: unknown) => e);
+    const err = await dfxTransactionService
+      .createCsvExport({ userAddress: '0xabc' })
+      .catch((e: unknown) => e);
 
     expect(err).toBeInstanceOf(DfxApiError);
     expect((err as DfxApiError).statusCode).toBe(503);
