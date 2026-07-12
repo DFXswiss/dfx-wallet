@@ -337,20 +337,18 @@ export default function SettingsScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
-      {scheme === 'dark' ? (
-        <View style={styles.container}>
+      <View style={styles.container}>
+        {scheme === 'dark' ? (
           <DarkBackdrop baseColor={colors.background} />
-          {body}
-        </View>
-      ) : (
-        <ImageBackground
-          source={require('../../../assets/dashboard-bg.png')}
-          style={styles.container}
-          resizeMode="cover"
-        >
-          {body}
-        </ImageBackground>
-      )}
+        ) : (
+          <ImageBackground
+            source={require('../../../assets/dashboard-bg.png')}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+        )}
+        {body}
+      </View>
     </>
   );
 }

@@ -351,20 +351,18 @@ export default function LinkedWalletDetailScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      {scheme === 'dark' ? (
-        <View style={styles.bg}>
+      <View style={styles.bg}>
+        {scheme === 'dark' ? (
           <DarkBackdrop baseColor={colors.background} />
-          {body}
-        </View>
-      ) : (
-        <ImageBackground
-          source={require('../../../assets/dashboard-bg.png')}
-          style={styles.bg}
-          resizeMode="cover"
-        >
-          {body}
-        </ImageBackground>
-      )}
+        ) : (
+          <ImageBackground
+            source={require('../../../assets/dashboard-bg.png')}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+        )}
+        {body}
+      </View>
     </>
   );
 }

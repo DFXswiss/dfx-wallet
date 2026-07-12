@@ -188,23 +188,19 @@ export default function VerifyPinScreen() {
     </SafeAreaView>
   );
 
-  if (scheme === 'dark') {
-    return (
-      <View style={styles.bg}>
-        <DarkBackdrop baseColor={colors.background} />
-        {body}
-      </View>
-    );
-  }
-
   return (
-    <ImageBackground
-      source={require('../../../assets/dashboard-bg.png')}
-      style={styles.bg}
-      resizeMode="cover"
-    >
+    <View style={styles.bg}>
+      {scheme === 'dark' ? (
+        <DarkBackdrop baseColor={colors.background} />
+      ) : (
+        <ImageBackground
+          source={require('../../../assets/dashboard-bg.png')}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
+      )}
       {body}
-    </ImageBackground>
+    </View>
   );
 }
 

@@ -124,20 +124,18 @@ export default function PayScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      {scheme === 'dark' ? (
-        <View style={styles.bg}>
+      <View style={styles.bg}>
+        {scheme === 'dark' ? (
           <DarkBackdrop baseColor={colors.background} />
-          {content}
-        </View>
-      ) : (
-        <ImageBackground
-          source={require('../../../assets/pay-bg.png')}
-          style={styles.bg}
-          resizeMode="cover"
-        >
-          {content}
-        </ImageBackground>
-      )}
+        ) : (
+          <ImageBackground
+            source={require('../../../assets/pay-bg.png')}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+        )}
+        {content}
+      </View>
     </>
   );
 }

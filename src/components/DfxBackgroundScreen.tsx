@@ -46,25 +46,20 @@ export function DfxBackgroundScreen({
   // Dark: the navy DarkBackdrop replaces the (light) mountain photo so the
   // 11 screens still on this container read as DFX navy, not as a light
   // sheet floating in a dark app. Light keeps the Swiss-mountain hero image.
-  if (scheme === 'dark') {
-    return (
-      <View style={styles.background}>
-        <StatusBar style="light" />
-        <DarkBackdrop baseColor={colors.background} />
-        {inner}
-      </View>
-    );
-  }
-
   return (
-    <ImageBackground
-      source={require('../../assets/dashboard-bg.png')}
-      style={styles.background}
-      resizeMode="cover"
-    >
-      <StatusBar style="dark" />
+    <View style={styles.background}>
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+      {scheme === 'dark' ? (
+        <DarkBackdrop baseColor={colors.background} />
+      ) : (
+        <ImageBackground
+          source={require('../../assets/dashboard-bg.png')}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
+      )}
       {inner}
-    </ImageBackground>
+    </View>
   );
 }
 
