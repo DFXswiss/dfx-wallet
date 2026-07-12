@@ -103,7 +103,12 @@ export function lnurlToEndpoint(rawQr: string): URL {
 }
 
 type RawTransferAmountAsset = { asset?: unknown; amount?: unknown };
-type RawTransferAmount = { method?: unknown; minFee?: unknown; assets?: unknown };
+type RawTransferAmount = {
+  method?: unknown;
+  minFee?: unknown;
+  assets?: unknown;
+  available?: unknown;
+};
 type RawQuote = {
   callback?: unknown;
   transferAmounts?: unknown;
@@ -162,6 +167,9 @@ export async function fetchQuote(
   const transferAmounts: TransferAmount[] = [];
   for (const raw of transferAmountsRaw as RawTransferAmount[]) {
     if (!raw || typeof raw.method !== 'string' || !Array.isArray(raw.assets)) continue;
+    // Spec: entries may carry `available: false`; wallets must not offer
+    // those methods. Absent field = available (older providers).
+    if (raw.available === false) continue;
     const assets: TransferAmountAsset[] = [];
     for (const a of raw.assets as RawTransferAmountAsset[]) {
       if (!a) continue;

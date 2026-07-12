@@ -100,6 +100,44 @@ describe('opencryptopay service', () => {
       });
       expect(invoice.quote.expiresAt).toBe(0);
     });
+
+    it('drops transfer methods flagged available:false and keeps ones without the flag', async () => {
+      // Spec (openCryptoPay README): "Payment methods may have
+      // available: false. Wallets should not present unavailable
+      // methods to users." An absent flag means available.
+      const fetchImpl = jest.fn(
+        async () =>
+          ({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              displayName: 'DFX Coffee Shop',
+              callback: 'https://lightning.space/cb/abc',
+              quote: { id: 'q-123', expiration: '2030-01-01T00:00:00Z' },
+              transferAmounts: [
+                {
+                  method: 'Ethereum',
+                  minFee: 1,
+                  assets: [{ asset: 'ZCHF', amount: '1' }],
+                  available: false,
+                },
+                {
+                  method: 'Polygon',
+                  minFee: 1,
+                  assets: [{ asset: 'ZCHF', amount: '1' }],
+                  available: true,
+                },
+                { method: 'Base', minFee: 1, assets: [{ asset: 'ZCHF', amount: '1' }] },
+              ],
+            }),
+          }) as unknown as Response,
+      );
+      const invoice = await fetchQuote(new URL('https://lightning.space/foo'), {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      });
+      expect(invoice.transferAmounts.map((t) => t.method)).toEqual(['Polygon', 'Base']);
+    });
+
     it('parses a happy-path response into the typed invoice shape', async () => {
       const fetchImpl = jest.fn(
         async () =>
