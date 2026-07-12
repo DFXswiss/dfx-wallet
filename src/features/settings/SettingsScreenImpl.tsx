@@ -49,14 +49,9 @@ type SettingsSection = {
 };
 
 const THEME_MODE_LABEL: Record<ThemeMode, string> = {
-  system: 'Dark',
   light: 'Light',
   dark: 'Dark',
 };
-// Only two appearance options: Light + Dark. "System" was redundant on
-// devices that mirror the app's dark mode anyway, so we keep the union
-// type for storage-compat but treat any persisted "system" value as Dark
-// in both the cycle and the label.
 const THEME_ORDER: ThemeMode[] = ['light', 'dark'];
 
 export default function SettingsScreen() {

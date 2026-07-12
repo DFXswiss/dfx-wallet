@@ -1,10 +1,13 @@
-import { createContext, ReactNode, useContext, useMemo } from 'react';
-import { useColorScheme } from 'react-native';
+import { createContext, ReactNode, useContext, useEffect, useMemo } from 'react';
+import { Appearance } from 'react-native';
 import { create } from 'zustand';
 import { secureStorage } from '@/services/storage';
 import { darkColors, lightColors, type ThemeColors } from './colors';
 
-export type ThemeMode = 'system' | 'light' | 'dark';
+// The "system" appearance option was dropped (Light is the brand default,
+// Dark is the explicit opt-in); hydrate() below still migrates a
+// previously-persisted 'system' value.
+export type ThemeMode = 'light' | 'dark';
 export type ResolvedScheme = 'light' | 'dark';
 
 const THEME_KEY = 'themeMode';
@@ -69,15 +72,19 @@ const ThemeContext = createContext<ThemeContextValue>(FallbackThemeContextValue)
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const mode = useThemeStore((s) => s.mode);
-  const systemScheme = useColorScheme();
 
-  const value = useMemo<ThemeContextValue>(() => {
-    let scheme: ResolvedScheme;
-    if (mode === 'light') scheme = 'light';
-    else if (mode === 'dark') scheme = 'dark';
-    else scheme = systemScheme === 'dark' ? 'dark' : 'light';
-    return { scheme, colors: scheme === 'dark' ? darkColors : lightColors };
-  }, [mode, systemScheme]);
+  const value = useMemo<ThemeContextValue>(
+    () => ({ scheme: mode, colors: mode === 'dark' ? darkColors : lightColors }),
+    [mode],
+  );
+
+  // Keep the NATIVE view hierarchy on the same scheme as the JS theme.
+  // app.json sets userInterfaceStyle "automatic", so without this the
+  // OS-drawn surfaces (system alerts, share sheets, iOS keyboard) would
+  // follow the device setting instead of the in-app toggle.
+  useEffect(() => {
+    Appearance.setColorScheme?.(value.scheme);
+  }, [value.scheme]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
