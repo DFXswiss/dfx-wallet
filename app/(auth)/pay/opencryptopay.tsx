@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, PrimaryButton, ScreenContainer } from '@/components';
+import { FEATURES } from '@/config/features';
 import {
   cancelQuote,
   fetchQuote,
@@ -32,7 +33,18 @@ import { DfxColors, Typography } from '@/theme';
 
 const FALLBACK_EXPIRY_MS = 5 * 60 * 1000;
 
-export default function OpenCryptoPayScreen() {
+/**
+ * Route gate. `pay/index.tsx` swaps in `PayDisabled` when the flag is
+ * off, but Expo Router registers THIS file as its own route, so a deep
+ * link to `/(auth)/pay/opencryptopay` would otherwise reach the quote
+ * screen (and its network fetch) with the Pay feature disabled.
+ */
+export default function OpenCryptoPayRoute() {
+  if (!FEATURES.PAY) return <Redirect href="/(auth)/(tabs)/dashboard" />;
+  return <OpenCryptoPayScreen />;
+}
+
+function OpenCryptoPayScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const params = useLocalSearchParams<{ lnurl?: string }>();

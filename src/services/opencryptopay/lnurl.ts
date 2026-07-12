@@ -5,7 +5,12 @@
  * OpenCryptoPay piggybacks on that — DFX' QR codes are either:
  *   - a bare `LNURL1…` bech32 string
  *   - a BIP-21 URI with a `lightning=lnurl…` parameter
- *   - a non-bech32 LUD-17 scheme (`lnurlp:`, `lnurlw:`, `lnurlc:`, `keyauth:`)
+ *   - a non-bech32 LUD-17 scheme (`lnurlp:`, `lnurlw:`, `lnurlc:`)
+ *
+ * LUD-17's fourth scheme, `keyauth:`, is deliberately NOT handled: it
+ * is LNURL-auth (a login challenge), not a payment request — and the
+ * `isOpenCryptoPayQR` gate below never matched it anyway, so routing
+ * it here was unreachable dead code.
  *
  * The reference implementation is DFX's frankencoin-wallet
  * `lib/src/core/open_crypto_pay/lnurl.dart`; this file mirrors its
@@ -35,7 +40,7 @@ const BECH32_ALPHABET_MAP: Record<string, number> = (() => {
   return out;
 })();
 
-const LUD17_SCHEMES = new Set(['lnurlw', 'lnurlc', 'lnurlp', 'keyauth']);
+const LUD17_SCHEMES = new Set(['lnurlw', 'lnurlc', 'lnurlp']);
 
 /**
  * Decode a scanned LNURL/QR payload into the https URL it points at.
@@ -44,8 +49,8 @@ const LUD17_SCHEMES = new Set(['lnurlw', 'lnurlc', 'lnurlp', 'keyauth']);
  *   1. Bare bech32 `lnurl1…` (case-insensitive).
  *   2. BIP-21 URI like `bitcoin:bc1q…?lightning=lnurl1…` — extracts the
  *      `lightning` parameter and recurses.
- *   3. LUD-17 non-bech32 schemes (`lnurlp:`, `lnurlw:`, `lnurlc:`,
- *      `keyauth:`) — rewritten to https (or http for .onion hosts).
+ *   3. LUD-17 non-bech32 payment schemes (`lnurlp:`, `lnurlw:`,
+ *      `lnurlc:`) — rewritten to https (or http for .onion hosts).
  *
  * Throws on inputs that match none of these (caller surfaces the error
  * as "Ungültiger Pay-QR-Code" so the user knows the scan won't yield

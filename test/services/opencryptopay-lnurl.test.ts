@@ -27,6 +27,10 @@ describe('opencryptopay lnurl', () => {
       expect(isOpenCryptoPayQR('bc1qabc')).toBe(false);
       expect(isOpenCryptoPayQR('')).toBe(false);
     });
+
+    it('rejects keyauth: QRs — LNURL-auth is a login challenge, not a payment', () => {
+      expect(isOpenCryptoPayQR('keyauth://service.com/?tag=login&k1=abcd')).toBe(false);
+    });
   });
 
   describe('decodeLNURL', () => {
@@ -66,6 +70,10 @@ describe('opencryptopay lnurl', () => {
     it('throws on a non-LNURL payload', () => {
       expect(() => decodeLNURL('https://example.com/not-lnurl')).toThrow();
       expect(() => decodeLNURL('hello world')).toThrow();
+    });
+
+    it('throws on a keyauth: payload (LNURL-auth, deliberately unsupported)', () => {
+      expect(() => decodeLNURL('keyauth://service.com/?tag=login&k1=abcd')).toThrow();
     });
 
     it('throws on a bech32 payload with no separator (no "1" after the hrp)', () => {
