@@ -3,7 +3,7 @@ import { Redirect, Stack, useSegments } from 'expo-router';
 import { useDeepLink, useDfxAuth, useDfxAutoLink } from '@/hooks';
 import { dfxApi } from '@/features/dfx-backend/services';
 import { useAuthStore } from '@/store';
-import { DfxColors } from '@/theme';
+import { useColors } from '@/theme';
 
 export default function AuthLayout() {
   useDeepLink();
@@ -28,11 +28,12 @@ export default function AuthLayout() {
 }
 
 function AuthStack() {
+  const colors = useColors();
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: DfxColors.background },
+        contentStyle: { backgroundColor: colors.background },
         gestureEnabled: true,
         fullScreenGestureEnabled: true,
       }}

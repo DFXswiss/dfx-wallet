@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -6,11 +6,13 @@ import { AppHeader, DfxBackgroundScreen, PrimaryButton } from '@/components';
 import { BitboxProvider, BitboxWasmWebView } from './services';
 import type { HardwareWalletDevice, HardwareWalletStatus } from './services';
 import { useHardwareWalletStore } from './store';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 const provider = new BitboxProvider();
 
 export default function HardwareConnectScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
   const { status, device, setStatus, setDevice, setAddress, setError, reset } =
@@ -63,7 +65,7 @@ export default function HardwareConnectScreen() {
           </View>
 
           <View style={styles.statusContainer}>
-            {status === 'scanning' && <ActivityIndicator color={DfxColors.primary} />}
+            {status === 'scanning' && <ActivityIndicator color={colors.primary} />}
             <Text style={styles.statusText}>{t(`hardware.status.${status}`)}</Text>
           </View>
 
@@ -153,128 +155,129 @@ export default function HardwareConnectScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    paddingTop: 4,
-    paddingBottom: 24,
-  },
-  content: {
-    flex: 1,
-    gap: 16,
-  },
-  body: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 24,
-    paddingTop: 24,
-  },
-  illustration: {
-    width: 200,
-    height: 120,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  illustrationText: {
-    ...Typography.headlineSmall,
-    color: DfxColors.textTertiary,
-  },
-  statusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  statusText: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  description: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    textAlign: 'center',
-    paddingHorizontal: 32,
-  },
-  transportInfo: {
-    gap: 12,
-    width: '100%',
-    paddingHorizontal: 32,
-  },
-  transportRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  transportBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  usbBadge: {
-    backgroundColor: DfxColors.info,
-  },
-  bleBadge: {
-    backgroundColor: DfxColors.success,
-  },
-  transportBadgeText: {
-    ...Typography.bodySmall,
-    fontWeight: '700',
-    color: DfxColors.black,
-  },
-  transportLabel: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-  },
-  deviceList: {
-    width: '100%',
-    gap: 8,
-  },
-  deviceItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-  },
-  deviceInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  deviceName: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  connectText: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.primary,
-  },
-  hint: {
-    ...Typography.bodyMedium,
-    color: DfxColors.warning,
-    textAlign: 'center',
-    paddingHorizontal: 32,
-  },
-  successContainer: {
-    alignItems: 'center',
-    gap: 12,
-  },
-  successIcon: {
-    fontSize: 48,
-  },
-  successText: {
-    ...Typography.bodyLarge,
-    color: DfxColors.success,
-  },
-  actions: {
-    gap: 12,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    screen: {
+      paddingTop: 4,
+      paddingBottom: 24,
+    },
+    content: {
+      flex: 1,
+      gap: 16,
+    },
+    body: {
+      flex: 1,
+      alignItems: 'center',
+      gap: 24,
+      paddingTop: 24,
+    },
+    illustration: {
+      width: 200,
+      height: 120,
+      borderRadius: 12,
+      backgroundColor: colors.surfaceLight,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    illustrationText: {
+      ...Typography.headlineSmall,
+      color: colors.textTertiary,
+    },
+    statusContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    statusText: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    description: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      paddingHorizontal: 32,
+    },
+    transportInfo: {
+      gap: 12,
+      width: '100%',
+      paddingHorizontal: 32,
+    },
+    transportRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    transportBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 6,
+    },
+    usbBadge: {
+      backgroundColor: colors.info,
+    },
+    bleBadge: {
+      backgroundColor: colors.success,
+    },
+    transportBadgeText: {
+      ...Typography.bodySmall,
+      fontWeight: '700',
+      color: colors.black,
+    },
+    transportLabel: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+    },
+    deviceList: {
+      width: '100%',
+      gap: 8,
+    },
+    deviceItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 16,
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    deviceInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    deviceName: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    connectText: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.primary,
+    },
+    hint: {
+      ...Typography.bodyMedium,
+      color: colors.warning,
+      textAlign: 'center',
+      paddingHorizontal: 32,
+    },
+    successContainer: {
+      alignItems: 'center',
+      gap: 12,
+    },
+    successIcon: {
+      fontSize: 48,
+    },
+    successText: {
+      ...Typography.bodyLarge,
+      color: colors.success,
+    },
+    actions: {
+      gap: 12,
+    },
+  });

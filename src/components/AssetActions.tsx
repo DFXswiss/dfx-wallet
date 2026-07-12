@@ -1,7 +1,8 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { DfxColors, Typography } from '@/theme';
+import { useColors, type ThemeColors, Typography } from '@/theme';
 import { Icon } from './Icon';
 
 type Props = {
@@ -24,6 +25,8 @@ type Props = {
  * the right token on mount (when those screens read the route params).
  */
 export function AssetActions({ asset, chain, testID }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
 
@@ -43,7 +46,7 @@ export function AssetActions({ asset, chain, testID }: Props) {
         accessibilityLabel={t('buy.title')}
         testID={testID ? `${testID}-buy` : undefined}
       >
-        <Icon name="arrow-down" size={16} color={DfxColors.primary} strokeWidth={2.4} />
+        <Icon name="arrow-down" size={16} color={colors.primary} strokeWidth={2.4} />
         <Text style={styles.label}>{t('buy.title')}</Text>
       </Pressable>
       <Pressable
@@ -53,34 +56,35 @@ export function AssetActions({ asset, chain, testID }: Props) {
         accessibilityLabel={t('sell.title')}
         testID={testID ? `${testID}-sell` : undefined}
       >
-        <Icon name="arrow-up" size={16} color={DfxColors.primary} strokeWidth={2.4} />
+        <Icon name="arrow-up" size={16} color={colors.primary} strokeWidth={2.4} />
         <Text style={styles.label}>{t('sell.title')}</Text>
       </Pressable>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: DfxColors.primaryLight,
-    borderRadius: 999,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  label: {
-    ...Typography.bodyMedium,
-    color: DfxColors.primary,
-    fontWeight: '600',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 10,
+    },
+    pill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      backgroundColor: colors.primaryLight,
+      borderRadius: 999,
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+    label: {
+      ...Typography.bodyMedium,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+  });

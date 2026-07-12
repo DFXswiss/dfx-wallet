@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors } from '@/theme';
 
 // Ensure deep-linking and Metro reloads always land on the dashboard, not on
 // whichever child screen happened to be visible when the bundle reloaded.
@@ -10,13 +10,14 @@ export const unstable_settings = {
 };
 
 export default function TabsLayout() {
+  const colors = useColors();
   return (
     <Stack
       screenOptions={{
-        contentStyle: { backgroundColor: DfxColors.background },
-        headerStyle: { backgroundColor: DfxColors.surface },
-        headerTitleStyle: { ...Typography.headlineSmall, color: DfxColors.text },
-        headerTintColor: DfxColors.primary,
+        contentStyle: { backgroundColor: colors.background },
+        headerStyle: { backgroundColor: colors.surface },
+        headerTitleStyle: { ...Typography.headlineSmall, color: colors.text },
+        headerTintColor: colors.primary,
         headerShadowVisible: false,
         gestureEnabled: true,
         fullScreenGestureEnabled: true,

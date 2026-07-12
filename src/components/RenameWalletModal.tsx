@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { DfxColors, Typography } from '@/theme';
+import { useColors, type ThemeColors, Typography } from '@/theme';
 
 type Props = {
   visible: boolean;
@@ -47,6 +47,8 @@ export function RenameWalletModal({
   onSave,
   onClose,
 }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { t } = useTranslation();
   const [value, setValue] = useState(initialName);
 
@@ -78,7 +80,7 @@ export function RenameWalletModal({
             value={value}
             onChangeText={setValue}
             placeholder={defaultName}
-            placeholderTextColor={DfxColors.textTertiary}
+            placeholderTextColor={colors.textTertiary}
             style={styles.input}
             autoFocus
             returnKeyType="done"
@@ -117,7 +119,7 @@ export function RenameWalletModal({
               testID="rename-wallet-save"
             >
               {loading ? (
-                <ActivityIndicator color={DfxColors.white} />
+                <ActivityIndicator color={colors.white} />
               ) : (
                 <Text style={[styles.buttonLabel, styles.buttonPrimaryLabel]}>
                   {t('common.save')}
@@ -131,76 +133,77 @@ export function RenameWalletModal({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(11, 20, 38, 0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 380,
-    backgroundColor: DfxColors.surface,
-    borderRadius: 20,
-    padding: 22,
-    gap: 14,
-  },
-  title: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-  },
-  body: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    lineHeight: 22,
-  },
-  input: {
-    ...Typography.bodyLarge,
-    backgroundColor: DfxColors.background,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: DfxColors.text,
-    borderWidth: 1.5,
-    borderColor: DfxColors.border,
-  },
-  address: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    fontFamily: 'monospace',
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  button: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonGhost: {
-    backgroundColor: DfxColors.background,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-  },
-  buttonPrimary: {
-    backgroundColor: DfxColors.primary,
-  },
-  buttonLabel: {
-    ...Typography.bodyMedium,
-    fontWeight: '700',
-  },
-  buttonGhostLabel: {
-    color: DfxColors.textSecondary,
-  },
-  buttonPrimaryLabel: {
-    color: DfxColors.white,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(11, 20, 38, 0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+    },
+    card: {
+      width: '100%',
+      maxWidth: 380,
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      padding: 22,
+      gap: 14,
+    },
+    title: {
+      ...Typography.headlineSmall,
+      color: colors.text,
+    },
+    body: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      lineHeight: 22,
+    },
+    input: {
+      ...Typography.bodyLarge,
+      backgroundColor: colors.background,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      color: colors.text,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+    },
+    address: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      fontFamily: 'monospace',
+    },
+    actions: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    button: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 999,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    buttonGhost: {
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    buttonPrimary: {
+      backgroundColor: colors.primary,
+    },
+    buttonLabel: {
+      ...Typography.bodyMedium,
+      fontWeight: '700',
+    },
+    buttonGhostLabel: {
+      color: colors.textSecondary,
+    },
+    buttonPrimaryLabel: {
+      color: colors.white,
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+  });

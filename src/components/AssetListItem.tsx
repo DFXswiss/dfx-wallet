@@ -1,5 +1,6 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { DfxColors, Typography } from '@/theme';
+import { useColors, type ThemeColors, Typography } from '@/theme';
 
 type Props = {
   symbol: string;
@@ -20,6 +21,8 @@ const CHAIN_LABELS: Record<string, string> = {
 };
 
 export function AssetListItem({ symbol, name, chain, balance, balanceFiat, onPress }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Pressable
       style={({ pressed }) => [styles.container, pressed && styles.pressed]}
@@ -46,55 +49,56 @@ export function AssetListItem({ symbol, name, chain, balance, balanceFiat, onPre
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: DfxColors.surface,
-    borderRadius: 12,
-    gap: 12,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  iconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: DfxColors.surfaceLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconText: {
-    ...Typography.bodyMedium,
-    fontWeight: '700',
-    color: DfxColors.text,
-  },
-  info: {
-    flex: 1,
-    gap: 2,
-  },
-  name: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  chain: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-  },
-  balanceContainer: {
-    alignItems: 'flex-end',
-    gap: 2,
-  },
-  balance: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.text,
-  },
-  balanceFiat: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 16,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      gap: 12,
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+    iconContainer: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.surfaceLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iconText: {
+      ...Typography.bodyMedium,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    info: {
+      flex: 1,
+      gap: 2,
+    },
+    name: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    chain: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+    },
+    balanceContainer: {
+      alignItems: 'flex-end',
+      gap: 2,
+    },
+    balance: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    balanceFiat: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+    },
+  });

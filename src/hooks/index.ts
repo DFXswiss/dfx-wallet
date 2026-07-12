@@ -2,6 +2,7 @@ export { useDeepLink } from './useDeepLink';
 export { useDfxAuth } from './useDfxAuth';
 export { useDfxAutoLink } from './useDfxAutoLink';
 export { useLdsWallet } from './useLdsWallet';
+export { useReduceMotion } from './useReduceMotion';
 export { useSendFlow } from './useSendFlow';
 export { useTotalPortfolioFiat } from './useTotalPortfolioFiat';
 // `useKycFlow` lives in `@/features/dfx-backend/useKycFlow` — KYC is
