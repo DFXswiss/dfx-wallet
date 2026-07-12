@@ -104,6 +104,10 @@ jobs:
         # build snapshots the feature-gated authenticated screens. Each leg runs
         # only its own suite so a build never runs the other variant's screens
         # (which would render *Disabled stubs / real screens out of scope).
+        # The suites themselves finish in 10-15 min; the step cap means a
+        # wedged detox CLI fails here instead of burning the job to its 90-min
+        # ceiling with tests already passed.
+        timeout-minutes: 30
         run: |
           if [ "${{ matrix.variant }}" = "full" ]; then
             npm run e2e:test:ios -- e2e/visual/authenticated.test.ts
