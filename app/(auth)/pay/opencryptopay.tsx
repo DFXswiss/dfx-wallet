@@ -11,7 +11,7 @@ import {
   OpenCryptoPayError,
   type OpenCryptoPayInvoice,
 } from '@/services/opencryptopay';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 /**
  * OpenCryptoPay payment confirmation screen.
@@ -46,6 +46,8 @@ export default function OpenCryptoPayRoute() {
 
 function OpenCryptoPayScreen() {
   const router = useRouter();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { t } = useTranslation();
   const params = useLocalSearchParams<{ lnurl?: string }>();
   const lnurl = typeof params.lnurl === 'string' ? params.lnurl : '';
@@ -140,7 +142,7 @@ function OpenCryptoPayScreen() {
       <View style={styles.content}>
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator color={DfxColors.primary} />
+            <ActivityIndicator color={colors.primary} />
             <Text style={styles.muted}>{t('opencryptopay.loading')}</Text>
           </View>
         ) : !invoice ? (
@@ -271,102 +273,103 @@ function formatMs(ms: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-const styles = StyleSheet.create({
-  content: { paddingTop: 12, paddingBottom: 32, gap: 18 },
-  center: { paddingVertical: 32, alignItems: 'center', gap: 16 },
-  muted: { ...Typography.bodyMedium, color: DfxColors.textSecondary },
-  errorText: { ...Typography.bodyMedium, color: DfxColors.error, textAlign: 'center' },
-  errorInline: {
-    ...Typography.bodySmall,
-    color: DfxColors.error,
-    textAlign: 'center',
-    marginTop: -4,
-  },
-  summaryCard: {
-    backgroundColor: DfxColors.primaryLight,
-    borderRadius: 16,
-    padding: 16,
-    gap: 4,
-  },
-  summaryLabel: {
-    ...Typography.bodySmall,
-    color: DfxColors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    fontWeight: '700',
-  },
-  summaryName: {
-    ...Typography.headlineSmall,
-    color: DfxColors.text,
-  },
-  summaryHint: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    marginTop: 6,
-  },
-  summaryHintError: { color: DfxColors.error },
-  sectionLabel: {
-    ...Typography.bodySmall,
-    color: DfxColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    fontWeight: '600',
-  },
-  methodList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  methodChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-    borderWidth: 1.5,
-    borderColor: DfxColors.border,
-    backgroundColor: DfxColors.surface,
-  },
-  methodChipActive: {
-    borderColor: DfxColors.primary,
-    backgroundColor: DfxColors.primaryLight,
-  },
-  methodChipText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-    fontWeight: '600',
-  },
-  methodChipTextActive: { color: DfxColors.primary },
-  assetList: {
-    backgroundColor: DfxColors.surface,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  assetRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: DfxColors.border,
-  },
-  assetRowActive: { backgroundColor: DfxColors.primaryLight },
-  radio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: DfxColors.textTertiary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioActive: { borderColor: DfxColors.primary },
-  radioDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: DfxColors.primary,
-  },
-  assetSymbol: { ...Typography.bodyLarge, fontWeight: '600', color: DfxColors.text },
-  assetAmount: { ...Typography.bodySmall, color: DfxColors.textSecondary },
-  cancelButton: { alignSelf: 'center', paddingVertical: 12 },
-  cancelText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.textSecondary,
-  },
-  pressed: { opacity: 0.7 },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: { paddingTop: 12, paddingBottom: 32, gap: 18 },
+    center: { paddingVertical: 32, alignItems: 'center', gap: 16 },
+    muted: { ...Typography.bodyMedium, color: colors.textSecondary },
+    errorText: { ...Typography.bodyMedium, color: colors.error, textAlign: 'center' },
+    errorInline: {
+      ...Typography.bodySmall,
+      color: colors.error,
+      textAlign: 'center',
+      marginTop: -4,
+    },
+    summaryCard: {
+      backgroundColor: colors.primaryLight,
+      borderRadius: 16,
+      padding: 16,
+      gap: 4,
+    },
+    summaryLabel: {
+      ...Typography.bodySmall,
+      color: colors.primary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      fontWeight: '700',
+    },
+    summaryName: {
+      ...Typography.headlineSmall,
+      color: colors.text,
+    },
+    summaryHint: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      marginTop: 6,
+    },
+    summaryHintError: { color: colors.error },
+    sectionLabel: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      fontWeight: '600',
+    },
+    methodList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    methodChip: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 999,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    methodChipActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primaryLight,
+    },
+    methodChipText: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    methodChipTextActive: { color: colors.primary },
+    assetList: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      overflow: 'hidden',
+    },
+    assetRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 14,
+      gap: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    assetRowActive: { backgroundColor: colors.primaryLight },
+    radio: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      borderWidth: 2,
+      borderColor: colors.textTertiary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    radioActive: { borderColor: colors.primary },
+    radioDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: colors.primary,
+    },
+    assetSymbol: { ...Typography.bodyLarge, fontWeight: '600', color: colors.text },
+    assetAmount: { ...Typography.bodySmall, color: colors.textSecondary },
+    cancelButton: { alignSelf: 'center', paddingVertical: 12 },
+    cancelText: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+    },
+    pressed: { opacity: 0.7 },
+  });
