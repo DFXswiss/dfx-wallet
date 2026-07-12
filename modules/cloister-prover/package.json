@@ -1,0 +1,7 @@
+{
+  "name": "cloister-prover",
+  "version": "0.1.0",
+  "description": "On-device Cloister zero-knowledge prover (gnark, native)",
+  "main": "index.ts",
+  "private": true
+}

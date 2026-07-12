@@ -27,7 +27,9 @@
     "bundle:wdk": "wdk-worklet-bundler generate --keep-artifacts",
     "check": "npm run typecheck && npm run lint && npm run format",
     "check:matrix": "node scripts/check-feature-matrix.mjs",
-    "check:coverage-floor": "node scripts/check-coverage-floor.mjs"
+    "check:coverage-floor": "node scripts/check-coverage-floor.mjs",
+    "guard:cloister": "node scripts/cloister-release-guard.js",
+    "eas-build-post-install": "node scripts/cloister-release-guard.js"
   },
   "dependencies": {
     "@craftzdog/react-native-buffer": "^6.1.1",

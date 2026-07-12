@@ -14,10 +14,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
+import { Linking } from 'react-native';
 import { useAccount } from '@tetherto/wdk-react-native-core';
 import { AppHeader, AssetActions, Icon, TransactionRow } from '@/components';
 import { CHAIN_LABELS } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/features/dfx-backend/services';
+import { useCloisterTxStore } from '@/store/cloister-tx';
 import { DfxColors, Typography } from '@/theme';
 
 type FilterType = 'all' | 'in' | 'out' | 'pay';
@@ -42,6 +44,9 @@ export default function TransactionHistoryScreen() {
   const [transactions, setTransactions] = useState<TransactionDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('all');
+  // Locally-recorded Cloister shielded payments — they never come back from
+  // the DFX backend (no payer address on-chain), so we merge them in here.
+  const cloisterEntries = useCloisterTxStore((s) => s.entries);
 
   const loadTransactions = useCallback(async () => {
     setIsLoading(true);
@@ -60,7 +65,9 @@ export default function TransactionHistoryScreen() {
   }, [loadTransactions]);
 
   const filtered = useMemo(() => {
-    let list = transactions;
+    // Shielded Cloister payments sit alongside backend transactions; the
+    // sort below re-orders the merged set by date so they interleave naturally.
+    let list: TransactionDto[] = [...cloisterEntries, ...transactions];
     if (assetFilter) {
       list = list.filter(
         (tx) =>
@@ -75,7 +82,7 @@ export default function TransactionHistoryScreen() {
       list = list.filter((tx) => allowed.includes(tx.type));
     }
     return [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transactions, assetFilter, filter]);
+  }, [transactions, cloisterEntries, assetFilter, filter]);
 
   const filters: readonly { key: FilterType; label: string }[] = [
     { key: 'all', label: t('transactions.filterAll') },
@@ -161,12 +168,18 @@ export default function TransactionHistoryScreen() {
               renderItem={({ item }: ListRenderItemInfo<TransactionDto>) => (
                 <TransactionRow
                   tx={item}
-                  onPress={() =>
+                  onPress={() => {
+                    // Local Cloister payments have no backend detail record —
+                    // open the shielded tx on the block explorer instead.
+                    if (item.private) {
+                      if (item.explorerUrl) void Linking.openURL(item.explorerUrl);
+                      return;
+                    }
                     router.push({
                       pathname: '/(auth)/transaction-history/[id]',
                       params: { id: String(item.id), network: networkFilter ?? '' },
-                    })
-                  }
+                    });
+                  }}
                 />
               )}
               showsVerticalScrollIndicator={false}

@@ -28,7 +28,11 @@
       "infoPlist": {
         "NSBluetoothAlwaysUsageDescription": "Bluetooth is needed to connect to BitBox02 Nova hardware wallet.",
         "NSBluetoothPeripheralUsageDescription": "Bluetooth is needed to connect to BitBox02 Nova hardware wallet.",
-        "NSFaceIDUsageDescription": "Face ID is used to unlock your wallet."
+        "NSFaceIDUsageDescription": "Face ID is used to unlock your wallet.",
+        "NSLocalNetworkUsageDescription": "Cloister connects to the local payment relayer on your network to settle a shielded payment.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
       }
     },
     "android": {

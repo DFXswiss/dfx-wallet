@@ -43,6 +43,9 @@ export function useDeepLink() {
         case 'settings':
           router.push('/(auth)/(tabs)/settings');
           break;
+        // `cloister-pay` is handled by the top-level app/cloister-pay.tsx
+        // redirect route (Expo Router matches the deep link to it directly),
+        // so it deliberately has no case here — adding one would double-navigate.
       }
     };
 

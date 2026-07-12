@@ -21,6 +21,13 @@ export type TransactionDto = {
   //   Receive → sender address/contact
   //   Swap    → venue ("In-Wallet Swap", "Uniswap")
   counterparty?: string;
+  // Local-only flags for Cloister shielded payments (never from the API).
+  // `private` switches the row to the shielded look (shield icon + badge),
+  // `badge` is the localised "Cloister · OpenCryptoPay" hint, and
+  // `explorerUrl` deep-links the row to the block explorer.
+  private?: boolean;
+  badge?: string;
+  explorerUrl?: string;
 };
 
 export type TaxReportType = 'CoinTracking' | 'ChainReport' | 'Compact';
