@@ -432,6 +432,24 @@
     "step3": "Keine Seed Phrase zum Aufschreiben — dein Passkey ist dein Schlüssel.",
     "useSeedInstead": "Seed Phrase verwenden"
   },
+  "opencryptopay": {
+    "assetLabel": "Asset",
+    "confirm": "{{amount}} {{asset}} zahlen",
+    "confirmHint": "Der Sign-Schritt via WDK kommt in der nächsten Iteration — das LNURL-Quote ist geladen und bestätigt.",
+    "errors": {
+      "commitFailed": "Die Zahlung konnte beim Händler nicht bestätigt werden.",
+      "fetchFailed": "Die Zahlungsanfrage konnte nicht geladen werden.",
+      "invalidQr": "Dieser QR-Code ist keine OpenCryptoPay-Zahlung.",
+      "invalidResponse": "Der Zahlungs-Provider hat unerwartet geantwortet."
+    },
+    "expired": "Zahlungsanfrage abgelaufen. Bitte QR-Code erneut scannen.",
+    "expiresIn": "Läuft ab in {{time}}",
+    "loading": "Zahlungsanfrage wird geladen …",
+    "methodLabel": "Netzwerk",
+    "payTo": "Zahlung an",
+    "title": "OpenCryptoPay",
+    "unknownMerchant": "Unbekannter Empfänger"
+  },
   "pay": {
     "cameraPermission": "Kamerazugriff ist nötig, um QR-Codes zu scannen.",
     "comingSoonMessage": "Zahlungen sind noch nicht verfügbar. Gescannt: {{data}}",
