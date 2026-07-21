@@ -158,6 +158,11 @@
     "form-data": "4.0.6",
     "ws": "8.21.0",
     "undici": "^6.27.0",
-    "tmp": "^0.2.6"
+    "tmp": "^0.2.6",
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": {
+        "brace-expansion": "^5.0.7"
+      }
+    }
   }
 }
