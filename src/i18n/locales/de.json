@@ -48,6 +48,7 @@
   },
   "common": {
     "amount": "Betrag",
+    "back": "Zurück",
     "cancel": "Abbrechen",
     "close": "Schliessen",
     "confirm": "Bestätigen",
