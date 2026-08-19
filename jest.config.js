@@ -46,6 +46,9 @@ module.exports = {
     'src/features/portfolio/PortfolioScreenImpl.tsx',
     'src/features/portfolio/PortfolioAssetDetailScreenImpl.tsx',
     'src/features/portfolio/PortfolioManageScreenImpl.tsx',
+    // Settings logic + screens (full-area coverage).
+    'src/features/settings/SettingsScreenImpl.tsx',
+    'src/features/settings/SeedExportScreenImpl.tsx',
     '!**/*.d.ts',
     '!**/types.ts',
   ],
