@@ -33,5 +33,5 @@ export function useBalances(assets: IAsset[], accountIndex = 0): BalanceSourceRe
 }
 
 /** Convenience reader: raw balance string at the asset's smallest unit. */
-export const getRawBalance = (map: BalanceMap, assetId: string): string =>
-  map.get(assetId)?.rawBalance ?? '0';
+export const getRawBalance = (map: BalanceMap | undefined, assetId: string): string =>
+  map?.get(assetId)?.rawBalance ?? '0';
