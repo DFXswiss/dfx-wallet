@@ -129,6 +129,7 @@ export default function SupportScreen() {
                 </Text>
               </View>
               <View
+                testID={`support-ticket-status-${issue.id}`}
                 style={[
                   styles.statusBadge,
                   { backgroundColor: stateColors[issue.state] ?? colors.textTertiary },
