@@ -62,7 +62,10 @@ async function onboardToDashboard(): Promise<void> {
   await device.disableSynchronization();
   await waitFor(element(by.id('legal-disclaimer-screen')))
     .toBeVisible()
-    .withTimeout(60_000);
+    // Persisting the PIN performs the production password hash before the
+    // route changes. On a loaded hosted macOS runner that has exceeded one
+    // minute, especially while the wallet worklet is initializing.
+    .withTimeout(300_000);
   await element(by.id('legal-accept-checkbox')).tap();
   // The continue button sits below a spacer at the bottom of the scroll view;
   // on shorter viewports it is clipped, so scroll it fully into view first.
