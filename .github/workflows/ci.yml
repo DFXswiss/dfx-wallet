@@ -192,7 +192,7 @@ jobs:
       # Blocking since the test-gates overhaul — a known-high vuln in the
       # dependency tree of a wallet is a merge blocker, not a yellow badge.
       - name: npm audit (high+)
-        run: npm audit --audit-level=high
+        run: npm run audit:high
 
   bundle:
     name: Bundle (${{ matrix.variant }})
