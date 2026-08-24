@@ -55,6 +55,11 @@ async function onboardToDashboard(): Promise<void> {
     .toBeVisible()
     .withTimeout(60_000);
   await enterPin(PIN);
+  // Confirming the PIN starts the wallet worklet before routing to the legal
+  // screen. Keep synchronization disabled across that transition: waiting for
+  // Detox's global-idle signal races with a worklet that intentionally remains
+  // active for the lifetime of the wallet.
+  await device.disableSynchronization();
   await waitFor(element(by.id('legal-disclaimer-screen')))
     .toBeVisible()
     .withTimeout(60_000);
