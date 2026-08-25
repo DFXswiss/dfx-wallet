@@ -81,14 +81,6 @@ jobs:
         # features land.
         run: maestro --platform ios test --include-tags mvp --env APP_ID=wallet.dfx.swiss .maestro/
 
-      - name: Upload Maestro artifacts
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: maestro-ios-artifacts
-          path: ~/.maestro/tests/**/*
-          if-no-files-found: ignore
-
   android:
     name: Android Emulator
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft != true
@@ -166,11 +158,3 @@ jobs:
             # MVP-only — see the iOS step for why; drop --include-tags
             # once the gated features ship.
             maestro --platform android test --include-tags mvp --env APP_ID=swiss.dfx.wallet .maestro/
-
-      - name: Upload Maestro artifacts
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: maestro-android-artifacts
-          path: ~/.maestro/tests/**/*
-          if-no-files-found: ignore

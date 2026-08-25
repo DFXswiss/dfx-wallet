@@ -64,6 +64,7 @@ jobs:
           name: coverage-summary
           path: coverage/coverage-summary.json
           if-no-files-found: error
+          retention-days: 1
 
   # Separate job on purpose: a required status check must be its own check
   # context, otherwise it cannot independently block the merge. Fail-closed —
