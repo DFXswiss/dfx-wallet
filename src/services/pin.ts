@@ -1,14 +1,18 @@
 import * as Crypto from 'expo-crypto';
 import { argon2idAsync } from '@noble/hashes/argon2';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
+import { IS_E2E } from '@/config/e2e';
 
 const LEGACY_SALT = 'dfx-wallet-pin-v1';
 const LEGACY_ITERATIONS = 10000;
 const FORMAT = 'pin$argon2id';
 const VERSION = 19;
 const ARGON2_PARAMS = {
-  t: 3,
-  m: 32768,
+  // Production keeps the stronger parameters. Visual builds use the minimum
+  // parameters accepted by parseParams: hosted simulators run the full WDK in
+  // the same process, where the production memory cost can starve indefinitely.
+  t: IS_E2E ? 2 : 3,
+  m: IS_E2E ? 19456 : 32768,
   p: 1,
   dkLen: 32,
 } as const;
@@ -18,7 +22,7 @@ const SALT_BYTES = 16;
  * Hash a PIN using Argon2id with a per-record random salt.
  *
  * Stored format:
- * pin$argon2id$v=19$m=32768,t=3,p=1$<saltHex>$<hashHex>
+ * pin$argon2id$v=19$m=<memory>,t=<iterations>,p=1$<saltHex>$<hashHex>
  */
 export async function hashPin(pin: string): Promise<string> {
   const salt = Crypto.getRandomBytes(SALT_BYTES);
