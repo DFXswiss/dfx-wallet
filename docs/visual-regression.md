@@ -112,15 +112,10 @@ A build with the feature off skips the block instead of running it against the `
 ## Adding a new screenshot
 
 1. Add a new `it` block that taps to the screen and calls `expectScreenToMatchBaseline('your-name')`.
-2. Push the branch. The CI run **will fail** because the baseline doesn't exist yet (see [missing-baseline behaviour](#missing-baseline-behaviour-in-ci) below).
-3. Download the `detox-artifacts` zip from the failed run:
-   ```bash
-   gh run download <run-id> --repo DFXswiss/dfx-wallet --dir /tmp/detox
-   ```
-4. Find your screenshot under `detox-artifacts/ios.release.*/✗ Visual Regression … your test name/your-name.png`.
-5. Inspect the PNG — make sure it captures the state you actually want to baseline (not an error screen, not a half-loaded WDK, etc.).
-6. Copy it into `e2e/__baselines__/your-name.png` and commit.
-7. Re-trigger the visual workflow (see [Triggering visual regression](#triggering-visual-regression) below) — the next run compares against the new baseline.
+2. Capture the baseline locally (see [Running locally](#running-locally)). With `CI` unset, a missing baseline is written on first run; on failure, inspect the PNG under `e2e/__diffs__/` or the Detox `artifacts/` tree in the job workspace — CI no longer uploads those for `gh run download`.
+3. Inspect the PNG — make sure it captures the state you actually want to baseline (not an error screen, not a half-loaded WDK, etc.).
+4. Ensure the accepted capture lives at `e2e/__baselines__/your-name.png` and commit it.
+5. Push and re-trigger the visual workflow (see [Triggering visual regression](#triggering-visual-regression) below) — the next run compares against the new baseline.
 
 ## Pitfalls
 
@@ -204,13 +199,4 @@ gh pr edit <pr> --remove-label needs-visual && gh pr edit <pr> --add-label needs
 
 ### Artifacts
 
-On failure, `e2e/__diffs__/` is uploaded as the `visual-regression-diffs` artifact and the full Detox artifacts directory as `detox-artifacts`. The Detox bundle contains the actual screenshot for each test (regardless of pass/fail) under a directory named after the test:
-
-```
-detox-artifacts/ios.release.<ts>Z/
-├── ✓ Visual Regression Welcome screen matches baseline/welcome.png
-├── ✗ Visual Regression Dashboard navigation (MVP) hides the balance via the eye toggle/dashboard-balance-hidden.png
-└── …
-```
-
-The `✗`-prefixed directories are the ones you pull into `e2e/__baselines__/` when [adding a new screenshot](#adding-a-new-screenshot).
+CI no longer uploads `e2e/__diffs__/` or the Detox artifacts directory to GitHub Actions. On failure those diffs stay in the job workspace (`e2e/__diffs__/`, `artifacts/`) and vanish with the runner. Baseline updates are made from a local Detox run (see [Running locally](#running-locally) and [Adding a new screenshot](#adding-a-new-screenshot)), not from `gh run download`.
