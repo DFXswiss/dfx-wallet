@@ -17,13 +17,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Delete Actions artifacts older than 24 hours
+      - name: Delete stored Actions artifacts
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           deleted=0
-          cutoff_epoch=$(($(date -u +%s) - 86400))
+          # Daily cron keeps a 24h floor so in-flight job hops survive. Push and
+          # workflow_dispatch reclaim everything currently stored.
+          if [ "${GITHUB_EVENT_NAME}" = "schedule" ]; then
+            age_seconds=86400
+          else
+            age_seconds=0
+          fi
+          cutoff_epoch=$(($(date -u +%s) - age_seconds))
           while :; do
             old_ids=""
             page=1
@@ -43,7 +50,7 @@ jobs:
               page=$((page + 1))
             done
             if [ -z "$old_ids" ]; then
-              echo "Deleted ${deleted} artifacts older than 24 hours."
+              echo "Deleted ${deleted} artifacts (age floor ${age_seconds}s)."
               break
             fi
             count=0
@@ -57,7 +64,7 @@ jobs:
               count=$((count + 1))
             done <<< "$old_ids"
             if [ "$count" -eq 0 ]; then
-              echo "Deleted ${deleted} artifacts older than 24 hours."
+              echo "Deleted ${deleted} artifacts (age floor ${age_seconds}s)."
               break
             fi
             deleted=$((deleted + count))
