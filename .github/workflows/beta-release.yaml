@@ -66,7 +66,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME:-dev}"
           VERSION="${TAG#v}"
-          curl -fsSL "$APK_URL" -o "dfx-wallet-${VERSION}.apk"
+          curl -fsSL "$APK_URL" -o "dfx-wallet-${VERSION}.apk" && test -s "dfx-wallet-${VERSION}.apk"
 
       - name: Upload APK to GitHub Release
         if: env.APK_URL != '' && startsWith(github.ref, 'refs/tags/v')
@@ -118,7 +118,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME:-dev}"
           VERSION="${TAG#v}"
-          curl -fsSL "$IPA_URL" -o "dfx-wallet-${VERSION}.ipa"
+          curl -fsSL "$IPA_URL" -o "dfx-wallet-${VERSION}.ipa" && test -s "dfx-wallet-${VERSION}.ipa"
 
       - name: Upload IPA to GitHub Release
         if: env.IPA_URL != '' && startsWith(github.ref, 'refs/tags/v')
@@ -188,8 +188,8 @@ jobs:
           CHANGELOG: ${{ steps.changelog.outputs.changelog }}
         run: |
           assets=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json assets)
-          has_apk=$(printf '%s' "$assets" | jq '[.assets[].name] | any(test("\\.apk$"))')
-          has_ipa=$(printf '%s' "$assets" | jq '[.assets[].name] | any(test("\\.ipa$"))')
+          has_apk=$(printf '%s' "$assets" | jq '[.assets[] | select(.name | test("\\.apk$")) | .size] | any(. > 0)')
+          has_ipa=$(printf '%s' "$assets" | jq '[.assets[] | select(.name | test("\\.ipa$")) | .size] | any(. > 0)')
           if [ "$has_apk" != "true" ] || [ "$has_ipa" != "true" ]; then
             echo "Release is missing apk and/or ipa assets; refusing to publish." >&2
             exit 1
