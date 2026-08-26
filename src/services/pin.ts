@@ -7,11 +7,8 @@ const LEGACY_ITERATIONS = 10000;
 const FORMAT = 'pin$argon2id';
 const VERSION = 19;
 const ARGON2_PARAMS = {
-  // Production keeps the stronger parameters. Visual builds use the minimum
-  // parameters accepted by parseParams: hosted simulators run the full WDK in
-  // the same process, where the production memory cost can starve indefinitely.
-  t: IS_E2E ? 2 : 3,
-  m: IS_E2E ? 19456 : 32768,
+  t: 3,
+  m: 32768,
   p: 1,
   dkLen: 32,
 } as const;
