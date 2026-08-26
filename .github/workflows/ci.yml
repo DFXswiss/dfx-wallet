@@ -192,8 +192,58 @@ jobs:
           cache: npm
       # Blocking since the test-gates overhaul — a known-high vuln in the
       # dependency tree of a wallet is a merge blocker, not a yellow badge.
+      # image-size GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq: no published
+      # patched release (latest 2.0.2, repo archived) — allowlist only those.
       - name: npm audit (high+)
-        run: npm audit --audit-level=high
+        run: |
+          set +e
+          npm audit --json --audit-level=high > /tmp/npm-audit.json
+          set -e
+          python3 <<'PY'
+          import json, re, sys
+          ALLOWED = {
+              "GHSA-W3RX-R6R6-PGPR",
+              "GHSA-5P2G-FCMC-QVQQ",
+          }
+          GHSA_RE = re.compile(r"GHSA-[a-z0-9]+-[a-z0-9]+-[a-z0-9]+", re.I)
+          with open("/tmp/npm-audit.json") as f:
+              data = json.load(f)
+          vulns = data.get("vulnerabilities") or {}
+
+          def collect_ghsas(name, seen=None):
+              if seen is None:
+                  seen = set()
+              if name in seen or name not in vulns:
+                  return set()
+              seen.add(name)
+              found = set()
+              for via in vulns[name].get("via") or []:
+                  if isinstance(via, dict):
+                      for key in ("url", "source"):
+                          val = via.get(key)
+                          if isinstance(val, str):
+                              found.update(m.upper() for m in GHSA_RE.findall(val))
+                  elif isinstance(via, str):
+                      found.update(m.upper() for m in GHSA_RE.findall(via))
+                      found |= collect_ghsas(via, seen)
+              return found
+
+          blockers = []
+          for name, vuln in vulns.items():
+              sev = (vuln.get("severity") or "").lower()
+              if sev not in ("high", "critical"):
+                  continue
+              ghsas = collect_ghsas(name)
+              if ghsas and ghsas <= ALLOWED:
+                  continue
+              blockers.append((name, sev, sorted(ghsas) or ["(no GHSA id)"]))
+          if blockers:
+              print("Unallowed high/critical vulnerabilities:")
+              for name, sev, ghsas in blockers:
+                  print(f"  {name} [{sev}]: {', '.join(ghsas)}")
+              sys.exit(1)
+          print("npm audit: only allowlisted (or no) high/critical findings")
+          PY
 
   bundle:
     name: Bundle (${{ matrix.variant }})
