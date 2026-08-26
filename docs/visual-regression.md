@@ -112,7 +112,7 @@ A build with the feature off skips the block instead of running it against the `
 ## Adding a new screenshot
 
 1. Add a new `it` block that taps to the screen and calls `expectScreenToMatchBaseline('your-name')`.
-2. Capture the baseline locally (see [Running locally](#running-locally)). With `CI` unset, a missing baseline is written on first run; on failure, inspect the PNG under `e2e/__diffs__/` or the Detox `artifacts/` tree in the job workspace — CI no longer uploads those for `gh run download`.
+2. Capture the baseline locally (see [Running locally](#running-locally)). With `CI` unset, a missing baseline is written on first run; on failure, inspect the PNG under `e2e/__diffs__/` or the local Detox `artifacts/` tree — CI no longer uploads those for `gh run download`.
 3. Inspect the PNG — make sure it captures the state you actually want to baseline (not an error screen, not a half-loaded WDK, etc.).
 4. Ensure the accepted capture lives at `e2e/__baselines__/your-name.png` and commit it.
 5. Push and re-trigger the visual workflow (see [Triggering visual regression](#triggering-visual-regression) below) — the next run compares against the new baseline.
@@ -199,4 +199,4 @@ gh pr edit <pr> --remove-label needs-visual && gh pr edit <pr> --add-label needs
 
 ### Artifacts
 
-CI no longer uploads `e2e/__diffs__/` or the Detox artifacts directory to GitHub Actions. On failure those diffs stay in the job workspace (`e2e/__diffs__/`, `artifacts/`) and vanish with the runner. Baseline updates are made from a local Detox run (see [Running locally](#running-locally) and [Adding a new screenshot](#adding-a-new-screenshot)), not from `gh run download`.
+CI no longer uploads `e2e/__diffs__/` or the Detox artifacts directory to GitHub Actions. On a CI failure those diffs vanish with the runner. Baseline updates are made from a local Detox run (see [Running locally](#running-locally) and [Adding a new screenshot](#adding-a-new-screenshot)), not from `gh run download`.
