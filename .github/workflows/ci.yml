@@ -206,9 +206,19 @@ jobs:
               "GHSA-5P2G-FCMC-QVQQ",
           }
           GHSA_RE = re.compile(r"GHSA-[a-z0-9]+-[a-z0-9]+-[a-z0-9]+", re.I)
-          with open("/tmp/npm-audit.json") as f:
-              data = json.load(f)
-          vulns = data.get("vulnerabilities") or {}
+          try:
+              with open("/tmp/npm-audit.json") as f:
+                  data = json.load(f)
+          except (OSError, json.JSONDecodeError) as exc:
+              print(f"npm audit did not produce JSON; failing closed: {exc}")
+              sys.exit(1)
+          if data.get("error"):
+              print("npm audit error:", data["error"])
+              sys.exit(1)
+          if "vulnerabilities" not in data:
+              print("npm audit JSON missing vulnerabilities; failing closed")
+              sys.exit(1)
+          vulns = data["vulnerabilities"]
 
           def collect_ghsas(name, seen=None):
               if seen is None:
