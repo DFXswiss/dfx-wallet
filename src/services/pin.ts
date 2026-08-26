@@ -1,7 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import { argon2idAsync } from '@noble/hashes/argon2';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
-import { IS_E2E } from '@/config/e2e';
 
 const LEGACY_SALT = 'dfx-wallet-pin-v1';
 const LEGACY_ITERATIONS = 10000;
@@ -22,7 +21,7 @@ const SALT_BYTES = 16;
  * Hash a PIN using Argon2id with a per-record random salt.
  *
  * Stored format:
- * pin$argon2id$v=19$m=<memory>,t=<iterations>,p=1$<saltHex>$<hashHex>
+ * pin$argon2id$v=19$m=32768,t=3,p=1$<saltHex>$<hashHex>
  */
 export async function hashPin(pin: string): Promise<string> {
   const salt = Crypto.getRandomBytes(SALT_BYTES);
