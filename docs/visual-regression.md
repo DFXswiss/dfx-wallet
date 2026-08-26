@@ -32,7 +32,7 @@ node scripts/check-visual-coverage.mjs --strict   # fails if any pending remains
 
 - Catches visual regressions the [Maestro flows](maestro.md) cannot — colour drift, layout shifts, missing assets, font rendering, etc.
 - Runs the same iOS Simulator build Maestro does, so a green Maestro pass + a clean visual run together cover both behaviour and appearance.
-- Snapshot diffs are saved as PNG artifacts on failure, so reviewing a regression is a one-glance comparison.
+- Snapshot diffs are written to local `e2e/__diffs__/` on failure, so reviewing a regression is a one-glance comparison.
 
 iOS only — Detox on macOS-based runners is stable; the Android equivalent is on the roadmap once Maestro's Android coverage stabilises.
 
@@ -112,15 +112,15 @@ A build with the feature off skips the block instead of running it against the `
 ## Adding a new screenshot
 
 1. Add a new `it` block that taps to the screen and calls `expectScreenToMatchBaseline('your-name')`.
-2. Push the branch. The CI run **will fail** because the baseline doesn't exist yet (see [missing-baseline behaviour](#missing-baseline-behaviour-in-ci) below).
-3. Download the `detox-artifacts` zip from the failed run:
+2. Capture the baseline locally (see [Running locally](#running-locally)); CI will not write a missing baseline.
+3. Inspect the PNG under `e2e/__diffs__/` or the local Detox `artifacts/` tree:
    ```bash
-   gh run download <run-id> --repo DFXswiss/dfx-wallet --dir /tmp/detox
+   ls e2e/__diffs__ e2e/__baselines__
    ```
-4. Find your screenshot under `detox-artifacts/ios.release.*/✗ Visual Regression … your test name/your-name.png`.
+4. Find your screenshot under the local Detox artifacts directory named after the test.
 5. Inspect the PNG — make sure it captures the state you actually want to baseline (not an error screen, not a half-loaded WDK, etc.).
 6. Copy it into `e2e/__baselines__/your-name.png` and commit.
-7. Re-trigger the visual workflow (see [Triggering visual regression](#triggering-visual-regression) below) — the next run compares against the new baseline.
+7. Push and re-trigger the visual workflow (see [Triggering visual regression](#triggering-visual-regression) below).
 
 ## Pitfalls
 
@@ -132,7 +132,7 @@ A build with the feature off skips the block instead of running it against the `
 New snapshot was not written. The update flag must be explicitly passed to write a new snapshot.
 ```
 
-This is by design — it prevents merging a green run that only passes because it silently wrote the baseline. The downside is that adding a baseline always needs the two-pass flow described in [Adding a new screenshot](#adding-a-new-screenshot) above.
+This is by design — it prevents merging a green run that only passes because it silently wrote the baseline. Adding a baseline is a local capture (see [Adding a new screenshot](#adding-a-new-screenshot)), not a CI download pass.
 
 ### Detox `toBeVisible` is strict (>75% on screen)
 
@@ -204,7 +204,7 @@ gh pr edit <pr> --remove-label needs-visual && gh pr edit <pr> --add-label needs
 
 ### Artifacts
 
-On failure, `e2e/__diffs__/` is uploaded as the `visual-regression-diffs` artifact and the full Detox artifacts directory as `detox-artifacts`. The Detox bundle contains the actual screenshot for each test (regardless of pass/fail) under a directory named after the test:
+On failure those trees stay on the runner and are not uploaded. A local Detox run writes the actual screenshot for each test under a directory named after the test:
 
 ```
 detox-artifacts/ios.release.<ts>Z/
@@ -213,4 +213,4 @@ detox-artifacts/ios.release.<ts>Z/
 └── …
 ```
 
-The `✗`-prefixed directories are the ones you pull into `e2e/__baselines__/` when [adding a new screenshot](#adding-a-new-screenshot).
+The `✗`-prefixed directories are the ones you copy into `e2e/__baselines__/` when [adding a new screenshot](#adding-a-new-screenshot).
