@@ -32,7 +32,7 @@ node scripts/check-visual-coverage.mjs --strict   # fails if any pending remains
 
 - Catches visual regressions the [Maestro flows](maestro.md) cannot — colour drift, layout shifts, missing assets, font rendering, etc.
 - Runs the same iOS Simulator build Maestro does, so a green Maestro pass + a clean visual run together cover both behaviour and appearance.
-- Snapshot diffs are saved as PNG artifacts on failure, so reviewing a regression is a one-glance comparison.
+- Snapshot diffs are written to local `e2e/__diffs__/` on failure, so reviewing a regression is a one-glance comparison.
 
 iOS only — Detox on macOS-based runners is stable; the Android equivalent is on the roadmap once Maestro's Android coverage stabilises.
 
@@ -127,7 +127,7 @@ A build with the feature off skips the block instead of running it against the `
 New snapshot was not written. The update flag must be explicitly passed to write a new snapshot.
 ```
 
-This is by design — it prevents merging a green run that only passes because it silently wrote the baseline. The downside is that adding a baseline always needs the two-pass flow described in [Adding a new screenshot](#adding-a-new-screenshot) above.
+This is by design — it prevents merging a green run that only passes because it silently wrote the baseline. Adding a baseline is a local capture: run Detox locally (see [Running locally](#running-locally)), commit the PNG under `e2e/__baselines__/`, and push — not a CI download pass. See [Adding a new screenshot](#adding-a-new-screenshot).
 
 ### Detox `toBeVisible` is strict (>75% on screen)
 

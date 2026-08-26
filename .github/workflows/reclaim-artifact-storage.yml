@@ -27,12 +27,29 @@ jobs:
           deleted=0
           cutoff_epoch=$(($(date -u +%s) - 86400))
           while :; do
-            json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100")
-            old_ids=$(printf '%s' "$json" | jq -r --argjson cutoff "$cutoff_epoch" '
-              .artifacts[]
-              | select((.created_at | fromdateiso8601) < $cutoff)
-              | .id
-            ')
+            old_ids=""
+            page=1
+            while :; do
+              json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100&page=${page}")
+              page_len=$(printf '%s' "$json" | jq '.artifacts | length')
+              if [ "$page_len" -eq 0 ]; then
+                break
+              fi
+              page_ids=$(printf '%s' "$json" | jq -r --argjson cutoff "$cutoff_epoch" '
+                .artifacts[]
+                | select(.expired == false)
+                | select((.created_at | fromdateiso8601) < $cutoff)
+                | .id
+              ')
+              if [ -n "$page_ids" ]; then
+                if [ -n "$old_ids" ]; then
+                  old_ids="${old_ids}"$'\n'"${page_ids}"
+                else
+                  old_ids="${page_ids}"
+                fi
+              fi
+              page=$((page + 1))
+            done
             if [ -z "$old_ids" ]; then
               echo "Deleted ${deleted} artifacts older than 24 hours."
               break
@@ -45,12 +62,17 @@ jobs:
               status=$?
               set -e
               if [ "$status" -ne 0 ]; then
-                if ! printf '%s' "$err" | grep -qiE '404|Not Found'; then
-                  printf '%s\n' "$err" >&2
-                  exit "$status"
+                if printf '%s' "$err" | grep -qiE '404|Not Found'; then
+                  continue
                 fi
+                printf '%s\n' "$err" >&2
+                exit "$status"
               fi
               count=$((count + 1))
             done <<< "$old_ids"
+            if [ "$count" -eq 0 ]; then
+              echo "Deleted ${deleted} artifacts older than 24 hours."
+              break
+            fi
             deleted=$((deleted + count))
           done
