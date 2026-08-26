@@ -1,12 +1,10 @@
 import * as Crypto from 'expo-crypto';
 import { argon2idAsync } from '@noble/hashes/argon2';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
-import { IS_E2E } from '@/config/e2e';
 
 const LEGACY_SALT = 'dfx-wallet-pin-v1';
 const LEGACY_ITERATIONS = 10000;
 const FORMAT = 'pin$argon2id';
-const E2E_FORMAT = 'pin$e2e';
 const VERSION = 19;
 const ARGON2_PARAMS = {
   t: 3,
@@ -20,18 +18,10 @@ const SALT_BYTES = 16;
  * Hash a PIN using Argon2id with a per-record random salt.
  *
  * Stored format:
- * pin$argon2id$v=19$m=<memory>,t=<iterations>,p=1$<saltHex>$<hashHex>
+ * pin$argon2id$v=19$m=32768,t=3,p=1$<saltHex>$<hashHex>
  */
 export async function hashPin(pin: string): Promise<string> {
   const salt = Crypto.getRandomBytes(SALT_BYTES);
-  if (IS_E2E) {
-    const saltHex = bytesToHex(salt);
-    const hash = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      `${saltHex}:${pin}`,
-    );
-    return `${E2E_FORMAT}$${saltHex}$${hash}`;
-  }
   const hash = await argon2idAsync(pin, salt, ARGON2_PARAMS);
   return `${FORMAT}$v=${VERSION}$m=${ARGON2_PARAMS.m},t=${ARGON2_PARAMS.t},p=${ARGON2_PARAMS.p}$${bytesToHex(salt)}$${bytesToHex(hash)}`;
 }
@@ -40,10 +30,6 @@ export async function hashPin(pin: string): Promise<string> {
  * Verify a PIN against a stored hash.
  */
 export async function verifyPin(pin: string, storedHash: string): Promise<boolean> {
-  if (IS_E2E && storedHash.startsWith(`${E2E_FORMAT}$`)) {
-    return verifyE2EPin(pin, storedHash);
-  }
-
   if (isCurrentPinHash(storedHash)) {
     return verifyArgon2Pin(pin, storedHash);
   }
@@ -57,21 +43,7 @@ export async function verifyPin(pin: string, storedHash: string): Promise<boolea
 }
 
 export function needsPinRehash(storedHash: string): boolean {
-  if (IS_E2E && storedHash.startsWith(`${E2E_FORMAT}$`)) return false;
   return !isCurrentPinHash(storedHash) && isLegacyPinHash(storedHash);
-}
-
-async function verifyE2EPin(pin: string, storedHash: string): Promise<boolean> {
-  const parts = storedHash.split('$');
-  if (parts.length !== 4) return false;
-  const [, algorithm, saltHex, expected] = parts;
-  if (algorithm !== 'e2e' || !saltHex || !expected) return false;
-
-  const actual = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    `${saltHex}:${pin}`,
-  );
-  return timingSafeEqual(actual, expected);
 }
 
 function isCurrentPinHash(storedHash: string): boolean {

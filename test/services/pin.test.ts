@@ -50,22 +50,6 @@ describe('hashPin', () => {
   });
 });
 
-describe('E2E PIN hashing', () => {
-  it('uses the lightweight salted test format and verifies it', async () => {
-    jest.resetModules();
-    jest.doMock('@/config/e2e', () => ({ IS_E2E: true }));
-    const e2ePin = await import('../../src/services/pin');
-
-    const hash = await e2ePin.hashPin('111111');
-    expect(hash).toMatch(/^pin\$e2e\$/);
-    await expect(e2ePin.verifyPin('111111', hash)).resolves.toBe(true);
-    await expect(e2ePin.verifyPin('000000', hash)).resolves.toBe(false);
-    expect(e2ePin.needsPinRehash(hash)).toBe(false);
-
-    jest.dontMock('@/config/e2e');
-  });
-});
-
 describe('verifyPin', () => {
   it('returns true when the PIN matches the stored hash', async () => {
     const hash = await hashPin('1234');

@@ -1,7 +1,6 @@
 import { by, device, element, waitFor } from 'detox';
 import { expectScreenToMatchBaseline } from '../utils/screenshot';
 import { launchAndWaitForWelcome } from '../utils/launch';
-import { enterPin } from '../utils/pin';
 
 // Small delay for UI transitions when synchronization is disabled.
 const pause = (ms = 1_000) => new Promise((r) => setTimeout(r, ms));
@@ -20,19 +19,17 @@ const pause = (ms = 1_000) => new Promise((r) => setTimeout(r, ms));
  * e2e/__baselines__/ without clobbering each other — enforced by
  * scripts/check-visual-coverage.mjs.
  *
- * Navigation strategy: onboard ONCE (PIN + legal flow) to the dashboard, then
+ * Navigation strategy: create one E2E wallet and reach the dashboard, then
  * walk forward into each authenticated screen and back, all with Detox
  * synchronization disabled — exactly like the green "Dashboard navigation"
  * block in onboarding.test.ts. We do NOT cold-restart + PIN-unlock per screen:
  * once a real WDK wallet exists its worklet keeps the JS thread permanently
  * busy, so the app never reports "idle"; `device.launchApp()` re-enables
  * synchronization on every new instance and then blocks forever waiting for an
- * idle that never comes (and `enterPin()` re-enables sync for the same reason).
+ * idle that never comes.
  * Driving with explicit `waitFor` + `pause()` while staying sync-disabled is
  * the only thing that works once the wallet is live (see docs/visual-regression.md).
  */
-
-const PIN = '111111';
 
 async function onboardToDashboard(): Promise<void> {
   await launchAndWaitForWelcome();
@@ -44,39 +41,14 @@ async function onboardToDashboard(): Promise<void> {
   await element(by.id('create-wallet-reveal-button')).tap();
   await pause(2_000);
   await element(by.id('create-wallet-continue-button')).tap();
-  // WDK chain init on a fresh wallet is the slowest step here: ~40s locally,
-  // but the full-feature build on a cold GitHub macOS runner is ~4-5x slower
-  // (≈160-200s), so this wait has to be generous or the whole suite cascades.
-  await waitFor(element(by.id('setup-pin-screen')))
-    .toBeVisible()
-    .withTimeout(300_000);
-  await enterPin(PIN);
-  await waitFor(element(by.id('setup-pin-confirm-screen')))
-    .toBeVisible()
-    .withTimeout(60_000);
-  await enterPin(PIN);
-  // Confirming the PIN starts the wallet worklet before routing to the legal
-  // screen. Keep synchronization disabled across that transition: waiting for
-  // Detox's global-idle signal races with a worklet that intentionally remains
-  // active for the lifetime of the wallet.
-  await device.disableSynchronization();
-  await waitFor(element(by.id('legal-disclaimer-screen')))
-    .toBeVisible()
-    // Persisting the PIN performs the production password hash before the
-    // route changes. On a loaded hosted macOS runner that has exceeded one
-    // minute, especially while the wallet worklet is initializing.
-    .withTimeout(300_000);
-  await element(by.id('legal-accept-checkbox')).tap();
-  // The continue button sits below a spacer at the bottom of the scroll view;
-  // on shorter viewports it is clipped, so scroll it fully into view first.
-  await waitFor(element(by.id('legal-continue-button')))
-    .toBeVisible()
-    .whileElement(by.id('legal-disclaimer-screen'))
-    .scroll(350, 'down');
-  await element(by.id('legal-continue-button')).tap();
+  // Visual builds use the feature-complete screen implementations but bypass
+  // the PIN/legal consent flow. Those behaviours are covered by unit/Maestro;
+  // this suite needs a deterministic authenticated wallet only so it can
+  // compare the downstream screens. SetupPinDisabled marks onboarding complete
+  // and routes here after WDK wallet creation finishes.
   await waitFor(element(by.id('dashboard-screen')))
     .toBeVisible()
-    .withTimeout(60_000);
+    .withTimeout(300_000);
 }
 
 async function openSettings(): Promise<void> {
@@ -91,7 +63,7 @@ async function openSettings(): Promise<void> {
 
 describe('Visual Regression (full variant)', () => {
   // Passkey onboarding screens delete + recreate state on launch, so they run
-  // first — before the PIN wallet the authenticated blocks depend on exists.
+  // first — before the wallet the authenticated blocks depend on exists.
   describe('Passkey onboarding screens', () => {
     beforeAll(async () => {
       await launchAndWaitForWelcome();
@@ -125,10 +97,10 @@ describe('Visual Regression (full variant)', () => {
     });
   });
 
-  // Onboard the PIN wallet the authenticated screens below reuse. Every block
+  // Onboard the wallet the authenticated screens below reuse. Every block
   // after this one navigates from the state this leaves behind (the dashboard),
   // without a fresh launch — see the navigation-strategy note in the header.
-  describe('Onboard (PIN + legal)', () => {
+  describe('Onboard E2E wallet', () => {
     it('reaches the dashboard', async () => {
       await onboardToDashboard();
     });
@@ -140,8 +112,7 @@ describe('Visual Regression (full variant)', () => {
   // "Dashboard navigation" block.
   describe('Authenticated screens', () => {
     beforeAll(async () => {
-      // onboardToDashboard() runs enterPin(), which re-enables Detox
-      // synchronization. With a live WDK wallet the worklet keeps the JS
+      // With a live WDK wallet the worklet keeps the JS
       // thread permanently busy, so we must turn synchronization back off
       // before navigating — otherwise every waitFor blocks on an "idle" the
       // app never reaches (the relaunch design hit the same wall, forever).
