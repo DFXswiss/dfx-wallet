@@ -37,6 +37,7 @@ jobs:
       github.event_name == 'schedule' ||
       (github.event_name == 'pull_request' &&
        github.event.pull_request.draft != true &&
+       matrix.variant != 'full' &&
        (github.event.action != 'labeled' || github.event.label.name == 'needs-visual'))
     runs-on: macos-latest
     timeout-minutes: 90
