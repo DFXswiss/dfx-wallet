@@ -568,10 +568,9 @@
             Drift möglich.
           </p>
           <p>
-            Aktualisieren der Baselines erfolgt über die <em>Visual Regression</em>-Workflow-Runs:
-            ein fehlendes oder pixelgenau abweichendes Snapshot lädt jest-image-snapshot in den
-            <code>detox-artifacts</code>-Bundle hoch, von dort kopiert ein Maintainer das PNG nach
-            <code>e2e/__baselines__/</code> und committet. Details in
+            Aktualisieren der Baselines erfolgt lokal: Detox auf der Entwicklermaschine laufen
+            lassen, das PNG unter <code>e2e/__baselines__/</code> committen. CI lädt Visual-Dumps
+            nicht mehr als Actions-Artifact hoch. Details in
             <a
               href="https://github.com/DFXswiss/dfx-wallet/blob/develop/docs/visual-regression.md"
               >docs/visual-regression.md</a
@@ -1023,7 +1022,7 @@
           </p>
           <ol>
             <li>Lokal: <code>rm e2e/__baselines__/&lt;name&gt;.png</code>, dann <code>npm run e2e:test:ios</code>. jest-image-snapshot schreibt die neue Baseline.</li>
-            <li>CI: PR pushen, der Visual-Regression-Run failt, das fehlende Snapshot landet im <code>detox-artifacts</code>-Bundle, von dort nach <code>e2e/__baselines__/</code> kopieren und committen.</li>
+            <li>PR pushen. Der Visual-Regression-Run vergleicht gegen die committed Baseline; ein Fail ist kein Download-Pfad — die neue PNG kommt nur aus dem lokalen Lauf in Schritt 1.</li>
           </ol>
           <p>
             Details zum Workflow-Trigger (das <code>needs-visual</code>-Label, Nightly-Cron) sowie
