@@ -112,10 +112,15 @@ A build with the feature off skips the block instead of running it against the `
 ## Adding a new screenshot
 
 1. Add a new `it` block that taps to the screen and calls `expectScreenToMatchBaseline('your-name')`.
-2. Capture the baseline locally (see [Running locally](#running-locally)). With `CI` unset, a missing baseline is written on first run; on failure, inspect the PNG under `e2e/__diffs__/` or the local Detox `artifacts/` tree — CI no longer uploads those for `gh run download`.
-3. Inspect the PNG — make sure it captures the state you actually want to baseline (not an error screen, not a half-loaded WDK, etc.).
-4. Ensure the accepted capture lives at `e2e/__baselines__/your-name.png` and commit it.
-5. Push and re-trigger the visual workflow (see [Triggering visual regression](#triggering-visual-regression) below) — the next run compares against the new baseline.
+2. Capture the baseline locally (see [Running locally](#running-locally)); CI will not write a missing baseline.
+3. Inspect the PNG under `e2e/__diffs__/` or the local Detox `artifacts/` tree:
+   ```bash
+   ls e2e/__diffs__ e2e/__baselines__
+   ```
+4. Find your screenshot under the local Detox artifacts directory named after the test.
+5. Inspect the PNG — make sure it captures the state you actually want to baseline (not an error screen, not a half-loaded WDK, etc.).
+6. Copy it into `e2e/__baselines__/your-name.png` and commit.
+7. Push and re-trigger the visual workflow (see [Triggering visual regression](#triggering-visual-regression) below).
 
 ## Pitfalls
 
@@ -127,7 +132,7 @@ A build with the feature off skips the block instead of running it against the `
 New snapshot was not written. The update flag must be explicitly passed to write a new snapshot.
 ```
 
-This is by design — it prevents merging a green run that only passes because it silently wrote the baseline. Adding a baseline is a local capture: run Detox locally (see [Running locally](#running-locally)), commit the PNG under `e2e/__baselines__/`, and push — not a CI download pass. See [Adding a new screenshot](#adding-a-new-screenshot).
+This is by design — it prevents merging a green run that only passes because it silently wrote the baseline. Adding a baseline is a local capture (see [Adding a new screenshot](#adding-a-new-screenshot)), not a CI download pass.
 
 ### Detox `toBeVisible` is strict (>75% on screen)
 
@@ -199,4 +204,13 @@ gh pr edit <pr> --remove-label needs-visual && gh pr edit <pr> --add-label needs
 
 ### Artifacts
 
-CI no longer uploads `e2e/__diffs__/` or the Detox artifacts directory to GitHub Actions. On a CI failure those diffs vanish with the runner. Baseline updates are made from a local Detox run (see [Running locally](#running-locally) and [Adding a new screenshot](#adding-a-new-screenshot)), not from `gh run download`.
+On failure those trees stay on the runner and are not uploaded. A local Detox run writes the actual screenshot for each test under a directory named after the test:
+
+```
+detox-artifacts/ios.release.<ts>Z/
+├── ✓ Visual Regression Welcome screen matches baseline/welcome.png
+├── ✗ Visual Regression Dashboard navigation (MVP) hides the balance via the eye toggle/dashboard-balance-hidden.png
+└── …
+```
+
+The `✗`-prefixed directories are the ones you copy into `e2e/__baselines__/` when [adding a new screenshot](#adding-a-new-screenshot).

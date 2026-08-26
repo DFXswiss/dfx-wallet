@@ -11,8 +11,6 @@ on:
 
 permissions:
   actions: write
-  contents: read
-
 jobs:
   reclaim:
     name: Delete stored Actions artifacts
@@ -41,13 +39,7 @@ jobs:
                 | select((.created_at | fromdateiso8601) < $cutoff)
                 | .id
               ')
-              if [ -n "$page_ids" ]; then
-                if [ -n "$old_ids" ]; then
-                  old_ids="${old_ids}"$'\n'"${page_ids}"
-                else
-                  old_ids="${page_ids}"
-                fi
-              fi
+              [ -n "$page_ids" ] && old_ids="${old_ids:+${old_ids}$'\n'}${page_ids}"
               page=$((page + 1))
             done
             if [ -z "$old_ids" ]; then
