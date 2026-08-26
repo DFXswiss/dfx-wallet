@@ -71,12 +71,12 @@ describe('CreateWalletScreen', () => {
     const realSetTimeout = globalThis.setTimeout;
     const setTimeoutSpy = jest
       .spyOn(globalThis, 'setTimeout')
-      .mockImplementation(((cb: () => void, ms?: number, ...rest: unknown[]) => {
+      .mockImplementation(((cb: () => void, ms?: number) => {
         if (ms === 2000) {
           scheduled = cb;
           return 0 as unknown as ReturnType<typeof setTimeout>;
         }
-        return realSetTimeout.call(globalThis, cb, ms, ...rest);
+        return realSetTimeout.call(globalThis, cb, ms);
       }) as unknown as typeof setTimeout);
     try {
       const { getByTestId } = render(<CreateWalletScreen />);
