@@ -47,4 +47,18 @@ describe('PrimaryButton', () => {
     expect(getByText('Buy BTC')).toBeTruthy();
     expect(getByText('icon')).toBeTruthy();
   });
+
+  it('renders no icon when the icon prop is omitted (existing callers stay unaffected)', () => {
+    const { queryByText } = render(<PrimaryButton title="Continue" onPress={() => {}} />);
+    expect(queryByText('icon')).toBeNull();
+  });
+
+  it('hides the icon while loading, showing only the spinner', () => {
+    const { queryByText, UNSAFE_getByType } = render(
+      <PrimaryButton title="Buy BTC" icon={<Text>icon</Text>} onPress={() => {}} loading />,
+    );
+    expect(queryByText('Buy BTC')).toBeNull();
+    expect(queryByText('icon')).toBeNull();
+    expect(UNSAFE_getByType(ActivityIndicator)).toBeTruthy();
+  });
 });
