@@ -1,0 +1,101 @@
+import { fireEvent, render } from '@testing-library/react-native';
+import { ReceiveAssetSheet } from '../../src/features/buy-sell/ReceiveAssetSheet';
+import type { BuyAsset } from '../../src/features/buy-sell/BuyScreenImpl';
+
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
+jest.mock('react-native-safe-area-context', () => {
+  const { View } = require('react-native');
+  return {
+    SafeAreaView: ({ children }: { children?: React.ReactNode }) => <View>{children}</View>,
+  };
+});
+
+jest.mock('@/components', () => {
+  const { Text } = require('react-native');
+  return {
+    Icon: ({ name }: { name: string }) => <Text>{name}</Text>,
+  };
+});
+
+jest.mock('@/theme', () => ({
+  Typography: {
+    bodyLarge: {},
+    bodyMedium: {},
+    bodySmall: {},
+    headlineSmall: {},
+  },
+  useColors: () => ({
+    border: '#dddddd',
+    primary: '#0066ff',
+    primaryLight: '#e6f0ff',
+    surface: '#ffffff',
+    text: '#111111',
+    textSecondary: '#555555',
+    textTertiary: '#777777',
+  }),
+}));
+
+const BTC_ASSET: BuyAsset = {
+  symbol: 'BTC',
+  label: 'Bitcoin',
+  chains: [
+    {
+      chain: 'bitcoin',
+      label: 'SegWit',
+      blockchain: 'Bitcoin',
+      tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
+    },
+    {
+      chain: 'bitcoin-lightning',
+      label: 'Lightning',
+      blockchain: 'Lightning',
+      tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
+    },
+  ],
+};
+
+describe('ReceiveAssetSheet', () => {
+  it('shows the BTC section and passes the selected chain index to the presenter', () => {
+    const onSelect = jest.fn();
+    const { getByTestId, getByText } = render(
+      <ReceiveAssetSheet
+        visible
+        onClose={jest.fn()}
+        assets={[BTC_ASSET]}
+        selectedAssetSymbol="BTC"
+        selectedChainIndex={0}
+        onSelect={onSelect}
+      />,
+    );
+
+    expect(getByText('Bitcoin')).toBeTruthy();
+    expect(getByText('SegWit')).toBeTruthy();
+    expect(getByText('Lightning')).toBeTruthy();
+
+    fireEvent.press(getByTestId('receive-asset-option-BTC-bitcoin-lightning'));
+
+    expect(onSelect).toHaveBeenCalledWith(BTC_ASSET, 1);
+  });
+
+  it('keeps the backdrop outside the asset option subtree', () => {
+    const { getByTestId } = render(
+      <ReceiveAssetSheet
+        visible
+        onClose={jest.fn()}
+        assets={[BTC_ASSET]}
+        selectedAssetSymbol="BTC"
+        selectedChainIndex={0}
+        onSelect={jest.fn()}
+      />,
+    );
+
+    const backdrop = getByTestId('receive-asset-sheet-backdrop');
+
+    expect(
+      backdrop.findAllByProps({ testID: 'receive-asset-option-BTC-bitcoin-lightning' }),
+    ).toHaveLength(0);
+  });
+});
