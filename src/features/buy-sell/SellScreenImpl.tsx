@@ -40,6 +40,7 @@ import { dfxAuthService, DfxApiError } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
 import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import TradeModeTabs from './TradeModeTabs';
 
 type SellStep = 'amount' | 'bank' | 'confirm';
 
@@ -429,7 +430,7 @@ export default function SellScreen() {
   const belowMin = minVolume != null && numAmount > 0 && numAmount < minVolume;
   const aboveMax = maxVolume != null && numAmount > maxVolume;
 
-  const renderAmountStep = () => (
+  const renderAmountStepContent = () => (
     <View style={styles.stepContent}>
       {hasTargetWallet ? (
         <View style={styles.targetBanner} testID="sell-target-wallet-banner">
@@ -679,6 +680,13 @@ export default function SellScreen() {
         loading={isLoading}
       />
     </View>
+  );
+
+  const renderAmountStep = () => (
+    <>
+      <TradeModeTabs active="sell" />
+      {renderAmountStepContent()}
+    </>
   );
 
   const renderConfirmStep = () =>
