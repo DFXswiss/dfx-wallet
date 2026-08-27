@@ -11,6 +11,11 @@ export type FeeDto = {
   network: number;
   min: number;
   dfx: number;
+  platform: number;
+  bank: number;
+  bankFixed?: number;
+  bankVariable?: number;
+  networkStart?: number;
   total: number;
 };
 
