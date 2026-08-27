@@ -845,10 +845,9 @@ describe('BuyScreenImpl', () => {
     });
     mockConfirmPayment.mockResolvedValueOnce(false);
 
-    const { getByPlaceholderText, getByText, queryByText } = render(<BuyScreenImpl />);
+    const { getByTestId, getByText, queryByText } = render(<BuyScreenImpl />);
 
-    fireEvent.press(getByText('BTC'));
-    fireEvent.changeText(getByPlaceholderText('0.00'), '100');
+    fireEvent.changeText(getByTestId('buy-pay-amount'), '100');
     await act(async () => {
       fireEvent.press(getByText('buy.cta:{"asset":"BTC"}'));
     });

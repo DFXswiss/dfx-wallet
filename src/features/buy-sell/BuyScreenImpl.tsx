@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   ImageBackground,
@@ -23,20 +23,10 @@ import {
   PrimaryButton,
 } from '@/components';
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
-import {
-  canAdvanceToPayment,
-  getPaymentInfoErrorCode,
-  getQuoteErrorCode,
-} from '@/features/buy-sell/services/quote-display';
-import {
-  createDfxSessionGuard,
-  isLocalSessionEndedError,
-} from '@/features/dfx-backend/session-guard';
 import type { ChainId } from '@/config/chains';
 import {
   formatFiat as fmtFiat,
   formatCryptoAmount as fmtCrypto,
-  normalizeDecimalAmount,
   SYMBOL_GLYPH,
 } from '@/config/portfolio-presentation';
 import { useLdsWallet } from '@/hooks';
@@ -46,24 +36,20 @@ import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
 import { dfxAuthService, DfxApiError } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
-import {
-  MonospaceFontFamily,
-  Typography,
-  useColors,
-  useResolvedScheme,
-  type ThemeColors,
-} from '@/theme';
-import { TradeModeTabs } from '@/features/buy-sell/TradeModeTabs';
+import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { PayCurrencySheet } from './PayCurrencySheet';
+import { ReceiveAssetSheet } from './ReceiveAssetSheet';
+import TradeModeTabs from './TradeModeTabs';
 
 type BuyStep = 'amount' | 'payment' | 'confirm';
 
 // DFX bank-transfer Buy only supports EUR (SEPA) and CHF (SIC) — USD removed.
-const CURRENCIES = ['CHF', 'EUR'] as const;
+export const CURRENCIES = ['CHF', 'EUR'] as const;
 
 // What the user is buying. Each asset maps to one or more chains, and each
 // chain offers one or more concrete tokens (e.g. USD on Ethereum has both
 // USDT and USDC; CHF has only ZCHF; BTC has only the native asset).
-type BuyChain = {
+export type BuyChain = {
   chain: ChainId;
   label: string;
   blockchain: string;
@@ -73,7 +59,7 @@ type BuyChain = {
    *  DFX' /v1/auth doesn't accept the WDK Spark signature yet). */
   unsupported?: boolean;
 };
-type BuyAsset = {
+export type BuyAsset = {
   symbol: string;
   label: string;
   chains: BuyChain[];
@@ -234,7 +220,6 @@ export default function BuyScreen() {
     createPaymentInfo,
     confirmPayment,
     dismissAuthGate,
-    cancelAuthGate,
     retryLast,
   } = useBuyFlow();
   const [step, setStep] = useState<BuyStep>('amount');
@@ -260,27 +245,8 @@ export default function BuyScreen() {
     : '';
   const { reauthAs } = useLinkedWalletReauth();
   const [confirmOpen, setConfirmOpen] = useState(false);
-  // Handlers started while the modal was open must see a close that happens
-  // before their await resumes. The layout effect closes it when the gate opens.
-  const confirmOpenRef = useRef(false);
-  confirmOpenRef.current = confirmOpen;
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
-  const [paymentInfoError, setPaymentInfoError] = useState<string | null>(null);
-  // Same-tick double presses both see confirmLoading === false. The ref
-  // closes that window; confirmLoading still guards a press after paint.
-  // Taken on submit. Released on a terminal payment-info result, on cancel,
-  // and on Back. A replay and an opening auth gate leave it held.
-  const submitLockRef = useRef(false);
-  // Bumped on every payment submit and on every cancel, so a response from
-  // an earlier submit cannot be applied to a later one.
-  const submitGenRef = useRef(0);
-  // The submit whose payment-info result may still open the payment step.
-  // Null after cancel, Back, or a terminal result. A null payload that opens
-  // an auth gate keeps it, so the replay after sign-in can still apply.
-  const pendingGenRef = useRef<number | null>(null);
-  const unresolvedPaymentRef = useRef(false);
-  const [unresolvedPayment, setUnresolvedPayment] = useState(0);
   const initialPreselect = useMemo(() => {
     const wantedSymbol = typeof params.asset === 'string' ? params.asset.toUpperCase() : null;
     const wantedChain = typeof params.chain === 'string' ? params.chain : null;
@@ -292,137 +258,27 @@ export default function BuyScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [selectedAsset, setSelectedAsset] = useState<BuyAsset | null>(
-    initialPreselect?.asset ?? null,
+    initialPreselect?.asset ?? BUY_ASSETS[0] ?? null,
   );
   const [selectedChainIndex, setSelectedChainIndex] = useState(initialPreselect?.chainIdx ?? 0);
   const [selectedTokenIndex, setSelectedTokenIndex] = useState(0);
   const [amount, setAmount] = useState('');
   const [selectedCurrency, setSelectedCurrency] = useState<(typeof CURRENCIES)[number]>('CHF');
+  const [payPickerOpen, setPayPickerOpen] = useState(false);
+  const [receivePickerOpen, setReceivePickerOpen] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(true);
 
-  useEffect(() => {
-    setPaymentInfoError(null);
-  }, [amount, selectedAsset, selectedChainIndex, selectedTokenIndex, selectedCurrency]);
-
-  const beginPaymentSubmit = (): number => {
-    const gen = ++submitGenRef.current;
-    pendingGenRef.current = gen;
-    submitLockRef.current = true;
-    return gen;
-  };
-
-  const cancelPaymentSubmit = useCallback((): void => {
-    submitGenRef.current += 1;
-    pendingGenRef.current = null;
-    submitLockRef.current = false;
-  }, []);
-
-  const handlePaymentInfoResult = useCallback(
-    (info: Awaited<ReturnType<typeof createPaymentInfo>>, gen: number) => {
-      // Back, confirm-modal cancel, or auth-gate cancel may have landed
-      // while this request was in flight. A newer submit owns the generation
-      // then, and this result must not be applied to it.
-      if (pendingGenRef.current === null || pendingGenRef.current !== gen) return;
-      if (canAdvanceToPayment(info)) {
-        pendingGenRef.current = null;
-        submitLockRef.current = false;
-        setPaymentInfoError(null);
-        setConfirmError(null);
-        setConfirmOpen(false);
-        setStep('payment');
-        return;
-      }
-
-      const errorCode = getPaymentInfoErrorCode(info);
-      if (errorCode) {
-        pendingGenRef.current = null;
-        submitLockRef.current = false;
-        const translatedError =
-          errorCode === 'noCode'
-            ? t('buy.quoteError.noCode')
-            : t([`buy.quoteError.${errorCode}`, 'buy.quoteError.generic'], { code: errorCode });
-        // The gate closes the confirm modal. An error stored only there is
-        // invisible, so the amount step has to show it.
-        if (confirmOpenRef.current) {
-          setConfirmError(translatedError);
-        } else {
-          setPaymentInfoError(translatedError);
-        }
-        return;
-      }
-
-      // null, and no error code on the payload. The hook's auth gate or
-      // error lands on the next render; decide there so a stale closure
-      // cannot show an error beside the gate. Keep the generation: a gate
-      // is not a terminal result, and the replay still has to apply.
-      unresolvedPaymentRef.current = true;
-      setUnresolvedPayment((n) => n + 1);
-    },
-    [t],
-  );
-
-  const resumeAfterAuth = useCallback(async () => {
-    const gen = pendingGenRef.current;
-    const result = await retryLast();
-    if (result?.kind === 'paymentInfo') {
-      if (gen === null || pendingGenRef.current !== gen) return;
-      handlePaymentInfoResult(result.info, gen);
-    }
-    // quote results are applied by the hook's own state
-  }, [retryLast, handlePaymentInfoResult]);
-
   // After the user goes through the DFX login flow we land back on this
   // screen; replay the failed call so they don't have to retap "Continue".
-  // retryLast only replays an action that was gated and not cancelled.
-  // Read the gate through a ref so this callback stays stable while the
-  // modal opens and closes.
   const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
-  const authGateRef = useRef(authGate);
-  authGateRef.current = authGate;
   useFocusEffect(
     useCallback(() => {
       if (isDfxAuthenticated) {
-        void resumeAfterAuth();
-        return;
+        void retryLast();
       }
-      // Act only when signed out with no gate and a payment submit still pending
-      // (the user backed out of login): then drop the replay and unlock below.
-      if (authGateRef.current || pendingGenRef.current === null) return;
-      cancelAuthGate();
-      pendingGenRef.current = null;
-      submitLockRef.current = false;
-    }, [isDfxAuthenticated, resumeAfterAuth, cancelAuthGate]),
+    }, [isDfxAuthenticated, retryLast]),
   );
-
-  // One modal at a time: the auth gate replaces the confirm dialog.
-  // Closing the dialog must not release the submit lock. The replay of the
-  // call that opened the gate still owns it.
-  useLayoutEffect(() => {
-    if (!authGate || !confirmOpen) return;
-    setConfirmOpen(false);
-    setConfirmLoading(false);
-  }, [authGate, confirmOpen]);
-
-  useEffect(() => {
-    if (!unresolvedPaymentRef.current) return;
-    if (isLoading) return;
-    unresolvedPaymentRef.current = false;
-    if (authGate) {
-      // Hold the submit lock and the pending generation until cancel or the
-      // replay. The gate is the only control the user has until then.
-      return;
-    }
-    pendingGenRef.current = null;
-    submitLockRef.current = false;
-    setConfirmLoading(false);
-    const message = error ?? t('buy.quoteError.noCode');
-    if (confirmOpenRef.current) {
-      setConfirmError(message);
-      return;
-    }
-    if (!error) setPaymentInfoError(message); // the amount step already renders the hook error
-  }, [unresolvedPayment, authGate, error, isLoading, t]);
 
   // WDK accounts for the chains the user can buy on. We hold each at the
   // top of the screen because hooks can't be called conditionally; the
@@ -434,27 +290,12 @@ export default function BuyScreen() {
 
   const linkChainToDfx = useCallback(
     async (chain: ChainId) => {
-      const retryAfterSuccessfulLink = async () => {
-        try {
-          await resumeAfterAuth();
-        } catch (err) {
-          // The flow owns retry errors; do not surface them as link failures.
-          // A session end must escape so the caller releases the submit lock.
-          if (isLocalSessionEndedError(err)) throw err;
-        }
-      };
-      const guard = createDfxSessionGuard();
-      let latestToken: string | undefined;
-      const assertFlowActive = () =>
-        latestToken === undefined ? guard.assertActive() : guard.assertActive(latestToken);
-      await guard.assertActive();
       // Taproot + Lightning both ride the same DFX Lightning Network rails
       // (lightning.space-managed LDS user). The deposit address is a Lightning
       // Address (`name@dfx.swiss`) and we hand DFX the LNURL form plus the
       // ownership proof LDS issued instead of running a wallet sign-flow.
       if (chain === 'bitcoin-taproot' || chain === 'bitcoin-lightning') {
         const user = lds.user ?? (await lds.signIn());
-        await guard.assertActive();
         if (!user) {
           throw new Error('DFX Lightning wallet not ready — please retry.');
         }
@@ -464,14 +305,10 @@ export default function BuyScreen() {
             user.lightning.addressOwnershipProof,
             { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
           );
-          latestToken = ldsToken;
-          await guard.persistToken(ldsToken);
-          await assertFlowActive();
+          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ldsToken);
           await markChainLinkedInAutoLinkCache('lightning');
-          await retryAfterSuccessfulLink();
+          void retryLast();
         } catch (err) {
-          if (isLocalSessionEndedError(err)) throw err;
-          await assertFlowActive();
           // 409 → the LDS LNURL is on another DFX user. Mirror the EVM/BTC
           // recovery: drop the current JWT and re-auth as the LNURL owner
           // so the buy flow can continue against the account that already
@@ -482,11 +319,9 @@ export default function BuyScreen() {
               user.lightning.addressOwnershipProof,
               { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
             );
-            latestToken = ownerToken;
-            await guard.persistToken(ownerToken);
-            await assertFlowActive();
+            await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
             await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
-            await retryAfterSuccessfulLink();
+            void retryLast();
             return;
           }
           throw err;
@@ -523,19 +358,15 @@ export default function BuyScreen() {
           wallet: 'DFX Wallet',
           blockchain: blockchainName,
         });
-        latestToken = newToken;
-        await guard.persistToken(newToken);
-        await assertFlowActive();
+        await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, newToken);
         // Mark in the auto-link cache so the next cold start skips this
         // chain instead of re-prompting. Only chains that auto-link knows
         // about: bitcoin + the EVM chains (ethereum is the login, no cache
         // entry needed).
         if (chain === 'bitcoin' || chain === 'arbitrum' || chain === 'polygon' || chain === 'base')
           await markChainLinkedInAutoLinkCache(chain);
-        await retryAfterSuccessfulLink();
+        void retryLast();
       } catch (err) {
-        if (isLocalSessionEndedError(err)) throw err;
-        await assertFlowActive();
         // 409 means the address belongs to a *different* DFX user. The user's
         // mental model is "this is MY wallet" — so re-auth as the owner of
         // this address (drop the prior JWT) instead of forcing a merge that
@@ -547,36 +378,17 @@ export default function BuyScreen() {
             wallet: 'DFX Wallet',
             blockchain: blockchainName,
           });
-          latestToken = ownerToken;
-          await guard.persistToken(ownerToken);
-          await assertFlowActive();
+          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
           // Wipe the per-chain link cache: a different user means different
           // already-linked chains, so auto-link should re-evaluate from scratch.
           await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
-          await retryAfterSuccessfulLink();
+          void retryLast();
           return;
         }
         throw err;
       }
     },
-    [btcAccount, sparkAccount, ethAccount, lds, resumeAfterAuth],
-  );
-
-  const handleLinkChainToDfx = useCallback(
-    async (chain: ChainId) => {
-      const gateForLink = authGateRef.current ?? undefined;
-      try {
-        await linkChainToDfx(chain);
-      } catch (error) {
-        if (isLocalSessionEndedError(error)) {
-          cancelPaymentSubmit();
-          cancelAuthGate(gateForLink);
-          return;
-        }
-        throw error;
-      }
-    },
-    [linkChainToDfx, cancelAuthGate, cancelPaymentSubmit],
+    [btcAccount, sparkAccount, ethAccount, lds, retryLast],
   );
 
   // eslint-disable-next-line security/detect-object-injection -- selectedChainIndex is bounded by chains.length
@@ -585,8 +397,6 @@ export default function BuyScreen() {
   const selectedTokenSpec = selectedChainSpec?.tokens[selectedTokenIndex] ?? null;
   const targetAsset = selectedTokenSpec?.assetSymbol ?? '';
   const blockchain = selectedChainSpec?.blockchain ?? '';
-  const normalizedAmount = normalizeDecimalAmount(amount);
-  const numAmount = normalizedAmount === null ? null : Number(normalizedAmount);
 
   // Live quote: fetch a fresh exchange-rate + fee preview whenever the user
   // changes amount, currency, or target chain. Debounced so we don't hammer
@@ -594,7 +404,8 @@ export default function BuyScreen() {
   useEffect(() => {
     if (step !== 'amount' || !selectedChainSpec) return;
     if (selectedChainSpec.unsupported) return;
-    if (numAmount === null || numAmount <= 0) return;
+    const numAmount = parseFloat(amount);
+    if (!numAmount || numAmount <= 0) return;
     const id = setTimeout(() => {
       if (!selectedChainSpec || selectedChainSpec.unsupported) return;
       void getQuote({
@@ -606,7 +417,7 @@ export default function BuyScreen() {
       });
     }, 350);
     return () => clearTimeout(id);
-  }, [numAmount, selectedCurrency, targetAsset, blockchain, step, getQuote, selectedChainSpec]);
+  }, [amount, selectedCurrency, targetAsset, blockchain, step, getQuote, selectedChainSpec]);
 
   const copy = async (label: string, value: string) => {
     if (!value) return;
@@ -623,15 +434,12 @@ export default function BuyScreen() {
   // the response is `isValid: true` with a fee block — no need to wait
   // for `paymentInfo.asset` to materialise (it never will on /quote).
   const hasQuote =
-    !!paymentInfo &&
-    paymentInfo.isValid &&
-    !!paymentInfo.fees &&
-    numAmount !== null &&
-    numAmount > 0;
+    !!paymentInfo && paymentInfo.isValid && !!paymentInfo.fees && parseFloat(amount) > 0;
   // DFX returns 200 with `error` set for soft validation failures (e.g.
   // KycRequired, AssetUnsupported). We need to surface that to the user
   // instead of getting stuck on "Angebot wird berechnet …".
-  const quoteError = !paymentInfoError && !hasQuote ? getQuoteErrorCode(paymentInfo) : null;
+  const quoteError =
+    !hasQuote && paymentInfo && paymentInfo.error ? String(paymentInfo.error) : null;
   // DFX sometimes returns 200 with `isValid: false` and no error code —
   // typically when the chain isn't yet attached to the user's account.
   // Tapping the buy CTA triggers /buy/paymentInfos which fires the linkChain
@@ -643,12 +451,12 @@ export default function BuyScreen() {
   // even before the first /buy/quote round-trip returns. Keeps the previous
   // quote on screen while a refresh is in flight so the user always sees
   // *something* and can read the change as it lands.
-  const showQuoteCard = hasQuote || (numAmount !== null && numAmount > 0 && !!selectedChainSpec);
+  const showQuoteCard = hasQuote || (parseFloat(amount) > 0 && !!selectedChainSpec);
   const minVolume = paymentInfo?.minVolume;
   const maxVolume = paymentInfo?.maxVolume;
-  const belowMin =
-    minVolume != null && numAmount !== null && numAmount > 0 && numAmount < minVolume;
-  const aboveMax = maxVolume != null && numAmount !== null && numAmount > maxVolume;
+  const numAmount = parseFloat(amount);
+  const belowMin = minVolume != null && numAmount > 0 && numAmount < minVolume;
+  const aboveMax = maxVolume != null && numAmount > maxVolume;
   const buyAction = t('buy.cta', { asset: targetAsset });
   const quoteHeader = unsupportedChain
     ? t('buy.chainUnsupported')
@@ -681,128 +489,127 @@ export default function BuyScreen() {
           </View>
         </View>
       ) : null}
-      <Text style={styles.stepSubtitle}>{t('buy.selectAsset')}</Text>
-      <View style={styles.assetRow}>
-        {BUY_ASSETS.map((asset) => (
-          <Pressable
-            key={asset.symbol}
-            style={({ pressed }) => [
-              styles.assetTile,
-              selectedAsset?.symbol === asset.symbol && styles.assetTileActive,
-              pressed && styles.pressed,
-            ]}
-            onPress={() => {
-              setSelectedAsset(asset);
-              setSelectedChainIndex(0);
-              setSelectedTokenIndex(0);
-            }}
-          >
-            <Text
-              style={[
-                styles.assetTileSymbol,
-                selectedAsset?.symbol === asset.symbol && styles.assetTileSymbolActive,
-              ]}
+      <View style={styles.panels}>
+        <View style={styles.panel}>
+          <Text style={styles.plabel}>{t('buy.youPay')}</Text>
+          <View style={styles.pinput}>
+            <TextInput
+              style={styles.amt}
+              value={amount}
+              onChangeText={setAmount}
+              placeholder="0"
+              placeholderTextColor={colors.textTertiary}
+              keyboardType="decimal-pad"
+              testID="buy-pay-amount"
+            />
+            <Pressable
+              style={styles.pill}
+              onPress={() => setPayPickerOpen(true)}
+              testID="buy-pay-currency-pill"
             >
-              {asset.symbol}
+              <View style={styles.glyphCircle}>
+                <Text style={styles.glyphText}>
+                  {SYMBOL_GLYPH.get(selectedCurrency) ?? selectedCurrency.slice(0, 1)}
+                </Text>
+              </View>
+              <Text style={styles.pillTitle}>{selectedCurrency}</Text>
+              <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+            </Pressable>
+          </View>
+        </View>
+
+        <Pressable
+          style={styles.fab}
+          onPress={() => router.replace('/(auth)/sell')}
+          testID="buy-flip-to-sell"
+          accessibilityRole="button"
+          accessibilityLabel={t('buy.flipToSell')}
+        >
+          <Icon name="arrow-right" size={18} color={colors.primary} />
+        </Pressable>
+
+        <View style={[styles.panel, styles.panelRecv]}>
+          <View style={styles.prowBetween}>
+            <Text style={styles.plabel}>{t('buy.receiveLabel')}</Text>
+            {isLoading && !unsupportedChain ? (
+              <Text style={styles.pmeta}>{t('buy.fetchingQuote')}</Text>
+            ) : null}
+          </View>
+          <View style={styles.pinput}>
+            <TextInput
+              style={styles.amt}
+              value={hasQuote && paymentInfo ? fmtCrypto(paymentInfo.estimatedAmount) : ''}
+              editable={false}
+              placeholder="0"
+              placeholderTextColor={colors.textTertiary}
+              testID="buy-receive-amount"
+            />
+            <Pressable
+              style={styles.pill}
+              onPress={() => setReceivePickerOpen(true)}
+              testID="buy-receive-asset-pill"
+            >
+              <View style={styles.glyphCircle}>
+                <Text style={styles.glyphText}>
+                  {(targetAsset || selectedAsset?.symbol || '?').slice(0, 1)}
+                </Text>
+              </View>
+              <View style={styles.pillMeta}>
+                <Text style={styles.pillTitle} numberOfLines={1}>
+                  {targetAsset || selectedAsset?.symbol || ''}
+                </Text>
+                {selectedChainSpec ? (
+                  <Text style={styles.pillSubtitle} numberOfLines={1}>
+                    {selectedChainSpec.label}
+                  </Text>
+                ) : null}
+              </View>
+              <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+            </Pressable>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.quickRow}>
+        {['50', '100', '250', '500'].map((val) => (
+          <Pressable
+            key={val}
+            testID={`buy-preset-${val}`}
+            style={styles.quickAmount}
+            onPress={() => setAmount(val)}
+          >
+            <Text style={styles.quickAmountText}>
+              {`${SYMBOL_GLYPH.get(selectedCurrency) ?? selectedCurrency}${val}`}
             </Text>
           </Pressable>
         ))}
       </View>
 
+      <PayCurrencySheet
+        visible={payPickerOpen}
+        onClose={() => setPayPickerOpen(false)}
+        selected={selectedCurrency}
+        onSelect={(currency) => {
+          setSelectedCurrency(currency);
+          setPayPickerOpen(false);
+        }}
+      />
+      <ReceiveAssetSheet
+        visible={receivePickerOpen}
+        onClose={() => setReceivePickerOpen(false)}
+        assets={BUY_ASSETS}
+        selectedAssetSymbol={selectedAsset?.symbol}
+        selectedChainIndex={selectedChainIndex}
+        onSelect={(asset, chainIndex) => {
+          setSelectedAsset(asset);
+          setSelectedChainIndex(chainIndex);
+          setSelectedTokenIndex(0);
+          setReceivePickerOpen(false);
+        }}
+      />
+
       {selectedAsset ? (
         <>
-          {selectedAsset.chains.length > 1 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
-              {selectedAsset.chains.map((c, i) => (
-                <Pressable
-                  key={c.chain}
-                  style={[styles.chainChip, selectedChainIndex === i && styles.chainChipActive]}
-                  onPress={() => {
-                    setSelectedChainIndex(i);
-                    setSelectedTokenIndex(0);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.chainChipText,
-                      selectedChainIndex === i && styles.chainChipTextActive,
-                    ]}
-                  >
-                    {c.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          ) : null}
-
-          {selectedChainSpec && selectedChainSpec.tokens.length > 1 ? (
-            <View style={styles.tokenRow}>
-              {selectedChainSpec.tokens.map((tok, i) => (
-                <Pressable
-                  key={tok.assetSymbol}
-                  style={[styles.tokenChip, selectedTokenIndex === i && styles.tokenChipActive]}
-                  onPress={() => setSelectedTokenIndex(i)}
-                >
-                  <Text
-                    style={[
-                      styles.tokenChipText,
-                      selectedTokenIndex === i && styles.tokenChipTextActive,
-                    ]}
-                  >
-                    {tok.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-
-          <View style={styles.amountCard}>
-            <View style={styles.quickRow}>
-              {['50', '100', '250', '500'].map((val) => (
-                <Pressable
-                  key={val}
-                  testID={`buy-preset-${val}`}
-                  style={styles.quickAmount}
-                  onPress={() => setAmount(val)}
-                >
-                  <Text style={styles.quickAmountText}>
-                    {`${SYMBOL_GLYPH.get(selectedCurrency) ?? selectedCurrency}${val}`}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <TextInput
-              testID="buy-amount-input"
-              style={styles.amountInput}
-              value={amount}
-              onChangeText={setAmount}
-              placeholder="0.00"
-              placeholderTextColor={colors.textTertiary}
-              keyboardType="decimal-pad"
-            />
-            <View style={styles.currencyRow}>
-              {CURRENCIES.map((cur) => (
-                <Pressable
-                  key={cur}
-                  testID={`buy-currency-${cur}`}
-                  style={[
-                    styles.currencyChip,
-                    selectedCurrency === cur && styles.currencyChipActive,
-                  ]}
-                  onPress={() => setSelectedCurrency(cur)}
-                >
-                  <Text
-                    style={[
-                      styles.currencyText,
-                      selectedCurrency === cur && styles.currencyTextActive,
-                    ]}
-                  >
-                    {cur}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
 
           {showQuoteCard ? (
             <View style={styles.quoteCard}>
@@ -910,7 +717,6 @@ export default function BuyScreen() {
           ) : null}
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
-          {paymentInfoError ? <Text style={styles.errorText}>{paymentInfoError}</Text> : null}
 
           <View testID="buy-payment-method-row" style={styles.paymentMethodRow}>
             <View style={styles.paymentMethodIcon}>
@@ -928,9 +734,9 @@ export default function BuyScreen() {
 
           <PrimaryButton
             title={buyAction}
-            icon={<Icon name="arrow-right" size={18} color={colors.onPrimary} />}
+            icon={<Icon name="arrow-right" size={18} color={colors.white} />}
             onPress={async () => {
-              if (!selectedChainSpec || numAmount === null || numAmount <= 0) return;
+              if (!selectedChainSpec) return;
               if (hasTargetWallet) {
                 // Linked-wallet flow: gate the bank-data step behind a
                 // confirmation modal so the user verifies asset+wallet
@@ -941,9 +747,6 @@ export default function BuyScreen() {
                 setConfirmOpen(true);
                 return;
               }
-              if (submitLockRef.current) return;
-              const gen = beginPaymentSubmit();
-              setPaymentInfoError(null);
               const info = await createPaymentInfo({
                 amount: numAmount,
                 currency: selectedCurrency,
@@ -951,12 +754,9 @@ export default function BuyScreen() {
                 blockchain,
                 chain: selectedChainSpec.chain,
               });
-              if (pendingGenRef.current !== gen) return;
-              handlePaymentInfoResult(info, gen);
+              if (info) setStep('payment');
             }}
-            disabled={
-              numAmount === null || numAmount <= 0 || belowMin || aboveMax || unsupportedChain
-            }
+            disabled={!numAmount || numAmount <= 0 || belowMin || aboveMax || unsupportedChain}
             loading={isLoading}
           />
         </>
@@ -1082,9 +882,6 @@ export default function BuyScreen() {
       <AppHeader
         title={t('buy.title')}
         onBack={() => {
-          // Leave the payment-info flow. A response still in flight must not
-          // open the payment step after this.
-          cancelPaymentSubmit();
           if (step === 'payment') setStep('amount');
           else router.back();
         }}
@@ -1125,17 +922,7 @@ export default function BuyScreen() {
         )}
         {body}
       </View>
-      <DfxAuthGate
-        gate={authGate}
-        onClose={() => {
-          dismissAuthGate(authGate ?? undefined);
-        }}
-        onCancel={() => {
-          cancelPaymentSubmit();
-          cancelAuthGate(authGate ?? undefined);
-        }}
-        onLinkChain={handleLinkChainToDfx}
-      />
+      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} onLinkChain={linkChainToDfx} />
       <ConfirmTargetWalletModal
         visible={confirmOpen}
         flow="buy"
@@ -1145,45 +932,17 @@ export default function BuyScreen() {
         loading={confirmLoading}
         error={confirmError}
         onCancel={() => {
-          // Also while confirmLoading: createPaymentInfo may already be in
-          // flight, and the modal's own disabled state is not the only caller.
-          // Drop the replay too, or a later 401 commits an order the UI ignores.
-          cancelPaymentSubmit();
-          cancelAuthGate();
+          if (confirmLoading) return;
           setConfirmOpen(false);
-          setConfirmLoading(false);
           setConfirmError(null);
         }}
         onConfirm={async () => {
-          if (confirmLoading || submitLockRef.current) return;
-          if (
-            !selectedChainSpec ||
-            !targetAddress ||
-            !targetBlockchain ||
-            numAmount === null ||
-            numAmount <= 0
-          ) {
-            return;
-          }
-          const gen = beginPaymentSubmit();
+          if (!selectedChainSpec || !targetAddress || !targetBlockchain) return;
           setConfirmLoading(true);
           setConfirmError(null);
           try {
             const reauth = await reauthAs(targetAddress, targetBlockchain);
-            if (pendingGenRef.current !== gen) return;
-            if (!confirmOpenRef.current) {
-              // A quote gate closed the modal during reauth. Release the
-              // submit so Continue can start a new payment info.
-              cancelPaymentSubmit();
-              return;
-            }
             if (!reauth.ok) {
-              pendingGenRef.current = null;
-              submitLockRef.current = false;
-              if ('cancelled' in reauth) {
-                setConfirmOpen(false);
-                return;
-              }
               setConfirmError(
                 t([`linkedWallet.reauthError.${reauth.error}`, 'linkedWallet.reauthError.generic']),
               );
@@ -1196,16 +955,11 @@ export default function BuyScreen() {
               blockchain,
               chain: selectedChainSpec.chain,
             });
-            if (pendingGenRef.current !== gen) return;
-            handlePaymentInfoResult(info, gen);
-          } catch (err) {
-            if (pendingGenRef.current !== gen) return;
-            pendingGenRef.current = null;
-            submitLockRef.current = false;
-            if (isLocalSessionEndedError(err)) {
+            if (info) {
               setConfirmOpen(false);
-              return;
+              setStep('payment');
             }
+          } catch (err) {
             setConfirmError(
               err instanceof Error ? err.message : t('linkedWallet.reauthError.generic'),
             );
@@ -1336,124 +1090,109 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
       fontWeight: '500',
     },
-    assetRow: {
-      flexDirection: 'row',
-      gap: 8,
-    },
-    assetTile: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      paddingVertical: 12,
-      paddingHorizontal: 6,
-      gap: 2,
+    panels: {
+      position: 'relative',
       borderWidth: 1,
       borderColor: colors.border,
-      minHeight: 54,
+      borderRadius: 22,
+      backgroundColor: colors.card,
     },
-    assetTileActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
+    panel: {
+      padding: 16,
+      borderTopLeftRadius: 21,
+      borderTopRightRadius: 21,
     },
-    assetTileSymbol: {
-      ...Typography.bodyLarge,
-      color: colors.text,
-      fontWeight: '700',
+    panelRecv: {
+      backgroundColor: colors.surfaceLight,
+      borderTopWidth: 1,
+      borderTopColor: colors.divider,
+      borderTopLeftRadius: 0,
+      borderTopRightRadius: 0,
+      borderBottomLeftRadius: 21,
+      borderBottomRightRadius: 21,
     },
-    assetTileSymbolActive: {
-      color: colors.primary,
-    },
-    chainBar: {
-      flexGrow: 0,
-    },
-    chainChip: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 10,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      marginRight: 8,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
-    },
-    chainChipActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
-    },
-    chainChipText: {
-      ...Typography.bodyMedium,
-      color: colors.textSecondary,
-      fontWeight: '500',
-    },
-    chainChipTextActive: {
-      color: colors.primary,
-      fontWeight: '600',
-    },
-    tokenRow: {
+    prowBetween: {
       flexDirection: 'row',
-      gap: 8,
-    },
-    tokenChip: {
-      flex: 1,
+      justifyContent: 'space-between',
       alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 10,
-      paddingVertical: 10,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
     },
-    tokenChipActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
-    },
-    tokenChipText: {
-      ...Typography.bodyMedium,
+    plabel: {
+      fontSize: 12.5,
       fontWeight: '600',
       color: colors.textSecondary,
     },
-    tokenChipTextActive: {
-      color: colors.primary,
+    pmeta: {
+      fontSize: 12,
+      color: colors.textTertiary,
     },
-    amountCard: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
+    pinput: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginTop: 9,
+    },
+    amt: {
+      flex: 1,
+      minWidth: 0,
+      fontSize: 33,
+      fontWeight: '700',
+      letterSpacing: -0.5,
+      color: colors.text,
+      padding: 0,
+    },
+    pill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
       borderWidth: 1,
       borderColor: colors.border,
-      padding: 18,
-      gap: 16,
-    },
-    amountInput: {
-      fontSize: 36,
-      fontWeight: '700',
-      color: colors.text,
-      textAlign: 'center',
-      paddingVertical: 8,
-    },
-    currencyRow: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      gap: 8,
-    },
-    currencyChip: {
-      paddingHorizontal: 18,
-      paddingVertical: 8,
+      backgroundColor: colors.surfaceLight,
       borderRadius: 999,
-      backgroundColor: colors.background,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
+      paddingVertical: 6,
+      paddingHorizontal: 11,
+      maxWidth: '46%',
     },
-    currencyChipActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
+    pillMeta: {
+      flex: 1,
+      flexShrink: 1,
     },
-    currencyText: {
-      ...Typography.bodyMedium,
+    pillTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    pillSubtitle: {
+      fontSize: 11,
       fontWeight: '600',
-      color: colors.textSecondary,
+      color: colors.textTertiary,
+      marginTop: 1,
     },
-    currencyTextActive: {
-      color: colors.onPrimary,
+    glyphCircle: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    glyphText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.primary,
+    },
+    fab: {
+      alignSelf: 'center',
+      width: 40,
+      height: 40,
+      borderRadius: 13,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: -20,
+      marginBottom: -20,
+      zIndex: 2,
     },
     quickRow: {
       flexDirection: 'row',
