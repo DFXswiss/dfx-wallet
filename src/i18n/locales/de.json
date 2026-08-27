@@ -18,6 +18,7 @@
     "feeNetwork": "Netzwerkgebühr",
     "feeTotal": "Gesamtgebühr",
     "fetchingQuote": "Angebot wird berechnet …",
+    "flipToSell": "Zu Verkaufen wechseln",
     "howMuch": "Wie viel möchtest du kaufen?",
     "iban": "IBAN",
     "paymentInfo": "Zahlungsinformationen",
@@ -42,6 +43,7 @@
       "generic": "Angebot konnte nicht erstellt werden ({{code}})."
     },
     "rateInclFees": "1 {{asset}} ≈ {{amount}} {{currency}} (inkl. Gebühren)",
+    "receiveLabel": "Du erhältst",
     "recipient": "Empfänger",
     "reference": "Verwendungszweck",
     "selectAsset": "Was möchtest du kaufen?",
@@ -50,6 +52,7 @@
     "transfer": "Überweise diesen Betrag mit dem Verwendungszweck. Deine Krypto kommt in deine Wallet sobald die Zahlung eingegangen ist.",
     "volumeMax": "Max {{amount}} {{currency}}",
     "volumeMin": "Min {{amount}} {{currency}}",
+    "youPay": "Du zahlst",
     "youReceive": "Du erhältst (ca.)"
   },
   "common": {
