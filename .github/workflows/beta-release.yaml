@@ -13,8 +13,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Ensure GitHub Release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --notes "" --draft \
+            || gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1
+
   build-android:
     name: Build Android
+    needs: [create-release]
+    if: ${{ always() && !cancelled() && (needs.create-release.result == 'success' || needs.create-release.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -41,23 +56,32 @@ jobs:
           echo "$BUILD_JSON" > /tmp/android-build.json
           APK_URL=$(echo "$BUILD_JSON" | jq -r '.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl // empty')
           echo "APK_URL=$APK_URL" >> $GITHUB_ENV
+          if [[ "$GITHUB_REF" == refs/tags/v* ]] && [ -z "$APK_URL" ]; then
+            echo "APK_URL is empty for tag ref; failing closed." >&2
+            exit 1
+          fi
 
       - name: Download APK
         if: env.APK_URL != ''
         run: |
           TAG="${GITHUB_REF_NAME:-dev}"
           VERSION="${TAG#v}"
-          curl -fsSL "$APK_URL" -o "dfx-wallet-${VERSION}.apk"
+          curl -fsSL "$APK_URL" -o "dfx-wallet-${VERSION}.apk" && test -s "dfx-wallet-${VERSION}.apk"
 
-      - name: Upload APK artifact
-        if: env.APK_URL != ''
-        uses: actions/upload-artifact@v7
-        with:
-          name: android-apk
-          path: dfx-wallet-*.apk
+      - name: Upload APK to GitHub Release
+        if: env.APK_URL != '' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --notes "" --draft \
+            || gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1
+          gh release upload "$GITHUB_REF_NAME" dfx-wallet-*.apk --clobber --repo "$GITHUB_REPOSITORY"
 
   build-ios:
     name: Build iOS
+    needs: [create-release]
+    if: ${{ always() && !cancelled() && (needs.create-release.result == 'success' || needs.create-release.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -84,23 +108,30 @@ jobs:
           echo "$BUILD_JSON" > /tmp/ios-build.json
           IPA_URL=$(echo "$BUILD_JSON" | jq -r '.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl // empty')
           echo "IPA_URL=$IPA_URL" >> $GITHUB_ENV
+          if [[ "$GITHUB_REF" == refs/tags/v* ]] && [ -z "$IPA_URL" ]; then
+            echo "IPA_URL is empty for tag ref; failing closed." >&2
+            exit 1
+          fi
 
       - name: Download IPA
         if: env.IPA_URL != ''
         run: |
           TAG="${GITHUB_REF_NAME:-dev}"
           VERSION="${TAG#v}"
-          curl -fsSL "$IPA_URL" -o "dfx-wallet-${VERSION}.ipa"
+          curl -fsSL "$IPA_URL" -o "dfx-wallet-${VERSION}.ipa" && test -s "dfx-wallet-${VERSION}.ipa"
 
-      - name: Upload IPA artifact
-        if: env.IPA_URL != ''
-        uses: actions/upload-artifact@v7
-        with:
-          name: ios-ipa
-          path: dfx-wallet-*.ipa
+      - name: Upload IPA to GitHub Release
+        if: env.IPA_URL != '' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --notes "" --draft \
+            || gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1
+          gh release upload "$GITHUB_REF_NAME" dfx-wallet-*.ipa --clobber --repo "$GITHUB_REPOSITORY"
 
   github-release:
-    name: Create GitHub Release
+    name: Publish GitHub Release
     needs: [build-android, build-ios]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
@@ -151,28 +182,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download APK artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: android-apk
-          path: .
-
-      - name: Download iOS artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: ios-ipa
-          path: .
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ github.ref_name }}
-          body: ${{ steps.changelog.outputs.changelog }}
-          files: |
-            dfx-wallet-*.apk
-            dfx-wallet-*.ipa
-          generate_release_notes: false
-          draft: false
-          prerelease: false
+      - name: Publish Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANGELOG: ${{ steps.changelog.outputs.changelog }}
+        run: |
+          assets=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json assets)
+          has_apk=$(printf '%s' "$assets" | jq '[.assets[] | select(.name | test("\\.apk$")) | .size] | any(. > 0)')
+          has_ipa=$(printf '%s' "$assets" | jq '[.assets[] | select(.name | test("\\.ipa$")) | .size] | any(. > 0)')
+          if [ "$has_apk" != "true" ] || [ "$has_ipa" != "true" ]; then
+            echo "Release is missing apk and/or ipa assets; refusing to publish." >&2
+            exit 1
+          fi
+          printf '%s' "$CHANGELOG" > /tmp/release-notes.md
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes-file /tmp/release-notes.md
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false

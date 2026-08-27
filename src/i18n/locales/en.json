@@ -632,6 +632,10 @@
     "sendError": "Message could not be sent. Please try again.",
     "title": "Support"
   },
+  "swap": {
+    "comingSoon": "Swap is coming soon.",
+    "title": "Swap"
+  },
   "transactions": {
     "date": "Date",
     "detailTitle": "Transaction",

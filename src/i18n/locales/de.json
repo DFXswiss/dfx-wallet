@@ -632,6 +632,10 @@
     "sendError": "Nachricht konnte nicht gesendet werden. Bitte erneut versuchen.",
     "title": "Support"
   },
+  "swap": {
+    "comingSoon": "Tauschen ist bald verfügbar.",
+    "title": "Tauschen"
+  },
   "transactions": {
     "date": "Datum",
     "detailTitle": "Transaktion",
