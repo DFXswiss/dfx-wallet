@@ -171,11 +171,15 @@ const PAYMENT_INFO = {
   maxVolume: 10000,
   currency: { name: 'CHF' },
   asset: { name: 'BTC' },
+  rate: 101000,
   fees: {
     rate: 0.01,
     dfx: 1,
     network: 0,
     fixed: 0,
+    bank: 0,
+    platform: 0,
+    min: 0,
     total: 1,
   },
 };
@@ -203,7 +207,7 @@ describe('BuyScreenImpl', () => {
     fireEvent.press(getByText('BTC'));
     fireEvent.changeText(getByPlaceholderText('0.00'), '100');
     await act(async () => {
-      fireEvent.press(getByText('common.continue'));
+      fireEvent.press(getByText('buy.title BTC'));
     });
 
     await waitFor(() => expect(getByText('buy.paymentInfo')).toBeTruthy());

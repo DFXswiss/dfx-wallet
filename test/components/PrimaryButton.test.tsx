@@ -1,4 +1,4 @@
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Text } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
 import { PrimaryButton } from '../../src/components/PrimaryButton';
 
@@ -38,5 +38,13 @@ describe('PrimaryButton', () => {
       <PrimaryButton title="Cancel" variant="outlined" onPress={() => {}} />,
     );
     expect(getByText('Cancel')).toBeTruthy();
+  });
+
+  it('renders an optional icon next to the title', () => {
+    const { getByText } = render(
+      <PrimaryButton title="Buy BTC" icon={<Text>icon</Text>} onPress={() => {}} />,
+    );
+    expect(getByText('Buy BTC')).toBeTruthy();
+    expect(getByText('icon')).toBeTruthy();
   });
 });
