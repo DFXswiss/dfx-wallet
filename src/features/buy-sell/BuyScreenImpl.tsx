@@ -37,17 +37,19 @@ import { dfxAuthService, DfxApiError } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
 import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { PayCurrencySheet } from './PayCurrencySheet';
+import { ReceiveAssetSheet } from './ReceiveAssetSheet';
 import TradeModeTabs from './TradeModeTabs';
 
 type BuyStep = 'amount' | 'payment' | 'confirm';
 
 // DFX bank-transfer Buy only supports EUR (SEPA) and CHF (SIC) — USD removed.
-const CURRENCIES = ['CHF', 'EUR'] as const;
+export const CURRENCIES = ['CHF', 'EUR'] as const;
 
 // What the user is buying. Each asset maps to one or more chains, and each
 // chain offers one or more concrete tokens (e.g. USD on Ethereum has both
 // USDT and USDC; CHF has only ZCHF; BTC has only the native asset).
-type BuyChain = {
+export type BuyChain = {
   chain: ChainId;
   label: string;
   blockchain: string;
@@ -57,7 +59,7 @@ type BuyChain = {
    *  DFX' /v1/auth doesn't accept the WDK Spark signature yet). */
   unsupported?: boolean;
 };
-type BuyAsset = {
+export type BuyAsset = {
   symbol: string;
   label: string;
   chains: BuyChain[];
@@ -256,12 +258,14 @@ export default function BuyScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [selectedAsset, setSelectedAsset] = useState<BuyAsset | null>(
-    initialPreselect?.asset ?? null,
+    initialPreselect?.asset ?? BUY_ASSETS[0] ?? null,
   );
   const [selectedChainIndex, setSelectedChainIndex] = useState(initialPreselect?.chainIdx ?? 0);
   const [selectedTokenIndex, setSelectedTokenIndex] = useState(0);
   const [amount, setAmount] = useState('');
   const [selectedCurrency, setSelectedCurrency] = useState<(typeof CURRENCIES)[number]>('CHF');
+  const [payPickerOpen, setPayPickerOpen] = useState(false);
+  const [receivePickerOpen, setReceivePickerOpen] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(true);
 
@@ -469,126 +473,127 @@ export default function BuyScreen() {
           </View>
         </View>
       ) : null}
-      <Text style={styles.stepSubtitle}>{t('buy.selectAsset')}</Text>
-      <View style={styles.assetRow}>
-        {BUY_ASSETS.map((asset) => (
-          <Pressable
-            key={asset.symbol}
-            style={({ pressed }) => [
-              styles.assetTile,
-              selectedAsset?.symbol === asset.symbol && styles.assetTileActive,
-              pressed && styles.pressed,
-            ]}
-            onPress={() => {
-              setSelectedAsset(asset);
-              setSelectedChainIndex(0);
-              setSelectedTokenIndex(0);
-            }}
-          >
-            <Text
-              style={[
-                styles.assetTileSymbol,
-                selectedAsset?.symbol === asset.symbol && styles.assetTileSymbolActive,
-              ]}
+      <View style={styles.panels}>
+        <View style={styles.panel}>
+          <Text style={styles.plabel}>{t('buy.youPay')}</Text>
+          <View style={styles.pinput}>
+            <TextInput
+              style={styles.amt}
+              value={amount}
+              onChangeText={setAmount}
+              placeholder="0"
+              placeholderTextColor={colors.textTertiary}
+              keyboardType="decimal-pad"
+              testID="buy-pay-amount"
+            />
+            <Pressable
+              style={styles.pill}
+              onPress={() => setPayPickerOpen(true)}
+              testID="buy-pay-currency-pill"
             >
-              {asset.symbol}
+              <View style={styles.glyphCircle}>
+                <Text style={styles.glyphText}>
+                  {SYMBOL_GLYPH.get(selectedCurrency) ?? selectedCurrency.slice(0, 1)}
+                </Text>
+              </View>
+              <Text style={styles.pillTitle}>{selectedCurrency}</Text>
+              <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+            </Pressable>
+          </View>
+        </View>
+
+        <Pressable
+          style={styles.fab}
+          onPress={() => router.replace('/(auth)/sell')}
+          testID="buy-flip-to-sell"
+          accessibilityRole="button"
+          accessibilityLabel={t('buy.flipToSell')}
+        >
+          <Icon name="arrow-right" size={18} color={colors.primary} />
+        </Pressable>
+
+        <View style={[styles.panel, styles.panelRecv]}>
+          <View style={styles.prowBetween}>
+            <Text style={styles.plabel}>{t('buy.receiveLabel')}</Text>
+            {isLoading && !unsupportedChain ? (
+              <Text style={styles.pmeta}>{t('buy.fetchingQuote')}</Text>
+            ) : null}
+          </View>
+          <View style={styles.pinput}>
+            <TextInput
+              style={styles.amt}
+              value={hasQuote && paymentInfo ? fmtCrypto(paymentInfo.estimatedAmount) : ''}
+              editable={false}
+              placeholder="0"
+              placeholderTextColor={colors.textTertiary}
+              testID="buy-receive-amount"
+            />
+            <Pressable
+              style={styles.pill}
+              onPress={() => setReceivePickerOpen(true)}
+              testID="buy-receive-asset-pill"
+            >
+              <View style={styles.glyphCircle}>
+                <Text style={styles.glyphText}>
+                  {(targetAsset || selectedAsset?.symbol || '?').slice(0, 1)}
+                </Text>
+              </View>
+              <View style={styles.pillMeta}>
+                <Text style={styles.pillTitle} numberOfLines={1}>
+                  {targetAsset || selectedAsset?.symbol || ''}
+                </Text>
+                {selectedChainSpec ? (
+                  <Text style={styles.pillSubtitle} numberOfLines={1}>
+                    {selectedChainSpec.label}
+                  </Text>
+                ) : null}
+              </View>
+              <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+            </Pressable>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.quickRow}>
+        {['50', '100', '250', '500'].map((val) => (
+          <Pressable
+            key={val}
+            testID={`buy-preset-${val}`}
+            style={styles.quickAmount}
+            onPress={() => setAmount(val)}
+          >
+            <Text style={styles.quickAmountText}>
+              {`${SYMBOL_GLYPH.get(selectedCurrency) ?? selectedCurrency}${val}`}
             </Text>
           </Pressable>
         ))}
       </View>
 
+      <PayCurrencySheet
+        visible={payPickerOpen}
+        onClose={() => setPayPickerOpen(false)}
+        selected={selectedCurrency}
+        onSelect={(currency) => {
+          setSelectedCurrency(currency);
+          setPayPickerOpen(false);
+        }}
+      />
+      <ReceiveAssetSheet
+        visible={receivePickerOpen}
+        onClose={() => setReceivePickerOpen(false)}
+        assets={BUY_ASSETS}
+        selectedAssetSymbol={selectedAsset?.symbol}
+        selectedChainIndex={selectedChainIndex}
+        onSelect={(asset, chainIndex) => {
+          setSelectedAsset(asset);
+          setSelectedChainIndex(chainIndex);
+          setSelectedTokenIndex(0);
+          setReceivePickerOpen(false);
+        }}
+      />
+
       {selectedAsset ? (
         <>
-          {selectedAsset.chains.length > 1 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
-              {selectedAsset.chains.map((c, i) => (
-                <Pressable
-                  key={c.chain}
-                  style={[styles.chainChip, selectedChainIndex === i && styles.chainChipActive]}
-                  onPress={() => {
-                    setSelectedChainIndex(i);
-                    setSelectedTokenIndex(0);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.chainChipText,
-                      selectedChainIndex === i && styles.chainChipTextActive,
-                    ]}
-                  >
-                    {c.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          ) : null}
-
-          {selectedChainSpec && selectedChainSpec.tokens.length > 1 ? (
-            <View style={styles.tokenRow}>
-              {selectedChainSpec.tokens.map((tok, i) => (
-                <Pressable
-                  key={tok.assetSymbol}
-                  style={[styles.tokenChip, selectedTokenIndex === i && styles.tokenChipActive]}
-                  onPress={() => setSelectedTokenIndex(i)}
-                >
-                  <Text
-                    style={[
-                      styles.tokenChipText,
-                      selectedTokenIndex === i && styles.tokenChipTextActive,
-                    ]}
-                  >
-                    {tok.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-
-          <View style={styles.amountCard}>
-            <View style={styles.quickRow}>
-              {['50', '100', '250', '500'].map((val) => (
-                <Pressable
-                  key={val}
-                  testID={`buy-preset-${val}`}
-                  style={styles.quickAmount}
-                  onPress={() => setAmount(val)}
-                >
-                  <Text style={styles.quickAmountText}>
-                    {`${SYMBOL_GLYPH.get(selectedCurrency) ?? selectedCurrency}${val}`}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <TextInput
-              style={styles.amountInput}
-              value={amount}
-              onChangeText={setAmount}
-              placeholder="0.00"
-              placeholderTextColor={colors.textTertiary}
-              keyboardType="decimal-pad"
-            />
-            <View style={styles.currencyRow}>
-              {CURRENCIES.map((cur) => (
-                <Pressable
-                  key={cur}
-                  style={[
-                    styles.currencyChip,
-                    selectedCurrency === cur && styles.currencyChipActive,
-                  ]}
-                  onPress={() => setSelectedCurrency(cur)}
-                >
-                  <Text
-                    style={[
-                      styles.currencyText,
-                      selectedCurrency === cur && styles.currencyTextActive,
-                    ]}
-                  >
-                    {cur}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
 
           {showQuoteCard ? (
             <View style={styles.quoteCard}>
@@ -1078,124 +1083,109 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
       fontWeight: '500',
     },
-    assetRow: {
-      flexDirection: 'row',
-      gap: 8,
-    },
-    assetTile: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      paddingVertical: 12,
-      paddingHorizontal: 6,
-      gap: 2,
+    panels: {
+      position: 'relative',
       borderWidth: 1,
       borderColor: colors.border,
-      minHeight: 54,
+      borderRadius: 22,
+      backgroundColor: colors.card,
     },
-    assetTileActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
+    panel: {
+      padding: 16,
+      borderTopLeftRadius: 21,
+      borderTopRightRadius: 21,
     },
-    assetTileSymbol: {
-      ...Typography.bodyLarge,
-      color: colors.text,
-      fontWeight: '700',
+    panelRecv: {
+      backgroundColor: colors.surfaceLight,
+      borderTopWidth: 1,
+      borderTopColor: colors.divider,
+      borderTopLeftRadius: 0,
+      borderTopRightRadius: 0,
+      borderBottomLeftRadius: 21,
+      borderBottomRightRadius: 21,
     },
-    assetTileSymbolActive: {
-      color: colors.primary,
-    },
-    chainBar: {
-      flexGrow: 0,
-    },
-    chainChip: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 10,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      marginRight: 8,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
-    },
-    chainChipActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
-    },
-    chainChipText: {
-      ...Typography.bodyMedium,
-      color: colors.textSecondary,
-      fontWeight: '500',
-    },
-    chainChipTextActive: {
-      color: colors.primary,
-      fontWeight: '600',
-    },
-    tokenRow: {
+    prowBetween: {
       flexDirection: 'row',
-      gap: 8,
-    },
-    tokenChip: {
-      flex: 1,
+      justifyContent: 'space-between',
       alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 10,
-      paddingVertical: 10,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
     },
-    tokenChipActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
-    },
-    tokenChipText: {
-      ...Typography.bodyMedium,
+    plabel: {
+      fontSize: 12.5,
       fontWeight: '600',
       color: colors.textSecondary,
     },
-    tokenChipTextActive: {
-      color: colors.primary,
+    pmeta: {
+      fontSize: 12,
+      color: colors.textTertiary,
     },
-    amountCard: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
+    pinput: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginTop: 9,
+    },
+    amt: {
+      flex: 1,
+      minWidth: 0,
+      fontSize: 33,
+      fontWeight: '700',
+      letterSpacing: -0.5,
+      color: colors.text,
+      padding: 0,
+    },
+    pill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
       borderWidth: 1,
       borderColor: colors.border,
-      padding: 18,
-      gap: 16,
-    },
-    amountInput: {
-      fontSize: 36,
-      fontWeight: '700',
-      color: colors.text,
-      textAlign: 'center',
-      paddingVertical: 8,
-    },
-    currencyRow: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      gap: 8,
-    },
-    currencyChip: {
-      paddingHorizontal: 18,
-      paddingVertical: 8,
+      backgroundColor: colors.surfaceLight,
       borderRadius: 999,
-      backgroundColor: colors.background,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
+      paddingVertical: 6,
+      paddingHorizontal: 11,
+      maxWidth: '46%',
     },
-    currencyChipActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
+    pillMeta: {
+      flex: 1,
+      flexShrink: 1,
     },
-    currencyText: {
-      ...Typography.bodyMedium,
+    pillTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    pillSubtitle: {
+      fontSize: 11,
       fontWeight: '600',
-      color: colors.textSecondary,
+      color: colors.textTertiary,
+      marginTop: 1,
     },
-    currencyTextActive: {
-      color: colors.white,
+    glyphCircle: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    glyphText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.primary,
+    },
+    fab: {
+      alignSelf: 'center',
+      width: 40,
+      height: 40,
+      borderRadius: 13,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: -20,
+      marginBottom: -20,
+      zIndex: 2,
     },
     quickRow: {
       flexDirection: 'row',

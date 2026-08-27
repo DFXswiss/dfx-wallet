@@ -16,6 +16,7 @@
     "chainUnsupported": "This chain isn't supported by DFX yet. Please pick SegWit, Taproot or an EVM chain.",
     "continueHint": "Tap Weiter to link your wallet with DFX — your quote appears automatically once linking is done.",
     "fetchingQuote": "Calculating quote…",
+    "flipToSell": "Switch to Sell",
     "howMuch": "How much do you want to buy?",
     "quoteError": {
       "AmountTooHigh": "Amount too high.",
@@ -40,6 +41,7 @@
     "paymentMethodSepa": "SEPA bank transfer",
     "paymentMethodSepaHint": "Free · 0-1 business day",
     "rateInclFees": "1 {{asset}} ≈ {{amount}} {{currency}} (incl. fees)",
+    "receiveLabel": "You receive",
     "recipient": "Recipient",
     "selectAsset": "What do you want to buy?",
     "reference": "Reference code",
@@ -48,6 +50,7 @@
     "transfer": "Transfer this amount with the reference code. Your crypto arrives in your wallet once payment is received.",
     "volumeMax": "Max {{amount}} {{currency}}",
     "volumeMin": "Min {{amount}} {{currency}}",
+    "youPay": "You pay",
     "youReceive": "You receive (est.)"
   },
   "common": {
