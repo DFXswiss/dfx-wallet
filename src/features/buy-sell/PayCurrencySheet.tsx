@@ -3,9 +3,9 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from '@/components';
-import { SYMBOL_GLYPH } from '@/config/portfolio-presentation';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 import { CURRENCIES } from './BuyScreenImpl';
+import { CurrencyGlyph } from './CurrencyGlyph';
 
 type PayCurrency = (typeof CURRENCIES)[number];
 
@@ -57,11 +57,7 @@ export function PayCurrencySheet({ visible, onClose, selected, onSelect }: Props
                 accessibilityRole="button"
                 accessibilityState={{ selected: isSelected }}
               >
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>
-                    {SYMBOL_GLYPH.get(currency) ?? currency.slice(0, 1)}
-                  </Text>
-                </View>
+                <CurrencyGlyph code={currency} size={32} />
                 <Text style={styles.optionLabel}>{currency}</Text>
                 {isSelected ? (
                   <View testID={`pay-currency-option-${currency}-check`}>
@@ -113,19 +109,6 @@ const makeStyles = (colors: ThemeColors) =>
       gap: 12,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.border,
-    },
-    badge: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.primaryLight,
-    },
-    badgeText: {
-      ...Typography.bodyMedium,
-      fontWeight: '700',
-      color: colors.primary,
     },
     optionLabel: {
       ...Typography.bodyLarge,

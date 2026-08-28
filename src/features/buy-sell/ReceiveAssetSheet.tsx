@@ -5,6 +5,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from '@/components';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 import type { BuyAsset } from './BuyScreenImpl';
+import { AssetGlyph } from './AssetGlyph';
+import { CurrencyGlyph } from './CurrencyGlyph';
+
+const CURRENCY_CODES = ['CHF', 'EUR', 'USD'] as const;
+type CurrencyCode = (typeof CURRENCY_CODES)[number];
+
+function isCurrencyCode(symbol: string): symbol is CurrencyCode {
+  return (CURRENCY_CODES as readonly string[]).includes(symbol);
+}
 
 type Props = {
   visible: boolean;
@@ -68,9 +77,11 @@ export function ReceiveAssetSheet({
                       accessibilityRole="button"
                       accessibilityState={{ selected: isSelected }}
                     >
-                      <View style={styles.badge}>
-                        <Text style={styles.badgeText}>{chain.blockchain.slice(0, 1)}</Text>
-                      </View>
+                      {isCurrencyCode(asset.symbol) ? (
+                        <CurrencyGlyph code={asset.symbol} size={32} />
+                      ) : (
+                        <AssetGlyph symbol={asset.symbol} size={32} />
+                      )}
                       <Text
                         style={[
                           styles.optionLabel,
@@ -142,19 +153,6 @@ const makeStyles = (colors: ThemeColors) =>
     },
     optionUnsupported: {
       opacity: 0.45,
-    },
-    badge: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.primaryLight,
-    },
-    badgeText: {
-      ...Typography.bodyMedium,
-      fontWeight: '700',
-      color: colors.primary,
     },
     optionLabel: {
       ...Typography.bodyLarge,
