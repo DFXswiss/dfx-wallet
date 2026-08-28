@@ -49,6 +49,10 @@ module.exports = {
     // Settings logic + screens (full-area coverage).
     'src/features/settings/SettingsScreenImpl.tsx',
     'src/features/settings/SeedExportScreenImpl.tsx',
+    // Multi-Sig logic + screens (full-area coverage).
+    'src/features/multi-sig/store.ts',
+    'src/features/multi-sig/MultiSigSetupScreenImpl.tsx',
+    'src/features/multi-sig/MultiSigManageScreenImpl.tsx',
     '!**/*.d.ts',
     '!**/types.ts',
   ],
