@@ -71,7 +71,7 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.surface,
       paddingHorizontal: 20,
       paddingTop: 8,
-      shadowColor: '#000',
+      shadowColor: colors.shadow,
       shadowOpacity: 0.08,
       shadowRadius: 24,
       shadowOffset: { width: -4, height: 0 },

@@ -35,7 +35,7 @@ import { useLdsWallet } from '@/hooks';
 import { useEnabledChains } from '@/features/portfolio/useEnabledChains';
 import { useLinkedWalletReauth } from '@/features/linked-wallets/useLinkedWalletReauth';
 import { useSellFlow } from './useSellFlow';
-import { markChainLinkedInAutoLinkCache } from '@/features/dfx-backend/useDfxAutoLinkImpl';
+import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
 import { dfxAuthService, DfxApiError } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
