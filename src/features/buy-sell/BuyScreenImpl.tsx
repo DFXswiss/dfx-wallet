@@ -39,6 +39,8 @@ import { useAuthStore } from '@/store';
 import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 import { PayCurrencySheet } from './PayCurrencySheet';
 import { ReceiveAssetSheet } from './ReceiveAssetSheet';
+import { AssetGlyph } from './AssetGlyph';
+import { CurrencyGlyph } from './CurrencyGlyph';
 import TradeModeTabs from './TradeModeTabs';
 
 type BuyStep = 'amount' | 'payment' | 'confirm';
@@ -491,11 +493,7 @@ export default function BuyScreen() {
               onPress={() => setPayPickerOpen(true)}
               testID="buy-pay-currency-pill"
             >
-              <View style={styles.glyphCircle}>
-                <Text style={styles.glyphText}>
-                  {SYMBOL_GLYPH.get(selectedCurrency) ?? selectedCurrency.slice(0, 1)}
-                </Text>
-              </View>
+              <CurrencyGlyph code={selectedCurrency} size={32} />
               <Text style={styles.pillTitle}>{selectedCurrency}</Text>
               <Icon name="chevron-right" size={16} color={colors.textTertiary} />
             </Pressable>
@@ -509,7 +507,7 @@ export default function BuyScreen() {
           accessibilityRole="button"
           accessibilityLabel={t('buy.flipToSell')}
         >
-          <Icon name="arrow-right" size={18} color={colors.primary} />
+          <Icon name="swap" size={18} color={colors.primary} />
         </Pressable>
 
         <View style={[styles.panel, styles.panelRecv]}>
@@ -533,11 +531,7 @@ export default function BuyScreen() {
               onPress={() => setReceivePickerOpen(true)}
               testID="buy-receive-asset-pill"
             >
-              <View style={styles.glyphCircle}>
-                <Text style={styles.glyphText}>
-                  {(targetAsset || selectedAsset?.symbol || '?').slice(0, 1)}
-                </Text>
-              </View>
+              <AssetGlyph symbol={targetAsset || selectedAsset?.symbol || ''} size={32} />
               <View style={styles.pillMeta}>
                 <Text style={styles.pillTitle} numberOfLines={1}>
                   {targetAsset || selectedAsset?.symbol || ''}
@@ -1136,14 +1130,14 @@ const makeStyles = (colors: ThemeColors) =>
     pill: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 9,
+      gap: 10,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surfaceLight,
       borderRadius: 999,
-      paddingVertical: 6,
-      paddingHorizontal: 11,
-      maxWidth: '46%',
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      maxWidth: '48%',
     },
     pillMeta: {
       flex: 1,
@@ -1153,25 +1147,13 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: 15,
       fontWeight: '700',
       color: colors.text,
+      letterSpacing: -0.2,
     },
     pillSubtitle: {
       fontSize: 11,
       fontWeight: '600',
       color: colors.textTertiary,
-      marginTop: 1,
-    },
-    glyphCircle: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      backgroundColor: colors.primaryLight,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    glyphText: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: colors.primary,
+      marginTop: 0,
     },
     fab: {
       alignSelf: 'center',
