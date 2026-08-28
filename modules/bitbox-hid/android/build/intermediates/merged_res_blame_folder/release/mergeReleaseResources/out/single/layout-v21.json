@@ -1,0 +1,18 @@
+[
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/layout-v21/notification_template_custom_big.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-core-1.13.1-10:/layout-v21/notification_template_custom_big.xml"
+    },
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/layout-v21/notification_action_tombstone.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-core-1.13.1-10:/layout-v21/notification_action_tombstone.xml"
+    },
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/layout-v21/notification_action.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-core-1.13.1-10:/layout-v21/notification_action.xml"
+    },
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/layout-v21/notification_template_icon_group.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-core-1.13.1-10:/layout-v21/notification_template_icon_group.xml"
+    }
+]

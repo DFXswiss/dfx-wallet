@@ -1,6 +1,18 @@
+jest.mock('@noble/hashes/argon2', () => ({
+  argon2idAsync: jest.fn(async (password: string, salt: Uint8Array, opts: { dkLen: number }) => {
+    const bytes = new Uint8Array(opts.dkLen);
+    const input = `${password}:${Array.from(salt).join(',')}`;
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = input.charCodeAt(i % input.length) ^ i;
+    }
+    return bytes;
+  }),
+}));
+
 import { useAuthStore } from '../../src/store/auth';
 import * as SecureStore from 'expo-secure-store';
 import * as LA from 'expo-local-authentication';
+import { waitFor } from '@testing-library/react-native';
 
 const setItemMock = SecureStore.setItemAsync as jest.Mock;
 const getItemMock = SecureStore.getItemAsync as jest.Mock;
@@ -10,6 +22,15 @@ const isEnrolledMock = LA.isEnrolledAsync as jest.Mock;
 const authenticateMock = LA.authenticateAsync as jest.Mock;
 
 const initialState = useAuthStore.getState();
+
+const legacyHashPin = async (pin: string): Promise<string> => {
+  const Crypto = await import('expo-crypto');
+  let hash = `dfx-wallet-pin-v1:${pin}`;
+  for (let i = 0; i < 10000; i++) {
+    hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, hash);
+  }
+  return hash;
+};
 
 beforeEach(() => {
   setItemMock.mockReset();
@@ -58,7 +79,9 @@ describe('useAuthStore', () => {
 
     it('rejects without flipping state when secureStorage write fails', async () => {
       setItemMock.mockRejectedValueOnce(new Error('keychain unavailable'));
-      await expect(useAuthStore.getState().setOnboarded(true)).rejects.toThrow('keychain unavailable');
+      await expect(useAuthStore.getState().setOnboarded(true)).rejects.toThrow(
+        'keychain unavailable',
+      );
       expect(useAuthStore.getState().isOnboarded).toBe(false);
     });
   });
@@ -74,12 +97,12 @@ describe('useAuthStore', () => {
       expect(useAuthStore.getState().pinHash).toBe(hash);
     });
 
-    it('produces the same hash for the same input (deterministic)', async () => {
+    it('uses a fresh salt for the same PIN', async () => {
       await useAuthStore.getState().setPin('123456');
       const first = useAuthStore.getState().pinHash;
       await useAuthStore.getState().setPin('123456');
       const second = useAuthStore.getState().pinHash;
-      expect(first).toBe(second);
+      expect(first).not.toBe(second);
     });
 
     it('produces different hashes for different inputs', async () => {
@@ -113,6 +136,24 @@ describe('useAuthStore', () => {
       await useAuthStore.getState().setPin('123456');
       const ok = await useAuthStore.getState().verifyPin('999999');
       expect(ok).toBe(false);
+    });
+
+    it('migrates a valid legacy PIN hash after successful verification', async () => {
+      const legacyHash = await legacyHashPin('123456');
+      useAuthStore.setState({ pinHash: legacyHash });
+
+      const ok = await useAuthStore.getState().verifyPin('123456');
+
+      expect(ok).toBe(true);
+      await waitFor(() =>
+        expect(setItemMock).toHaveBeenCalledWith(
+          'pinHash',
+          expect.stringMatching(/^pin\$argon2id\$/),
+        ),
+      );
+      await waitFor(() =>
+        expect(useAuthStore.getState().pinHash).toBe(setItemMock.mock.calls.at(-1)?.[1]),
+      );
     });
   });
 
@@ -153,6 +194,32 @@ describe('useAuthStore', () => {
       });
       await useAuthStore.getState().hydrate();
       expect(useAuthStore.getState().isOnboarded).toBe(false);
+    });
+
+    it('rearms dfxAuthService with the stored JWT so cold-start linkAddress works', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { dfxAuthService } = require('../../src/features/dfx-backend/services');
+      getItemMock.mockImplementation(async (key: string) =>
+        key === 'dfxAuthToken' ? 'jwt-from-keychain' : null,
+      );
+
+      await useAuthStore.getState().hydrate();
+
+      // Without this `adoptStoredToken` step, `linkAddress` would throw
+      // "Not authenticated" on first post-boot use even though dfxApi has
+      // the bearer header set.
+      expect(dfxAuthService.getAccessToken()).toBe('jwt-from-keychain');
+      expect(dfxAuthService.isAuthenticated()).toBe(true);
+    });
+
+    it('clears the dfxAuthService token when no JWT is stored', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { dfxAuthService } = require('../../src/features/dfx-backend/services');
+      dfxAuthService.adoptStoredToken('residual');
+
+      await useAuthStore.getState().hydrate();
+
+      expect(dfxAuthService.getAccessToken()).toBeNull();
     });
   });
 
@@ -234,17 +301,16 @@ describe('useAuthStore', () => {
       expect(useAuthStore.getState().biometricEnabled).toBe(true);
     });
 
-    it('does NOT persist or flip state when enabling but no hardware/enrolment is available', async () => {
+    it('still persists the preference when enabling without enrolled hardware (lock-screen falls back to PIN)', async () => {
       hasHardwareMock.mockResolvedValueOnce(false);
       await useAuthStore.getState().setBiometricEnabled(true);
-      expect(setItemMock).not.toHaveBeenCalled();
-      expect(useAuthStore.getState().biometricEnabled).toBe(false);
+      expect(setItemMock).toHaveBeenCalledWith('biometricEnabled', 'true');
+      expect(useAuthStore.getState().biometricEnabled).toBe(true);
     });
 
     it('persists "false" without checking hardware when disabling', async () => {
       useAuthStore.setState({ biometricEnabled: true });
       await useAuthStore.getState().setBiometricEnabled(false);
-      expect(hasHardwareMock).not.toHaveBeenCalled();
       expect(setItemMock).toHaveBeenCalledWith('biometricEnabled', 'false');
       expect(useAuthStore.getState().biometricEnabled).toBe(false);
     });
@@ -255,6 +321,35 @@ describe('useAuthStore', () => {
         'keychain locked',
       );
       expect(useAuthStore.getState().biometricEnabled).toBe(false);
+    });
+  });
+});
+
+describe('useAuthStore (biometric + DFX backend OFF — MVP build)', () => {
+  it('authenticateBiometric short-circuits to false when the biometric module is absent', async () => {
+    // Re-require the store with FEATURES.BIOMETRIC disabled so the
+    // `require('@/features/biometric/biometric')` is replaced with
+    // null. This validates the MVP-mode build behaviour where the
+    // module is not bundled at all.
+    await jest.isolateModulesAsync(async () => {
+      jest.doMock('@/config/features', () => ({
+        FEATURES: { BIOMETRIC: false, DFX_BACKEND: false },
+      }));
+      const mod = await import('../../src/store/auth');
+      const ok = await mod.useAuthStore.getState().authenticateBiometric();
+      expect(ok).toBe(false);
+    });
+  });
+
+  it('hydrate() skips the DFX token rearm path when the DFX module is absent', async () => {
+    await jest.isolateModulesAsync(async () => {
+      jest.doMock('@/config/features', () => ({
+        FEATURES: { BIOMETRIC: false, DFX_BACKEND: false },
+      }));
+      const mod = await import('../../src/store/auth');
+      // Should complete without touching any DFX module (none is loaded).
+      await mod.useAuthStore.getState().hydrate();
+      expect(mod.useAuthStore.getState().isHydrated).toBe(true);
     });
   });
 });

@@ -1,4 +1,4 @@
-import { ethSignatureToHex } from '../../src/services/hardware-wallet/bitbox-protocol';
+import { ethSignatureToHex } from '../../src/features/hardware-wallet/services/bitbox-protocol';
 
 describe('BitBox Protocol', () => {
   describe('ethSignatureToHex', () => {

@@ -26,6 +26,37 @@ const sharedNameMapper = {
 };
 
 module.exports = {
+  // Coverage scope is the logic surface only: services + stores. Screens and
+  // feature UI are owned by component tests, visual regression and Maestro —
+  // forcing line coverage on JSX produces useless render tests, not safety.
+  // The floor is enforced by scripts/check-coverage-floor.mjs against the
+  // committed .coverage-floor-lines file (see that script for the ratchet
+  // protocol).
+  collectCoverageFrom: [
+    'src/services/**/*.{ts,tsx}',
+    'src/store/**/*.{ts,tsx}',
+    'src/features/**/services/**/*.{ts,tsx}',
+    'src/hooks/**/*.{ts,tsx}',
+    // Security-critical feature logic that lives outside a `services/` folder
+    // but must still be measured (and is pinned in .coverage-floors.json).
+    'src/features/biometric/biometric.ts',
+    // Portfolio logic + screens (full-area coverage).
+    'src/features/portfolio/useTotalPortfolioFiatFull.ts',
+    'src/features/portfolio/useEnabledChains.ts',
+    'src/features/portfolio/PortfolioScreenImpl.tsx',
+    'src/features/portfolio/PortfolioAssetDetailScreenImpl.tsx',
+    'src/features/portfolio/PortfolioManageScreenImpl.tsx',
+    // Settings logic + screens (full-area coverage).
+    'src/features/settings/SettingsScreenImpl.tsx',
+    'src/features/settings/SeedExportScreenImpl.tsx',
+    // Multi-Sig logic + screens (full-area coverage).
+    'src/features/multi-sig/store.ts',
+    'src/features/multi-sig/MultiSigSetupScreenImpl.tsx',
+    'src/features/multi-sig/MultiSigManageScreenImpl.tsx',
+    '!**/*.d.ts',
+    '!**/types.ts',
+  ],
+  coverageReporters: ['json-summary', 'lcov', 'text-summary'],
   projects: [
     {
       displayName: 'unit',
@@ -60,8 +91,19 @@ module.exports = {
       preset: 'jest-expo',
       transform: sharedTransform,
       testMatch: ['<rootDir>/test/components/**/*.test.tsx'],
+      // Same global flag setup as the unit project: pin every
+      // EXPO_PUBLIC_ENABLE_* to "true" before any feature wrapper loads,
+      // so `FEATURES.X` resolves to the real implementation in the
+      // components project's screen tests as well.
+      setupFiles: ['<rootDir>/test/setup-globals.ts'],
       moduleNameMapper: {
         ...sharedNameMapper,
+        // The WDK package ships TypeScript source on npm and Jest's transform
+        // chain does not handle `export type {…}` inside node_modules without
+        // help. The local mock under `test/__mocks__/wdk.ts` exposes the
+        // surface our hooks touch (BaseAsset, useAccount, useRefreshBalance,
+        // …) without dragging in the Bare worklet.
+        '^@tetherto/wdk-react-native-core$': '<rootDir>/test/__mocks__/wdk.ts',
       },
       // jest-expo's defaults already cover react-native; add overrides for
       // wallet-specific dependencies that should not run their native bridge

@@ -1,0 +1,26 @@
+[
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/drawable-anydpi-v21/ic_call_decline.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-core-1.13.1-10:/drawable-anydpi-v21/ic_call_decline.xml"
+    },
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/drawable-anydpi-v21/ic_call_answer_video.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-core-1.13.1-10:/drawable-anydpi-v21/ic_call_answer_video.xml"
+    },
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/drawable-anydpi-v21/ic_call_decline_low.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-core-1.13.1-10:/drawable-anydpi-v21/ic_call_decline_low.xml"
+    },
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/drawable-anydpi-v21/ic_call_answer_video_low.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-core-1.13.1-10:/drawable-anydpi-v21/ic_call_answer_video_low.xml"
+    },
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/drawable-anydpi-v21/ic_call_answer_low.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-core-1.13.1-10:/drawable-anydpi-v21/ic_call_answer_low.xml"
+    },
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/drawable-anydpi-v21/ic_call_answer.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-core-1.13.1-10:/drawable-anydpi-v21/ic_call_answer.xml"
+    }
+]

@@ -32,6 +32,9 @@ export const StorageKeys = {
   SELECTED_LANGUAGE: 'selectedLanguage',
   ACCOUNTS: 'accounts',
   DFX_AUTH_TOKEN: 'dfxAuthToken',
+  /** JSON-encoded `{ [chain: string]: true }` — chains we've already attached
+   *  to the active DFX account so we don't sign again on every relaunch. */
+  DFX_LINKED_CHAINS: 'dfxLinkedChains',
   WALLET_ORIGIN: 'walletOrigin',
   PASSKEY_CREDENTIAL_ID: 'passkeyCredentialId',
   PASSKEY_DERIVATION_VERSION: 'passkeyDerivationVersion',

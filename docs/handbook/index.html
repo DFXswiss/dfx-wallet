@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DFX Wallet — Handbook &amp; Test Documentation</title>
+    <meta
+      name="description"
+      content="DFX Wallet — handbook and test documentation. Every screen is a committed visual-regression baseline."
+    />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://github.com/DFXswiss/dfx-wallet/blob/develop/docs/handbook/index.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="de"
+      href="https://github.com/DFXswiss/dfx-wallet/blob/develop/docs/handbook/de/index.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://github.com/DFXswiss/dfx-wallet/blob/develop/docs/handbook/index.html"
+    />
+    <style>
+      :root {
+        --bg: #0a0a0a;
+        --surface: #131313;
+        --line: #2a2a2a;
+        --ink: #f5f5f5;
+        --ink-2: #c8c8c8;
+        --ink-3: #8a8a8a;
+        --ink-4: #5a5a5a;
+        --dfx: #2f7cf7;
+        --dfx-red: #f5516c;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 64px 32px;
+        background: var(--bg);
+        color: var(--ink);
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 16px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 640px;
+        margin: 0 auto;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 8px;
+      }
+      .brand .dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+        background: var(--dfx-red);
+      }
+      .brand .name {
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      .brand-sub {
+        font-size: 11px;
+        color: var(--ink-4);
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin: 0 0 36px;
+      }
+      h1 {
+        font-size: 30px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin: 0 0 14px;
+      }
+      p {
+        color: var(--ink-2);
+        margin: 0 0 16px;
+      }
+      a {
+        color: var(--dfx);
+        text-decoration: none;
+        font-weight: 600;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      .cta {
+        display: inline-block;
+        margin-top: 24px;
+        padding: 12px 22px;
+        background: var(--dfx);
+        color: var(--bg);
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+      .cta:hover {
+        text-decoration: none;
+        background: #5599ff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="brand">
+        <span class="dot"></span><span class="name">DFX Wallet · Handbook</span>
+      </div>
+      <p class="brand-sub">User guide &amp; test documentation</p>
+
+      <h1>English version coming soon</h1>
+      <p>
+        The DFX Wallet handbook currently exists in German only. Each screen on the German page is
+        backed by a committed visual-regression baseline from <code>e2e/__baselines__/</code>, so
+        even without translation the screenshots speak for themselves.
+      </p>
+      <p>
+        Until the English translation lands, please use the German page or read the source
+        directly:
+      </p>
+      <p>
+        <a href="https://github.com/DFXswiss/dfx-wallet/blob/develop/docs/maestro.md"
+          >docs/maestro.md</a
+        >
+        — Maestro E2E test guide (MVP vs feature-gated tags, Android KVM runner setup, CI
+        triggers).
+        <br />
+        <a href="https://github.com/DFXswiss/dfx-wallet/blob/develop/docs/visual-regression.md"
+          >docs/visual-regression.md</a
+        >
+        — Detox visual regression workflow (baseline updates, `toBeVisible` heuristic, the
+        `needs-visual` label).
+      </p>
+
+      <a class="cta" href="./de/">→ Go to DE handbook</a>
+    </div>
+  </body>
+</html>

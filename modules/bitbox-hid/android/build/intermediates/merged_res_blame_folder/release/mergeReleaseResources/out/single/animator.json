@@ -1,0 +1,26 @@
+[
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/animator/fragment_fade_enter.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-fragment-1.5.4-5:/animator/fragment_fade_enter.xml"
+    },
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/animator/fragment_close_exit.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-fragment-1.5.4-5:/animator/fragment_close_exit.xml"
+    },
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/animator/fragment_fade_exit.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-fragment-1.5.4-5:/animator/fragment_fade_exit.xml"
+    },
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/animator/fragment_open_exit.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-fragment-1.5.4-5:/animator/fragment_open_exit.xml"
+    },
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/animator/fragment_open_enter.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-fragment-1.5.4-5:/animator/fragment_open_enter.xml"
+    },
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/animator/fragment_close_enter.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-fragment-1.5.4-5:/animator/fragment_close_enter.xml"
+    }
+]

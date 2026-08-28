@@ -17,9 +17,7 @@ describe('PrimaryButton', () => {
 
   it('does not call onPress when disabled', () => {
     const onPress = jest.fn();
-    const { getByText } = render(
-      <PrimaryButton title="Continue" onPress={onPress} disabled />,
-    );
+    const { getByText } = render(<PrimaryButton title="Continue" onPress={onPress} disabled />);
     fireEvent.press(getByText('Continue'));
     expect(onPress).not.toHaveBeenCalled();
   });
