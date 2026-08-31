@@ -21,6 +21,8 @@
     "howMuch": "How much do you want to buy?",
     "iban": "IBAN",
     "paymentInfo": "Payment information",
+    "paymentMethodSepa": "SEPA bank transfer",
+    "paymentMethodSepaHint": "Free · 0-1 business day",
     "quoteError": {
       "AmountTooHigh": "Amount too high.",
       "AmountTooLow": "Amount too low.",

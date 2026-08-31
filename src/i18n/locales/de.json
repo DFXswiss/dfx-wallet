@@ -21,6 +21,8 @@
     "howMuch": "Wie viel möchtest du kaufen?",
     "iban": "IBAN",
     "paymentInfo": "Zahlungsinformationen",
+    "paymentMethodSepa": "SEPA-Banküberweisung",
+    "paymentMethodSepaHint": "Kostenlos · 0-1 Werktag",
     "quoteError": {
       "AmountTooHigh": "Betrag zu hoch.",
       "AmountTooLow": "Betrag zu niedrig.",
