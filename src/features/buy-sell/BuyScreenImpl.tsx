@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   ImageBackground,
   Pressable,
   ScrollView,
@@ -42,6 +41,8 @@ import { ReceiveAssetSheet } from './ReceiveAssetSheet';
 import { AssetGlyph } from './AssetGlyph';
 import { CurrencyGlyph } from './CurrencyGlyph';
 import TradeModeTabs from './TradeModeTabs';
+import { MobileFeesPanel } from './MobileFeesPanel';
+import { isAccountGateError, makeTradeQuoteKey, SELECTOR_PILL_LAYOUT } from './tradePanelStyles';
 
 type BuyStep = 'amount' | 'payment' | 'confirm';
 
@@ -215,6 +216,9 @@ export default function BuyScreen() {
   }>();
   const {
     paymentInfo,
+    quoteKey,
+    errorKey,
+    actionErrorKey,
     isLoading,
     error,
     authGate,
@@ -399,6 +403,13 @@ export default function BuyScreen() {
   const selectedTokenSpec = selectedChainSpec?.tokens[selectedTokenIndex] ?? null;
   const targetAsset = selectedTokenSpec?.assetSymbol ?? '';
   const blockchain = selectedChainSpec?.blockchain ?? '';
+  const currentQuoteKey = makeTradeQuoteKey({
+    amount: parseFloat(amount),
+    currency: selectedCurrency,
+    asset: targetAsset,
+    blockchain,
+    chain: selectedChainSpec?.chain ?? '',
+  });
 
   // Live quote: fetch a fresh exchange-rate + fee preview whenever the user
   // changes amount, currency, or target chain. Debounced so we don't hammer
@@ -429,31 +440,58 @@ export default function BuyScreen() {
     setTimeout(() => setCopiedField(null), 1800);
   };
 
-  const fees = paymentInfo?.fees;
   // /buy/quote returns DFX' BuyQuoteDto which omits the asset/currency
   // objects (they only land on the /buy/paymentInfos response). We always
   // know what the user picked locally, so render the breakdown as soon as
   // the response is `isValid: true` with a fee block — no need to wait
   // for `paymentInfo.asset` to materialise (it never will on /quote).
+  const quoteIsCurrent = !!currentQuoteKey && !isLoading && quoteKey === currentQuoteKey;
   const hasQuote =
-    !!paymentInfo && paymentInfo.isValid && !!paymentInfo.fees && parseFloat(amount) > 0;
+    quoteIsCurrent &&
+    !!paymentInfo &&
+    paymentInfo.isValid &&
+    !!paymentInfo.fees &&
+    parseFloat(amount) > 0;
   // DFX returns 200 with `error` set for soft validation failures (e.g.
   // KycRequired, AssetUnsupported). We need to surface that to the user
   // instead of getting stuck on "Angebot wird berechnet …".
-  const quoteError =
-    !hasQuote && paymentInfo && paymentInfo.error ? String(paymentInfo.error) : null;
   // DFX sometimes returns 200 with `isValid: false` and no error code —
   // typically when the chain isn't yet attached to the user's account.
   // Tapping Weiter triggers /buy/paymentInfos which fires the linkChain
   // gate, runs the modal sign flow, and auto-refreshes the quote. Tell
   // the user to do exactly that instead of bouncing off a generic error.
-  const needsContinue = !hasQuote && !quoteError && !!paymentInfo && !isLoading;
   const unsupportedChain = !!selectedChainSpec?.unsupported;
+  const quoteErrorIsCurrent = !!currentQuoteKey && !isLoading && errorKey === currentQuoteKey;
+  const quoteError =
+    quoteIsCurrent && !hasQuote && paymentInfo?.error ? String(paymentInfo.error) : null;
+  const genericQuoteError = quoteErrorIsCurrent ? error : null;
+  const actionErrorIsCurrent =
+    !!currentQuoteKey && !isLoading && actionErrorKey === currentQuoteKey;
+  const genericActionError = actionErrorIsCurrent ? error : null;
+  const authGateIsCurrent = !!authGate && (quoteErrorIsCurrent || actionErrorIsCurrent);
+  const needsContinue =
+    quoteIsCurrent && !hasQuote && !quoteError && !genericQuoteError && !!paymentInfo;
+  const canOpenGate =
+    !isLoading &&
+    !!currentQuoteKey &&
+    (authGateIsCurrent || !!genericQuoteError || needsContinue || isAccountGateError(quoteError));
   // Open the Angebot card as soon as the user has typed a positive amount,
   // even before the first /buy/quote round-trip returns. Keeps the previous
   // quote on screen while a refresh is in flight so the user always sees
   // *something* and can read the change as it lands.
-  const showQuoteCard = hasQuote || (parseFloat(amount) > 0 && !!selectedChainSpec);
+  // App2 keeps the fee panel directly below the amount panels, including before
+  // the first quote has arrived. The empty state is rendered by the panel itself.
+  const feePanelStatus = unsupportedChain
+    ? t('buy.chainUnsupported')
+    : quoteError
+      ? t([`buy.quoteError.${quoteError}`, 'buy.quoteError.generic'], { code: quoteError })
+      : genericQuoteError
+        ? genericQuoteError
+        : genericActionError
+          ? genericActionError
+          : needsContinue
+            ? t('buy.continueHint')
+            : null;
   const minVolume = paymentInfo?.minVolume;
   const maxVolume = paymentInfo?.maxVolume;
   const numAmount = parseFloat(amount);
@@ -588,99 +626,17 @@ export default function BuyScreen() {
 
       {selectedAsset ? (
         <>
-          {showQuoteCard ? (
-            <View style={styles.quoteCard}>
-              <Pressable
-                style={({ pressed }) => [styles.quoteToggle, pressed && styles.pressed]}
-                onPress={() => setCollapsed((value) => !value)}
-                accessibilityRole="button"
-              >
-                <Icon name="shield" size={18} color={colors.primary} />
-                <Text style={styles.quoteToggleText} numberOfLines={2}>
-                  {hasQuote && paymentInfo
-                    ? t('buy.rateInclFees', {
-                        asset: targetAsset,
-                        amount: fmtFiat(paymentInfo.exchangeRate),
-                        currency: selectedCurrency,
-                      })
-                    : t('buy.summary')}
-                </Text>
-                {hasQuote && fees ? (
-                  <View style={styles.quoteFeeBadge}>
-                    <Text style={styles.quoteFeeBadgeText}>{fmtFiat(fees.total)}</Text>
-                  </View>
-                ) : null}
-                {isLoading && !unsupportedChain ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : null}
-                <View style={collapsed ? undefined : styles.quoteChevronOpen}>
-                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
-                </View>
-              </Pressable>
-              {collapsed ? null : unsupportedChain ? (
-                <Text style={styles.quoteError}>{t('buy.chainUnsupported')}</Text>
-              ) : hasQuote && fees ? (
-                <>
-                  <QuoteRow
-                    label={t('buy.exchangeRate')}
-                    value={`1 ${selectedCurrency} = ${fmtCrypto(1 / paymentInfo!.exchangeRate)} ${targetAsset}`}
-                  />
-                  <QuoteRow
-                    label={t('buy.feeDfx')}
-                    value={`${(fees.rate * 100).toFixed(2)}%`}
-                    {...(fees.dfx > 0 ? { sub: `${fmtFiat(fees.dfx)} ${selectedCurrency}` } : {})}
-                  />
-                  {fees.network > 0 ? (
-                    <QuoteRow
-                      label={t('buy.feeNetwork')}
-                      value={`${fmtFiat(fees.network)} ${selectedCurrency}`}
-                    />
-                  ) : null}
-                  {fees.fixed > 0 ? (
-                    <QuoteRow
-                      label={t('buy.feeFixed')}
-                      value={`${fmtFiat(fees.fixed)} ${selectedCurrency}`}
-                    />
-                  ) : null}
-                  {fees.bank > 0 ? (
-                    <QuoteRow
-                      label={t('buy.feeBank')}
-                      value={`${fmtFiat(fees.bank)} ${selectedCurrency}`}
-                    />
-                  ) : null}
-                  <QuoteRow
-                    label={t('buy.feeTotal')}
-                    value={`${fmtFiat(fees.total)} ${selectedCurrency}`}
-                    emphasis
-                  />
-                  <View style={styles.quoteDivider} />
-                  <QuoteRow
-                    label={t('buy.youReceive')}
-                    value={`${fmtCrypto(paymentInfo!.estimatedAmount)} ${targetAsset}`}
-                    emphasis
-                    accent
-                  />
-                </>
-              ) : quoteError ? (
-                // DFX accepted the request but rejected the combination
-                // (e.g. asset unsupported for this user, KYC required, etc.).
-                // Surface the backend error code so the user sees *something*
-                // actionable instead of an endless "calculating" placeholder.
-                <Text style={styles.quoteError}>
-                  {t([`buy.quoteError.${quoteError}`, 'buy.quoteError.generic'], {
-                    code: quoteError,
-                  })}
-                </Text>
-              ) : needsContinue ? (
-                <Text style={styles.quoteHint}>{t('buy.continueHint')}</Text>
-              ) : (
-                // First quote still in flight — show a subtle placeholder so
-                // the card visibly "opens" the moment the user types instead
-                // of jumping in once the response lands.
-                <Text style={styles.quotePlaceholder}>{t('buy.fetchingQuote')}</Text>
-              )}
-            </View>
-          ) : null}
+          <MobileFeesPanel
+            mode="buy"
+            quote={hasQuote ? paymentInfo : null}
+            payAssetCode=""
+            receiveAssetCode={targetAsset}
+            currencyCode={selectedCurrency}
+            expanded={!collapsed}
+            onToggle={() => setCollapsed((value) => !value)}
+            testID="buy-fees-panel"
+            statusMessage={feePanelStatus}
+          />
 
           {belowMin ? (
             <Text style={styles.warning}>
@@ -699,13 +655,7 @@ export default function BuyScreen() {
             </Text>
           ) : null}
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          <Pressable
-            testID="buy-payment-method-row"
-            style={({ pressed }) => [styles.paymentMethodRow, pressed && styles.pressed]}
-            accessibilityRole="button"
-          >
+          <View testID="buy-payment-method-row" style={styles.paymentMethodRow}>
             <View style={styles.paymentMethodIcon}>
               <Icon name="wallet" size={18} color={colors.primary} />
             </View>
@@ -713,12 +663,12 @@ export default function BuyScreen() {
               <Text style={styles.paymentMethodTitle}>{t('buy.paymentMethodSepa')}</Text>
               <Text style={styles.paymentMethodHint}>{t('buy.paymentMethodSepaHint')}</Text>
             </View>
-            <Icon name="chevron-right" size={16} color={colors.textTertiary} />
-          </Pressable>
+          </View>
 
           <View style={styles.spacer} />
 
           <PrimaryButton
+            testID="buy-cta"
             title={`${t('buy.title')} ${targetAsset}`}
             icon={<Icon name="arrow-right" size={18} color={colors.white} />}
             onPress={async () => {
@@ -742,9 +692,21 @@ export default function BuyScreen() {
               });
               if (info) setStep('payment');
             }}
-            disabled={!numAmount || numAmount <= 0 || belowMin || aboveMax || unsupportedChain}
+            disabled={
+              !numAmount ||
+              numAmount <= 0 ||
+              belowMin ||
+              aboveMax ||
+              unsupportedChain ||
+              isLoading ||
+              (!hasQuote && !canOpenGate)
+            }
             loading={isLoading}
           />
+          <View style={styles.securityRow} testID="buy-security-row">
+            <Icon name="shield" size={14} color={colors.textTertiary} />
+            <Text style={styles.securityText}>{t('buy.security')}</Text>
+          </View>
         </>
       ) : null}
     </View>
@@ -803,28 +765,6 @@ export default function BuyScreen() {
           <QuoteRow
             label={t('buy.exchangeRate')}
             value={`1 ${paymentInfo.currency.name} = ${fmtCrypto(1 / paymentInfo.exchangeRate)} ${paymentInfo.asset.name}`}
-          />
-          {paymentInfo.fees.dfx > 0 ? (
-            <QuoteRow
-              label={t('buy.feeDfx')}
-              value={`${(paymentInfo.fees.rate * 100).toFixed(2)}% · ${fmtFiat(paymentInfo.fees.dfx)} ${paymentInfo.currency.name}`}
-            />
-          ) : (
-            <QuoteRow
-              label={t('buy.feeDfx')}
-              value={`${(paymentInfo.fees.rate * 100).toFixed(2)}%`}
-            />
-          )}
-          {paymentInfo.fees.network > 0 ? (
-            <QuoteRow
-              label={t('buy.feeNetwork')}
-              value={`${fmtFiat(paymentInfo.fees.network)} ${paymentInfo.currency.name}`}
-            />
-          ) : null}
-          <QuoteRow
-            label={t('buy.feeTotal')}
-            value={`${fmtFiat(paymentInfo.fees.total)} ${paymentInfo.currency.name}`}
-            emphasis
           />
           <View style={styles.quoteDivider} />
           <QuoteRow
@@ -908,7 +848,11 @@ export default function BuyScreen() {
         )}
         {body}
       </View>
-      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} onLinkChain={linkChainToDfx} />
+      <DfxAuthGate
+        gate={authGateIsCurrent ? authGate : null}
+        onClose={dismissAuthGate}
+        onLinkChain={linkChainToDfx}
+      />
       <ConfirmTargetWalletModal
         visible={confirmOpen}
         flow="buy"
@@ -1045,8 +989,9 @@ const makeStyles = (colors: ThemeColors) =>
       flex: 1,
     },
     scrollContent: {
-      paddingHorizontal: 20,
-      paddingBottom: 32,
+      paddingTop: 2,
+      paddingHorizontal: 16,
+      paddingBottom: 26,
       gap: 18,
     },
     stepContent: {
@@ -1084,7 +1029,8 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.card,
     },
     panel: {
-      padding: 16,
+      paddingVertical: 15,
+      paddingHorizontal: 16,
       borderTopLeftRadius: 21,
       borderTopRightRadius: 21,
     },
@@ -1136,7 +1082,7 @@ const makeStyles = (colors: ThemeColors) =>
       borderRadius: 999,
       paddingVertical: 8,
       paddingHorizontal: 14,
-      maxWidth: '48%',
+      ...SELECTOR_PILL_LAYOUT,
     },
     pillMeta: {
       flex: 1,
@@ -1175,6 +1121,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
     quickAmount: {
       flex: 1,
+      minHeight: 44,
       paddingVertical: 8,
       borderRadius: 10,
       backgroundColor: colors.background,
@@ -1391,6 +1338,14 @@ const makeStyles = (colors: ThemeColors) =>
     spacer: {
       minHeight: 16,
     },
+    securityRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      marginTop: 12,
+    },
+    securityText: { ...Typography.bodySmall, color: colors.textTertiary, textAlign: 'center' },
     targetBanner: {
       flexDirection: 'row',
       alignItems: 'center',

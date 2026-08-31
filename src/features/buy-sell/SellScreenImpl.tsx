@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   ImageBackground,
   Pressable,
   ScrollView,
@@ -41,6 +40,10 @@ import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
 import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 import TradeModeTabs from './TradeModeTabs';
+import { AssetGlyph } from './AssetGlyph';
+import { CurrencyGlyph } from './CurrencyGlyph';
+import { MobileFeesPanel } from './MobileFeesPanel';
+import { isAccountGateError, makeTradeQuoteKey, SELECTOR_PILL_LAYOUT } from './tradePanelStyles';
 
 type SellStep = 'amount' | 'bank' | 'confirm';
 
@@ -214,6 +217,9 @@ export default function SellScreen() {
   const { enabledChains } = useEnabledChains();
   const {
     paymentInfo,
+    quoteKey,
+    errorKey,
+    actionErrorKey,
     isLoading,
     error,
     authGate,
@@ -383,6 +389,13 @@ export default function SellScreen() {
   const selectedTokenSpec = selectedChainSpec?.tokens[selectedTokenIndex] ?? null;
   const sellAsset = selectedTokenSpec?.assetSymbol ?? '';
   const blockchain = selectedChainSpec?.blockchain ?? '';
+  const currentQuoteKey = makeTradeQuoteKey({
+    amount: parseFloat(amount),
+    currency: payoutCurrency,
+    asset: sellAsset,
+    blockchain,
+    chain: selectedChainSpec?.chain ?? '',
+  });
 
   useEffect(() => {
     if (step !== 'amount' || !selectedChainSpec) return;
@@ -409,22 +422,47 @@ export default function SellScreen() {
     setTimeout(() => setCopiedField(null), 1800);
   };
 
-  const fees = paymentInfo?.fees;
   // /sell/quote returns SellQuoteDto without asset/currency objects — those
   // only land on /sell/paymentInfos. We render the breakdown from local
   // selection state instead, so a valid quote shows up immediately.
+  const quoteIsCurrent = !!currentQuoteKey && !isLoading && quoteKey === currentQuoteKey;
   const hasQuote =
-    !!paymentInfo && paymentInfo.isValid && !!paymentInfo.fees && parseFloat(amount) > 0;
-  const quoteError =
-    !hasQuote && paymentInfo && paymentInfo.error ? String(paymentInfo.error) : null;
+    quoteIsCurrent &&
+    !!paymentInfo &&
+    paymentInfo.isValid &&
+    !!paymentInfo.fees &&
+    parseFloat(amount) > 0;
   // Empty quote without an explicit error code → the chain still has to
   // be linked. Tapping Weiter triggers the linkChain modal and auto-
   // retries the quote. See buy/index.tsx for full rationale.
-  const needsContinue = !hasQuote && !quoteError && !!paymentInfo && !isLoading;
   // See buy/index.tsx — open the Angebot card the moment a positive amount
   // is set so the user always sees something refreshing instead of an empty
   // void during the /sell/quote round-trip.
-  const showQuoteCard = hasQuote || (parseFloat(amount) > 0 && !!selectedChainSpec);
+  // Keep the fee panel directly below the trade panels, including its empty
+  // state before the first quote is available.
+  const paymentError = quoteIsCurrent ? (paymentInfo?.error ?? paymentInfo?.errors?.[0]) : null;
+  const quoteError = quoteIsCurrent && !hasQuote && paymentError ? String(paymentError) : null;
+  const quoteErrorIsCurrent = !!currentQuoteKey && !isLoading && errorKey === currentQuoteKey;
+  const genericQuoteError = quoteErrorIsCurrent ? error : null;
+  const actionErrorIsCurrent =
+    !!currentQuoteKey && !isLoading && actionErrorKey === currentQuoteKey;
+  const genericActionError = actionErrorIsCurrent ? error : null;
+  const authGateIsCurrent = !!authGate && (quoteErrorIsCurrent || actionErrorIsCurrent);
+  const needsContinue =
+    quoteIsCurrent && !hasQuote && !quoteError && !genericQuoteError && !!paymentInfo;
+  const canOpenGate =
+    !isLoading &&
+    !!currentQuoteKey &&
+    (authGateIsCurrent || !!genericQuoteError || needsContinue || isAccountGateError(quoteError));
+  const feePanelStatus = quoteError
+    ? t([`sell.quoteError.${quoteError}`, 'sell.quoteError.generic'], { code: quoteError })
+    : genericQuoteError
+      ? genericQuoteError
+      : genericActionError
+        ? genericActionError
+        : needsContinue
+          ? t('sell.continueHint')
+          : null;
   const minVolume = paymentInfo?.minVolume;
   const maxVolume = paymentInfo?.maxVolume;
   const numAmount = parseFloat(amount);
@@ -523,118 +561,92 @@ export default function SellScreen() {
             </View>
           ) : null}
 
-          <View style={styles.amountCard}>
-            <TextInput
-              style={styles.amountInput}
-              value={amount}
-              onChangeText={setAmount}
-              placeholder="0.00"
-              placeholderTextColor={colors.textTertiary}
-              keyboardType="decimal-pad"
-            />
-            <Text style={styles.amountUnit}>{sellAsset}</Text>
-            <View style={styles.currencyRow}>
-              {FIAT_CURRENCIES.map((cur) => (
+          <View style={styles.panels} testID="sell-amount-panels">
+            <View style={styles.panel}>
+              <Text style={styles.plabel}>{t('sell.youSell')}</Text>
+              <View style={styles.pinput}>
+                <TextInput
+                  style={styles.amt}
+                  value={amount}
+                  onChangeText={setAmount}
+                  placeholder="0"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="decimal-pad"
+                  testID="sell-pay-amount"
+                />
+                <View style={styles.pill} testID="sell-pay-asset-pill">
+                  <AssetGlyph symbol={sellAsset || ''} size={32} />
+                  <View style={styles.pillMeta}>
+                    <Text style={styles.pillTitle} numberOfLines={1}>
+                      {sellAsset}
+                    </Text>
+                    {selectedChainSpec ? (
+                      <Text style={styles.pillSubtitle} numberOfLines={1}>
+                        {selectedChainSpec.label}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            <Pressable
+              style={styles.fab}
+              onPress={() => router.replace('/(auth)/buy')}
+              testID="sell-flip-to-buy"
+              accessibilityRole="button"
+              accessibilityLabel={t('buy.flipToSell')}
+            >
+              <Icon name="swap" size={18} color={colors.primary} />
+            </Pressable>
+
+            <View style={[styles.panel, styles.panelRecv]}>
+              <View style={styles.prowBetween}>
+                <Text style={styles.plabel}>{t('sell.youReceive')}</Text>
+                {isLoading ? <Text style={styles.pmeta}>{t('sell.fetchingQuote')}</Text> : null}
+              </View>
+              <View style={styles.pinput}>
+                <TextInput
+                  style={styles.amt}
+                  value={hasQuote && paymentInfo ? fmtFiat(paymentInfo.estimatedAmount) : ''}
+                  editable={false}
+                  placeholder="0"
+                  placeholderTextColor={colors.textTertiary}
+                  testID="sell-receive-amount"
+                />
                 <Pressable
-                  key={cur}
-                  style={[styles.currencyChip, payoutCurrency === cur && styles.currencyChipActive]}
-                  onPress={() => setPayoutCurrency(cur)}
+                  style={styles.pill}
+                  onPress={() =>
+                    setPayoutCurrency(
+                      (cur) =>
+                        FIAT_CURRENCIES[
+                          (FIAT_CURRENCIES.indexOf(cur) + 1) % FIAT_CURRENCIES.length
+                        ]!,
+                    )
+                  }
+                  testID="sell-receive-currency-pill"
+                  accessibilityRole="button"
+                  accessibilityLabel={t('sell.youReceive')}
                 >
-                  <Text
-                    style={[
-                      styles.currencyText,
-                      payoutCurrency === cur && styles.currencyTextActive,
-                    ]}
-                  >
-                    {cur}
-                  </Text>
+                  <CurrencyGlyph code={payoutCurrency} size={32} />
+                  <Text style={styles.pillTitle}>{payoutCurrency}</Text>
+                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
                 </Pressable>
-              ))}
+              </View>
             </View>
           </View>
 
-          {showQuoteCard ? (
-            <View style={styles.quoteCard}>
-              <Pressable
-                style={({ pressed }) => [styles.quoteToggle, pressed && styles.pressed]}
-                onPress={() => setCollapsed((value) => !value)}
-                accessibilityRole="button"
-              >
-                <Icon name="shield" size={18} color={colors.primary} />
-                <Text style={styles.quoteToggleText} numberOfLines={2}>
-                  {hasQuote && paymentInfo
-                    ? t('sell.rateInclFees', {
-                        asset: sellAsset,
-                        amount: fmtFiat(paymentInfo.exchangeRate),
-                        currency: payoutCurrency,
-                      })
-                    : t('sell.summary')}
-                </Text>
-                {hasQuote && fees ? (
-                  <View style={styles.quoteFeeBadge}>
-                    <Text style={styles.quoteFeeBadgeText}>{fmtFiat(fees.total)}</Text>
-                  </View>
-                ) : null}
-                {isLoading ? <ActivityIndicator size="small" color={colors.primary} /> : null}
-                <View style={collapsed ? undefined : styles.quoteChevronOpen}>
-                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
-                </View>
-              </Pressable>
-              {collapsed ? null : hasQuote && fees ? (
-                <>
-                  <QuoteRow
-                    label={t('sell.exchangeRate')}
-                    value={`1 ${sellAsset} = ${fmtFiat(paymentInfo!.exchangeRate)} ${payoutCurrency}`}
-                  />
-                  <QuoteRow
-                    label={t('sell.feeDfx')}
-                    value={`${(fees.rate * 100).toFixed(2)}%`}
-                    {...(fees.dfx > 0 ? { sub: `${fmtFiat(fees.dfx)} ${payoutCurrency}` } : {})}
-                  />
-                  {fees.network > 0 ? (
-                    <QuoteRow
-                      label={t('sell.feeNetwork')}
-                      value={`${fmtFiat(fees.network)} ${payoutCurrency}`}
-                    />
-                  ) : null}
-                  {fees.fixed > 0 ? (
-                    <QuoteRow
-                      label={t('sell.feeFixed')}
-                      value={`${fmtFiat(fees.fixed)} ${payoutCurrency}`}
-                    />
-                  ) : null}
-                  {fees.bank > 0 ? (
-                    <QuoteRow
-                      label={t('sell.feeBank')}
-                      value={`${fmtFiat(fees.bank)} ${payoutCurrency}`}
-                    />
-                  ) : null}
-                  <QuoteRow
-                    label={t('sell.feeTotal')}
-                    value={`${fmtFiat(fees.total)} ${payoutCurrency}`}
-                    emphasis
-                  />
-                  <View style={styles.quoteDivider} />
-                  <QuoteRow
-                    label={t('sell.youReceive')}
-                    value={`${fmtFiat(paymentInfo!.estimatedAmount)} ${payoutCurrency}`}
-                    emphasis
-                    accent
-                  />
-                </>
-              ) : quoteError ? (
-                <Text style={styles.quoteError}>
-                  {t([`sell.quoteError.${quoteError}`, 'sell.quoteError.generic'], {
-                    code: quoteError,
-                  })}
-                </Text>
-              ) : needsContinue ? (
-                <Text style={styles.quoteHint}>{t('sell.continueHint')}</Text>
-              ) : (
-                <Text style={styles.quotePlaceholder}>{t('sell.fetchingQuote')}</Text>
-              )}
-            </View>
-          ) : null}
+          <MobileFeesPanel
+            mode="sell"
+            quote={hasQuote ? paymentInfo : null}
+            payAssetCode={sellAsset}
+            receiveAssetCode=""
+            currencyCode={payoutCurrency}
+            expanded={!collapsed}
+            onToggle={() => setCollapsed((value) => !value)}
+            testID="sell-fees-panel"
+            statusMessage={feePanelStatus}
+          />
 
           {belowMin ? (
             <Text style={styles.warning}>
@@ -653,9 +665,8 @@ export default function SellScreen() {
             </Text>
           ) : null}
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
           <PrimaryButton
+            testID="sell-cta"
             title={`${t('sell.title')} ${sellAsset}`}
             icon={<Icon name="arrow-right" size={18} color={colors.white} />}
             onPress={() => {
@@ -666,8 +677,83 @@ export default function SellScreen() {
               }
               setStep('bank');
             }}
-            disabled={!numAmount || numAmount <= 0 || belowMin || aboveMax}
+            disabled={
+              !numAmount ||
+              numAmount <= 0 ||
+              belowMin ||
+              aboveMax ||
+              isLoading ||
+              (!hasQuote && !canOpenGate)
+            }
+            loading={isLoading}
           />
+          <View style={styles.securityRow} testID="sell-security-row">
+            <Icon name="shield" size={14} color={colors.textTertiary} />
+            <Text style={styles.securityText}>{t('sell.security')}</Text>
+          </View>
+        </>
+      ) : null}
+      {!selectedAsset || !selectedChainSpec ? (
+        <>
+          <View style={styles.panels} testID="sell-amount-panels-empty">
+            <View style={styles.panel}>
+              <Text style={styles.plabel}>{t('sell.youSell')}</Text>
+              <View style={styles.pinput}>
+                <TextInput
+                  style={styles.amt}
+                  value=""
+                  placeholder="0"
+                  placeholderTextColor={colors.textTertiary}
+                  editable={false}
+                  testID="sell-pay-amount"
+                />
+                <Pressable style={styles.pill} disabled testID="sell-pay-asset-pill">
+                  <Text style={styles.pillTitle}>—</Text>
+                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+                </Pressable>
+              </View>
+            </View>
+            <View style={styles.fab}>
+              <Icon name="swap" size={18} color={colors.textTertiary} />
+            </View>
+            <View style={[styles.panel, styles.panelRecv]}>
+              <Text style={styles.plabel}>{t('sell.youReceive')}</Text>
+              <View style={styles.pinput}>
+                <TextInput
+                  style={styles.amt}
+                  value=""
+                  placeholder="0"
+                  placeholderTextColor={colors.textTertiary}
+                  editable={false}
+                  testID="sell-receive-amount"
+                />
+                <Pressable style={styles.pill} disabled testID="sell-receive-currency-pill">
+                  <Text style={styles.pillTitle}>{payoutCurrency}</Text>
+                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+          <MobileFeesPanel
+            mode="sell"
+            quote={null}
+            payAssetCode=""
+            receiveAssetCode=""
+            currencyCode={payoutCurrency}
+            expanded={false}
+            onToggle={() => undefined}
+            testID="sell-fees-panel"
+          />
+          <PrimaryButton
+            title={t('sell.title')}
+            onPress={() => undefined}
+            disabled
+            testID="sell-cta"
+          />
+          <View style={styles.securityRow} testID="sell-security-row">
+            <Icon name="shield" size={14} color={colors.textTertiary} />
+            <Text style={styles.securityText}>{t('sell.security')}</Text>
+          </View>
         </>
       ) : null}
     </View>
@@ -745,28 +831,6 @@ export default function SellScreen() {
             label={t('sell.exchangeRate')}
             value={`1 ${paymentInfo.asset.name} = ${fmtFiat(paymentInfo.exchangeRate)} ${paymentInfo.currency.name}`}
           />
-          {paymentInfo.fees.dfx > 0 ? (
-            <QuoteRow
-              label={t('sell.feeDfx')}
-              value={`${(paymentInfo.fees.rate * 100).toFixed(2)}% · ${fmtFiat(paymentInfo.fees.dfx)} ${paymentInfo.currency.name}`}
-            />
-          ) : (
-            <QuoteRow
-              label={t('sell.feeDfx')}
-              value={`${(paymentInfo.fees.rate * 100).toFixed(2)}%`}
-            />
-          )}
-          {paymentInfo.fees.network > 0 ? (
-            <QuoteRow
-              label={t('sell.feeNetwork')}
-              value={`${fmtFiat(paymentInfo.fees.network)} ${paymentInfo.currency.name}`}
-            />
-          ) : null}
-          <QuoteRow
-            label={t('sell.feeTotal')}
-            value={`${fmtFiat(paymentInfo.fees.total)} ${paymentInfo.currency.name}`}
-            emphasis
-          />
           <View style={styles.quoteDivider} />
           <QuoteRow
             label={t('sell.youReceive')}
@@ -831,7 +895,11 @@ export default function SellScreen() {
         )}
         {body}
       </View>
-      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} onLinkChain={linkChainToDfx} />
+      <DfxAuthGate
+        gate={authGateIsCurrent ? authGate : null}
+        onClose={dismissAuthGate}
+        onLinkChain={linkChainToDfx}
+      />
       <ConfirmTargetWalletModal
         visible={confirmOpen}
         flow="sell"
@@ -951,7 +1019,7 @@ const makeStyles = (colors: ThemeColors) =>
     bg: { flex: 1, backgroundColor: colors.background },
     safeArea: { flex: 1 },
     scroll: { flex: 1 },
-    scrollContent: { paddingHorizontal: 20, paddingBottom: 32, gap: 18 },
+    scrollContent: { paddingTop: 2, paddingHorizontal: 16, paddingBottom: 26, gap: 18 },
     stepContent: { gap: 18 },
     progressRow: {
       flexDirection: 'row',
@@ -1053,54 +1121,93 @@ const makeStyles = (colors: ThemeColors) =>
     tokenChipTextActive: {
       color: colors.primary,
     },
-    amountCard: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
+    panels: {
+      position: 'relative',
       borderWidth: 1,
       borderColor: colors.border,
-      padding: 18,
-      gap: 16,
+      borderRadius: 22,
+      backgroundColor: colors.card,
+    },
+    panel: {
+      paddingVertical: 15,
+      paddingHorizontal: 16,
+      borderTopLeftRadius: 21,
+      borderTopRightRadius: 21,
+    },
+    panelRecv: {
+      backgroundColor: colors.surfaceLight,
+      borderTopWidth: 1,
+      borderTopColor: colors.divider,
+      borderTopLeftRadius: 0,
+      borderTopRightRadius: 0,
+      borderBottomLeftRadius: 21,
+      borderBottomRightRadius: 21,
+    },
+    prowBetween: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
       alignItems: 'center',
     },
-    amountInput: {
-      fontSize: 36,
-      fontWeight: '700',
-      color: colors.text,
-      textAlign: 'center',
-      paddingVertical: 8,
-      minWidth: 200,
-    },
-    amountUnit: {
-      ...Typography.bodyMedium,
-      color: colors.textTertiary,
-      fontWeight: '600',
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-      marginTop: -8,
-    },
-    currencyRow: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      gap: 8,
-    },
-    currencyChip: {
-      paddingHorizontal: 18,
-      paddingVertical: 8,
-      borderRadius: 999,
-      backgroundColor: colors.background,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
-    },
-    currencyChipActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    currencyText: {
-      ...Typography.bodyMedium,
+    plabel: {
+      fontSize: 12.5,
       fontWeight: '600',
       color: colors.textSecondary,
     },
-    currencyTextActive: { color: colors.white },
+    pmeta: { fontSize: 12, color: colors.textTertiary },
+    pinput: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginTop: 9,
+    },
+    amt: {
+      flex: 1,
+      minWidth: 0,
+      fontSize: 33,
+      fontWeight: '700',
+      letterSpacing: -0.5,
+      color: colors.text,
+      padding: 0,
+    },
+    pill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceLight,
+      borderRadius: 999,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      ...SELECTOR_PILL_LAYOUT,
+    },
+    pillMeta: { flex: 1, flexShrink: 1, minWidth: 0 },
+    pillTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.text,
+      letterSpacing: -0.2,
+    },
+    pillSubtitle: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.textTertiary,
+      marginTop: 0,
+    },
+    fab: {
+      alignSelf: 'center',
+      width: 40,
+      height: 40,
+      borderRadius: 13,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: -20,
+      marginBottom: -20,
+      zIndex: 2,
+    },
     quoteCard: {
       backgroundColor: colors.cardOverlay,
       borderRadius: 12,
@@ -1256,6 +1363,14 @@ const makeStyles = (colors: ThemeColors) =>
       textAlign: 'center',
     },
     spacer: { minHeight: 16 },
+    securityRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      marginTop: 12,
+    },
+    securityText: { ...Typography.bodySmall, color: colors.textTertiary, textAlign: 'center' },
     targetBanner: {
       flexDirection: 'row',
       alignItems: 'center',

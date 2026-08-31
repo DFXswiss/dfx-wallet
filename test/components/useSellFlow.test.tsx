@@ -70,6 +70,25 @@ describe('useSellFlow', () => {
     expect(result.current.error).toBeNull();
     expect(result.current.authGate).toBeNull();
     expect(result.current.isLoading).toBe(false);
+    expect(result.current.quoteKey).toBe('100|CHF|BTC|Bitcoin|bitcoin');
+    expect(result.current.errorKey).toBeNull();
+    expect(result.current.actionErrorKey).toBeNull();
+  });
+
+  it('normalises the first backend errors entry onto the sell quote', async () => {
+    mockGetSellQuote.mockResolvedValueOnce(
+      validInfo({ id: 12, isValid: false, errors: ['AmountTooLow'] }),
+    );
+    const { result } = renderHook(() => useSellFlow());
+
+    await act(async () => {
+      await result.current.getQuote(QUOTE);
+    });
+
+    expect(result.current.paymentInfo).toMatchObject({
+      isValid: false,
+      error: 'AmountTooLow',
+    });
   });
 
   it('aborts a stale quote and keeps the newer quote result', async () => {
@@ -120,6 +139,7 @@ describe('useSellFlow', () => {
     expect(result.current.status).toBe('authGate');
     expect(result.current.authGate).toMatchObject({ kind: 'linkChain', chain: 'bitcoin' });
     expect(result.current.error).toBeNull();
+    expect(result.current.errorKey).toBe('100|CHF|BTC|Bitcoin|bitcoin');
   });
 
   it('retries sell payment info with the original IBAN-bearing params', async () => {

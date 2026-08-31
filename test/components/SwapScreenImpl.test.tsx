@@ -39,11 +39,16 @@ jest.mock('../../src/components/Icon', () => {
 
 describe('SwapScreenImpl', () => {
   it('renders the swap placeholder and active swap tabs', () => {
-    const { getByLabelText, getByTestId, getByText } = render(<SwapScreenImpl />);
+    const { getByLabelText, getByTestId, getAllByText } = render(<SwapScreenImpl />);
 
     expect(getByTestId('swap-screen')).toBeTruthy();
-    expect(getByText('Swap')).toBeTruthy();
-    expect(getByText('Swap is coming soon.')).toBeTruthy();
+    expect(getAllByText('Swap', { exact: true })).toHaveLength(2);
+    expect(getAllByText('Swap is coming soon.')).toHaveLength(2);
     expect(getByLabelText('swap')).toBeTruthy();
+    expect(getByTestId('swap-amount-panels')).toBeTruthy();
+    expect(getByTestId('swap-pay-amount')).toBeTruthy();
+    expect(getByTestId('swap-receive-amount')).toBeTruthy();
+    expect(getByTestId('swap-fees-panel')).toBeTruthy();
+    expect(getByTestId('swap-cta').props.accessibilityState.disabled).toBe(true);
   });
 });

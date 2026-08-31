@@ -3,6 +3,7 @@ import type { ChainId } from '@/config/chains';
 import { dfxPaymentService, interpretDfxAuthError } from '@/features/dfx-backend/services';
 import type { DfxAuthGateState } from '@/features/dfx-backend/services';
 import type { SellPaymentInfoDto } from '@/features/dfx-backend/services/dto';
+import { makeTradeQuoteKey } from './tradePanelStyles';
 
 type QuoteParams = {
   amount: number;
@@ -19,6 +20,9 @@ type SellState = {
   status: SellStatus;
   isLoading: boolean;
   paymentInfo: SellPaymentInfoDto | null;
+  quoteKey: string | null;
+  errorKey: string | null;
+  actionErrorKey: string | null;
   error: string | null;
   authGate: DfxAuthGateState | null;
 };
@@ -27,6 +31,9 @@ const INITIAL_STATE: SellState = {
   status: 'idle',
   isLoading: false,
   paymentInfo: null,
+  quoteKey: null,
+  errorKey: null,
+  actionErrorKey: null,
   error: null,
   authGate: null,
 };
@@ -72,7 +79,12 @@ export function useSellFlow() {
     };
   }, []);
 
-  const handleError = (err: unknown, fallback: string) => {
+  const handleError = (
+    err: unknown,
+    fallback: string,
+    requestKey: string | null = null,
+    source: 'quote' | 'action' = 'action',
+  ) => {
     if (err instanceof Error && err.name === 'AbortError') return;
     const gate = interpretDfxAuthError(err);
     if (gate) {
@@ -85,16 +97,26 @@ export function useSellFlow() {
         isLoading: false,
         authGate: enriched,
         error: null,
+        errorKey: source === 'quote' ? requestKey : s.errorKey,
+        actionErrorKey: source === 'action' ? requestKey : s.actionErrorKey,
         status: 'authGate',
       }));
       return;
     }
     const msg = err instanceof Error ? err.message : fallback;
-    setState((s) => ({ ...s, isLoading: false, error: msg, status: 'error' }));
+    setState((s) => ({
+      ...s,
+      isLoading: false,
+      error: msg,
+      errorKey: source === 'quote' ? requestKey : s.errorKey,
+      actionErrorKey: source === 'action' ? requestKey : s.actionErrorKey,
+      status: 'error',
+    }));
   };
 
   const getQuote = useCallback(async (params: QuoteParams) => {
     lastAction.current = { kind: 'quote', params };
+    const requestKey = makeTradeQuoteKey(params);
     quoteAbortRef.current?.abort();
     const controller = new AbortController();
     quoteAbortRef.current = controller;
@@ -102,6 +124,9 @@ export function useSellFlow() {
     setState((s) => ({
       ...s,
       isLoading: true,
+      quoteKey: null,
+      errorKey: null,
+      actionErrorKey: null,
       error: null,
       authGate: null,
       status: 'loading',
@@ -109,11 +134,21 @@ export function useSellFlow() {
     try {
       const info = await dfxPaymentService.getSellQuote(params, { signal: controller.signal });
       if (quoteAbortRef.current !== controller) return null;
-      setSellState({ isLoading: false, paymentInfo: info, error: null, authGate: null });
-      return info;
+      const firstError = info.errors && info.errors.length > 0 ? info.errors[0] : undefined;
+      const normalised = info.error || !firstError ? info : { ...info, error: firstError };
+      setSellState({
+        isLoading: false,
+        paymentInfo: normalised,
+        quoteKey: requestKey,
+        errorKey: null,
+        actionErrorKey: null,
+        error: null,
+        authGate: null,
+      });
+      return normalised;
     } catch (err) {
       if (quoteAbortRef.current !== controller) return null;
-      handleError(err, 'Quote failed');
+      handleError(err, 'Quote failed', requestKey, 'quote');
       return null;
     }
   }, []);
@@ -121,21 +156,45 @@ export function useSellFlow() {
   const createPaymentInfo = useCallback(async (params: PaymentInfoParams) => {
     lastAction.current = { kind: 'paymentInfo', params };
     const controller = new AbortController();
-    setState((s) => ({ ...s, isLoading: true, error: null, authGate: null, status: 'loading' }));
+    setState((s) => ({
+      ...s,
+      isLoading: true,
+      error: null,
+      errorKey: null,
+      actionErrorKey: null,
+      authGate: null,
+      status: 'loading',
+    }));
     try {
       const info = await dfxPaymentService.createSellPaymentInfo(params, {
         signal: controller.signal,
       });
-      setSellState({ isLoading: false, paymentInfo: info, error: null, authGate: null });
+      setSellState({
+        isLoading: false,
+        paymentInfo: info,
+        quoteKey: makeTradeQuoteKey(params),
+        errorKey: null,
+        actionErrorKey: null,
+        error: null,
+        authGate: null,
+      });
       return info;
     } catch (err) {
-      handleError(err, 'Failed to create sell order');
+      handleError(err, 'Failed to create sell order', makeTradeQuoteKey(params), 'action');
       return null;
     }
   }, []);
 
   const confirmSell = useCallback(async (id: number) => {
-    setState((s) => ({ ...s, isLoading: true, error: null, authGate: null, status: 'loading' }));
+    setState((s) => ({
+      ...s,
+      isLoading: true,
+      error: null,
+      errorKey: null,
+      actionErrorKey: null,
+      authGate: null,
+      status: 'loading',
+    }));
     try {
       await dfxPaymentService.confirmSell(id);
       setState((s) => ({
