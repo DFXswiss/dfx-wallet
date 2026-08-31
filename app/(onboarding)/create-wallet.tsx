@@ -197,7 +197,7 @@ const makeStyles = (colors: ThemeColors) =>
       paddingHorizontal: 12,
       paddingVertical: 10,
       gap: 6,
-      minWidth: '30%',
+      width: '31%',
     },
     wordIndex: {
       ...Typography.bodySmall,

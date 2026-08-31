@@ -27,11 +27,12 @@ import type { ChainId } from '@/config/chains';
 import {
   formatFiat as fmtFiat,
   formatCryptoAmount as fmtCrypto,
+  SYMBOL_GLYPH,
 } from '@/config/portfolio-presentation';
 import { useLdsWallet } from '@/hooks';
 import { useLinkedWalletReauth } from '@/features/linked-wallets/useLinkedWalletReauth';
 import { useBuyFlow } from './useBuyFlow';
-import { markChainLinkedInAutoLinkCache } from '@/features/dfx-backend/useDfxAutoLinkImpl';
+import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
 import { dfxAuthService, DfxApiError } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
@@ -262,6 +263,7 @@ export default function BuyScreen() {
   const [amount, setAmount] = useState('');
   const [selectedCurrency, setSelectedCurrency] = useState<(typeof CURRENCIES)[number]>('CHF');
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(true);
 
   // After the user goes through the DFX login flow we land back on this
   // screen; replay the failed call so they don't have to retap "Continue".
@@ -543,6 +545,20 @@ export default function BuyScreen() {
           ) : null}
 
           <View style={styles.amountCard}>
+            <View style={styles.quickRow}>
+              {['50', '100', '250', '500'].map((val) => (
+                <Pressable
+                  key={val}
+                  testID={`buy-preset-${val}`}
+                  style={styles.quickAmount}
+                  onPress={() => setAmount(val)}
+                >
+                  <Text style={styles.quickAmountText}>
+                    {`${SYMBOL_GLYPH.get(selectedCurrency) ?? selectedCurrency}${val}`}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
             <TextInput
               style={styles.amountInput}
               value={amount}
@@ -572,24 +588,38 @@ export default function BuyScreen() {
                 </Pressable>
               ))}
             </View>
-            <View style={styles.quickRow}>
-              {['100', '500', '1000', '5000'].map((val) => (
-                <Pressable key={val} style={styles.quickAmount} onPress={() => setAmount(val)}>
-                  <Text style={styles.quickAmountText}>{val}</Text>
-                </Pressable>
-              ))}
-            </View>
           </View>
 
           {showQuoteCard ? (
             <View style={styles.quoteCard}>
-              <View style={styles.quoteHeader}>
-                <Text style={styles.quoteTitle}>{t('buy.summary')}</Text>
+              <Pressable
+                style={({ pressed }) => [styles.quoteToggle, pressed && styles.pressed]}
+                onPress={() => setCollapsed((value) => !value)}
+                accessibilityRole="button"
+              >
+                <Icon name="shield" size={18} color={colors.primary} />
+                <Text style={styles.quoteToggleText} numberOfLines={2}>
+                  {hasQuote && paymentInfo
+                    ? t('buy.rateInclFees', {
+                        asset: targetAsset,
+                        amount: fmtFiat(paymentInfo.exchangeRate),
+                        currency: selectedCurrency,
+                      })
+                    : t('buy.summary')}
+                </Text>
+                {hasQuote && fees ? (
+                  <View style={styles.quoteFeeBadge}>
+                    <Text style={styles.quoteFeeBadgeText}>{fmtFiat(fees.total)}</Text>
+                  </View>
+                ) : null}
                 {isLoading && !unsupportedChain ? (
                   <ActivityIndicator size="small" color={colors.primary} />
                 ) : null}
-              </View>
-              {unsupportedChain ? (
+                <View style={collapsed ? undefined : styles.quoteChevronOpen}>
+                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+                </View>
+              </Pressable>
+              {collapsed ? null : unsupportedChain ? (
                 <Text style={styles.quoteError}>{t('buy.chainUnsupported')}</Text>
               ) : hasQuote && fees ? (
                 <>
@@ -614,6 +644,12 @@ export default function BuyScreen() {
                       value={`${fmtFiat(fees.fixed)} ${selectedCurrency}`}
                     />
                   ) : null}
+                  {fees.bank > 0 ? (
+                    <QuoteRow
+                      label={t('buy.feeBank')}
+                      value={`${fmtFiat(fees.bank)} ${selectedCurrency}`}
+                    />
+                  ) : null}
                   <QuoteRow
                     label={t('buy.feeTotal')}
                     value={`${fmtFiat(fees.total)} ${selectedCurrency}`}
@@ -624,6 +660,7 @@ export default function BuyScreen() {
                     label={t('buy.youReceive')}
                     value={`${fmtCrypto(paymentInfo!.estimatedAmount)} ${targetAsset}`}
                     emphasis
+                    accent
                   />
                 </>
               ) : quoteError ? (
@@ -666,10 +703,26 @@ export default function BuyScreen() {
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
+          <Pressable
+            testID="buy-payment-method-row"
+            style={({ pressed }) => [styles.paymentMethodRow, pressed && styles.pressed]}
+            accessibilityRole="button"
+          >
+            <View style={styles.paymentMethodIcon}>
+              <Icon name="wallet" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.paymentMethodBody}>
+              <Text style={styles.paymentMethodTitle}>{t('buy.paymentMethodSepa')}</Text>
+              <Text style={styles.paymentMethodHint}>{t('buy.paymentMethodSepaHint')}</Text>
+            </View>
+            <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+          </Pressable>
+
           <View style={styles.spacer} />
 
           <PrimaryButton
-            title={t('common.continue')}
+            title={`${t('buy.title')} ${targetAsset}`}
+            icon={<Icon name="arrow-right" size={18} color={colors.white} />}
             onPress={async () => {
               if (!selectedChainSpec) return;
               if (hasTargetWallet) {
@@ -912,11 +965,13 @@ function QuoteRow({
   value,
   sub,
   emphasis,
+  accent,
 }: {
   label: string;
   value: string;
   sub?: string;
   emphasis?: boolean;
+  accent?: boolean;
 }) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -924,7 +979,15 @@ function QuoteRow({
     <View style={styles.quoteRow}>
       <Text style={styles.quoteLabel}>{label}</Text>
       <View style={{ alignItems: 'flex-end' }}>
-        <Text style={[styles.quoteValue, emphasis && styles.quoteValueEmphasis]}>{value}</Text>
+        <Text
+          style={[
+            styles.quoteValue,
+            emphasis && styles.quoteValueEmphasis,
+            accent && styles.quoteValueAccent,
+          ]}
+        >
+          {value}
+        </Text>
         {sub ? <Text style={styles.quoteSub}>{sub}</Text> : null}
       </View>
     </View>
@@ -1159,11 +1222,6 @@ const makeStyles = (colors: ThemeColors) =>
       padding: 18,
       gap: 14,
     },
-    quoteHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
     quoteTitle: {
       ...Typography.bodySmall,
       fontWeight: '600',
@@ -1204,6 +1262,66 @@ const makeStyles = (colors: ThemeColors) =>
     },
     quoteValueEmphasis: {
       fontWeight: '700',
+    },
+    quoteValueAccent: {
+      color: colors.primary,
+    },
+    quoteToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    quoteToggleText: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      fontWeight: '500',
+      flex: 1,
+    },
+    quoteFeeBadge: {
+      backgroundColor: colors.primaryLight,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 999,
+    },
+    quoteFeeBadgeText: {
+      ...Typography.bodySmall,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    quoteChevronOpen: {
+      transform: [{ rotate: '90deg' }],
+    },
+    paymentMethodRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+    },
+    paymentMethodIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    paymentMethodBody: {
+      flex: 1,
+      gap: 2,
+    },
+    paymentMethodTitle: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    paymentMethodHint: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
     },
     quoteSub: {
       ...Typography.bodySmall,
