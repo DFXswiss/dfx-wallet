@@ -1,13 +1,5 @@
 import { useCallback, useEffect, useState, useMemo } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
@@ -17,18 +9,17 @@ import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type SupportView = 'list' | 'create' | 'chat';
 
-// Semantic accent colours — theme-agnostic so the map can be referenced
-// at module scope before the component mounts.
-const STATE_COLORS: Record<string, string> = {
-  Open: '#EAB308',
-  InProgress: '#2F7CF7',
-  Resolved: '#16A34A',
-  Closed: '#8D98AA',
-};
+const makeStateColors = (colors: ThemeColors): Record<string, string> => ({
+  Open: colors.warning,
+  InProgress: colors.info,
+  Resolved: colors.success,
+  Closed: colors.textTertiary,
+});
 
 export default function SupportScreen() {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const stateColors = useMemo(() => makeStateColors(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
   const [view, setView] = useState<SupportView>('list');
@@ -138,9 +129,10 @@ export default function SupportScreen() {
                 </Text>
               </View>
               <View
+                testID={`support-ticket-status-${issue.id}`}
                 style={[
                   styles.statusBadge,
-                  { backgroundColor: STATE_COLORS[issue.state] ?? colors.textTertiary },
+                  { backgroundColor: stateColors[issue.state] ?? colors.textTertiary },
                 ]}
               >
                 <Text style={styles.statusText}>{issue.state}</Text>

@@ -79,7 +79,11 @@ jobs:
         run: npx detox build-framework-cache
 
       - name: Provision testnet env
-        run: cp .env.testnet .env
+        run: |
+          cp .env.testnet .env
+          # Keep visual builds deterministic and prevent live background work
+          # from contending with PIN hashing on hosted simulator runners.
+          echo "EXPO_PUBLIC_E2E=true" >> .env
 
       - name: Enable all feature flags (full variant only)
         if: matrix.variant == 'full'

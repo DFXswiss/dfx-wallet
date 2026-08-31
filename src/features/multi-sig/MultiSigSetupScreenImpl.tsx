@@ -656,7 +656,7 @@ const makeStyles = (colors: ThemeColors) =>
       width: 22,
       height: 22,
       borderRadius: 11,
-      backgroundColor: '#22C55E',
+      backgroundColor: colors.success,
       borderWidth: 2,
       borderColor: colors.surface,
       alignItems: 'center',
@@ -679,7 +679,7 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: 11,
     },
     diagramSignerStatusApproved: {
-      color: '#22C55E',
+      color: colors.success,
       fontWeight: '600',
     },
     diagramArrow: {

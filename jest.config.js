@@ -40,6 +40,19 @@ module.exports = {
     // Security-critical feature logic that lives outside a `services/` folder
     // but must still be measured (and is pinned in .coverage-floors.json).
     'src/features/biometric/biometric.ts',
+    // Portfolio logic + screens (full-area coverage).
+    'src/features/portfolio/useTotalPortfolioFiatFull.ts',
+    'src/features/portfolio/useEnabledChains.ts',
+    'src/features/portfolio/PortfolioScreenImpl.tsx',
+    'src/features/portfolio/PortfolioAssetDetailScreenImpl.tsx',
+    'src/features/portfolio/PortfolioManageScreenImpl.tsx',
+    // Settings logic + screens (full-area coverage).
+    'src/features/settings/SettingsScreenImpl.tsx',
+    'src/features/settings/SeedExportScreenImpl.tsx',
+    // Multi-Sig logic + screens (full-area coverage).
+    'src/features/multi-sig/store.ts',
+    'src/features/multi-sig/MultiSigSetupScreenImpl.tsx',
+    'src/features/multi-sig/MultiSigManageScreenImpl.tsx',
     '!**/*.d.ts',
     '!**/types.ts',
   ],
