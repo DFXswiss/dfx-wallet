@@ -40,6 +40,7 @@
       "RecommendationRequired": "Referral code required.",
       "generic": "Quote could not be generated ({{code}})."
     },
+    "rateInclFees": "1 {{asset}} ≈ {{amount}} {{currency}} (incl. fees)",
     "receiveLabel": "You receive",
     "recipient": "Recipient",
     "reference": "Reference code",

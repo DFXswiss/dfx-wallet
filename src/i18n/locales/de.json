@@ -40,6 +40,7 @@
       "RecommendationRequired": "Empfehlungscode erforderlich.",
       "generic": "Angebot konnte nicht erstellt werden ({{code}})."
     },
+    "rateInclFees": "1 {{asset}} ≈ {{amount}} {{currency}} (inkl. Gebühren)",
     "receiveLabel": "Du erhältst",
     "recipient": "Empfänger",
     "reference": "Verwendungszweck",
