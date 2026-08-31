@@ -68,12 +68,17 @@ describe('SwapScreenImpl', () => {
   });
 
   it('renders the swap placeholder and active swap tabs', () => {
-    const { getAllByText, getByLabelText, getByTestId, getByText } = render(<SwapScreenImpl />);
+    const { getByLabelText, getByTestId, getAllByText } = render(<SwapScreenImpl />);
 
     expect(getByTestId('swap-screen')).toBeTruthy();
-    expect(getAllByText('Swap')).toHaveLength(2);
-    expect(getByText('Swap is coming soon.')).toBeTruthy();
+    expect(getAllByText('Swap', { exact: true })).toHaveLength(2);
+    expect(getAllByText('Swap is coming soon.')).toHaveLength(2);
     expect(getByLabelText('swap')).toBeTruthy();
+    expect(getByTestId('swap-amount-panels')).toBeTruthy();
+    expect(getByTestId('swap-pay-amount')).toBeTruthy();
+    expect(getByTestId('swap-receive-amount')).toBeTruthy();
+    expect(getByTestId('swap-fees-panel')).toBeTruthy();
+    expect(getByTestId('swap-cta').props.accessibilityState.disabled).toBe(true);
   });
 
   it('navigates back from the header when navigation history exists', () => {

@@ -79,6 +79,9 @@ describe('useBuyFlow', () => {
     expect(result.current.error).toBeNull();
     expect(result.current.authGate).toBeNull();
     expect(result.current.isLoading).toBe(false);
+    expect(result.current.quoteKey).toBe('100|EUR|BTC|Bitcoin|bitcoin');
+    expect(result.current.errorKey).toBeNull();
+    expect(result.current.actionErrorKey).toBeNull();
   });
 
   it('normalises errors[0] into paymentInfo.error and derives invalid', async () => {
@@ -159,12 +162,16 @@ describe('useBuyFlow', () => {
 
     expect(result.current.status).toBe('error');
     expect(result.current.error).toBe('network down');
+    expect(result.current.errorKey).toBe('100|EUR|BTC|Bitcoin|bitcoin');
     expect(result.current.isLoading).toBe(false);
   });
 
   it('translates a DFX API timeout instead of exposing its raw message', async () => {
     const timeout = new DfxApiTimeoutError(15_000);
     mockGetBuyQuote.mockRejectedValueOnce(timeout);
+  it('binds payment-info errors to the action quote key', async () => {
+    mockGetBuyQuote.mockResolvedValueOnce(validInfo());
+    mockCreateBuyPaymentInfo.mockRejectedValueOnce(new Error('payment info failed'));
     const { result } = renderHook(() => useBuyFlow());
 
     await act(async () => {
@@ -174,6 +181,13 @@ describe('useBuyFlow', () => {
     expect(result.current.status).toBe('error');
     expect(result.current.error).toBe('common.requestTimeout');
     expect(result.current.error).not.toBe(timeout.message);
+      await result.current.createPaymentInfo(QUOTE);
+    });
+
+    expect(result.current.error).toBe('payment info failed');
+    expect(result.current.errorKey).toBeNull();
+    expect(result.current.actionErrorKey).toBe('100|EUR|BTC|Bitcoin|bitcoin');
+    expect(result.current.quoteKey).toBe('100|EUR|BTC|Bitcoin|bitcoin');
   });
 
   it('does not enter error state when the quote is aborted', async () => {

@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   ImageBackground,
   Pressable,
   ScrollView,
@@ -14,7 +13,7 @@ import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-rou
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { useAccount } from '@tetherto/wdk-react-native-core';
+import { useAccount, useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import {
   AppHeader,
   ConfirmTargetWalletModal,
@@ -23,46 +22,28 @@ import {
   PrimaryButton,
 } from '@/components';
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
-import {
-  canAdvanceToPayment,
-  getPaymentInfoErrorCode,
-  getQuoteErrorCode,
-} from '@/features/buy-sell/services/quote-display';
-import {
-  createDfxSessionGuard,
-  isLocalSessionEndedError,
-} from '@/features/dfx-backend/session-guard';
 import type { ChainId } from '@/config/chains';
 import {
   formatBalance,
   formatCryptoAmount as fmtCrypto,
   formatFiat as fmtFiat,
-  normalizeDecimalAmount,
   toNumeric,
 } from '@/config/portfolio-presentation';
-import {
-  assetIncludedInEvmBalanceQuery,
-  assetIncludedInWdkBalanceQuery,
-  getAssetMeta,
-  getAssets,
-} from '@/config/tokens';
+import { getAssetMeta, getAssets, WDK_SUPPORTED_CHAINS } from '@/config/tokens';
 import { useLdsWallet } from '@/hooks';
 import { useEnabledChains } from '@/features/portfolio/useEnabledChains';
 import { useLinkedWalletReauth } from '@/features/linked-wallets/useLinkedWalletReauth';
 import { useSellFlow } from './useSellFlow';
 import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
 import { dfxAuthService, DfxApiError } from '@/features/dfx-backend/services';
-import { getRawBalance, useBalances } from '@/services/balances';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
-import {
-  MonospaceFontFamily,
-  Typography,
-  useColors,
-  useResolvedScheme,
-  type ThemeColors,
-} from '@/theme';
-import { TradeModeTabs } from '@/features/buy-sell/TradeModeTabs';
+import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import TradeModeTabs from './TradeModeTabs';
+import { AssetGlyph } from './AssetGlyph';
+import { CurrencyGlyph } from './CurrencyGlyph';
+import { MobileFeesPanel } from './MobileFeesPanel';
+import { isAccountGateError, makeTradeQuoteKey, SELECTOR_PILL_LAYOUT } from './tradePanelStyles';
 
 type SellStep = 'amount' | 'bank' | 'confirm';
 
@@ -233,31 +214,18 @@ export default function SellScreen() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
-  const [paymentInfoError, setPaymentInfoError] = useState<string | null>(null);
-  // Same-tick double presses both see confirmLoading === false. The ref
-  // closes that window; confirmLoading still guards a press after paint.
-  // Taken on submit. Released on a terminal payment-info result, on cancel,
-  // and on Back. A replay and an opening auth gate leave it held.
-  const submitLockRef = useRef(false);
-  // Bumped on every payment submit and on every cancel, so a response from
-  // an earlier submit cannot be applied to a later one.
-  const submitGenRef = useRef(0);
-  // The submit whose payment-info result may still open the confirm step.
-  // Null after cancel, Back, or a terminal result. A null payload that opens
-  // an auth gate keeps it, so the replay after sign-in can still apply.
-  const pendingGenRef = useRef<number | null>(null);
-  const unresolvedPaymentRef = useRef(false);
-  const [unresolvedPayment, setUnresolvedPayment] = useState(0);
   const { enabledChains } = useEnabledChains();
   const {
     paymentInfo,
+    quoteKey,
+    errorKey,
+    actionErrorKey,
     isLoading,
     error,
     authGate,
     getQuote,
     createPaymentInfo,
     dismissAuthGate,
-    cancelAuthGate,
     retryLast,
   } = useSellFlow();
   const [step, setStep] = useState<SellStep>('amount');
@@ -282,119 +250,15 @@ export default function SellScreen() {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(true);
 
-  useEffect(() => {
-    setPaymentInfoError(null);
-  }, [amount, selectedAsset, selectedChainIndex, selectedTokenIndex, payoutCurrency]);
-
-  const beginPaymentSubmit = (): number => {
-    const gen = ++submitGenRef.current;
-    pendingGenRef.current = gen;
-    submitLockRef.current = true;
-    return gen;
-  };
-
-  const cancelPaymentSubmit = useCallback((): void => {
-    submitGenRef.current += 1;
-    pendingGenRef.current = null;
-    submitLockRef.current = false;
-  }, []);
-
-  const handlePaymentInfoResult = useCallback(
-    (info: Awaited<ReturnType<typeof createPaymentInfo>>, gen: number) => {
-      // Back or auth-gate cancel may have landed while this request was in
-      // flight. A newer submit owns the generation then, and this result
-      // must not be applied to it.
-      if (pendingGenRef.current === null || pendingGenRef.current !== gen) return;
-      if (canAdvanceToPayment(info)) {
-        pendingGenRef.current = null;
-        submitLockRef.current = false;
-        setPaymentInfoError(null);
-        setConfirmError(null);
-        setConfirmOpen(false);
-        setStep('confirm');
-        return;
-      }
-
-      const errorCode = getPaymentInfoErrorCode(info);
-      if (errorCode) {
-        pendingGenRef.current = null;
-        submitLockRef.current = false;
-        setPaymentInfoError(
-          errorCode === 'noCode'
-            ? t('sell.quoteError.noCode')
-            : t([`sell.quoteError.${errorCode}`, 'sell.quoteError.generic'], { code: errorCode }),
-        );
-        return;
-      }
-
-      // null, and no error code on the payload. The hook's auth gate or
-      // error lands on the next render; decide there so a stale closure
-      // cannot show an error beside the gate. Keep the generation: a gate
-      // is not a terminal result, and the replay still has to apply.
-      unresolvedPaymentRef.current = true;
-      setUnresolvedPayment((n) => n + 1);
-    },
-    [t],
-  );
-
-  const resumeAfterAuth = useCallback(async () => {
-    const gen = pendingGenRef.current;
-    const result = await retryLast();
-    if (result?.kind === 'paymentInfo') {
-      if (gen === null || pendingGenRef.current !== gen) return;
-      handlePaymentInfoResult(result.info, gen);
-    }
-    // quote results are applied by the hook's own state
-  }, [retryLast, handlePaymentInfoResult]);
-
   // Replay the last failed call after the user finishes the DFX login flow.
-  // retryLast only replays an action that was gated and not cancelled.
-  // Read the gate through a ref so this callback stays stable while the
-  // modal opens and closes.
   const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
-  const authGateRef = useRef(authGate);
-  authGateRef.current = authGate;
   useFocusEffect(
     useCallback(() => {
       if (isDfxAuthenticated) {
-        void resumeAfterAuth();
-        return;
+        void retryLast();
       }
-      // Act only when signed out with no gate and a payment submit still pending
-      // (the user backed out of login): then drop the replay and unlock below.
-      if (authGateRef.current || pendingGenRef.current === null) return;
-      cancelAuthGate();
-      pendingGenRef.current = null;
-      submitLockRef.current = false;
-    }, [isDfxAuthenticated, resumeAfterAuth, cancelAuthGate]),
+    }, [isDfxAuthenticated, retryLast]),
   );
-
-  // One modal at a time: the auth gate replaces the confirm dialog.
-  // Closing the dialog must not release the submit lock. The replay of the
-  // call that opened the gate still owns it.
-  useLayoutEffect(() => {
-    if (!authGate || !confirmOpen) return;
-    setConfirmOpen(false);
-    setConfirmLoading(false);
-  }, [authGate, confirmOpen]);
-
-  useEffect(() => {
-    if (!unresolvedPaymentRef.current) return;
-    if (isLoading) return;
-    unresolvedPaymentRef.current = false;
-    if (authGate) {
-      // Hold the submit lock and the pending generation until cancel or the
-      // replay. The gate is the only control the user has until then.
-      return;
-    }
-    pendingGenRef.current = null;
-    submitLockRef.current = false;
-    setConfirmLoading(false);
-    const message = error ?? t('sell.quoteError.noCode');
-    if (confirmOpen) setConfirmError(message);
-    // The bank step already renders the hook error once this update commits.
-    if (!error) setPaymentInfoError(message);
-  }, [unresolvedPayment, authGate, error, isLoading, confirmOpen, t]);
 
   const btcAccount = useAccount({ network: 'bitcoin', accountIndex: 0 });
   const sparkAccount = useAccount({ network: 'spark', accountIndex: 0 });
@@ -403,23 +267,8 @@ export default function SellScreen() {
 
   const linkChainToDfx = useCallback(
     async (chain: ChainId) => {
-      const retryAfterSuccessfulLink = async () => {
-        try {
-          await resumeAfterAuth();
-        } catch (err) {
-          // The flow owns retry errors; do not surface them as link failures.
-          // A session end must escape so the caller releases the submit lock.
-          if (isLocalSessionEndedError(err)) throw err;
-        }
-      };
-      const guard = createDfxSessionGuard();
-      let latestToken: string | undefined;
-      const assertFlowActive = () =>
-        latestToken === undefined ? guard.assertActive() : guard.assertActive(latestToken);
-      await guard.assertActive();
       if (chain === 'bitcoin-taproot' || chain === 'bitcoin-lightning') {
         const user = lds.user ?? (await lds.signIn());
-        await guard.assertActive();
         if (!user) {
           throw new Error('DFX Lightning wallet not ready — please retry.');
         }
@@ -429,25 +278,19 @@ export default function SellScreen() {
             user.lightning.addressOwnershipProof,
             { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
           );
-          latestToken = ldsToken;
-          await guard.persistToken(ldsToken);
-          await assertFlowActive();
+          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ldsToken);
           await markChainLinkedInAutoLinkCache('lightning');
-          await retryAfterSuccessfulLink();
+          void retryLast();
         } catch (err) {
-          if (isLocalSessionEndedError(err)) throw err;
-          await assertFlowActive();
           if (err instanceof DfxApiError && err.statusCode === 409) {
             const ownerToken = await dfxAuthService.loginAsLnurlAddressOwner(
               user.lightning.addressLnurl,
               user.lightning.addressOwnershipProof,
               { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
             );
-            latestToken = ownerToken;
-            await guard.persistToken(ownerToken);
-            await assertFlowActive();
+            await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
             await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
-            await retryAfterSuccessfulLink();
+            void retryLast();
             return;
           }
           throw err;
@@ -484,15 +327,11 @@ export default function SellScreen() {
           wallet: 'DFX Wallet',
           blockchain: blockchainName,
         });
-        latestToken = newToken;
-        await guard.persistToken(newToken);
-        await assertFlowActive();
+        await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, newToken);
         if (chain === 'bitcoin' || chain === 'arbitrum' || chain === 'polygon' || chain === 'base')
           await markChainLinkedInAutoLinkCache(chain);
-        await retryAfterSuccessfulLink();
+        void retryLast();
       } catch (err) {
-        if (isLocalSessionEndedError(err)) throw err;
-        await assertFlowActive();
         // 409 → address belongs to another DFX user. Re-auth as that user
         // (drop the prior session) so the rest of the flow runs against the
         // account that already owns this wallet. See buy/index.tsx for full
@@ -502,51 +341,33 @@ export default function SellScreen() {
             wallet: 'DFX Wallet',
             blockchain: blockchainName,
           });
-          latestToken = ownerToken;
-          await guard.persistToken(ownerToken);
-          await assertFlowActive();
+          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
           await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
-          await retryAfterSuccessfulLink();
+          void retryLast();
           return;
         }
         throw err;
       }
     },
-    [btcAccount, sparkAccount, ethAccount, lds, resumeAfterAuth],
-  );
-
-  const handleLinkChainToDfx = useCallback(
-    async (chain: ChainId) => {
-      const gateForLink = authGateRef.current ?? undefined;
-      try {
-        await linkChainToDfx(chain);
-      } catch (error) {
-        if (isLocalSessionEndedError(error)) {
-          cancelPaymentSubmit();
-          cancelAuthGate(gateForLink);
-          return;
-        }
-        throw error;
-      }
-    },
-    [linkChainToDfx, cancelAuthGate, cancelPaymentSubmit],
+    [btcAccount, sparkAccount, ethAccount, lds, retryLast],
   );
 
   // Wallet balances — drive the chain/token chip filter so users only see
   // chains where they actually have funds to sell.
   const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const {
-    data: balances,
-    isLoading: balancesLoading,
-    error: balancesError,
-  } = useBalances(assetConfigs);
+  const wdkAssets = useMemo(
+    () => assetConfigs.filter((a) => WDK_SUPPORTED_CHAINS.includes(a.getNetwork() as ChainId)),
+    [assetConfigs],
+  );
+  const { data: balanceResults } = useBalancesForWallet(0, wdkAssets);
 
   const hasHolding = (network: ChainId, symbol: string): boolean => {
     const asset = assetConfigs.find(
       (a) => a.getNetwork() === network && getAssetMeta(a.getId())?.symbol === symbol,
     );
     if (!asset) return false;
-    const raw = getRawBalance(balances, asset.getId());
+    const result = balanceResults?.find((r) => r.assetId === asset.getId());
+    const raw = result?.success ? (result.balance ?? '0') : '0';
     return toNumeric(formatBalance(raw, asset.getDecimals())) > 0;
   };
 
@@ -560,34 +381,7 @@ export default function SellScreen() {
       }))
       .filter((c) => c.tokens.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAsset, balances, assetConfigs]);
-
-  const selectedBalanceStatuses = useMemo(() => {
-    if (!selectedAsset) return [];
-    const selectedSymbols = new Set(
-      selectedAsset.chains.flatMap((chain) => chain.tokens.map((token) => token.assetSymbol)),
-    );
-    return assetConfigs
-      .filter((asset) => {
-        const meta = getAssetMeta(asset.getId());
-        return (
-          meta !== undefined &&
-          selectedSymbols.has(meta.symbol) &&
-          (assetIncludedInWdkBalanceQuery(asset) || assetIncludedInEvmBalanceQuery(asset))
-        );
-      })
-      .map((asset) => balances.get(asset.getId())?.status);
-  }, [assetConfigs, balances, selectedAsset]);
-  const balancesPending =
-    balancesLoading ||
-    (balancesError === null &&
-      selectedBalanceStatuses.some(
-        (status) => status === undefined || status === 'idle' || status === 'loading',
-      ));
-  const balancesIncomplete =
-    balancesPending ||
-    balancesError !== null ||
-    selectedBalanceStatuses.some((status) => status === 'error' || status === 'stale');
+  }, [selectedAsset, balanceResults, assetConfigs]);
 
   // eslint-disable-next-line security/detect-object-injection -- selectedChainIndex is bounded by availableChains.length
   const selectedChainSpec = availableChains[selectedChainIndex] ?? null;
@@ -595,12 +389,18 @@ export default function SellScreen() {
   const selectedTokenSpec = selectedChainSpec?.tokens[selectedTokenIndex] ?? null;
   const sellAsset = selectedTokenSpec?.assetSymbol ?? '';
   const blockchain = selectedChainSpec?.blockchain ?? '';
-  const normalizedAmount = normalizeDecimalAmount(amount);
-  const numAmount = normalizedAmount === null ? null : Number(normalizedAmount);
+  const currentQuoteKey = makeTradeQuoteKey({
+    amount: parseFloat(amount),
+    currency: payoutCurrency,
+    asset: sellAsset,
+    blockchain,
+    chain: selectedChainSpec?.chain ?? '',
+  });
 
   useEffect(() => {
     if (step !== 'amount' || !selectedChainSpec) return;
-    if (numAmount === null || numAmount <= 0) return;
+    const numAmount = parseFloat(amount);
+    if (!numAmount || numAmount <= 0) return;
     const id = setTimeout(() => {
       if (!selectedChainSpec) return;
       void getQuote({
@@ -612,7 +412,7 @@ export default function SellScreen() {
       });
     }, 350);
     return () => clearTimeout(id);
-  }, [numAmount, payoutCurrency, sellAsset, blockchain, step, getQuote, selectedChainSpec]);
+  }, [amount, payoutCurrency, sellAsset, blockchain, step, getQuote, selectedChainSpec]);
 
   const copy = async (label: string, value: string) => {
     if (!value) return;
@@ -622,44 +422,52 @@ export default function SellScreen() {
     setTimeout(() => setCopiedField(null), 1800);
   };
 
-  const feesTarget = paymentInfo?.feesTarget;
   // /sell/quote returns SellQuoteDto without asset/currency objects — those
   // only land on /sell/paymentInfos. We render the breakdown from local
   // selection state instead, so a valid quote shows up immediately.
+  const quoteIsCurrent = !!currentQuoteKey && !isLoading && quoteKey === currentQuoteKey;
   const hasQuote =
+    quoteIsCurrent &&
     !!paymentInfo &&
     paymentInfo.isValid &&
-    !!paymentInfo.feesTarget &&
-    numAmount !== null &&
-    numAmount > 0;
-  const quoteError = !hasQuote ? getQuoteErrorCode(paymentInfo) : null;
+    !!paymentInfo.fees &&
+    parseFloat(amount) > 0;
   // Empty quote without an explicit error code → the chain still has to
-  // be linked. The sell CTA opens the bank step; submitting the IBAN with
-  // Continue triggers the linkChain modal and auto-retries the quote.
-  const needsContinue = !hasQuote && !quoteError && !!paymentInfo && !isLoading;
+  // be linked. Tapping Weiter triggers the linkChain modal and auto-
+  // retries the quote. See buy/index.tsx for full rationale.
   // See buy/index.tsx — open the Angebot card the moment a positive amount
   // is set so the user always sees something refreshing instead of an empty
   // void during the /sell/quote round-trip.
-  const showQuoteCard = hasQuote || (numAmount !== null && numAmount > 0 && !!selectedChainSpec);
+  // Keep the fee panel directly below the trade panels, including its empty
+  // state before the first quote is available.
+  const paymentError = quoteIsCurrent ? (paymentInfo?.error ?? paymentInfo?.errors?.[0]) : null;
+  const quoteError = quoteIsCurrent && !hasQuote && paymentError ? String(paymentError) : null;
+  const quoteErrorIsCurrent = !!currentQuoteKey && !isLoading && errorKey === currentQuoteKey;
+  const genericQuoteError = quoteErrorIsCurrent ? error : null;
+  const actionErrorIsCurrent =
+    !!currentQuoteKey && !isLoading && actionErrorKey === currentQuoteKey;
+  const genericActionError = actionErrorIsCurrent ? error : null;
+  const authGateIsCurrent = !!authGate && (quoteErrorIsCurrent || actionErrorIsCurrent);
+  const needsContinue =
+    quoteIsCurrent && !hasQuote && !quoteError && !genericQuoteError && !!paymentInfo;
+  const canOpenGate =
+    !isLoading &&
+    !!currentQuoteKey &&
+    (authGateIsCurrent || !!genericQuoteError || needsContinue || isAccountGateError(quoteError));
+  const feePanelStatus = quoteError
+    ? t([`sell.quoteError.${quoteError}`, 'sell.quoteError.generic'], { code: quoteError })
+    : genericQuoteError
+      ? genericQuoteError
+      : genericActionError
+        ? genericActionError
+        : needsContinue
+          ? t('sell.continueHint')
+          : null;
   const minVolume = paymentInfo?.minVolume;
   const maxVolume = paymentInfo?.maxVolume;
-  const belowMin =
-    minVolume != null && numAmount !== null && numAmount > 0 && numAmount < minVolume;
-  const aboveMax = maxVolume != null && numAmount !== null && numAmount > maxVolume;
-  const sellAction = t('sell.cta', { asset: sellAsset });
-  const quoteHeader = quoteError
-    ? t([`sell.quoteError.${quoteError}`, 'sell.quoteError.generic'], { code: quoteError })
-    : needsContinue
-      ? t('sell.continueHint', { action: sellAction, next: t('common.continue') })
-      : isLoading
-        ? t('sell.fetchingQuote')
-        : hasQuote && paymentInfo && Number.isFinite(paymentInfo.rate) && paymentInfo.rate > 0
-          ? t('sell.rateInclFees', {
-              asset: sellAsset,
-              amount: fmtFiat(1 / paymentInfo.rate),
-              currency: payoutCurrency,
-            })
-          : t('sell.summary');
+  const numAmount = parseFloat(amount);
+  const belowMin = minVolume != null && numAmount > 0 && numAmount < minVolume;
+  const aboveMax = maxVolume != null && numAmount > maxVolume;
 
   const renderAmountStepContent = () => (
     <View style={styles.stepContent}>
@@ -704,16 +512,8 @@ export default function SellScreen() {
         ))}
       </View>
 
-      {selectedAsset && balancesIncomplete ? (
-        <Text style={styles.warning} testID="sell-balance-incomplete">
-          {t(balancesPending ? 'sell.balanceLoading' : 'sell.balanceUnavailable')}
-        </Text>
-      ) : null}
-
-      {selectedAsset && !balancesIncomplete && availableChains.length === 0 ? (
-        <Text style={styles.warning} testID="sell-no-balance">
-          {t('sell.noBalance')}
-        </Text>
+      {selectedAsset && availableChains.length === 0 ? (
+        <Text style={styles.warning}>{t('sell.noBalance')}</Text>
       ) : null}
 
       {selectedAsset && availableChains.length > 0 ? (
@@ -761,125 +561,92 @@ export default function SellScreen() {
             </View>
           ) : null}
 
-          <View style={styles.amountCard}>
-            <TextInput
-              testID="sell-amount-input"
-              style={styles.amountInput}
-              value={amount}
-              onChangeText={setAmount}
-              placeholder="0.00"
-              placeholderTextColor={colors.textTertiary}
-              keyboardType="decimal-pad"
-            />
-            <Text style={styles.amountUnit}>{sellAsset}</Text>
-            <View style={styles.currencyRow}>
-              {FIAT_CURRENCIES.map((cur) => (
+          <View style={styles.panels} testID="sell-amount-panels">
+            <View style={styles.panel}>
+              <Text style={styles.plabel}>{t('sell.youSell')}</Text>
+              <View style={styles.pinput}>
+                <TextInput
+                  style={styles.amt}
+                  value={amount}
+                  onChangeText={setAmount}
+                  placeholder="0"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="decimal-pad"
+                  testID="sell-pay-amount"
+                />
+                <View style={styles.pill} testID="sell-pay-asset-pill">
+                  <AssetGlyph symbol={sellAsset || ''} size={32} />
+                  <View style={styles.pillMeta}>
+                    <Text style={styles.pillTitle} numberOfLines={1}>
+                      {sellAsset}
+                    </Text>
+                    {selectedChainSpec ? (
+                      <Text style={styles.pillSubtitle} numberOfLines={1}>
+                        {selectedChainSpec.label}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            <Pressable
+              style={styles.fab}
+              onPress={() => router.replace('/(auth)/buy')}
+              testID="sell-flip-to-buy"
+              accessibilityRole="button"
+              accessibilityLabel={t('buy.flipToSell')}
+            >
+              <Icon name="swap" size={18} color={colors.primary} />
+            </Pressable>
+
+            <View style={[styles.panel, styles.panelRecv]}>
+              <View style={styles.prowBetween}>
+                <Text style={styles.plabel}>{t('sell.youReceive')}</Text>
+                {isLoading ? <Text style={styles.pmeta}>{t('sell.fetchingQuote')}</Text> : null}
+              </View>
+              <View style={styles.pinput}>
+                <TextInput
+                  style={styles.amt}
+                  value={hasQuote && paymentInfo ? fmtFiat(paymentInfo.estimatedAmount) : ''}
+                  editable={false}
+                  placeholder="0"
+                  placeholderTextColor={colors.textTertiary}
+                  testID="sell-receive-amount"
+                />
                 <Pressable
-                  key={cur}
-                  testID={`sell-currency-${cur}`}
-                  style={[styles.currencyChip, payoutCurrency === cur && styles.currencyChipActive]}
-                  onPress={() => setPayoutCurrency(cur)}
+                  style={styles.pill}
+                  onPress={() =>
+                    setPayoutCurrency(
+                      (cur) =>
+                        FIAT_CURRENCIES[
+                          (FIAT_CURRENCIES.indexOf(cur) + 1) % FIAT_CURRENCIES.length
+                        ]!,
+                    )
+                  }
+                  testID="sell-receive-currency-pill"
+                  accessibilityRole="button"
+                  accessibilityLabel={t('sell.youReceive')}
                 >
-                  <Text
-                    style={[
-                      styles.currencyText,
-                      payoutCurrency === cur && styles.currencyTextActive,
-                    ]}
-                  >
-                    {cur}
-                  </Text>
+                  <CurrencyGlyph code={payoutCurrency} size={32} />
+                  <Text style={styles.pillTitle}>{payoutCurrency}</Text>
+                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
                 </Pressable>
-              ))}
+              </View>
             </View>
           </View>
 
-          {showQuoteCard ? (
-            <View style={styles.quoteCard}>
-              <Pressable
-                style={({ pressed }) => [styles.quoteToggle, pressed && styles.pressed]}
-                onPress={() => setCollapsed((value) => !value)}
-                accessibilityRole="button"
-              >
-                <Icon name="shield" size={18} color={colors.primary} />
-                <Text style={styles.quoteToggleText} numberOfLines={2}>
-                  {quoteHeader}
-                </Text>
-                {hasQuote && feesTarget ? (
-                  <View style={styles.quoteFeeBadge}>
-                    <Text style={styles.quoteFeeBadgeText}>{fmtFiat(feesTarget.total)}</Text>
-                  </View>
-                ) : null}
-                {isLoading ? <ActivityIndicator size="small" color={colors.primary} /> : null}
-                <View style={collapsed ? undefined : styles.quoteChevronOpen}>
-                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
-                </View>
-              </Pressable>
-              {collapsed ? null : hasQuote && feesTarget ? (
-                <>
-                  {Number.isFinite(paymentInfo!.exchangeRate) && paymentInfo!.exchangeRate > 0 ? (
-                    <QuoteRow
-                      label={t('sell.exchangeRate')}
-                      value={`1 ${sellAsset} = ${fmtFiat(
-                        1 / paymentInfo!.exchangeRate,
-                      )} ${payoutCurrency}`}
-                    />
-                  ) : null}
-                  <QuoteRow
-                    label={t('sell.feeDfx')}
-                    value={`${(feesTarget.rate * 100).toFixed(2)}%`}
-                    {...(feesTarget.dfx > 0
-                      ? { sub: `${fmtFiat(feesTarget.dfx)} ${payoutCurrency}` }
-                      : {})}
-                  />
-                  {feesTarget.network > 0 ? (
-                    <QuoteRow
-                      label={t('sell.feeNetwork')}
-                      value={`${fmtFiat(feesTarget.network)} ${payoutCurrency}`}
-                    />
-                  ) : null}
-                  {feesTarget.fixed > 0 ? (
-                    <QuoteRow
-                      label={t('sell.feeFixed')}
-                      value={`${fmtFiat(feesTarget.fixed)} ${payoutCurrency}`}
-                    />
-                  ) : null}
-                  {feesTarget.bank > 0 ? (
-                    <QuoteRow
-                      label={t('sell.feeBank')}
-                      value={`${fmtFiat(feesTarget.bank)} ${payoutCurrency}`}
-                    />
-                  ) : null}
-                  <QuoteRow
-                    label={t('sell.feeTotal')}
-                    value={`${fmtFiat(feesTarget.total)} ${payoutCurrency}`}
-                    emphasis
-                  />
-                  <View style={styles.quoteDivider} />
-                  <QuoteRow
-                    label={t('sell.youReceive')}
-                    value={`${fmtFiat(paymentInfo!.estimatedAmount)} ${payoutCurrency}`}
-                    emphasis
-                    accent
-                  />
-                </>
-              ) : quoteError ? (
-                <Text style={styles.quoteError}>
-                  {t([`sell.quoteError.${quoteError}`, 'sell.quoteError.generic'], {
-                    code: quoteError,
-                  })}
-                </Text>
-              ) : needsContinue ? (
-                <Text style={styles.quoteHint}>
-                  {t('sell.continueHint', {
-                    action: sellAction,
-                    next: t('common.continue'),
-                  })}
-                </Text>
-              ) : (
-                <Text style={styles.quotePlaceholder}>{t('sell.fetchingQuote')}</Text>
-              )}
-            </View>
-          ) : null}
+          <MobileFeesPanel
+            mode="sell"
+            quote={hasQuote ? paymentInfo : null}
+            payAssetCode={sellAsset}
+            receiveAssetCode=""
+            currencyCode={payoutCurrency}
+            expanded={!collapsed}
+            onToggle={() => setCollapsed((value) => !value)}
+            testID="sell-fees-panel"
+            statusMessage={feePanelStatus}
+          />
 
           {belowMin ? (
             <Text style={styles.warning}>
@@ -898,11 +665,10 @@ export default function SellScreen() {
             </Text>
           ) : null}
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
           <PrimaryButton
-            title={sellAction}
-            icon={<Icon name="arrow-right" size={18} color={colors.onPrimary} />}
+            testID="sell-cta"
+            title={`${t('sell.title')} ${sellAsset}`}
+            icon={<Icon name="arrow-right" size={18} color={colors.white} />}
             onPress={() => {
               if (hasTargetWallet) {
                 setConfirmError(null);
@@ -911,8 +677,83 @@ export default function SellScreen() {
               }
               setStep('bank');
             }}
-            disabled={numAmount === null || numAmount <= 0 || belowMin || aboveMax}
+            disabled={
+              !numAmount ||
+              numAmount <= 0 ||
+              belowMin ||
+              aboveMax ||
+              isLoading ||
+              (!hasQuote && !canOpenGate)
+            }
+            loading={isLoading}
           />
+          <View style={styles.securityRow} testID="sell-security-row">
+            <Icon name="shield" size={14} color={colors.textTertiary} />
+            <Text style={styles.securityText}>{t('sell.security')}</Text>
+          </View>
+        </>
+      ) : null}
+      {!selectedAsset || !selectedChainSpec ? (
+        <>
+          <View style={styles.panels} testID="sell-amount-panels-empty">
+            <View style={styles.panel}>
+              <Text style={styles.plabel}>{t('sell.youSell')}</Text>
+              <View style={styles.pinput}>
+                <TextInput
+                  style={styles.amt}
+                  value=""
+                  placeholder="0"
+                  placeholderTextColor={colors.textTertiary}
+                  editable={false}
+                  testID="sell-pay-amount"
+                />
+                <Pressable style={styles.pill} disabled testID="sell-pay-asset-pill">
+                  <Text style={styles.pillTitle}>—</Text>
+                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+                </Pressable>
+              </View>
+            </View>
+            <View style={styles.fab}>
+              <Icon name="swap" size={18} color={colors.textTertiary} />
+            </View>
+            <View style={[styles.panel, styles.panelRecv]}>
+              <Text style={styles.plabel}>{t('sell.youReceive')}</Text>
+              <View style={styles.pinput}>
+                <TextInput
+                  style={styles.amt}
+                  value=""
+                  placeholder="0"
+                  placeholderTextColor={colors.textTertiary}
+                  editable={false}
+                  testID="sell-receive-amount"
+                />
+                <Pressable style={styles.pill} disabled testID="sell-receive-currency-pill">
+                  <Text style={styles.pillTitle}>{payoutCurrency}</Text>
+                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+          <MobileFeesPanel
+            mode="sell"
+            quote={null}
+            payAssetCode=""
+            receiveAssetCode=""
+            currencyCode={payoutCurrency}
+            expanded={false}
+            onToggle={() => undefined}
+            testID="sell-fees-panel"
+          />
+          <PrimaryButton
+            title={t('sell.title')}
+            onPress={() => undefined}
+            disabled
+            testID="sell-cta"
+          />
+          <View style={styles.securityRow} testID="sell-security-row">
+            <Icon name="shield" size={14} color={colors.textTertiary} />
+            <Text style={styles.securityText}>{t('sell.security')}</Text>
+          </View>
         </>
       ) : null}
     </View>
@@ -934,17 +775,13 @@ export default function SellScreen() {
       />
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
-      {paymentInfoError ? <Text style={styles.errorText}>{paymentInfoError}</Text> : null}
 
       <View style={styles.spacer} />
 
       <PrimaryButton
         title={t('common.continue')}
         onPress={async () => {
-          if (!selectedChainSpec || numAmount === null || numAmount <= 0) return;
-          if (submitLockRef.current) return;
-          const gen = beginPaymentSubmit();
-          setPaymentInfoError(null);
+          if (!selectedChainSpec) return;
           const info = await createPaymentInfo({
             amount: numAmount,
             asset: sellAsset,
@@ -953,8 +790,7 @@ export default function SellScreen() {
             iban: iban.replace(/\s/g, ''),
             chain: selectedChainSpec.chain,
           });
-          if (pendingGenRef.current !== gen) return;
-          handlePaymentInfoResult(info, gen);
+          if (info) setStep('confirm');
         }}
         disabled={iban.replace(/\s/g, '').length < 15}
         loading={isLoading}
@@ -991,54 +827,10 @@ export default function SellScreen() {
             label={t('sell.youSell')}
             value={`${fmtCrypto(paymentInfo.amount)} ${paymentInfo.asset.name}`}
           />
-          {Number.isFinite(paymentInfo.exchangeRate) && paymentInfo.exchangeRate > 0 ? (
-            <QuoteRow
-              label={t('sell.exchangeRate')}
-              value={`1 ${paymentInfo.asset.name} = ${fmtFiat(
-                1 / paymentInfo.exchangeRate,
-              )} ${paymentInfo.currency.name}`}
-            />
-          ) : null}
-          {feesTarget ? (
-            <>
-              {feesTarget.dfx > 0 ? (
-                <QuoteRow
-                  label={t('sell.feeDfx')}
-                  value={`${(paymentInfo.fees.rate * 100).toFixed(2)}% · ${fmtFiat(
-                    feesTarget.dfx,
-                  )} ${paymentInfo.currency.name}`}
-                />
-              ) : (
-                <QuoteRow
-                  label={t('sell.feeDfx')}
-                  value={`${(paymentInfo.fees.rate * 100).toFixed(2)}%`}
-                />
-              )}
-              {feesTarget.network > 0 ? (
-                <QuoteRow
-                  label={t('sell.feeNetwork')}
-                  value={`${fmtFiat(feesTarget.network)} ${paymentInfo.currency.name}`}
-                />
-              ) : null}
-              {feesTarget.fixed > 0 ? (
-                <QuoteRow
-                  label={t('sell.feeFixed')}
-                  value={`${fmtFiat(feesTarget.fixed)} ${paymentInfo.currency.name}`}
-                />
-              ) : null}
-              {feesTarget.bank > 0 ? (
-                <QuoteRow
-                  label={t('sell.feeBank')}
-                  value={`${fmtFiat(feesTarget.bank)} ${paymentInfo.currency.name}`}
-                />
-              ) : null}
-              <QuoteRow
-                label={t('sell.feeTotal')}
-                value={`${fmtFiat(feesTarget.total)} ${paymentInfo.currency.name}`}
-                emphasis
-              />
-            </>
-          ) : null}
+          <QuoteRow
+            label={t('sell.exchangeRate')}
+            value={`1 ${paymentInfo.asset.name} = ${fmtFiat(paymentInfo.exchangeRate)} ${paymentInfo.currency.name}`}
+          />
           <View style={styles.quoteDivider} />
           <QuoteRow
             label={t('sell.youReceive')}
@@ -1062,13 +854,8 @@ export default function SellScreen() {
       <AppHeader
         title={t('sell.title')}
         onBack={() => {
-          // A payment-info response still in flight must not open confirm.
-          // Back from the bank step also drops the auth replay.
-          cancelPaymentSubmit();
-          if (step === 'bank') {
-            cancelAuthGate();
-            setStep('amount');
-          } else if (step === 'confirm') setStep('bank');
+          if (step === 'bank') setStep('amount');
+          else if (step === 'confirm') setStep('bank');
           else router.back();
         }}
         testID="sell-screen"
@@ -1109,15 +896,9 @@ export default function SellScreen() {
         {body}
       </View>
       <DfxAuthGate
-        gate={authGate}
-        onClose={() => {
-          dismissAuthGate(authGate ?? undefined);
-        }}
-        onCancel={() => {
-          cancelPaymentSubmit();
-          cancelAuthGate(authGate ?? undefined);
-        }}
-        onLinkChain={handleLinkChainToDfx}
+        gate={authGateIsCurrent ? authGate : null}
+        onClose={dismissAuthGate}
+        onLinkChain={linkChainToDfx}
       />
       <ConfirmTargetWalletModal
         visible={confirmOpen}
@@ -1129,24 +910,16 @@ export default function SellScreen() {
         error={confirmError}
         onCancel={() => {
           if (confirmLoading) return;
-          cancelPaymentSubmit();
-          cancelAuthGate();
           setConfirmOpen(false);
           setConfirmError(null);
         }}
         onConfirm={async () => {
-          if (confirmLoading || submitLockRef.current) return;
           if (!targetAddress || !targetBlockchain) return;
-          submitLockRef.current = true;
           setConfirmLoading(true);
           setConfirmError(null);
           try {
             const reauth = await reauthAs(targetAddress, targetBlockchain);
             if (!reauth.ok) {
-              if ('cancelled' in reauth) {
-                setConfirmOpen(false);
-                return;
-              }
               setConfirmError(
                 t([`linkedWallet.reauthError.${reauth.error}`, 'linkedWallet.reauthError.generic']),
               );
@@ -1155,15 +928,10 @@ export default function SellScreen() {
             setConfirmOpen(false);
             setStep('bank');
           } catch (err) {
-            if (isLocalSessionEndedError(err)) {
-              setConfirmOpen(false);
-              return;
-            }
             setConfirmError(
               err instanceof Error ? err.message : t('linkedWallet.reauthError.generic'),
             );
           } finally {
-            submitLockRef.current = false;
             setConfirmLoading(false);
           }
         }}
@@ -1251,7 +1019,7 @@ const makeStyles = (colors: ThemeColors) =>
     bg: { flex: 1, backgroundColor: colors.background },
     safeArea: { flex: 1 },
     scroll: { flex: 1 },
-    scrollContent: { paddingHorizontal: 20, paddingBottom: 32, gap: 18 },
+    scrollContent: { paddingTop: 2, paddingHorizontal: 16, paddingBottom: 26, gap: 18 },
     stepContent: { gap: 18 },
     progressRow: {
       flexDirection: 'row',
@@ -1353,54 +1121,93 @@ const makeStyles = (colors: ThemeColors) =>
     tokenChipTextActive: {
       color: colors.primary,
     },
-    amountCard: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
+    panels: {
+      position: 'relative',
       borderWidth: 1,
       borderColor: colors.border,
-      padding: 18,
-      gap: 16,
+      borderRadius: 22,
+      backgroundColor: colors.card,
+    },
+    panel: {
+      paddingVertical: 15,
+      paddingHorizontal: 16,
+      borderTopLeftRadius: 21,
+      borderTopRightRadius: 21,
+    },
+    panelRecv: {
+      backgroundColor: colors.surfaceLight,
+      borderTopWidth: 1,
+      borderTopColor: colors.divider,
+      borderTopLeftRadius: 0,
+      borderTopRightRadius: 0,
+      borderBottomLeftRadius: 21,
+      borderBottomRightRadius: 21,
+    },
+    prowBetween: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
       alignItems: 'center',
     },
-    amountInput: {
-      fontSize: 36,
-      fontWeight: '700',
-      color: colors.text,
-      textAlign: 'center',
-      paddingVertical: 8,
-      minWidth: 200,
-    },
-    amountUnit: {
-      ...Typography.bodyMedium,
-      color: colors.textTertiary,
-      fontWeight: '600',
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-      marginTop: -8,
-    },
-    currencyRow: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      gap: 8,
-    },
-    currencyChip: {
-      paddingHorizontal: 18,
-      paddingVertical: 8,
-      borderRadius: 999,
-      backgroundColor: colors.background,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
-    },
-    currencyChipActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    currencyText: {
-      ...Typography.bodyMedium,
+    plabel: {
+      fontSize: 12.5,
       fontWeight: '600',
       color: colors.textSecondary,
     },
-    currencyTextActive: { color: colors.onPrimary },
+    pmeta: { fontSize: 12, color: colors.textTertiary },
+    pinput: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginTop: 9,
+    },
+    amt: {
+      flex: 1,
+      minWidth: 0,
+      fontSize: 33,
+      fontWeight: '700',
+      letterSpacing: -0.5,
+      color: colors.text,
+      padding: 0,
+    },
+    pill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceLight,
+      borderRadius: 999,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      ...SELECTOR_PILL_LAYOUT,
+    },
+    pillMeta: { flex: 1, flexShrink: 1, minWidth: 0 },
+    pillTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.text,
+      letterSpacing: -0.2,
+    },
+    pillSubtitle: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.textTertiary,
+      marginTop: 0,
+    },
+    fab: {
+      alignSelf: 'center',
+      width: 40,
+      height: 40,
+      borderRadius: 13,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: -20,
+      marginBottom: -20,
+      zIndex: 2,
+    },
     quoteCard: {
       backgroundColor: colors.cardOverlay,
       borderRadius: 12,
@@ -1556,6 +1363,14 @@ const makeStyles = (colors: ThemeColors) =>
       textAlign: 'center',
     },
     spacer: { minHeight: 16 },
+    securityRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      marginTop: 12,
+    },
+    securityText: { ...Typography.bodySmall, color: colors.textTertiary, textAlign: 'center' },
     targetBanner: {
       flexDirection: 'row',
       alignItems: 'center',
