@@ -112,4 +112,8 @@ describe('getRawBalance helper', () => {
   it('returns "0" for an unknown asset id (no defensive null surfaces to UI)', () => {
     expect(getRawBalance(map(), 'unknown')).toBe('0');
   });
+
+  it('returns "0" when the map has not resolved yet', () => {
+    expect(getRawBalance(undefined, 'x')).toBe('0');
+  });
 });

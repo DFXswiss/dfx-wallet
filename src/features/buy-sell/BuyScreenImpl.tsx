@@ -32,7 +32,7 @@ import {
 import { useLdsWallet } from '@/hooks';
 import { useLinkedWalletReauth } from '@/features/linked-wallets/useLinkedWalletReauth';
 import { useBuyFlow } from './useBuyFlow';
-import { markChainLinkedInAutoLinkCache } from '@/features/dfx-backend/useDfxAutoLinkImpl';
+import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
 import { dfxAuthService, DfxApiError } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
@@ -588,7 +588,6 @@ export default function BuyScreen() {
 
       {selectedAsset ? (
         <>
-
           {showQuoteCard ? (
             <View style={styles.quoteCard}>
               <Pressable
