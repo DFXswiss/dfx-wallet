@@ -1,4 +1,5 @@
 import { fireEvent, render, within } from '@testing-library/react-native';
+import { StyleSheet, Text } from 'react-native';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -14,6 +15,10 @@ jest.mock('@/theme', () => ({
     textSecondary: '#555',
     textTertiary: '#888',
     success: '#16a34a',
+    card: '#f8f8f8',
+    surface: '#ffffff',
+    surfaceLight: '#f2f2f2',
+    divider: '#dddddd',
   }),
 }));
 
@@ -26,6 +31,10 @@ import {
   makeTradeQuoteKey,
   SELECTOR_PILL_LAYOUT,
 } from '../../src/features/buy-sell/tradePanelStyles';
+import {
+  TradeAmountPanels,
+  TradeSelectorPill,
+} from '../../src/features/buy-sell/TradeAmountPanels';
 
 const quote = {
   amount: 0.01,
@@ -60,9 +69,47 @@ describe('MobileFeesPanel', () => {
     expect(SELECTOR_PILL_LAYOUT).toEqual({
       flexGrow: 0,
       flexShrink: 0,
-      flexBasis: '46%',
-      maxWidth: '46%',
-      minWidth: 0,
+      flexBasis: 152,
+      maxWidth: 152,
+      minWidth: 152,
+      width: 152,
+      height: 48,
+    });
+  });
+
+  it('uses shared fixed selector and flip geometry for every trade mode', () => {
+    const { getByTestId } = render(
+      <TradeAmountPanels
+        testID="shared-panels"
+        flipTestID="shared-flip"
+        flipAccessibilityLabel="flip"
+        payLabel={<Text>pay</Text>}
+        payAmount={<Text>0</Text>}
+        paySelector={<TradeSelectorPill testID="shared-pay">—</TradeSelectorPill>}
+        receiveLabel={<Text>receive</Text>}
+        receiveAmount={<Text>0</Text>}
+        receiveSelector={<TradeSelectorPill testID="shared-receive">—</TradeSelectorPill>}
+      />,
+    );
+
+    expect(StyleSheet.flatten(getByTestId('shared-pay').props.style)).toMatchObject({
+      width: 152,
+      height: 48,
+      flexBasis: 152,
+      maxWidth: 152,
+      minWidth: 152,
+    });
+    expect(StyleSheet.flatten(getByTestId('shared-receive').props.style)).toMatchObject({
+      width: 152,
+      height: 48,
+      flexBasis: 152,
+      maxWidth: 152,
+      minWidth: 152,
+    });
+    expect(StyleSheet.flatten(getByTestId('shared-flip').props.style)).toMatchObject({
+      width: 40,
+      height: 40,
+      borderRadius: 13,
     });
   });
 
