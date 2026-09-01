@@ -452,6 +452,21 @@ export default function BuyScreen() {
   const numAmount = parseFloat(amount);
   const belowMin = minVolume != null && numAmount > 0 && numAmount < minVolume;
   const aboveMax = maxVolume != null && numAmount > maxVolume;
+  const quoteHeader = unsupportedChain
+    ? t('buy.chainUnsupported')
+    : quoteError
+      ? t([`buy.quoteError.${quoteError}`, 'buy.quoteError.generic'], { code: quoteError })
+      : needsContinue
+        ? t('buy.continueHint')
+        : isLoading
+          ? t('buy.fetchingQuote')
+          : hasQuote && paymentInfo
+            ? t('buy.rateInclFees', {
+                asset: targetAsset,
+                amount: fmtFiat(paymentInfo.exchangeRate),
+                currency: selectedCurrency,
+              })
+            : t('buy.summary');
 
   const renderAmountStep = () => (
     <View style={styles.stepContent}>
@@ -559,6 +574,7 @@ export default function BuyScreen() {
               ))}
             </View>
             <TextInput
+              testID="buy-amount-input"
               style={styles.amountInput}
               value={amount}
               onChangeText={setAmount}
@@ -598,13 +614,7 @@ export default function BuyScreen() {
               >
                 <Icon name="shield" size={18} color={colors.primary} />
                 <Text style={styles.quoteToggleText} numberOfLines={2}>
-                  {hasQuote && paymentInfo
-                    ? t('buy.rateInclFees', {
-                        asset: targetAsset,
-                        amount: fmtFiat(paymentInfo.exchangeRate),
-                        currency: selectedCurrency,
-                      })
-                    : t('buy.summary')}
+                  {quoteHeader}
                 </Text>
                 {hasQuote && fees ? (
                   <View style={styles.quoteFeeBadge}>
@@ -702,11 +712,7 @@ export default function BuyScreen() {
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          <Pressable
-            testID="buy-payment-method-row"
-            style={({ pressed }) => [styles.paymentMethodRow, pressed && styles.pressed]}
-            accessibilityRole="button"
-          >
+          <View testID="buy-payment-method-row" style={styles.paymentMethodRow}>
             <View style={styles.paymentMethodIcon}>
               <Icon name="wallet" size={18} color={colors.primary} />
             </View>
@@ -714,8 +720,7 @@ export default function BuyScreen() {
               <Text style={styles.paymentMethodTitle}>{t('buy.paymentMethodSepa')}</Text>
               <Text style={styles.paymentMethodHint}>{t('buy.paymentMethodSepaHint')}</Text>
             </View>
-            <Icon name="chevron-right" size={16} color={colors.textTertiary} />
-          </Pressable>
+          </View>
 
           <View style={styles.spacer} />
 

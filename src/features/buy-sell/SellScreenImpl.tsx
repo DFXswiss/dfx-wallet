@@ -429,6 +429,19 @@ export default function SellScreen() {
   const numAmount = parseFloat(amount);
   const belowMin = minVolume != null && numAmount > 0 && numAmount < minVolume;
   const aboveMax = maxVolume != null && numAmount > maxVolume;
+  const quoteHeader = quoteError
+    ? t([`sell.quoteError.${quoteError}`, 'sell.quoteError.generic'], { code: quoteError })
+    : needsContinue
+      ? t('sell.continueHint')
+      : isLoading
+        ? t('sell.fetchingQuote')
+        : hasQuote && paymentInfo
+          ? t('sell.rateInclFees', {
+              asset: sellAsset,
+              amount: fmtFiat(paymentInfo.exchangeRate),
+              currency: payoutCurrency,
+            })
+          : t('sell.summary');
 
   const renderAmountStep = () => (
     <View style={styles.stepContent}>
@@ -474,7 +487,9 @@ export default function SellScreen() {
       </View>
 
       {selectedAsset && availableChains.length === 0 ? (
-        <Text style={styles.warning}>{t('sell.noBalance')}</Text>
+        <Text style={styles.warning} testID="sell-no-balance">
+          {t('sell.noBalance')}
+        </Text>
       ) : null}
 
       {selectedAsset && availableChains.length > 0 ? (
@@ -524,6 +539,7 @@ export default function SellScreen() {
 
           <View style={styles.amountCard}>
             <TextInput
+              testID="sell-amount-input"
               style={styles.amountInput}
               value={amount}
               onChangeText={setAmount}
@@ -561,13 +577,7 @@ export default function SellScreen() {
               >
                 <Icon name="shield" size={18} color={colors.primary} />
                 <Text style={styles.quoteToggleText} numberOfLines={2}>
-                  {hasQuote && paymentInfo
-                    ? t('sell.rateInclFees', {
-                        asset: sellAsset,
-                        amount: fmtFiat(paymentInfo.exchangeRate),
-                        currency: payoutCurrency,
-                      })
-                    : t('sell.summary')}
+                  {quoteHeader}
                 </Text>
                 {hasQuote && fees ? (
                   <View style={styles.quoteFeeBadge}>

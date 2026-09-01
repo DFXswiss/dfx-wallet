@@ -34,6 +34,19 @@ jest.mock('@tetherto/wdk-react-native-core', () => ({
     address: 'bc1q-wallet-address',
     sign: jest.fn().mockResolvedValue({ success: true, signature: 'signed-message' }),
   }),
+  useBalancesForWallet: () => ({
+    data: [{ assetId: 'btc', success: true, balance: '1' }],
+  }),
+}));
+
+jest.mock('@/config/tokens', () => ({
+  getAssets: () => [{ getNetwork: () => 'bitcoin', getId: () => 'btc', getDecimals: () => 8 }],
+  getAssetMeta: () => ({ symbol: 'BTC' }),
+  WDK_SUPPORTED_CHAINS: ['bitcoin'],
+}));
+
+jest.mock('@/features/portfolio/useEnabledChains', () => ({
+  useEnabledChains: () => ({ enabledChains: ['bitcoin'] }),
 }));
 
 jest.mock('@/hooks', () => ({
@@ -132,6 +145,11 @@ const mockCreatePaymentInfo = jest.fn();
 const mockConfirmPayment = jest.fn();
 const mockDismissAuthGate = jest.fn();
 const mockRetryLast = jest.fn();
+const mockSellGetQuote = jest.fn();
+const mockSellCreatePaymentInfo = jest.fn();
+const mockSellConfirmPayment = jest.fn();
+const mockSellDismissAuthGate = jest.fn();
+const mockSellRetryLast = jest.fn();
 
 const flowState = {
   isLoading: false,
@@ -154,8 +172,23 @@ jest.mock('../../src/features/buy-sell/useBuyFlow', () => ({
   }),
 }));
 
+jest.mock('../../src/features/buy-sell/useSellFlow', () => ({
+  useSellFlow: () => ({
+    paymentInfo: mockSellFlowState.paymentInfo,
+    isLoading: mockSellFlowState.isLoading,
+    error: mockSellFlowState.error,
+    authGate: mockSellFlowState.authGate,
+    getQuote: mockSellGetQuote,
+    createPaymentInfo: mockSellCreatePaymentInfo,
+    confirmSell: mockSellConfirmPayment,
+    dismissAuthGate: mockSellDismissAuthGate,
+    retryLast: mockSellRetryLast,
+  }),
+}));
+
 // eslint-disable-next-line import/first
 import BuyScreenImpl from '../../src/features/buy-sell/BuyScreenImpl';
+import SellScreenImpl from '../../src/features/buy-sell/SellScreenImpl';
 
 const PAYMENT_INFO = {
   id: 321,
@@ -184,6 +217,23 @@ const PAYMENT_INFO = {
   },
 };
 
+const SELL_PAYMENT_INFO = {
+  ...PAYMENT_INFO,
+  amount: 0.001,
+  estimatedAmount: 100,
+  exchangeRate: 100000,
+  asset: { name: 'BTC' },
+  currency: { name: 'CHF' },
+  beneficiary: { iban: 'CH9300762011623852957' },
+};
+
+const mockSellFlowState = {
+  isLoading: false,
+  error: null as string | null,
+  authGate: null,
+  paymentInfo: SELL_PAYMENT_INFO as Record<string, unknown> | null,
+};
+
 beforeEach(() => {
   mockBack.mockReset();
   mockGetQuote.mockReset();
@@ -195,6 +245,15 @@ beforeEach(() => {
   flowState.error = null;
   flowState.authGate = null;
   flowState.paymentInfo = PAYMENT_INFO;
+  mockSellFlowState.isLoading = false;
+  mockSellFlowState.error = null;
+  mockSellFlowState.authGate = null;
+  mockSellFlowState.paymentInfo = SELL_PAYMENT_INFO;
+  mockSellGetQuote.mockReset();
+  mockSellCreatePaymentInfo.mockReset();
+  mockSellConfirmPayment.mockReset();
+  mockSellDismissAuthGate.mockReset();
+  mockSellRetryLast.mockReset();
 });
 
 describe('BuyScreenImpl', () => {
@@ -219,5 +278,47 @@ describe('BuyScreenImpl', () => {
     await waitFor(() => expect(mockConfirmPayment).toHaveBeenCalledWith(321));
     expect(queryByText('buy.confirmDescription')).toBeNull();
     expect(getByText('buy.paymentInfo')).toBeTruthy();
+  });
+
+  it('surfaces a rejected quote while the quote card is collapsed', () => {
+    flowState.paymentInfo = { ...PAYMENT_INFO, isValid: false, error: 'KycRequired' };
+
+    const { getByPlaceholderText, getByText } = render(<BuyScreenImpl />);
+
+    fireEvent.press(getByText('BTC'));
+    fireEvent.changeText(getByPlaceholderText('0.00'), '100');
+
+    expect(getByText(/buy\.quoteError\.KycRequired/)).toBeTruthy();
+  });
+
+  it('renders the static payment method as information, not an action', () => {
+    const { getByPlaceholderText, getByText, getByTestId } = render(<BuyScreenImpl />);
+
+    fireEvent.press(getByText('BTC'));
+    fireEvent.changeText(getByPlaceholderText('0.00'), '100');
+
+    expect(getByTestId('buy-payment-method-row').props.accessibilityRole).toBeUndefined();
+  });
+});
+
+describe('SellScreenImpl', () => {
+  it('shows the sell amount panel and collapsed quote summary for a held asset', () => {
+    const { getByPlaceholderText, getByText } = render(<SellScreenImpl />);
+
+    fireEvent.press(getByText('BTC'));
+    fireEvent.changeText(getByPlaceholderText('0.00'), '0.001');
+
+    expect(getByText(/sell\.rateInclFees/)).toBeTruthy();
+  });
+
+  it('surfaces a rejected sell quote while the quote card is collapsed', () => {
+    mockSellFlowState.paymentInfo = { ...SELL_PAYMENT_INFO, isValid: false, error: 'KycRequired' };
+
+    const { getByPlaceholderText, getByText } = render(<SellScreenImpl />);
+
+    fireEvent.press(getByText('BTC'));
+    fireEvent.changeText(getByPlaceholderText('0.00'), '0.001');
+
+    expect(getByText(/sell\.quoteError\.KycRequired/)).toBeTruthy();
   });
 });
