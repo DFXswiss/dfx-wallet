@@ -9,8 +9,8 @@ type Props = {
 export function AssetGlyph({ symbol, size = 32 }: Props) {
   const colors = useColors();
   const isBitcoin = symbol === 'BTC';
-  const backgroundColor = isBitcoin ? '#F7931A' : colors.surfaceLight;
-  const symbolColor = isBitcoin ? '#FFFFFF' : colors.textSecondary;
+  const backgroundColor = isBitcoin ? colors.warning : colors.surfaceLight;
+  const symbolColor = isBitcoin ? colors.white : colors.textSecondary;
   const glyph = isBitcoin ? '₿' : symbol.slice(0, 1) || '?';
 
   return (

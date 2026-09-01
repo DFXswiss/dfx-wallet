@@ -137,6 +137,11 @@
       "status": "baselined",
       "baselines": ["buy-amount"]
     },
+    "(auth)/swap/index.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#257",
+      "reason": "Swap is currently a reachable placeholder route; capture a deterministic baseline after its quote backend and stable asset fixtures are implemented."
+    },
     "(auth)/sell/index.tsx": {
       "status": "baselined",
       "baselines": ["sell-no-balance"]
