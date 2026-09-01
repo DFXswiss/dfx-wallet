@@ -1,26 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ImageBackground,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ImageBackground, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useAccount, useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import {
-  AppHeader,
-  ConfirmTargetWalletModal,
-  DarkBackdrop,
-  Icon,
-  PrimaryButton,
-} from '@/components';
+import { ConfirmTargetWalletModal, DarkBackdrop, Icon, PrimaryButton } from '@/components';
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
 import type { ChainId } from '@/config/chains';
 import {
@@ -42,8 +27,11 @@ import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/th
 import TradeModeTabs from './TradeModeTabs';
 import { AssetGlyph } from './AssetGlyph';
 import { CurrencyGlyph } from './CurrencyGlyph';
+import { ReceiveAssetSheet } from './ReceiveAssetSheet';
 import { MobileFeesPanel } from './MobileFeesPanel';
-import { isAccountGateError, makeTradeQuoteKey, SELECTOR_PILL_LAYOUT } from './tradePanelStyles';
+import { isAccountGateError, makeTradeQuoteKey, TRADE_STEP_GAP } from './tradePanelStyles';
+import { TradeAmountPanels, TradeSelectorPill } from './TradeAmountPanels';
+import { TradeScreenShell } from './TradeScreenShell';
 
 type SellStep = 'amount' | 'bank' | 'confirm';
 
@@ -246,6 +234,7 @@ export default function SellScreen() {
   const [selectedTokenIndex, setSelectedTokenIndex] = useState(0);
   const [amount, setAmount] = useState('');
   const [payoutCurrency, setPayoutCurrency] = useState<(typeof FIAT_CURRENCIES)[number]>('CHF');
+  const [payPickerOpen, setPayPickerOpen] = useState(false);
   const [iban, setIban] = useState('');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(true);
@@ -383,12 +372,21 @@ export default function SellScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAsset, balanceResults, assetConfigs]);
 
-  // eslint-disable-next-line security/detect-object-injection -- selectedChainIndex is bounded by availableChains.length
-  const selectedChainSpec = availableChains[selectedChainIndex] ?? null;
+  // The selected chain is owned by the pay-asset sheet. Availability only
+  // gates quoting; it must not change the panel geometry or move the status.
+  // eslint-disable-next-line security/detect-object-injection -- selectedChainIndex is bounded by selectedAsset.chains.length
+  const selectedChainSpec = selectedAsset?.chains[selectedChainIndex] ?? null;
   // eslint-disable-next-line security/detect-object-injection -- selectedTokenIndex is bounded by tokens.length
   const selectedTokenSpec = selectedChainSpec?.tokens[selectedTokenIndex] ?? null;
   const sellAsset = selectedTokenSpec?.assetSymbol ?? '';
   const blockchain = selectedChainSpec?.blockchain ?? '';
+  const selectedAssetIsAvailable =
+    !!selectedChainSpec &&
+    availableChains.some(
+      (chain) =>
+        chain.chain === selectedChainSpec.chain &&
+        chain.tokens.some((token) => token.assetSymbol === sellAsset),
+    );
   const currentQuoteKey = makeTradeQuoteKey({
     amount: parseFloat(amount),
     currency: payoutCurrency,
@@ -398,11 +396,11 @@ export default function SellScreen() {
   });
 
   useEffect(() => {
-    if (step !== 'amount' || !selectedChainSpec) return;
+    if (step !== 'amount' || !selectedChainSpec || !selectedAssetIsAvailable) return;
     const numAmount = parseFloat(amount);
     if (!numAmount || numAmount <= 0) return;
     const id = setTimeout(() => {
-      if (!selectedChainSpec) return;
+      if (!selectedChainSpec || !selectedAssetIsAvailable) return;
       void getQuote({
         amount: numAmount,
         asset: sellAsset,
@@ -412,7 +410,16 @@ export default function SellScreen() {
       });
     }, 350);
     return () => clearTimeout(id);
-  }, [amount, payoutCurrency, sellAsset, blockchain, step, getQuote, selectedChainSpec]);
+  }, [
+    amount,
+    payoutCurrency,
+    sellAsset,
+    blockchain,
+    step,
+    getQuote,
+    selectedChainSpec,
+    selectedAssetIsAvailable,
+  ]);
 
   const copy = async (label: string, value: string) => {
     if (!value) return;
@@ -484,278 +491,152 @@ export default function SellScreen() {
           </View>
         </View>
       ) : null}
-      <Text style={styles.stepSubtitle}>{t('sell.selectAsset')}</Text>
-      <View style={styles.assetRow}>
-        {SELL_ASSETS.map((asset) => (
-          <Pressable
-            key={asset.symbol}
-            style={({ pressed }) => [
-              styles.assetTile,
-              selectedAsset?.symbol === asset.symbol && styles.assetTileActive,
-              pressed && styles.pressed,
-            ]}
-            onPress={() => {
-              setSelectedAsset(asset);
-              setSelectedChainIndex(0);
-              setSelectedTokenIndex(0);
-            }}
+      <TradeAmountPanels
+        testID={selectedAsset ? 'sell-amount-panels' : 'sell-amount-panels-empty'}
+        flipTestID="sell-flip-to-buy"
+        flipAccessibilityLabel={t('sell.flipToBuy')}
+        onFlip={() => router.replace('/(auth)/buy')}
+        payLabel={<Text style={styles.plabel}>{t('sell.youSell')}</Text>}
+        payAmount={
+          <TextInput
+            style={styles.amt}
+            value={amount}
+            onChangeText={setAmount}
+            placeholder="0"
+            placeholderTextColor={colors.textTertiary}
+            keyboardType="decimal-pad"
+            editable={!!selectedAsset}
+            testID="sell-pay-amount"
+          />
+        }
+        paySelector={
+          <TradeSelectorPill
+            onPress={() => setPayPickerOpen(true)}
+            testID="sell-pay-asset-pill"
+            accessibilityLabel={t('sell.youSell')}
           >
-            <Text
-              style={[
-                styles.assetTileSymbol,
-                selectedAsset?.symbol === asset.symbol && styles.assetTileSymbolActive,
-              ]}
-            >
-              {asset.symbol}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+            {sellAsset ? <AssetGlyph symbol={sellAsset} size={32} /> : null}
+            <View style={styles.pillMeta}>
+              <Text style={styles.pillTitle} numberOfLines={1}>
+                {sellAsset || '—'}
+              </Text>
+              {selectedChainSpec ? (
+                <Text style={styles.pillSubtitle} numberOfLines={1}>
+                  {selectedChainSpec.label}
+                </Text>
+              ) : null}
+            </View>
+          </TradeSelectorPill>
+        }
+        receiveLabel={
+          <View style={styles.prowBetween}>
+            <Text style={styles.plabel}>{t('sell.youReceive')}</Text>
+            {isLoading ? <Text style={styles.pmeta}>{t('sell.fetchingQuote')}</Text> : null}
+          </View>
+        }
+        receiveAmount={
+          <TextInput
+            style={styles.amt}
+            value={hasQuote && paymentInfo ? fmtFiat(paymentInfo.estimatedAmount) : ''}
+            editable={false}
+            placeholder="0"
+            placeholderTextColor={colors.textTertiary}
+            testID="sell-receive-amount"
+          />
+        }
+        receiveSelector={
+          <TradeSelectorPill
+            onPress={() =>
+              setPayoutCurrency(
+                (cur) =>
+                  FIAT_CURRENCIES[(FIAT_CURRENCIES.indexOf(cur) + 1) % FIAT_CURRENCIES.length]!,
+              )
+            }
+            testID="sell-receive-currency-pill"
+            accessibilityLabel={t('sell.youReceive')}
+          >
+            <CurrencyGlyph code={payoutCurrency} size={32} />
+            <Text style={styles.pillTitle}>{payoutCurrency}</Text>
+          </TradeSelectorPill>
+        }
+      />
 
-      {selectedAsset && availableChains.length === 0 ? (
+      <ReceiveAssetSheet
+        visible={payPickerOpen}
+        onClose={() => setPayPickerOpen(false)}
+        assets={SELL_ASSETS}
+        selectedAssetSymbol={selectedAsset?.symbol}
+        selectedChainIndex={selectedChainIndex}
+        selectedTokenIndex={selectedTokenIndex}
+        titleKey="sell.youSell"
+        optionTestIDPrefix="sell-pay-asset-option"
+        onSelect={(asset, chainIndex, tokenIndex) => {
+          setSelectedAsset(asset);
+          setSelectedChainIndex(chainIndex);
+          setSelectedTokenIndex(tokenIndex);
+          setPayPickerOpen(false);
+        }}
+      />
+
+      <MobileFeesPanel
+        mode="sell"
+        quote={hasQuote ? paymentInfo : null}
+        payAssetCode={sellAsset}
+        receiveAssetCode=""
+        currencyCode={payoutCurrency}
+        expanded={!collapsed}
+        onToggle={() => setCollapsed((value) => !value)}
+        testID="sell-fees-panel"
+        statusMessage={feePanelStatus}
+      />
+
+      {selectedAsset && !selectedAssetIsAvailable ? (
         <Text style={styles.warning}>{t('sell.noBalance')}</Text>
       ) : null}
 
-      {selectedAsset && availableChains.length > 0 ? (
-        <>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
-            {availableChains.map((c, i) => (
-              <Pressable
-                key={c.chain}
-                style={[styles.chainChip, selectedChainIndex === i && styles.chainChipActive]}
-                onPress={() => {
-                  setSelectedChainIndex(i);
-                  setSelectedTokenIndex(0);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.chainChipText,
-                    selectedChainIndex === i && styles.chainChipTextActive,
-                  ]}
-                >
-                  {c.label}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-
-          {selectedChainSpec && selectedChainSpec.tokens.length > 1 ? (
-            <View style={styles.tokenRow}>
-              {selectedChainSpec.tokens.map((tok, i) => (
-                <Pressable
-                  key={tok.assetSymbol}
-                  style={[styles.tokenChip, selectedTokenIndex === i && styles.tokenChipActive]}
-                  onPress={() => setSelectedTokenIndex(i)}
-                >
-                  <Text
-                    style={[
-                      styles.tokenChipText,
-                      selectedTokenIndex === i && styles.tokenChipTextActive,
-                    ]}
-                  >
-                    {tok.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-
-          <View style={styles.panels} testID="sell-amount-panels">
-            <View style={styles.panel}>
-              <Text style={styles.plabel}>{t('sell.youSell')}</Text>
-              <View style={styles.pinput}>
-                <TextInput
-                  style={styles.amt}
-                  value={amount}
-                  onChangeText={setAmount}
-                  placeholder="0"
-                  placeholderTextColor={colors.textTertiary}
-                  keyboardType="decimal-pad"
-                  testID="sell-pay-amount"
-                />
-                <View style={styles.pill} testID="sell-pay-asset-pill">
-                  <AssetGlyph symbol={sellAsset || ''} size={32} />
-                  <View style={styles.pillMeta}>
-                    <Text style={styles.pillTitle} numberOfLines={1}>
-                      {sellAsset}
-                    </Text>
-                    {selectedChainSpec ? (
-                      <Text style={styles.pillSubtitle} numberOfLines={1}>
-                        {selectedChainSpec.label}
-                      </Text>
-                    ) : null}
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            <Pressable
-              style={styles.fab}
-              onPress={() => router.replace('/(auth)/buy')}
-              testID="sell-flip-to-buy"
-              accessibilityRole="button"
-              accessibilityLabel={t('buy.flipToSell')}
-            >
-              <Icon name="swap" size={18} color={colors.primary} />
-            </Pressable>
-
-            <View style={[styles.panel, styles.panelRecv]}>
-              <View style={styles.prowBetween}>
-                <Text style={styles.plabel}>{t('sell.youReceive')}</Text>
-                {isLoading ? <Text style={styles.pmeta}>{t('sell.fetchingQuote')}</Text> : null}
-              </View>
-              <View style={styles.pinput}>
-                <TextInput
-                  style={styles.amt}
-                  value={hasQuote && paymentInfo ? fmtFiat(paymentInfo.estimatedAmount) : ''}
-                  editable={false}
-                  placeholder="0"
-                  placeholderTextColor={colors.textTertiary}
-                  testID="sell-receive-amount"
-                />
-                <Pressable
-                  style={styles.pill}
-                  onPress={() =>
-                    setPayoutCurrency(
-                      (cur) =>
-                        FIAT_CURRENCIES[
-                          (FIAT_CURRENCIES.indexOf(cur) + 1) % FIAT_CURRENCIES.length
-                        ]!,
-                    )
-                  }
-                  testID="sell-receive-currency-pill"
-                  accessibilityRole="button"
-                  accessibilityLabel={t('sell.youReceive')}
-                >
-                  <CurrencyGlyph code={payoutCurrency} size={32} />
-                  <Text style={styles.pillTitle}>{payoutCurrency}</Text>
-                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
-                </Pressable>
-              </View>
-            </View>
-          </View>
-
-          <MobileFeesPanel
-            mode="sell"
-            quote={hasQuote ? paymentInfo : null}
-            payAssetCode={sellAsset}
-            receiveAssetCode=""
-            currencyCode={payoutCurrency}
-            expanded={!collapsed}
-            onToggle={() => setCollapsed((value) => !value)}
-            testID="sell-fees-panel"
-            statusMessage={feePanelStatus}
-          />
-
-          {belowMin ? (
-            <Text style={styles.warning}>
-              {t('sell.volumeMin', {
-                amount: fmtCrypto(minVolume!),
-                asset: sellAsset,
-              })}
-            </Text>
-          ) : null}
-          {aboveMax ? (
-            <Text style={styles.warning}>
-              {t('sell.volumeMax', {
-                amount: fmtCrypto(maxVolume!),
-                asset: sellAsset,
-              })}
-            </Text>
-          ) : null}
-
-          <PrimaryButton
-            testID="sell-cta"
-            title={`${t('sell.title')} ${sellAsset}`}
-            icon={<Icon name="arrow-right" size={18} color={colors.white} />}
-            onPress={() => {
-              if (hasTargetWallet) {
-                setConfirmError(null);
-                setConfirmOpen(true);
-                return;
-              }
-              setStep('bank');
-            }}
-            disabled={
-              !numAmount ||
-              numAmount <= 0 ||
-              belowMin ||
-              aboveMax ||
-              isLoading ||
-              (!hasQuote && !canOpenGate)
-            }
-            loading={isLoading}
-          />
-          <View style={styles.securityRow} testID="sell-security-row">
-            <Icon name="shield" size={14} color={colors.textTertiary} />
-            <Text style={styles.securityText}>{t('sell.security')}</Text>
-          </View>
-        </>
+      {belowMin ? (
+        <Text style={styles.warning}>
+          {t('sell.volumeMin', {
+            amount: fmtCrypto(minVolume!),
+            asset: sellAsset,
+          })}
+        </Text>
       ) : null}
-      {!selectedAsset || !selectedChainSpec ? (
-        <>
-          <View style={styles.panels} testID="sell-amount-panels-empty">
-            <View style={styles.panel}>
-              <Text style={styles.plabel}>{t('sell.youSell')}</Text>
-              <View style={styles.pinput}>
-                <TextInput
-                  style={styles.amt}
-                  value=""
-                  placeholder="0"
-                  placeholderTextColor={colors.textTertiary}
-                  editable={false}
-                  testID="sell-pay-amount"
-                />
-                <Pressable style={styles.pill} disabled testID="sell-pay-asset-pill">
-                  <Text style={styles.pillTitle}>—</Text>
-                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
-                </Pressable>
-              </View>
-            </View>
-            <View style={styles.fab}>
-              <Icon name="swap" size={18} color={colors.textTertiary} />
-            </View>
-            <View style={[styles.panel, styles.panelRecv]}>
-              <Text style={styles.plabel}>{t('sell.youReceive')}</Text>
-              <View style={styles.pinput}>
-                <TextInput
-                  style={styles.amt}
-                  value=""
-                  placeholder="0"
-                  placeholderTextColor={colors.textTertiary}
-                  editable={false}
-                  testID="sell-receive-amount"
-                />
-                <Pressable style={styles.pill} disabled testID="sell-receive-currency-pill">
-                  <Text style={styles.pillTitle}>{payoutCurrency}</Text>
-                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
-                </Pressable>
-              </View>
-            </View>
-          </View>
-          <MobileFeesPanel
-            mode="sell"
-            quote={null}
-            payAssetCode=""
-            receiveAssetCode=""
-            currencyCode={payoutCurrency}
-            expanded={false}
-            onToggle={() => undefined}
-            testID="sell-fees-panel"
-          />
-          <PrimaryButton
-            title={t('sell.title')}
-            onPress={() => undefined}
-            disabled
-            testID="sell-cta"
-          />
-          <View style={styles.securityRow} testID="sell-security-row">
-            <Icon name="shield" size={14} color={colors.textTertiary} />
-            <Text style={styles.securityText}>{t('sell.security')}</Text>
-          </View>
-        </>
+      {aboveMax ? (
+        <Text style={styles.warning}>
+          {t('sell.volumeMax', {
+            amount: fmtCrypto(maxVolume!),
+            asset: sellAsset,
+          })}
+        </Text>
       ) : null}
+
+      <PrimaryButton
+        testID="sell-cta"
+        title={`${t('sell.title')} ${sellAsset}`}
+        icon={<Icon name="arrow-right" size={18} color={colors.white} />}
+        onPress={() => {
+          if (hasTargetWallet) {
+            setConfirmError(null);
+            setConfirmOpen(true);
+            return;
+          }
+          setStep('bank');
+        }}
+        disabled={
+          !numAmount ||
+          numAmount <= 0 ||
+          belowMin ||
+          aboveMax ||
+          isLoading ||
+          (!hasQuote && !canOpenGate)
+        }
+        loading={isLoading}
+      />
+      <View style={styles.securityRow} testID="sell-security-row">
+        <Icon name="shield" size={14} color={colors.textTertiary} />
+        <Text style={styles.securityText}>{t('sell.security')}</Text>
+      </View>
     </View>
   );
 
@@ -850,34 +731,21 @@ export default function SellScreen() {
     ) : null;
 
   const body = (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <AppHeader
-        title={t('sell.title')}
-        onBack={() => {
-          if (step === 'bank') setStep('amount');
-          else if (step === 'confirm') setStep('bank');
-          else router.back();
-        }}
-        testID="sell-screen"
-      />
-      <View style={styles.progressRow}>
-        {['amount', 'bank', 'confirm'].map((item, index) => {
-          const currentIndex = step === 'amount' ? 0 : step === 'bank' ? 1 : 2;
-          const active = index <= currentIndex;
-          return <View key={item} style={[styles.progressStep, active && styles.progressActive]} />;
-        })}
-      </View>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {step === 'amount' && renderAmountStep()}
-        {step === 'bank' && renderBankStep()}
-        {step === 'confirm' && renderConfirmStep()}
-      </ScrollView>
-    </SafeAreaView>
+    <TradeScreenShell
+      title={t('sell.title')}
+      onBack={() => {
+        if (step === 'bank') setStep('amount');
+        else if (step === 'confirm') setStep('bank');
+        else router.back();
+      }}
+      headerTestID="sell-screen"
+      activeStep={step === 'amount' ? 0 : step === 'bank' ? 1 : 2}
+      steps={['amount', 'bank', 'confirm']}
+    >
+      {step === 'amount' && renderAmountStep()}
+      {step === 'bank' && renderBankStep()}
+      {step === 'confirm' && renderConfirmStep()}
+    </TradeScreenShell>
   );
 
   return (
@@ -1017,29 +885,7 @@ function CopyRow({
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     bg: { flex: 1, backgroundColor: colors.background },
-    safeArea: { flex: 1 },
-    scroll: { flex: 1 },
-    scrollContent: { paddingTop: 2, paddingHorizontal: 16, paddingBottom: 26, gap: 18 },
-    stepContent: { gap: 18 },
-    progressRow: {
-      flexDirection: 'row',
-      alignSelf: 'center',
-      gap: 8,
-      paddingTop: 4,
-      paddingBottom: 12,
-    },
-    progressStep: {
-      width: 34,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: colors.cardOverlay,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-    },
-    progressActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
+    stepContent: { gap: TRADE_STEP_GAP },
     stepSubtitle: {
       ...Typography.bodyLarge,
       color: colors.textSecondary,
@@ -1049,100 +895,7 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodyMedium,
       color: colors.textSecondary,
     },
-    assetRow: {
-      flexDirection: 'row',
-      gap: 8,
-    },
-    assetTile: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      paddingVertical: 12,
-      paddingHorizontal: 6,
-      borderWidth: 1,
-      borderColor: colors.border,
-      minHeight: 54,
-    },
-    assetTileActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
-    assetTileSymbol: {
-      ...Typography.bodyLarge,
-      color: colors.text,
-      fontWeight: '700',
-    },
-    assetTileSymbolActive: { color: colors.primary },
     pressed: { opacity: 0.7 },
-    chainBar: { flexGrow: 0 },
-    chainChip: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 10,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      marginRight: 8,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
-    },
-    chainChipActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
-    },
-    chainChipText: {
-      ...Typography.bodyMedium,
-      color: colors.textSecondary,
-      fontWeight: '500',
-    },
-    chainChipTextActive: {
-      color: colors.primary,
-      fontWeight: '600',
-    },
-    tokenRow: {
-      flexDirection: 'row',
-      gap: 8,
-    },
-    tokenChip: {
-      flex: 1,
-      alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 10,
-      paddingVertical: 10,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
-    },
-    tokenChipActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
-    },
-    tokenChipText: {
-      ...Typography.bodyMedium,
-      fontWeight: '600',
-      color: colors.textSecondary,
-    },
-    tokenChipTextActive: {
-      color: colors.primary,
-    },
-    panels: {
-      position: 'relative',
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 22,
-      backgroundColor: colors.card,
-    },
-    panel: {
-      paddingVertical: 15,
-      paddingHorizontal: 16,
-      borderTopLeftRadius: 21,
-      borderTopRightRadius: 21,
-    },
-    panelRecv: {
-      backgroundColor: colors.surfaceLight,
-      borderTopWidth: 1,
-      borderTopColor: colors.divider,
-      borderTopLeftRadius: 0,
-      borderTopRightRadius: 0,
-      borderBottomLeftRadius: 21,
-      borderBottomRightRadius: 21,
-    },
     prowBetween: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -1154,12 +907,6 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
     },
     pmeta: { fontSize: 12, color: colors.textTertiary },
-    pinput: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      marginTop: 9,
-    },
     amt: {
       flex: 1,
       minWidth: 0,
@@ -1168,18 +915,6 @@ const makeStyles = (colors: ThemeColors) =>
       letterSpacing: -0.5,
       color: colors.text,
       padding: 0,
-    },
-    pill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surfaceLight,
-      borderRadius: 999,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      ...SELECTOR_PILL_LAYOUT,
     },
     pillMeta: { flex: 1, flexShrink: 1, minWidth: 0 },
     pillTitle: {
@@ -1193,20 +928,6 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '600',
       color: colors.textTertiary,
       marginTop: 0,
-    },
-    fab: {
-      alignSelf: 'center',
-      width: 40,
-      height: 40,
-      borderRadius: 13,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: -20,
-      marginBottom: -20,
-      zIndex: 2,
     },
     quoteCard: {
       backgroundColor: colors.cardOverlay,
