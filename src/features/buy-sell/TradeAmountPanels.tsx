@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { useColors, type ThemeColors } from '@/theme';
 import { SELECTOR_PILL_LAYOUT, TRADE_PANEL_GEOMETRY } from './tradePanelStyles';
