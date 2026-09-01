@@ -31,6 +31,7 @@ jest.mock('@/theme', () => ({
     text: '#111111',
     textTertiary: '#777777',
   }),
+  useResolvedScheme: () => 'light',
 }));
 
 jest.mock('../../src/features/buy-sell/TradeModeTabs', () => {
@@ -65,6 +66,7 @@ describe('SwapScreenImpl', () => {
     expect(getByTestId('swap-fees-panel')).toBeTruthy();
     expect(getByTestId('swap-cta').props.accessibilityState.disabled).toBe(true);
     expect(getByTestId('swap-header')).toBeTruthy();
+    expect(getByTestId('swap-header-background')).toBeTruthy();
     expect(getByTestId('swap-header-back')).toBeTruthy();
     expect(getByTestId('swap-header-progress')).toBeTruthy();
     expect(StyleSheet.flatten(getByTestId('swap-step-content').props.style).gap).toBe(

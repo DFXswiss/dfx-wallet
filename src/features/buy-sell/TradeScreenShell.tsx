@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ImageBackground, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
-import { useColors, type ThemeColors } from '@/theme';
+import { DarkBackdrop } from '@/components/DarkBackdrop';
+import { useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 import { TRADE_STEP_GAP } from './tradePanelStyles';
 
 type Props = {
@@ -23,33 +24,49 @@ export function TradeScreenShell({
   children,
 }: Props) {
   const colors = useColors();
+  const scheme = useResolvedScheme();
   const styles = makeStyles(colors);
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <AppHeader title={title} onBack={onBack} testID={headerTestID} />
-      <View style={styles.progressRow} testID={`${headerTestID}-progress`}>
-        {steps.map((step, index) => (
-          <View
-            key={step}
-            style={[styles.progressStep, index <= activeStep && styles.progressActive]}
-          />
-        ))}
-      </View>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {children}
-      </ScrollView>
-    </SafeAreaView>
+    <View style={styles.background} testID={`${headerTestID}-background`}>
+      {scheme === 'dark' ? (
+        <DarkBackdrop baseColor={colors.background} />
+      ) : (
+        <ImageBackground
+          source={require('../../../assets/dashboard-bg.png')}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
+      )}
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <AppHeader title={title} onBack={onBack} testID={headerTestID} />
+        <View style={styles.progressRow} testID={`${headerTestID}-progress`}>
+          {steps.map((step, index) => (
+            <View
+              key={step}
+              style={[styles.progressStep, index <= activeStep && styles.progressActive]}
+            />
+          ))}
+        </View>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {children}
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
+    background: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
     safeArea: { flex: 1 },
     scroll: { flex: 1 },
     scrollContent: {
