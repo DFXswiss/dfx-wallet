@@ -14,9 +14,15 @@ jest.mock('react-i18next', () => ({
 
 jest.mock('@/theme', () => ({
   useColors: () => ({
+    background: '#f0f0f0',
     text: '#111111',
     textTertiary: '#777777',
   }),
+  useResolvedScheme: () => 'light',
+  Typography: {
+    headlineSmall: { fontSize: 20, lineHeight: 28, fontWeight: '700' },
+    bodyLarge: { fontSize: 16, lineHeight: 24, fontWeight: '400' },
+  },
 }));
 
 jest.mock('../../src/features/buy-sell/TradeModeTabs', () => {

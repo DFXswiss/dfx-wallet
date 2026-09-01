@@ -152,6 +152,38 @@ describe('Visual Regression (full variant)', () => {
       await pause();
     });
 
+    it('switches between buy, sell, and swap modes', async () => {
+      await element(by.id('dashboard-action-receive')).tap();
+      await waitFor(element(by.id('receive-destination-bank')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await element(by.id('receive-destination-bank')).tap();
+      await waitFor(element(by.id('buy-screen')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await waitFor(element(by.id('trade-tab-buy')))
+        .toBeVisible()
+        .withTimeout(30_000);
+
+      await element(by.id('trade-tab-sell')).tap();
+      await waitFor(element(by.id('sell-screen')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await waitFor(element(by.id('trade-tab-sell')))
+        .toBeVisible()
+        .withTimeout(30_000);
+
+      await element(by.id('trade-tab-swap')).tap();
+      await waitFor(element(by.id('swap-screen')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await waitFor(element(by.id('trade-tab-swap')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause();
+      await expectScreenToMatchBaseline('trade-mode-swap');
+    });
+
     // --- Settings and its sub-screens (reached from the dashboard menu) ---
     it('shows the settings screen', async () => {
       await openSettings();
