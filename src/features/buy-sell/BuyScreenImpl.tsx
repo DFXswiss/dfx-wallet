@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ImageBackground, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { ConfirmTargetWalletModal, DarkBackdrop, Icon, PrimaryButton } from '@/components';
+import { ConfirmTargetWalletModal, Icon, PrimaryButton } from '@/components';
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
 import type { ChainId } from '@/config/chains';
 import {
@@ -20,7 +20,7 @@ import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
 import { dfxAuthService, DfxApiError } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 import { PayCurrencySheet } from './PayCurrencySheet';
 import { ReceiveAssetSheet } from './ReceiveAssetSheet';
 import { AssetGlyph } from './AssetGlyph';
@@ -191,7 +191,6 @@ const BUY_ASSETS: BuyAsset[] = [
 
 export default function BuyScreen() {
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
@@ -804,18 +803,7 @@ export default function BuyScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
-        {body}
-      </View>
+      {body}
       <DfxAuthGate
         gate={authGateIsCurrent ? authGate : null}
         onClose={dismissAuthGate}
@@ -946,10 +934,6 @@ function CopyRow({
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    bg: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
     stepContent: {
       gap: TRADE_STEP_GAP,
     },
