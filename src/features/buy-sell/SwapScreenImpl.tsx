@@ -3,7 +3,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { Icon } from '@/components/Icon';
-import { useColors } from '@/theme';
+import { Typography, useColors } from '@/theme';
 import TradeModeTabs from './TradeModeTabs';
 import { MobileFeesPanel } from './MobileFeesPanel';
 import { TradeAmountPanels, TradeSelectorPill } from './TradeAmountPanels';
@@ -13,6 +13,7 @@ import { TradeScreenShell } from './TradeScreenShell';
 export default function SwapScreenImpl() {
   const { t } = useTranslation();
   const colors = useColors();
+  const styles = makeStyles(colors);
   const router = useRouter();
 
   return (
@@ -113,39 +114,38 @@ export default function SwapScreenImpl() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  stepContent: { gap: TRADE_STEP_GAP },
-  label: { fontSize: 12.5, fontWeight: '600' },
-  amount: { flex: 1, minWidth: 0, fontSize: 33, fontWeight: '700', padding: 0 },
-  pillTitle: { fontSize: 15, fontWeight: '700', flex: 1 },
-  pillSubtitle: { fontSize: 11, fontWeight: '600', flex: 1 },
-  security: { textAlign: 'center', marginTop: 12, fontSize: 12 },
-  cta: {
-    height: 56,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#00000022',
-  },
-  ctaText: { fontSize: 16, fontWeight: '600', color: '#ffffff88' },
-  placeholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: 48,
-  },
-  title: {
-    marginTop: 16,
-    fontSize: 24,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  description: {
-    marginTop: 8,
-    fontSize: 16,
-    lineHeight: 22,
-    textAlign: 'center',
-  },
-});
+const makeStyles = (colors: ReturnType<typeof useColors>) =>
+  StyleSheet.create({
+    screen: { flex: 1 },
+    stepContent: { gap: TRADE_STEP_GAP },
+    label: { ...Typography.bodySmall, fontWeight: '600', color: colors.textTertiary },
+    amount: { flex: 1, minWidth: 0, ...Typography.headlineMedium, padding: 0 },
+    pillTitle: { ...Typography.bodyLarge, fontWeight: '700', flex: 1 },
+    pillSubtitle: { ...Typography.bodySmall, fontWeight: '600', flex: 1 },
+    security: { ...Typography.bodySmall, textAlign: 'center', marginTop: 12 },
+    cta: {
+      height: 56,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.borderLight,
+    },
+    ctaText: { ...Typography.bodyLarge, fontWeight: '600', color: colors.textTertiary },
+    placeholder: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+      paddingBottom: 48,
+    },
+    title: {
+      marginTop: 16,
+      ...Typography.headlineMedium,
+      textAlign: 'center',
+    },
+    description: {
+      marginTop: 8,
+      ...Typography.bodyLarge,
+      textAlign: 'center',
+    },
+  });

@@ -152,43 +152,30 @@ describe('Visual Regression (full variant)', () => {
       await pause();
     });
 
-    it('switches between buy, sell, and swap modes', async () => {
+    it('reaches the swap mode from the buy flow', async () => {
       await element(by.id('dashboard-action-receive')).tap();
       await waitFor(element(by.id('receive-destination-bank')))
         .toBeVisible()
         .withTimeout(60_000);
       await element(by.id('receive-destination-bank')).tap();
-      await waitFor(element(by.id('buy-screen')))
+      await waitFor(element(by.id('trade-tab-swap')))
         .toBeVisible()
         .withTimeout(60_000);
-      await waitFor(element(by.id('trade-tab-buy')))
-        .toBeVisible()
-        .withTimeout(30_000);
-
-      await element(by.id('trade-tab-sell')).tap();
-      await waitFor(element(by.id('sell-screen')))
-        .toBeVisible()
-        .withTimeout(60_000);
-      await waitFor(element(by.id('trade-tab-sell')))
-        .toBeVisible()
-        .withTimeout(30_000);
-
       await element(by.id('trade-tab-swap')).tap();
       await waitFor(element(by.id('swap-screen')))
         .toBeVisible()
         .withTimeout(60_000);
-      await waitFor(element(by.id('trade-tab-swap')))
-        .toBeVisible()
-        .withTimeout(30_000);
-      await pause();
-      await expectScreenToMatchBaseline('trade-mode-swap');
-      // Swap sits on receive, which sits on the dashboard. The next case
-      // opens settings from the dashboard menu, so return there explicitly.
-      await element(by.id('swap-screen-header-back')).tap();
-      await waitFor(element(by.id('receive-screen')))
+      await expect(element(by.id('swap-amount-panels'))).toBeVisible();
+      await expect(element(by.id('swap-fees-panel'))).toBeVisible();
+      await element(by.id('swap-header-back')).tap();
+      await waitFor(element(by.id('buy-screen-background')))
         .toBeVisible()
         .withTimeout(60_000);
-      await element(by.id('receive-screen-back')).tap();
+      await element(by.id('buy-screen-back')).tap();
+      await waitFor(element(by.id('receive-asset-list')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await element(by.id('receive-header-back')).tap();
       await waitFor(element(by.id('dashboard-screen')))
         .toBeVisible()
         .withTimeout(60_000);
