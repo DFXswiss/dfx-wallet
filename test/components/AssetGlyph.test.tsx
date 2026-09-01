@@ -4,11 +4,15 @@ import { AssetGlyph } from '../../src/features/buy-sell/AssetGlyph';
 
 const mockFallbackBackground = '#E8ECF2';
 const mockFallbackText = '#667085';
+const mockWarning = '#F59E0B';
+const mockWhite = '#FFFFFF';
 
 jest.mock('@/theme', () => ({
   useColors: () => ({
     surfaceLight: '#E8ECF2',
     textSecondary: '#667085',
+    warning: mockWarning,
+    white: mockWhite,
   }),
 }));
 
@@ -16,8 +20,8 @@ describe('AssetGlyph', () => {
   it('renders BTC with Bitcoin orange and the white Bitcoin symbol', () => {
     const { UNSAFE_getByType } = render(<AssetGlyph symbol="BTC" />);
 
-    expect(UNSAFE_getByType(Circle).props.fill).toBe('#F7931A');
-    expect(UNSAFE_getByType(SvgText).props.fill).toBe('#FFFFFF');
+    expect(UNSAFE_getByType(Circle).props.fill).toBe(mockWarning);
+    expect(UNSAFE_getByType(SvgText).props.fill).toBe(mockWhite);
     expect(UNSAFE_getByType(SvgText).props.children).toBe('₿');
   });
 

@@ -139,9 +139,8 @@
       "reason": "DFX buy flow; needs onboarded state and a mocked DFX backend response before a deterministic baseline."
     },
     "(auth)/swap/index.tsx": {
-      "status": "pending",
-      "tracking": "DFXswiss/dfx-wallet#257",
-      "reason": "Swap is currently a reachable placeholder route; capture a deterministic baseline after its quote backend and stable asset fixtures are implemented."
+      "status": "baselined",
+      "baselines": ["swap-placeholder"]
     },
     "(auth)/sell/index.tsx": {
       "status": "pending",
