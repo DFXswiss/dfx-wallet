@@ -30,13 +30,16 @@ jest.mock('@tetherto/wdk-react-native-core', () => ({
     sign: jest.fn().mockResolvedValue({ success: true, signature: 'signed-message' }),
   }),
   useBalancesForWallet: () => ({
-    data: [{ assetId: 'BTC', success: true, balance: '1' }],
+    data: [
+      { assetId: 'BTC', success: true, balance: '1' },
+      { assetId: 'USDC', success: true, balance: '1' },
+    ],
   }),
 }));
 
 jest.mock('@/hooks', () => ({ useLdsWallet: () => ({ user: null, signIn: jest.fn() }) }));
 jest.mock('@/features/portfolio/useEnabledChains', () => ({
-  useEnabledChains: () => ({ enabledChains: ['bitcoin'] }),
+  useEnabledChains: () => ({ enabledChains: ['bitcoin', 'ethereum'] }),
 }));
 jest.mock('@/features/linked-wallets/useLinkedWalletReauth', () => ({
   useLinkedWalletReauth: () => ({ reauthAs: jest.fn() }),
@@ -58,12 +61,22 @@ jest.mock('@/store', () => ({
     selector({ isDfxAuthenticated: false }),
 }));
 jest.mock('@/config/tokens', () => ({
-  WDK_SUPPORTED_CHAINS: ['bitcoin'],
+  WDK_SUPPORTED_CHAINS: ['bitcoin', 'ethereum'],
   getAssets: () => [
     {
       getNetwork: () => 'bitcoin',
       getId: () => 'BTC',
       getDecimals: () => 8,
+    },
+    {
+      getNetwork: () => 'ethereum',
+      getId: () => 'USDT',
+      getDecimals: () => 6,
+    },
+    {
+      getNetwork: () => 'ethereum',
+      getId: () => 'USDC',
+      getDecimals: () => 6,
     },
   ],
   getAssetMeta: (id: string) => ({ symbol: id }),
@@ -203,13 +216,22 @@ describe('SellScreenImpl', () => {
     expect(getByTestId('sell-security-row')).toBeTruthy();
   });
 
+  it('labels the flip action as navigation to Buy', () => {
+    const { getByTestId } = render(<SellScreenImpl />);
+
+    expect(getByTestId('sell-flip-to-buy').props.accessibilityLabel).toBe('sell.flipToBuy');
+  });
+
   it('renders feesTarget rows after selecting an asset and entering an amount', () => {
     flowState.paymentInfo = PAYMENT_INFO;
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
-    const { getAllByText, getByTestId } = render(<SellScreenImpl />);
+    const { getByTestId } = render(<SellScreenImpl />);
 
     act(() => {
-      fireEvent.press(getAllByText('BTC')[0]!);
+      fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    });
+    act(() => {
+      fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
     });
     fireEvent.changeText(getByTestId('sell-pay-amount'), '1');
     const panel = getByTestId('sell-fees-panel');
@@ -222,10 +244,13 @@ describe('SellScreenImpl', () => {
   it('prefers a concrete errors entry over the continue hint', () => {
     flowState.paymentInfo = { isValid: false, errors: ['AmountTooLow'] };
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
-    const { getAllByText, getByTestId, getByText } = render(<SellScreenImpl />);
+    const { getByTestId, getByText } = render(<SellScreenImpl />);
 
     act(() => {
-      fireEvent.press(getAllByText('BTC')[0]!);
+      fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    });
+    act(() => {
+      fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
     });
     fireEvent.changeText(getByTestId('sell-pay-amount'), '1');
     const panel = getByTestId('sell-fees-panel');
@@ -239,10 +264,13 @@ describe('SellScreenImpl', () => {
   it('allows an account gate to continue without a valid quote', () => {
     flowState.paymentInfo = { isValid: false, error: 'KycRequired' };
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
-    const { getAllByText, getByTestId } = render(<SellScreenImpl />);
+    const { getByTestId } = render(<SellScreenImpl />);
 
     act(() => {
-      fireEvent.press(getAllByText('BTC')[0]!);
+      fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    });
+    act(() => {
+      fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
     });
     fireEvent.changeText(getByTestId('sell-pay-amount'), '1');
 
@@ -253,10 +281,13 @@ describe('SellScreenImpl', () => {
     flowState.paymentInfo = null;
     flowState.error = 'network failed';
     flowState.errorKey = '1|CHF|BTC|Bitcoin|bitcoin';
-    const { getAllByText, getByTestId, getByText, queryByText } = render(<SellScreenImpl />);
+    const { getByTestId, getByText, queryByText } = render(<SellScreenImpl />);
 
     act(() => {
-      fireEvent.press(getAllByText('BTC')[0]!);
+      fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    });
+    act(() => {
+      fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
     });
     fireEvent.changeText(getByTestId('sell-pay-amount'), '1');
     fireEvent.press(within(getByTestId('sell-fees-panel')).getByRole('button'));
@@ -272,10 +303,13 @@ describe('SellScreenImpl', () => {
   it('does not reopen an old auth gate after the quote inputs change', () => {
     flowState.authGate = { kind: 'login', message: 'sign in' };
     flowState.errorKey = '1|CHF|BTC|Bitcoin|bitcoin';
-    const { getAllByText, getByTestId } = render(<SellScreenImpl />);
+    const { getByTestId } = render(<SellScreenImpl />);
 
     act(() => {
-      fireEvent.press(getAllByText('BTC')[0]!);
+      fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    });
+    act(() => {
+      fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
     });
     fireEvent.changeText(getByTestId('sell-pay-amount'), '2');
 
@@ -286,10 +320,13 @@ describe('SellScreenImpl', () => {
     flowState.paymentInfo = PAYMENT_INFO;
     flowState.isLoading = true;
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
-    const { getAllByText, getByTestId } = render(<SellScreenImpl />);
+    const { getByTestId } = render(<SellScreenImpl />);
 
     act(() => {
-      fireEvent.press(getAllByText('BTC')[0]!);
+      fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    });
+    act(() => {
+      fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
     });
     fireEvent.changeText(getByTestId('sell-pay-amount'), '1');
 
@@ -301,10 +338,13 @@ describe('SellScreenImpl', () => {
   it('invalidates the previous quote immediately when payout currency changes', () => {
     flowState.paymentInfo = PAYMENT_INFO;
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
-    const { getAllByText, getByTestId } = render(<SellScreenImpl />);
+    const { getByTestId } = render(<SellScreenImpl />);
 
     act(() => {
-      fireEvent.press(getAllByText('BTC')[0]!);
+      fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    });
+    act(() => {
+      fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
     });
     fireEvent.changeText(getByTestId('sell-pay-amount'), '1');
     expect(getByTestId('sell-receive-amount').props.value).not.toBe('');
@@ -314,5 +354,25 @@ describe('SellScreenImpl', () => {
     expect(getByTestId('sell-receive-amount').props.value).toBe('');
     expect(within(getByTestId('sell-fees-panel')).getAllByText('—')).toHaveLength(2);
     expect(getByTestId('sell-cta').props.accessibilityState.disabled).toBe(true);
+  });
+
+  it('keeps USDC-only holdings selectable and uses the selected token in the quote key', () => {
+    flowState.paymentInfo = { ...PAYMENT_INFO, asset: { name: 'USDC' } };
+    flowState.quoteKey = '1|CHF|USDC|Ethereum|ethereum';
+    const { getByTestId, getAllByText } = render(<SellScreenImpl />);
+
+    act(() => {
+      fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    });
+    expect(getByTestId('sell-pay-asset-option-USD-ethereum-USDT')).toBeTruthy();
+    expect(getByTestId('sell-pay-asset-option-USD-ethereum-USDC')).toBeTruthy();
+    act(() => {
+      fireEvent.press(getByTestId('sell-pay-asset-option-USD-ethereum-USDC'));
+    });
+    fireEvent.changeText(getByTestId('sell-pay-amount'), '1');
+
+    expect(getAllByText('USDC', { exact: true }).length).toBeGreaterThan(0);
+    expect(getByTestId('sell-receive-amount').props.value).toBe("25'000.00");
+    expect(getByTestId('sell-cta').props.accessibilityState.disabled).toBe(false);
   });
 });

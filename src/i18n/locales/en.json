@@ -552,6 +552,7 @@
     "feeNetwork": "Network fee",
     "feeTotal": "Total fee",
     "fetchingQuote": "Calculating quote…",
+    "flipToBuy": "Switch to Buy",
     "howMuch": "How much do you want to sell?",
     "noBalance": "No holdings to sell — top up your wallet first.",
     "payoutTo": "Payout to",

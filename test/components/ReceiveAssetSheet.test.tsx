@@ -57,6 +57,22 @@ const BTC_ASSET: BuyAsset = {
   ],
 };
 
+const USD_ASSET: BuyAsset = {
+  symbol: 'USD',
+  label: 'US Dollar',
+  chains: [
+    {
+      chain: 'ethereum',
+      label: 'Ethereum',
+      blockchain: 'Ethereum',
+      tokens: [
+        { assetSymbol: 'USDT', label: 'USDT' },
+        { assetSymbol: 'USDC', label: 'USDC' },
+      ],
+    },
+  ],
+};
+
 describe('ReceiveAssetSheet', () => {
   it('shows the BTC section and passes the selected chain index to the presenter', () => {
     const onSelect = jest.fn();
@@ -77,7 +93,31 @@ describe('ReceiveAssetSheet', () => {
 
     fireEvent.press(getByTestId('receive-asset-option-BTC-bitcoin-lightning'));
 
-    expect(onSelect).toHaveBeenCalledWith(BTC_ASSET, 1);
+    expect(onSelect).toHaveBeenCalledWith(BTC_ASSET, 1, 0);
+  });
+
+  it('passes the selected token index for multi-token chains', () => {
+    const onSelect = jest.fn();
+    const { getByTestId, getByText } = render(
+      <ReceiveAssetSheet
+        visible
+        onClose={jest.fn()}
+        assets={[USD_ASSET]}
+        selectedAssetSymbol="USD"
+        selectedChainIndex={0}
+        selectedTokenIndex={1}
+        onSelect={onSelect}
+      />,
+    );
+
+    expect(getByText('USDT')).toBeTruthy();
+    expect(getByText('USDC')).toBeTruthy();
+
+    fireEvent.press(getByTestId('receive-asset-option-USD-ethereum-USDT'));
+    expect(onSelect).toHaveBeenCalledWith(USD_ASSET, 0, 0);
+
+    fireEvent.press(getByTestId('receive-asset-option-USD-ethereum-USDC'));
+    expect(onSelect).toHaveBeenCalledWith(USD_ASSET, 0, 1);
   });
 
   it('keeps the backdrop outside the asset option subtree', () => {

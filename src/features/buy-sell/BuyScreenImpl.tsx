@@ -1,26 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ImageBackground,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ImageBackground, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import {
-  AppHeader,
-  ConfirmTargetWalletModal,
-  DarkBackdrop,
-  Icon,
-  PrimaryButton,
-} from '@/components';
+import { ConfirmTargetWalletModal, DarkBackdrop, Icon, PrimaryButton } from '@/components';
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
 import type { ChainId } from '@/config/chains';
 import {
@@ -42,7 +27,9 @@ import { AssetGlyph } from './AssetGlyph';
 import { CurrencyGlyph } from './CurrencyGlyph';
 import TradeModeTabs from './TradeModeTabs';
 import { MobileFeesPanel } from './MobileFeesPanel';
-import { isAccountGateError, makeTradeQuoteKey, SELECTOR_PILL_LAYOUT } from './tradePanelStyles';
+import { isAccountGateError, makeTradeQuoteKey, TRADE_STEP_GAP } from './tradePanelStyles';
+import { TradeAmountPanels, TradeSelectorPill } from './TradeAmountPanels';
+import { TradeScreenShell } from './TradeScreenShell';
 
 type BuyStep = 'amount' | 'payment' | 'confirm';
 
@@ -513,78 +500,71 @@ export default function BuyScreen() {
           </View>
         </View>
       ) : null}
-      <View style={styles.panels}>
-        <View style={styles.panel}>
-          <Text style={styles.plabel}>{t('buy.youPay')}</Text>
-          <View style={styles.pinput}>
-            <TextInput
-              style={styles.amt}
-              value={amount}
-              onChangeText={setAmount}
-              placeholder="0"
-              placeholderTextColor={colors.textTertiary}
-              keyboardType="decimal-pad"
-              testID="buy-pay-amount"
-            />
-            <Pressable
-              style={styles.pill}
-              onPress={() => setPayPickerOpen(true)}
-              testID="buy-pay-currency-pill"
-            >
-              <CurrencyGlyph code={selectedCurrency} size={32} />
-              <Text style={styles.pillTitle}>{selectedCurrency}</Text>
-              <Icon name="chevron-right" size={16} color={colors.textTertiary} />
-            </Pressable>
-          </View>
-        </View>
-
-        <Pressable
-          style={styles.fab}
-          onPress={() => router.replace('/(auth)/sell')}
-          testID="buy-flip-to-sell"
-          accessibilityRole="button"
-          accessibilityLabel={t('buy.flipToSell')}
-        >
-          <Icon name="swap" size={18} color={colors.primary} />
-        </Pressable>
-
-        <View style={[styles.panel, styles.panelRecv]}>
+      <TradeAmountPanels
+        testID="buy-amount-panels"
+        flipTestID="buy-flip-to-sell"
+        flipAccessibilityLabel={t('buy.flipToSell')}
+        onFlip={() => router.replace('/(auth)/sell')}
+        payLabel={<Text style={styles.plabel}>{t('buy.youPay')}</Text>}
+        payAmount={
+          <TextInput
+            style={styles.amt}
+            value={amount}
+            onChangeText={setAmount}
+            placeholder="0"
+            placeholderTextColor={colors.textTertiary}
+            keyboardType="decimal-pad"
+            testID="buy-pay-amount"
+          />
+        }
+        paySelector={
+          <TradeSelectorPill
+            onPress={() => setPayPickerOpen(true)}
+            testID="buy-pay-currency-pill"
+            accessibilityLabel={t('buy.youPay')}
+          >
+            <CurrencyGlyph code={selectedCurrency} size={32} />
+            <Text style={styles.pillTitle}>{selectedCurrency}</Text>
+          </TradeSelectorPill>
+        }
+        receiveLabel={
           <View style={styles.prowBetween}>
             <Text style={styles.plabel}>{t('buy.receiveLabel')}</Text>
             {isLoading && !unsupportedChain ? (
               <Text style={styles.pmeta}>{t('buy.fetchingQuote')}</Text>
             ) : null}
           </View>
-          <View style={styles.pinput}>
-            <TextInput
-              style={styles.amt}
-              value={hasQuote && paymentInfo ? fmtCrypto(paymentInfo.estimatedAmount) : ''}
-              editable={false}
-              placeholder="0"
-              placeholderTextColor={colors.textTertiary}
-              testID="buy-receive-amount"
-            />
-            <Pressable
-              style={styles.pill}
-              onPress={() => setReceivePickerOpen(true)}
-              testID="buy-receive-asset-pill"
-            >
-              <AssetGlyph symbol={targetAsset || selectedAsset?.symbol || ''} size={32} />
-              <View style={styles.pillMeta}>
-                <Text style={styles.pillTitle} numberOfLines={1}>
-                  {targetAsset || selectedAsset?.symbol || ''}
+        }
+        receiveAmount={
+          <TextInput
+            style={styles.amt}
+            value={hasQuote && paymentInfo ? fmtCrypto(paymentInfo.estimatedAmount) : ''}
+            editable={false}
+            placeholder="0"
+            placeholderTextColor={colors.textTertiary}
+            testID="buy-receive-amount"
+          />
+        }
+        receiveSelector={
+          <TradeSelectorPill
+            onPress={() => setReceivePickerOpen(true)}
+            testID="buy-receive-asset-pill"
+            accessibilityLabel={t('buy.receiveLabel')}
+          >
+            <AssetGlyph symbol={targetAsset || selectedAsset?.symbol || ''} size={32} />
+            <View style={styles.pillMeta}>
+              <Text style={styles.pillTitle} numberOfLines={1}>
+                {targetAsset || selectedAsset?.symbol || ''}
+              </Text>
+              {selectedChainSpec ? (
+                <Text style={styles.pillSubtitle} numberOfLines={1}>
+                  {selectedChainSpec.label}
                 </Text>
-                {selectedChainSpec ? (
-                  <Text style={styles.pillSubtitle} numberOfLines={1}>
-                    {selectedChainSpec.label}
-                  </Text>
-                ) : null}
-              </View>
-              <Icon name="chevron-right" size={16} color={colors.textTertiary} />
-            </Pressable>
-          </View>
-        </View>
-      </View>
+              ) : null}
+            </View>
+          </TradeSelectorPill>
+        }
+      />
 
       <View style={styles.quickRow}>
         {['50', '100', '250', '500'].map((val) => (
@@ -616,10 +596,11 @@ export default function BuyScreen() {
         assets={BUY_ASSETS}
         selectedAssetSymbol={selectedAsset?.symbol}
         selectedChainIndex={selectedChainIndex}
-        onSelect={(asset, chainIndex) => {
+        selectedTokenIndex={selectedTokenIndex}
+        onSelect={(asset, chainIndex, tokenIndex) => {
           setSelectedAsset(asset);
           setSelectedChainIndex(chainIndex);
-          setSelectedTokenIndex(0);
+          setSelectedTokenIndex(tokenIndex);
           setReceivePickerOpen(false);
         }}
       />
@@ -804,33 +785,20 @@ export default function BuyScreen() {
   );
 
   const body = (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <AppHeader
-        title={t('buy.title')}
-        onBack={() => {
-          if (step === 'payment') setStep('amount');
-          else router.back();
-        }}
-        testID="buy-screen"
-      />
-      <View style={styles.progressRow}>
-        {['amount', 'payment', 'confirm'].map((item, index) => {
-          const currentIndex = step === 'amount' ? 0 : step === 'payment' ? 1 : 2;
-          const active = index <= currentIndex;
-          return <View key={item} style={[styles.progressStep, active && styles.progressActive]} />;
-        })}
-      </View>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {step === 'amount' && renderAmountStep()}
-        {step === 'payment' && renderPaymentStep()}
-        {step === 'confirm' && renderConfirmStep()}
-      </ScrollView>
-    </SafeAreaView>
+    <TradeScreenShell
+      title={t('buy.title')}
+      onBack={() => {
+        if (step === 'payment') setStep('amount');
+        else router.back();
+      }}
+      headerTestID="buy-screen"
+      activeStep={step === 'amount' ? 0 : step === 'payment' ? 1 : 2}
+      steps={['amount', 'payment', 'confirm']}
+    >
+      {step === 'amount' && renderAmountStep()}
+      {step === 'payment' && renderPaymentStep()}
+      {step === 'confirm' && renderConfirmStep()}
+    </TradeScreenShell>
   );
 
   return (
@@ -982,66 +950,13 @@ const makeStyles = (colors: ThemeColors) =>
       flex: 1,
       backgroundColor: colors.background,
     },
-    safeArea: {
-      flex: 1,
-    },
-    scroll: {
-      flex: 1,
-    },
-    scrollContent: {
-      paddingTop: 2,
-      paddingHorizontal: 16,
-      paddingBottom: 26,
-      gap: 18,
-    },
     stepContent: {
-      gap: 18,
-    },
-    progressRow: {
-      flexDirection: 'row',
-      alignSelf: 'center',
-      gap: 8,
-      paddingTop: 4,
-      paddingBottom: 12,
-    },
-    progressStep: {
-      width: 34,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: colors.cardOverlay,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-    },
-    progressActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
+      gap: TRADE_STEP_GAP,
     },
     stepSubtitle: {
       ...Typography.bodyLarge,
       color: colors.textSecondary,
       fontWeight: '500',
-    },
-    panels: {
-      position: 'relative',
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 22,
-      backgroundColor: colors.card,
-    },
-    panel: {
-      paddingVertical: 15,
-      paddingHorizontal: 16,
-      borderTopLeftRadius: 21,
-      borderTopRightRadius: 21,
-    },
-    panelRecv: {
-      backgroundColor: colors.surfaceLight,
-      borderTopWidth: 1,
-      borderTopColor: colors.divider,
-      borderTopLeftRadius: 0,
-      borderTopRightRadius: 0,
-      borderBottomLeftRadius: 21,
-      borderBottomRightRadius: 21,
     },
     prowBetween: {
       flexDirection: 'row',
@@ -1057,12 +972,6 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: 12,
       color: colors.textTertiary,
     },
-    pinput: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      marginTop: 9,
-    },
     amt: {
       flex: 1,
       minWidth: 0,
@@ -1071,18 +980,6 @@ const makeStyles = (colors: ThemeColors) =>
       letterSpacing: -0.5,
       color: colors.text,
       padding: 0,
-    },
-    pill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surfaceLight,
-      borderRadius: 999,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      ...SELECTOR_PILL_LAYOUT,
     },
     pillMeta: {
       flex: 1,
@@ -1099,20 +996,6 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '600',
       color: colors.textTertiary,
       marginTop: 0,
-    },
-    fab: {
-      alignSelf: 'center',
-      width: 40,
-      height: 40,
-      borderRadius: 13,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: -20,
-      marginBottom: -20,
-      zIndex: 2,
     },
     quickRow: {
       flexDirection: 'row',

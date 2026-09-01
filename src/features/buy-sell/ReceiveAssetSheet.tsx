@@ -4,9 +4,20 @@ import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from '@/components';
 import { Typography, useColors, type ThemeColors } from '@/theme';
-import type { BuyAsset } from './BuyScreenImpl';
 import { AssetGlyph } from './AssetGlyph';
 import { CurrencyGlyph } from './CurrencyGlyph';
+
+export type TradeAssetOption = {
+  symbol: string;
+  label?: string;
+  chains: ReadonlyArray<{
+    chain: string;
+    label: string;
+    blockchain: string;
+    tokens: ReadonlyArray<{ assetSymbol: string; label: string }>;
+    unsupported?: boolean;
+  }>;
+};
 
 const CURRENCY_CODES = ['CHF', 'EUR', 'USD'] as const;
 type CurrencyCode = (typeof CURRENCY_CODES)[number];
@@ -15,23 +26,29 @@ function isCurrencyCode(symbol: string): symbol is CurrencyCode {
   return (CURRENCY_CODES as readonly string[]).includes(symbol);
 }
 
-type Props = {
+type Props<T extends TradeAssetOption> = {
   visible: boolean;
   onClose: () => void;
-  assets: BuyAsset[];
+  assets: ReadonlyArray<T>;
   selectedAssetSymbol?: string | undefined;
   selectedChainIndex: number;
-  onSelect: (asset: BuyAsset, chainIndex: number) => void;
+  selectedTokenIndex?: number;
+  onSelect: (asset: T, chainIndex: number, tokenIndex: number) => void;
+  titleKey?: string;
+  optionTestIDPrefix?: string;
 };
 
-export function ReceiveAssetSheet({
+export function ReceiveAssetSheet<T extends TradeAssetOption>({
   visible,
   onClose,
   assets,
   selectedAssetSymbol,
   selectedChainIndex,
+  selectedTokenIndex = 0,
   onSelect,
-}: Props) {
+  titleKey = 'buy.receiveLabel',
+  optionTestIDPrefix = 'receive-asset-option',
+}: Props<T>) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { t } = useTranslation();
@@ -50,7 +67,7 @@ export function ReceiveAssetSheet({
           accessibilityViewIsModal
         >
           <View style={styles.header}>
-            <Text style={styles.title}>{t('buy.receiveLabel')}</Text>
+            <Text style={styles.title}>{t(titleKey)}</Text>
             <Pressable
               onPress={onClose}
               hitSlop={12}
@@ -64,18 +81,57 @@ export function ReceiveAssetSheet({
           <ScrollView showsVerticalScrollIndicator={false}>
             {assets.map((asset) => (
               <View key={asset.symbol} style={styles.section}>
-                <Text style={styles.sectionTitle}>{asset.label}</Text>
+                <Text style={styles.sectionTitle}>{asset.label ?? asset.symbol}</Text>
                 {asset.chains.map((chain, chainIndex) => {
-                  const isSelected =
+                  const isChainSelected =
                     selectedAssetSymbol === asset.symbol && selectedChainIndex === chainIndex;
+
+                  if (chain.tokens.length > 1) {
+                    return (
+                      <View key={`${asset.symbol}-${chain.chain}`} style={styles.tokenGroup}>
+                        <Text style={styles.tokenGroupTitle}>{chain.label}</Text>
+                        {chain.tokens.map((token, tokenIndex) => {
+                          const isSelected = isChainSelected && selectedTokenIndex === tokenIndex;
+                          return (
+                            <Pressable
+                              key={`${asset.symbol}-${chain.chain}-${token.assetSymbol}`}
+                              style={styles.option}
+                              onPress={() => onSelect(asset, chainIndex, tokenIndex)}
+                              testID={`${optionTestIDPrefix}-${asset.symbol}-${chain.chain}-${token.assetSymbol}`}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: isSelected }}
+                            >
+                              {isCurrencyCode(asset.symbol) ? (
+                                <CurrencyGlyph code={asset.symbol} size={32} />
+                              ) : (
+                                <AssetGlyph symbol={token.assetSymbol} size={32} />
+                              )}
+                              <View style={styles.tokenMeta}>
+                                <Text style={styles.optionLabel} numberOfLines={1}>
+                                  {token.label}
+                                </Text>
+                                <Text style={styles.tokenChainLabel} numberOfLines={1}>
+                                  {chain.label}
+                                </Text>
+                              </View>
+                              {isSelected ? (
+                                <Icon name="check" size={20} color={colors.primary} />
+                              ) : null}
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    );
+                  }
+
                   return (
                     <Pressable
                       key={`${asset.symbol}-${chain.chain}`}
                       style={[styles.option, chain.unsupported && styles.optionUnsupported]}
-                      onPress={() => onSelect(asset, chainIndex)}
-                      testID={`receive-asset-option-${asset.symbol}-${chain.chain}`}
+                      onPress={() => onSelect(asset, chainIndex, 0)}
+                      testID={`${optionTestIDPrefix}-${asset.symbol}-${chain.chain}`}
                       accessibilityRole="button"
-                      accessibilityState={{ selected: isSelected }}
+                      accessibilityState={{ selected: isChainSelected && selectedTokenIndex === 0 }}
                     >
                       {isCurrencyCode(asset.symbol) ? (
                         <CurrencyGlyph code={asset.symbol} size={32} />
@@ -90,7 +146,9 @@ export function ReceiveAssetSheet({
                       >
                         {chain.label}
                       </Text>
-                      {isSelected ? <Icon name="check" size={20} color={colors.primary} /> : null}
+                      {isChainSelected && selectedTokenIndex === 0 ? (
+                        <Icon name="check" size={20} color={colors.primary} />
+                      ) : null}
                     </Pressable>
                   );
                 })}
@@ -143,6 +201,16 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '700',
       color: colors.textSecondary,
     },
+    tokenGroup: {
+      paddingBottom: 4,
+    },
+    tokenGroupTitle: {
+      ...Typography.bodySmall,
+      paddingTop: 8,
+      paddingBottom: 4,
+      paddingLeft: 44,
+      color: colors.textSecondary,
+    },
     option: {
       minHeight: 56,
       flexDirection: 'row',
@@ -162,5 +230,12 @@ const makeStyles = (colors: ThemeColors) =>
     },
     optionLabelUnsupported: {
       color: colors.textTertiary,
+    },
+    tokenMeta: {
+      flex: 1,
+    },
+    tokenChainLabel: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
     },
   });
