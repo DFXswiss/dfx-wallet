@@ -18,7 +18,7 @@ export default function SwapScreenImpl() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      <View style={[styles.screen, { backgroundColor: colors.background }]} testID="swap-screen">
+      <View style={styles.screen} testID="swap-screen">
         <TradeScreenShell
           title={t('swap.title')}
           onBack={() => router.back()}
