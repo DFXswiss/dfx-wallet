@@ -165,6 +165,8 @@ describe('Visual Regression (full variant)', () => {
       await waitFor(element(by.id('swap-screen')))
         .toBeVisible()
         .withTimeout(60_000);
+      await pause();
+      await expectScreenToMatchBaseline('swap-placeholder');
       await expect(element(by.id('swap-amount-panels'))).toBeVisible();
       await expect(element(by.id('swap-fees-panel'))).toBeVisible();
       await element(by.id('swap-header-back')).tap();
