@@ -1,6 +1,7 @@
 import { renderHook, act } from '@testing-library/react-native';
 import { DfxApiTimeoutError } from '@/features/dfx-backend/services/api';
 import type { BuyPaymentInfoDto } from '../../src/features/dfx-backend/services/dto';
+import { useBuyFlow } from '../../src/features/buy-sell/useBuyFlow';
 
 // Mock the DFX service barrel the hook imports from. We drive every branch
 // of the hook's state machine through these two seams and assert on the
@@ -22,8 +23,6 @@ jest.mock('@/features/dfx-backend/services', () => ({
   },
   interpretDfxAuthError: (...args: unknown[]) => mockInterpretDfxAuthError(...args),
 }));
-
-import { useBuyFlow } from '../../src/features/buy-sell/useBuyFlow';
 
 const QUOTE = {
   amount: 100,
