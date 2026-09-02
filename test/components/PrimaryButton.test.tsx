@@ -44,8 +44,8 @@ describe('PrimaryButton', () => {
     const { getByText } = render(
       <PrimaryButton title="Continue" icon={<Text>icon</Text>} onPress={() => {}} />,
     );
-    expect(getByText('Continue')).toBeTruthy();
-    expect(getByText('icon')).toBeTruthy();
+    expect(getByText('Continue').props.children).toBe('Continue');
+    expect(getByText('icon').props.children).toBe('icon');
   });
 
   it('renders no icon when the icon prop is omitted (existing callers stay unaffected)', () => {
@@ -59,6 +59,6 @@ describe('PrimaryButton', () => {
     );
     expect(queryByText('Continue')).toBeNull();
     expect(queryByText('icon')).toBeNull();
-    expect(UNSAFE_getByType(ActivityIndicator)).toBeTruthy();
+    expect(UNSAFE_getByType(ActivityIndicator).type).toBe(ActivityIndicator);
   });
 });
