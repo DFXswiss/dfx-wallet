@@ -489,9 +489,11 @@
     "incorrectAttemptsLeft_one": "Incorrect PIN. {{count}} attempt remaining.",
     "incorrectAttemptsLeft_other": "Incorrect PIN. {{count}} attempts remaining.",
     "mismatch": "PINs do not match.",
+    "recoveryCta": "Restore your wallet",
     "remainingAttempts": "{{count}} attempts remaining.",
     "saveError": "Could not save PIN. Please try again.",
-    "tooMany": "Too many failed attempts. Please restart the app."
+    "tooMany": "Too many failed attempts. Please restart the app.",
+    "unlockFailed": "Your wallet couldn't be unlocked. Please try again or restore your wallet."
   },
   "portfolio": {
     "alwaysOn": "Always on",
