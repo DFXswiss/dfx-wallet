@@ -37,9 +37,6 @@
       "RecommendationRequired": "Referral code required.",
       "generic": "Quote could not be generated ({{code}})."
     },
-    "iban": "IBAN",
-    "bic": "BIC",
-    "paymentInfo": "Payment information",
     "paymentMethodSepa": "SEPA bank transfer",
     "paymentMethodSepaHint": "Free · 0-1 business day",
     "rateInclFees": "1 {{asset}} ≈ {{amount}} {{currency}} (incl. fees)",
@@ -568,8 +565,6 @@
       "RecommendationRequired": "Referral code required.",
       "generic": "Quote could not be generated ({{code}})."
     },
-    "noBalance": "No holdings to sell — top up your wallet first.",
-    "payoutTo": "Payout to",
     "rateInclFees": "1 {{asset}} ≈ {{amount}} {{currency}} (incl. fees)",
     "selectAsset": "What do you want to sell?",
     "summary": "Quote",
