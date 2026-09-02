@@ -11,6 +11,7 @@
     "confirmTransfer": "I've sent the transfer",
     "continueHint": "Tap Weiter to link your wallet with DFX — your quote appears automatically once linking is done.",
     "exchangeRate": "Exchange rate",
+    "feeBank": "Bank fee",
     "feeDfx": "DFX fee",
     "feeFixed": "Fixed fee",
     "feeNetwork": "Network fee",
@@ -36,6 +37,9 @@
       "RecommendationRequired": "Referral code required.",
       "generic": "Quote could not be generated ({{code}})."
     },
+    "paymentMethodSepa": "SEPA bank transfer",
+    "paymentMethodSepaHint": "Free · 0-1 business day",
+    "rateInclFees": "1 {{asset}} ≈ {{amount}} {{currency}} (incl. fees)",
     "recipient": "Recipient",
     "reference": "Reference code",
     "selectAsset": "What do you want to buy?",
@@ -535,6 +539,7 @@
     "depositAddress": "Deposit address",
     "depositTo": "Deposit to",
     "exchangeRate": "Exchange rate",
+    "feeBank": "Bank fee",
     "feeDfx": "DFX fee",
     "feeFixed": "Fixed fee",
     "feeNetwork": "Network fee",
@@ -560,6 +565,7 @@
       "RecommendationRequired": "Referral code required.",
       "generic": "Quote could not be generated ({{code}})."
     },
+    "rateInclFees": "1 {{asset}} ≈ {{amount}} {{currency}} (incl. fees)",
     "selectAsset": "What do you want to sell?",
     "summary": "Quote",
     "title": "Sell",
@@ -627,7 +633,35 @@
     "sendError": "Message could not be sent. Please try again.",
     "title": "Support"
   },
-  "taxReport": {
+  "swap": {
+    "comingSoon": "Swap is coming soon.",
+    "title": "Swap"
+  },
+  "transactions": {
+    "date": "Date",
+    "detailTitle": "Transaction",
+    "filterAll": "All",
+    "filterIn": "In",
+    "filterOut": "Out",
+    "filterPay": "Pay",
+    "input": "From",
+    "merchant": "Merchant",
+    "network": "Network",
+    "noTransactions": "No transactions yet",
+    "emptyHint": "When you buy, send or receive crypto, your activity will appear here.",
+    "notFound": "Transaction not found",
+    "output": "To",
+    "payout": "Payout to",
+    "recipient": "Recipient",
+    "sender": "Sender",
+    "source": "Source",
+    "title": "Transactions",
+    "txHash": "Tx hash",
+    "venue": "Venue",
+    "viewOnExplorer": "View on block explorer",
+    "walletAddress": "Wallet address"
+  },
+    "taxReport": {
     "cta": "Download tax report",
     "downloadFailed": "Could not generate tax report.",
     "formatLabel": "Format",

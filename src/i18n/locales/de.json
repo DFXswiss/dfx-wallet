@@ -11,6 +11,7 @@
     "confirmTransfer": "Ich habe die Überweisung getätigt",
     "continueHint": "Tippe auf Weiter, um deine Wallet mit DFX zu verknüpfen — dein Angebot erscheint danach automatisch.",
     "exchangeRate": "Wechselkurs",
+    "feeBank": "Bankgebühr",
     "feeDfx": "DFX-Gebühr",
     "feeFixed": "Fixe Gebühr",
     "feeNetwork": "Netzwerkgebühr",
@@ -36,6 +37,9 @@
       "RecommendationRequired": "Empfehlungscode erforderlich.",
       "generic": "Angebot konnte nicht erstellt werden ({{code}})."
     },
+    "paymentMethodSepa": "SEPA-Banküberweisung",
+    "paymentMethodSepaHint": "Kostenlos · 0-1 Werktag",
+    "rateInclFees": "1 {{asset}} ≈ {{amount}} {{currency}} (inkl. Gebühren)",
     "recipient": "Empfänger",
     "reference": "Verwendungszweck",
     "selectAsset": "Was möchtest du kaufen?",
@@ -535,6 +539,7 @@
     "depositAddress": "Einzahlungsadresse",
     "depositTo": "Einzahlung an",
     "exchangeRate": "Wechselkurs",
+    "feeBank": "Bankgebühr",
     "feeDfx": "DFX-Gebühr",
     "feeFixed": "Fixe Gebühr",
     "feeNetwork": "Netzwerkgebühr",
@@ -560,6 +565,7 @@
       "RecommendationRequired": "Empfehlungscode erforderlich.",
       "generic": "Angebot konnte nicht erstellt werden ({{code}})."
     },
+    "rateInclFees": "1 {{asset}} ≈ {{amount}} {{currency}} (inkl. Gebühren)",
     "selectAsset": "Was möchtest du verkaufen?",
     "summary": "Angebot",
     "title": "Verkaufen",
@@ -627,7 +633,35 @@
     "sendError": "Nachricht konnte nicht gesendet werden. Bitte erneut versuchen.",
     "title": "Support"
   },
-  "taxReport": {
+  "swap": {
+    "comingSoon": "Tauschen ist bald verfügbar.",
+    "title": "Tauschen"
+  },
+  "transactions": {
+    "date": "Datum",
+    "detailTitle": "Transaktion",
+    "filterAll": "Alle",
+    "filterIn": "In",
+    "filterOut": "Out",
+    "filterPay": "Pay",
+    "input": "Von",
+    "merchant": "Händler",
+    "network": "Netzwerk",
+    "noTransactions": "Noch keine Transaktionen",
+    "emptyHint": "Sobald du Krypto kaufst, sendest oder empfängst, erscheint hier dein Verlauf.",
+    "notFound": "Transaktion nicht gefunden",
+    "output": "Nach",
+    "payout": "Auszahlung an",
+    "recipient": "Empfänger",
+    "sender": "Absender",
+    "source": "Quelle",
+    "title": "Transaktionen",
+    "txHash": "Tx Hash",
+    "venue": "Börse",
+    "viewOnExplorer": "Auf Block-Explorer ansehen",
+    "walletAddress": "Wallet-Adresse"
+  },
+    "taxReport": {
     "cta": "Steuerreport herunterladen",
     "downloadFailed": "Steuerreport konnte nicht erstellt werden.",
     "formatLabel": "Format",

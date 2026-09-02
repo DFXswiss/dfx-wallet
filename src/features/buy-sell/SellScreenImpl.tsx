@@ -40,6 +40,7 @@ import { dfxAuthService, DfxApiError } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
 import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import TradeModeTabs from './TradeModeTabs';
 
 type SellStep = 'amount' | 'bank' | 'confirm';
 
@@ -241,6 +242,7 @@ export default function SellScreen() {
   const [payoutCurrency, setPayoutCurrency] = useState<(typeof FIAT_CURRENCIES)[number]>('CHF');
   const [iban, setIban] = useState('');
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(true);
 
   // Replay the last failed call after the user finishes the DFX login flow.
   const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
@@ -429,7 +431,7 @@ export default function SellScreen() {
   const belowMin = minVolume != null && numAmount > 0 && numAmount < minVolume;
   const aboveMax = maxVolume != null && numAmount > maxVolume;
 
-  const renderAmountStep = () => (
+  const renderAmountStepContent = () => (
     <View style={styles.stepContent}>
       {hasTargetWallet ? (
         <View style={styles.targetBanner} testID="sell-target-wallet-banner">
@@ -553,11 +555,32 @@ export default function SellScreen() {
 
           {showQuoteCard ? (
             <View style={styles.quoteCard}>
-              <View style={styles.quoteHeader}>
-                <Text style={styles.quoteTitle}>{t('sell.summary')}</Text>
+              <Pressable
+                style={({ pressed }) => [styles.quoteToggle, pressed && styles.pressed]}
+                onPress={() => setCollapsed((value) => !value)}
+                accessibilityRole="button"
+              >
+                <Icon name="shield" size={18} color={colors.primary} />
+                <Text style={styles.quoteToggleText} numberOfLines={2}>
+                  {hasQuote && paymentInfo
+                    ? t('sell.rateInclFees', {
+                        asset: sellAsset,
+                        amount: fmtFiat(paymentInfo.exchangeRate),
+                        currency: payoutCurrency,
+                      })
+                    : t('sell.summary')}
+                </Text>
+                {hasQuote && fees ? (
+                  <View style={styles.quoteFeeBadge}>
+                    <Text style={styles.quoteFeeBadgeText}>{fmtFiat(fees.total)}</Text>
+                  </View>
+                ) : null}
                 {isLoading ? <ActivityIndicator size="small" color={colors.primary} /> : null}
-              </View>
-              {hasQuote && fees ? (
+                <View style={collapsed ? undefined : styles.quoteChevronOpen}>
+                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+                </View>
+              </Pressable>
+              {collapsed ? null : hasQuote && fees ? (
                 <>
                   <QuoteRow
                     label={t('sell.exchangeRate')}
@@ -580,6 +603,12 @@ export default function SellScreen() {
                       value={`${fmtFiat(fees.fixed)} ${payoutCurrency}`}
                     />
                   ) : null}
+                  {fees.bank > 0 ? (
+                    <QuoteRow
+                      label={t('sell.feeBank')}
+                      value={`${fmtFiat(fees.bank)} ${payoutCurrency}`}
+                    />
+                  ) : null}
                   <QuoteRow
                     label={t('sell.feeTotal')}
                     value={`${fmtFiat(fees.total)} ${payoutCurrency}`}
@@ -590,6 +619,7 @@ export default function SellScreen() {
                     label={t('sell.youReceive')}
                     value={`${fmtFiat(paymentInfo!.estimatedAmount)} ${payoutCurrency}`}
                     emphasis
+                    accent
                   />
                 </>
               ) : quoteError ? (
@@ -626,7 +656,8 @@ export default function SellScreen() {
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <PrimaryButton
-            title={t('common.continue')}
+            title={`${t('sell.title')} ${sellAsset}`}
+            icon={<Icon name="arrow-right" size={18} color={colors.white} />}
             onPress={() => {
               if (hasTargetWallet) {
                 setConfirmError(null);
@@ -679,6 +710,13 @@ export default function SellScreen() {
         loading={isLoading}
       />
     </View>
+  );
+
+  const renderAmountStep = () => (
+    <>
+      <TradeModeTabs active="sell" />
+      {renderAmountStepContent()}
+    </>
   );
 
   const renderConfirmStep = () =>
@@ -839,11 +877,13 @@ function QuoteRow({
   value,
   sub,
   emphasis,
+  accent,
 }: {
   label: string;
   value: string;
   sub?: string;
   emphasis?: boolean;
+  accent?: boolean;
 }) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -851,7 +891,15 @@ function QuoteRow({
     <View style={styles.quoteRow}>
       <Text style={styles.quoteLabel}>{label}</Text>
       <View style={{ alignItems: 'flex-end' }}>
-        <Text style={[styles.quoteValue, emphasis && styles.quoteValueEmphasis]}>{value}</Text>
+        <Text
+          style={[
+            styles.quoteValue,
+            emphasis && styles.quoteValueEmphasis,
+            accent && styles.quoteValueAccent,
+          ]}
+        >
+          {value}
+        </Text>
         {sub ? <Text style={styles.quoteSub}>{sub}</Text> : null}
       </View>
     </View>
@@ -1061,11 +1109,6 @@ const makeStyles = (colors: ThemeColors) =>
       padding: 18,
       gap: 14,
     },
-    quoteHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
     quoteTitle: {
       ...Typography.bodySmall,
       fontWeight: '600',
@@ -1105,6 +1148,32 @@ const makeStyles = (colors: ThemeColors) =>
       textAlign: 'right',
     },
     quoteValueEmphasis: { fontWeight: '700' },
+    quoteValueAccent: { color: colors.primary },
+    quoteToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    quoteToggleText: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      fontWeight: '500',
+      flex: 1,
+    },
+    quoteFeeBadge: {
+      backgroundColor: colors.primaryLight,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 999,
+    },
+    quoteFeeBadgeText: {
+      ...Typography.bodySmall,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    quoteChevronOpen: {
+      transform: [{ rotate: '90deg' }],
+    },
     quoteSub: {
       ...Typography.bodySmall,
       color: colors.textTertiary,
