@@ -1,22 +1,24 @@
 import { fireEvent, render } from '@testing-library/react-native';
+import { Text, View } from 'react-native';
 import { ReceiveAssetSheet } from '../../src/features/buy-sell/ReceiveAssetSheet';
 import type { BuyAsset } from '../../src/features/buy-sell/BuyScreenImpl';
+
+const MockText = Text;
+const MockView = View;
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
 jest.mock('react-native-safe-area-context', () => {
-  const { View } = require('react-native');
   return {
-    SafeAreaView: ({ children }: { children?: React.ReactNode }) => <View>{children}</View>,
+    SafeAreaView: ({ children }: { children?: React.ReactNode }) => <MockView>{children}</MockView>,
   };
 });
 
 jest.mock('@/components', () => {
-  const { Text } = require('react-native');
   return {
-    Icon: ({ name }: { name: string }) => <Text>{name}</Text>,
+    Icon: ({ name }: { name: string }) => <MockText>{name}</MockText>,
   };
 });
 

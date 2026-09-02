@@ -1,24 +1,14 @@
 import { render } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { TRADE_STEP_GAP } from '../../src/features/buy-sell/tradePanelStyles';
+import SwapScreenImpl from '../../src/features/buy-sell/SwapScreenImpl';
+
+const MockText = Text;
+const MockView = View;
 
 jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useRouter: () => ({ back: jest.fn() }),
-}));
-
-import SwapScreenImpl from '../../src/features/buy-sell/SwapScreenImpl';
-
-const mockBack = jest.fn();
-const mockCanGoBack = jest.fn();
-const mockReplace = jest.fn();
-
-jest.mock('expo-router', () => ({
-  useRouter: () => ({
-    back: mockBack,
-    canGoBack: mockCanGoBack,
-    replace: mockReplace,
-  }),
 }));
 
 jest.mock('react-i18next', () => ({
@@ -47,11 +37,10 @@ jest.mock('@/theme', () => ({
 }));
 
 jest.mock('../../src/features/buy-sell/TradeModeTabs', () => {
-  const { View } = jest.requireActual('react-native');
   return {
     __esModule: true,
-    TradeModeTabs: ({ active }: { active: string }) => (
-      <View accessibilityLabel={active} testID="trade-mode-tabs" />
+    default: ({ active }: { active: string }) => (
+      <MockView accessibilityLabel={active} testID="trade-mode-tabs" />
     ),
   };
 });
@@ -67,9 +56,9 @@ jest.mock('@/components', () => {
 });
 
 jest.mock('../../src/components/Icon', () => {
-  const { Text } = jest.requireActual('react-native');
   return {
-    Icon: () => <Text>icon</Text>,
+    __esModule: true,
+    Icon: () => <MockText>icon</MockText>,
   };
 });
 

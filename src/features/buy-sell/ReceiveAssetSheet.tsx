@@ -10,13 +10,13 @@ import { CurrencyGlyph } from './CurrencyGlyph';
 export type TradeAssetOption = {
   symbol: string;
   label?: string;
-  chains: ReadonlyArray<{
+  chains: readonly {
     chain: string;
     label: string;
     blockchain: string;
-    tokens: ReadonlyArray<{ assetSymbol: string; label: string }>;
+    tokens: readonly { assetSymbol: string; label: string }[];
     unsupported?: boolean;
-  }>;
+  }[];
 };
 
 const CURRENCY_CODES = ['CHF', 'EUR', 'USD'] as const;
@@ -29,7 +29,7 @@ function isCurrencyCode(symbol: string): symbol is CurrencyCode {
 type Props<T extends TradeAssetOption> = {
   visible: boolean;
   onClose: () => void;
-  assets: ReadonlyArray<T>;
+  assets: readonly T[];
   selectedAssetSymbol?: string | undefined;
   selectedChainIndex: number;
   selectedTokenIndex?: number;

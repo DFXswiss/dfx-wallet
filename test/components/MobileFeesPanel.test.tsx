@@ -1,5 +1,14 @@
 import { fireEvent, render, within } from '@testing-library/react-native';
 import { StyleSheet, Text } from 'react-native';
+import { MobileFeesPanel } from '../../src/features/buy-sell/MobileFeesPanel';
+import {
+  makeTradeQuoteKey,
+  SELECTOR_PILL_LAYOUT,
+} from '../../src/features/buy-sell/tradePanelStyles';
+import {
+  TradeAmountPanels,
+  TradeSelectorPill,
+} from '../../src/features/buy-sell/TradeAmountPanels';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -25,16 +34,6 @@ jest.mock('@/theme', () => ({
 jest.mock('@/components/Icon', () => ({
   Icon: () => null,
 }));
-
-import { MobileFeesPanel } from '../../src/features/buy-sell/MobileFeesPanel';
-import {
-  makeTradeQuoteKey,
-  SELECTOR_PILL_LAYOUT,
-} from '../../src/features/buy-sell/tradePanelStyles';
-import {
-  TradeAmountPanels,
-  TradeSelectorPill,
-} from '../../src/features/buy-sell/TradeAmountPanels';
 
 const quote = {
   amount: 0.01,
