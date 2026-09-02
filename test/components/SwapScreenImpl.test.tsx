@@ -1,13 +1,15 @@
 import { render } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { TRADE_STEP_GAP } from '../../src/features/buy-sell/tradePanelStyles';
+import SwapScreenImpl from '../../src/features/buy-sell/SwapScreenImpl';
+
+const MockText = Text;
+const MockView = View;
 
 jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useRouter: () => ({ back: jest.fn() }),
 }));
-
-import SwapScreenImpl from '../../src/features/buy-sell/SwapScreenImpl';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -35,20 +37,18 @@ jest.mock('@/theme', () => ({
 }));
 
 jest.mock('../../src/features/buy-sell/TradeModeTabs', () => {
-  const { View } = require('react-native');
   return {
     __esModule: true,
     default: ({ active }: { active: string }) => (
-      <View accessibilityLabel={active} testID="trade-mode-tabs" />
+      <MockView accessibilityLabel={active} testID="trade-mode-tabs" />
     ),
   };
 });
 
 jest.mock('../../src/components/Icon', () => {
-  const { Text } = require('react-native');
   return {
     __esModule: true,
-    Icon: () => <Text>icon</Text>,
+    Icon: () => <MockText>icon</MockText>,
   };
 });
 
