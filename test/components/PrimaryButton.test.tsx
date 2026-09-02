@@ -42,9 +42,9 @@ describe('PrimaryButton', () => {
 
   it('renders an optional icon next to the title', () => {
     const { getByText } = render(
-      <PrimaryButton title="Buy BTC" icon={<Text>icon</Text>} onPress={() => {}} />,
+      <PrimaryButton title="Continue" icon={<Text>icon</Text>} onPress={() => {}} />,
     );
-    expect(getByText('Buy BTC')).toBeTruthy();
+    expect(getByText('Continue')).toBeTruthy();
     expect(getByText('icon')).toBeTruthy();
   });
 
@@ -55,9 +55,9 @@ describe('PrimaryButton', () => {
 
   it('hides the icon while loading, showing only the spinner', () => {
     const { queryByText, UNSAFE_getByType } = render(
-      <PrimaryButton title="Buy BTC" icon={<Text>icon</Text>} onPress={() => {}} loading />,
+      <PrimaryButton title="Continue" icon={<Text>icon</Text>} onPress={() => {}} loading />,
     );
-    expect(queryByText('Buy BTC')).toBeNull();
+    expect(queryByText('Continue')).toBeNull();
     expect(queryByText('icon')).toBeNull();
     expect(UNSAFE_getByType(ActivityIndicator)).toBeTruthy();
   });

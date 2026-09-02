@@ -288,7 +288,9 @@ describe('BuyScreenImpl', () => {
     fireEvent.press(getByText('BTC'));
     fireEvent.changeText(getByPlaceholderText('0.00'), '100');
 
-    expect(getByText(/buy\.quoteError\.KycRequired/)).toBeTruthy();
+    expect(getByText(/buy\.quoteError\.KycRequired/).props.children).toContain(
+      'buy.quoteError.KycRequired',
+    );
   });
 
   it('renders the static payment method as information, not an action', () => {
@@ -308,7 +310,7 @@ describe('SellScreenImpl', () => {
     fireEvent.press(getByText('BTC'));
     fireEvent.changeText(getByPlaceholderText('0.00'), '0.001');
 
-    expect(getByText(/sell\.rateInclFees/)).toBeTruthy();
+    expect(getByText(/sell\.rateInclFees/).props.children).toContain('sell.rateInclFees');
   });
 
   it('surfaces a rejected sell quote while the quote card is collapsed', () => {
@@ -319,6 +321,8 @@ describe('SellScreenImpl', () => {
     fireEvent.press(getByText('BTC'));
     fireEvent.changeText(getByPlaceholderText('0.00'), '0.001');
 
-    expect(getByText(/sell\.quoteError\.KycRequired/)).toBeTruthy();
+    expect(getByText(/sell\.quoteError\.KycRequired/).props.children).toContain(
+      'sell.quoteError.KycRequired',
+    );
   });
 });
