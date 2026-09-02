@@ -1,5 +1,7 @@
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import BuyScreenImpl from '../../src/features/buy-sell/BuyScreenImpl';
+import SellScreenImpl from '../../src/features/buy-sell/SellScreenImpl';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -185,10 +187,6 @@ jest.mock('../../src/features/buy-sell/useSellFlow', () => ({
     retryLast: mockSellRetryLast,
   }),
 }));
-
-// eslint-disable-next-line import/first
-import BuyScreenImpl from '../../src/features/buy-sell/BuyScreenImpl';
-import SellScreenImpl from '../../src/features/buy-sell/SellScreenImpl';
 
 const PAYMENT_INFO = {
   id: 321,
