@@ -26,7 +26,7 @@ jest.mock('@/theme', () => ({
 }));
 
 jest.mock('../../src/features/buy-sell/TradeModeTabs', () => {
-  const { View } = require('react-native');
+  const { View } = jest.requireActual('react-native');
   return {
     __esModule: true,
     default: ({ active }: { active: string }) => (
@@ -36,7 +36,7 @@ jest.mock('../../src/features/buy-sell/TradeModeTabs', () => {
 });
 
 jest.mock('../../src/components/Icon', () => {
-  const { Text } = require('react-native');
+  const { Text } = jest.requireActual('react-native');
   return {
     __esModule: true,
     Icon: () => <Text>icon</Text>,
