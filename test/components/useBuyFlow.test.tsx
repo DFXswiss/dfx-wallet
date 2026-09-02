@@ -1,5 +1,6 @@
 import { renderHook, act } from '@testing-library/react-native';
 import type { BuyPaymentInfoDto } from '../../src/features/dfx-backend/services/dto';
+import { useBuyFlow } from '../../src/features/buy-sell/useBuyFlow';
 
 // Mock the DFX service barrel the hook imports from. We drive every branch
 // of the hook's state machine through these two seams and assert on the
@@ -17,8 +18,6 @@ jest.mock('@/features/dfx-backend/services', () => ({
   },
   interpretDfxAuthError: (...args: unknown[]) => mockInterpretDfxAuthError(...args),
 }));
-
-import { useBuyFlow } from '../../src/features/buy-sell/useBuyFlow';
 
 const QUOTE = {
   amount: 100,
@@ -74,6 +73,9 @@ describe('useBuyFlow', () => {
     expect(result.current.error).toBeNull();
     expect(result.current.authGate).toBeNull();
     expect(result.current.isLoading).toBe(false);
+    expect(result.current.quoteKey).toBe('100|EUR|BTC|Bitcoin|bitcoin');
+    expect(result.current.errorKey).toBeNull();
+    expect(result.current.actionErrorKey).toBeNull();
   });
 
   it('normalises errors[0] into paymentInfo.error and derives invalid', async () => {
@@ -154,7 +156,24 @@ describe('useBuyFlow', () => {
 
     expect(result.current.status).toBe('error');
     expect(result.current.error).toBe('network down');
+    expect(result.current.errorKey).toBe('100|EUR|BTC|Bitcoin|bitcoin');
     expect(result.current.isLoading).toBe(false);
+  });
+
+  it('binds payment-info errors to the action quote key', async () => {
+    mockGetBuyQuote.mockResolvedValueOnce(validInfo());
+    mockCreateBuyPaymentInfo.mockRejectedValueOnce(new Error('payment info failed'));
+    const { result } = renderHook(() => useBuyFlow());
+
+    await act(async () => {
+      await result.current.getQuote(QUOTE);
+      await result.current.createPaymentInfo(QUOTE);
+    });
+
+    expect(result.current.error).toBe('payment info failed');
+    expect(result.current.errorKey).toBeNull();
+    expect(result.current.actionErrorKey).toBe('100|EUR|BTC|Bitcoin|bitcoin');
+    expect(result.current.quoteKey).toBe('100|EUR|BTC|Bitcoin|bitcoin');
   });
 
   it('does not enter error state when the quote is aborted', async () => {

@@ -1,32 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  ImageBackground,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import {
-  AppHeader,
-  ConfirmTargetWalletModal,
-  DarkBackdrop,
-  Icon,
-  PrimaryButton,
-} from '@/components';
+import { ConfirmTargetWalletModal, Icon, PrimaryButton } from '@/components';
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
 import type { ChainId } from '@/config/chains';
 import {
   formatFiat as fmtFiat,
   formatCryptoAmount as fmtCrypto,
+  SYMBOL_GLYPH,
 } from '@/config/portfolio-presentation';
 import { useLdsWallet } from '@/hooks';
 import { useLinkedWalletReauth } from '@/features/linked-wallets/useLinkedWalletReauth';
@@ -35,17 +20,26 @@ import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
 import { dfxAuthService, DfxApiError } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
+import { PayCurrencySheet } from './PayCurrencySheet';
+import { ReceiveAssetSheet } from './ReceiveAssetSheet';
+import { AssetGlyph } from './AssetGlyph';
+import { CurrencyGlyph } from './CurrencyGlyph';
+import TradeModeTabs from './TradeModeTabs';
+import { MobileFeesPanel } from './MobileFeesPanel';
+import { isAccountGateError, makeTradeQuoteKey, TRADE_STEP_GAP } from './tradePanelStyles';
+import { TradeAmountPanels, TradeSelectorPill } from './TradeAmountPanels';
+import { TradeScreenShell } from './TradeScreenShell';
 
 type BuyStep = 'amount' | 'payment' | 'confirm';
 
 // DFX bank-transfer Buy only supports EUR (SEPA) and CHF (SIC) — USD removed.
-const CURRENCIES = ['CHF', 'EUR'] as const;
+export const CURRENCIES = ['CHF', 'EUR'] as const;
 
 // What the user is buying. Each asset maps to one or more chains, and each
 // chain offers one or more concrete tokens (e.g. USD on Ethereum has both
 // USDT and USDC; CHF has only ZCHF; BTC has only the native asset).
-type BuyChain = {
+export type BuyChain = {
   chain: ChainId;
   label: string;
   blockchain: string;
@@ -55,7 +49,7 @@ type BuyChain = {
    *  DFX' /v1/auth doesn't accept the WDK Spark signature yet). */
   unsupported?: boolean;
 };
-type BuyAsset = {
+export type BuyAsset = {
   symbol: string;
   label: string;
   chains: BuyChain[];
@@ -197,7 +191,6 @@ const BUY_ASSETS: BuyAsset[] = [
 
 export default function BuyScreen() {
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
@@ -209,6 +202,9 @@ export default function BuyScreen() {
   }>();
   const {
     paymentInfo,
+    quoteKey,
+    errorKey,
+    actionErrorKey,
     isLoading,
     error,
     authGate,
@@ -254,13 +250,16 @@ export default function BuyScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [selectedAsset, setSelectedAsset] = useState<BuyAsset | null>(
-    initialPreselect?.asset ?? null,
+    initialPreselect?.asset ?? BUY_ASSETS[0] ?? null,
   );
   const [selectedChainIndex, setSelectedChainIndex] = useState(initialPreselect?.chainIdx ?? 0);
   const [selectedTokenIndex, setSelectedTokenIndex] = useState(0);
   const [amount, setAmount] = useState('');
   const [selectedCurrency, setSelectedCurrency] = useState<(typeof CURRENCIES)[number]>('CHF');
+  const [payPickerOpen, setPayPickerOpen] = useState(false);
+  const [receivePickerOpen, setReceivePickerOpen] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(true);
 
   // After the user goes through the DFX login flow we land back on this
   // screen; replay the failed call so they don't have to retap "Continue".
@@ -390,6 +389,13 @@ export default function BuyScreen() {
   const selectedTokenSpec = selectedChainSpec?.tokens[selectedTokenIndex] ?? null;
   const targetAsset = selectedTokenSpec?.assetSymbol ?? '';
   const blockchain = selectedChainSpec?.blockchain ?? '';
+  const currentQuoteKey = makeTradeQuoteKey({
+    amount: parseFloat(amount),
+    currency: selectedCurrency,
+    asset: targetAsset,
+    blockchain,
+    chain: selectedChainSpec?.chain ?? '',
+  });
 
   // Live quote: fetch a fresh exchange-rate + fee preview whenever the user
   // changes amount, currency, or target chain. Debounced so we don't hammer
@@ -420,38 +426,65 @@ export default function BuyScreen() {
     setTimeout(() => setCopiedField(null), 1800);
   };
 
-  const fees = paymentInfo?.fees;
   // /buy/quote returns DFX' BuyQuoteDto which omits the asset/currency
   // objects (they only land on the /buy/paymentInfos response). We always
   // know what the user picked locally, so render the breakdown as soon as
   // the response is `isValid: true` with a fee block — no need to wait
   // for `paymentInfo.asset` to materialise (it never will on /quote).
+  const quoteIsCurrent = !!currentQuoteKey && !isLoading && quoteKey === currentQuoteKey;
   const hasQuote =
-    !!paymentInfo && paymentInfo.isValid && !!paymentInfo.fees && parseFloat(amount) > 0;
+    quoteIsCurrent &&
+    !!paymentInfo &&
+    paymentInfo.isValid &&
+    !!paymentInfo.fees &&
+    parseFloat(amount) > 0;
   // DFX returns 200 with `error` set for soft validation failures (e.g.
   // KycRequired, AssetUnsupported). We need to surface that to the user
   // instead of getting stuck on "Angebot wird berechnet …".
-  const quoteError =
-    !hasQuote && paymentInfo && paymentInfo.error ? String(paymentInfo.error) : null;
   // DFX sometimes returns 200 with `isValid: false` and no error code —
   // typically when the chain isn't yet attached to the user's account.
   // Tapping Weiter triggers /buy/paymentInfos which fires the linkChain
   // gate, runs the modal sign flow, and auto-refreshes the quote. Tell
   // the user to do exactly that instead of bouncing off a generic error.
-  const needsContinue = !hasQuote && !quoteError && !!paymentInfo && !isLoading;
   const unsupportedChain = !!selectedChainSpec?.unsupported;
+  const quoteErrorIsCurrent = !!currentQuoteKey && !isLoading && errorKey === currentQuoteKey;
+  const quoteError =
+    quoteIsCurrent && !hasQuote && paymentInfo?.error ? String(paymentInfo.error) : null;
+  const genericQuoteError = quoteErrorIsCurrent ? error : null;
+  const actionErrorIsCurrent =
+    !!currentQuoteKey && !isLoading && actionErrorKey === currentQuoteKey;
+  const genericActionError = actionErrorIsCurrent ? error : null;
+  const authGateIsCurrent = !!authGate && (quoteErrorIsCurrent || actionErrorIsCurrent);
+  const needsContinue =
+    quoteIsCurrent && !hasQuote && !quoteError && !genericQuoteError && !!paymentInfo;
+  const canOpenGate =
+    !isLoading &&
+    !!currentQuoteKey &&
+    (authGateIsCurrent || !!genericQuoteError || needsContinue || isAccountGateError(quoteError));
   // Open the Angebot card as soon as the user has typed a positive amount,
   // even before the first /buy/quote round-trip returns. Keeps the previous
   // quote on screen while a refresh is in flight so the user always sees
   // *something* and can read the change as it lands.
-  const showQuoteCard = hasQuote || (parseFloat(amount) > 0 && !!selectedChainSpec);
+  // App2 keeps the fee panel directly below the amount panels, including before
+  // the first quote has arrived. The empty state is rendered by the panel itself.
+  const feePanelStatus = unsupportedChain
+    ? t('buy.chainUnsupported')
+    : quoteError
+      ? t([`buy.quoteError.${quoteError}`, 'buy.quoteError.generic'], { code: quoteError })
+      : genericQuoteError
+        ? genericQuoteError
+        : genericActionError
+          ? genericActionError
+          : needsContinue
+            ? t('buy.continueHint')
+            : null;
   const minVolume = paymentInfo?.minVolume;
   const maxVolume = paymentInfo?.maxVolume;
   const numAmount = parseFloat(amount);
   const belowMin = minVolume != null && numAmount > 0 && numAmount < minVolume;
   const aboveMax = maxVolume != null && numAmount > maxVolume;
 
-  const renderAmountStep = () => (
+  const renderAmountStepContent = () => (
     <View style={styles.stepContent}>
       {hasTargetWallet ? (
         <View style={styles.targetBanner} testID="buy-target-wallet-banner">
@@ -466,185 +499,124 @@ export default function BuyScreen() {
           </View>
         </View>
       ) : null}
-      <Text style={styles.stepSubtitle}>{t('buy.selectAsset')}</Text>
-      <View style={styles.assetRow}>
-        {BUY_ASSETS.map((asset) => (
-          <Pressable
-            key={asset.symbol}
-            style={({ pressed }) => [
-              styles.assetTile,
-              selectedAsset?.symbol === asset.symbol && styles.assetTileActive,
-              pressed && styles.pressed,
-            ]}
-            onPress={() => {
-              setSelectedAsset(asset);
-              setSelectedChainIndex(0);
-              setSelectedTokenIndex(0);
-            }}
+      <TradeAmountPanels
+        testID="buy-amount-panels"
+        flipTestID="buy-flip-to-sell"
+        flipAccessibilityLabel={t('buy.flipToSell')}
+        onFlip={() => router.replace('/(auth)/sell')}
+        payLabel={<Text style={styles.plabel}>{t('buy.youPay')}</Text>}
+        payAmount={
+          <TextInput
+            style={styles.amt}
+            value={amount}
+            onChangeText={setAmount}
+            placeholder="0"
+            placeholderTextColor={colors.textTertiary}
+            keyboardType="decimal-pad"
+            testID="buy-pay-amount"
+          />
+        }
+        paySelector={
+          <TradeSelectorPill
+            onPress={() => setPayPickerOpen(true)}
+            testID="buy-pay-currency-pill"
+            accessibilityLabel={t('buy.youPay')}
           >
-            <Text
-              style={[
-                styles.assetTileSymbol,
-                selectedAsset?.symbol === asset.symbol && styles.assetTileSymbolActive,
-              ]}
-            >
-              {asset.symbol}
+            <CurrencyGlyph code={selectedCurrency} size={32} />
+            <Text style={styles.pillTitle}>{selectedCurrency}</Text>
+          </TradeSelectorPill>
+        }
+        receiveLabel={
+          <View style={styles.prowBetween}>
+            <Text style={styles.plabel}>{t('buy.receiveLabel')}</Text>
+            {isLoading && !unsupportedChain ? (
+              <Text style={styles.pmeta}>{t('buy.fetchingQuote')}</Text>
+            ) : null}
+          </View>
+        }
+        receiveAmount={
+          <TextInput
+            style={styles.amt}
+            value={hasQuote && paymentInfo ? fmtCrypto(paymentInfo.estimatedAmount) : ''}
+            editable={false}
+            placeholder="0"
+            placeholderTextColor={colors.textTertiary}
+            testID="buy-receive-amount"
+          />
+        }
+        receiveSelector={
+          <TradeSelectorPill
+            onPress={() => setReceivePickerOpen(true)}
+            testID="buy-receive-asset-pill"
+            accessibilityLabel={t('buy.receiveLabel')}
+          >
+            <AssetGlyph symbol={targetAsset || selectedAsset?.symbol || ''} size={32} />
+            <View style={styles.pillMeta}>
+              <Text style={styles.pillTitle} numberOfLines={1}>
+                {targetAsset || selectedAsset?.symbol || ''}
+              </Text>
+              {selectedChainSpec ? (
+                <Text style={styles.pillSubtitle} numberOfLines={1}>
+                  {selectedChainSpec.label}
+                </Text>
+              ) : null}
+            </View>
+          </TradeSelectorPill>
+        }
+      />
+
+      <View style={styles.quickRow}>
+        {['50', '100', '250', '500'].map((val) => (
+          <Pressable
+            key={val}
+            testID={`buy-preset-${val}`}
+            style={styles.quickAmount}
+            onPress={() => setAmount(val)}
+          >
+            <Text style={styles.quickAmountText}>
+              {`${SYMBOL_GLYPH.get(selectedCurrency) ?? selectedCurrency}${val}`}
             </Text>
           </Pressable>
         ))}
       </View>
 
+      <PayCurrencySheet
+        visible={payPickerOpen}
+        onClose={() => setPayPickerOpen(false)}
+        selected={selectedCurrency}
+        onSelect={(currency) => {
+          setSelectedCurrency(currency);
+          setPayPickerOpen(false);
+        }}
+      />
+      <ReceiveAssetSheet
+        visible={receivePickerOpen}
+        onClose={() => setReceivePickerOpen(false)}
+        assets={BUY_ASSETS}
+        selectedAssetSymbol={selectedAsset?.symbol}
+        selectedChainIndex={selectedChainIndex}
+        selectedTokenIndex={selectedTokenIndex}
+        onSelect={(asset, chainIndex, tokenIndex) => {
+          setSelectedAsset(asset);
+          setSelectedChainIndex(chainIndex);
+          setSelectedTokenIndex(tokenIndex);
+          setReceivePickerOpen(false);
+        }}
+      />
+
       {selectedAsset ? (
         <>
-          {selectedAsset.chains.length > 1 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
-              {selectedAsset.chains.map((c, i) => (
-                <Pressable
-                  key={c.chain}
-                  style={[styles.chainChip, selectedChainIndex === i && styles.chainChipActive]}
-                  onPress={() => {
-                    setSelectedChainIndex(i);
-                    setSelectedTokenIndex(0);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.chainChipText,
-                      selectedChainIndex === i && styles.chainChipTextActive,
-                    ]}
-                  >
-                    {c.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          ) : null}
-
-          {selectedChainSpec && selectedChainSpec.tokens.length > 1 ? (
-            <View style={styles.tokenRow}>
-              {selectedChainSpec.tokens.map((tok, i) => (
-                <Pressable
-                  key={tok.assetSymbol}
-                  style={[styles.tokenChip, selectedTokenIndex === i && styles.tokenChipActive]}
-                  onPress={() => setSelectedTokenIndex(i)}
-                >
-                  <Text
-                    style={[
-                      styles.tokenChipText,
-                      selectedTokenIndex === i && styles.tokenChipTextActive,
-                    ]}
-                  >
-                    {tok.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-
-          <View style={styles.amountCard}>
-            <TextInput
-              style={styles.amountInput}
-              value={amount}
-              onChangeText={setAmount}
-              placeholder="0.00"
-              placeholderTextColor={colors.textTertiary}
-              keyboardType="decimal-pad"
-            />
-            <View style={styles.currencyRow}>
-              {CURRENCIES.map((cur) => (
-                <Pressable
-                  key={cur}
-                  style={[
-                    styles.currencyChip,
-                    selectedCurrency === cur && styles.currencyChipActive,
-                  ]}
-                  onPress={() => setSelectedCurrency(cur)}
-                >
-                  <Text
-                    style={[
-                      styles.currencyText,
-                      selectedCurrency === cur && styles.currencyTextActive,
-                    ]}
-                  >
-                    {cur}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <View style={styles.quickRow}>
-              {['100', '500', '1000', '5000'].map((val) => (
-                <Pressable key={val} style={styles.quickAmount} onPress={() => setAmount(val)}>
-                  <Text style={styles.quickAmountText}>{val}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          {showQuoteCard ? (
-            <View style={styles.quoteCard}>
-              <View style={styles.quoteHeader}>
-                <Text style={styles.quoteTitle}>{t('buy.summary')}</Text>
-                {isLoading && !unsupportedChain ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : null}
-              </View>
-              {unsupportedChain ? (
-                <Text style={styles.quoteError}>{t('buy.chainUnsupported')}</Text>
-              ) : hasQuote && fees ? (
-                <>
-                  <QuoteRow
-                    label={t('buy.exchangeRate')}
-                    value={`1 ${selectedCurrency} = ${fmtCrypto(1 / paymentInfo!.exchangeRate)} ${targetAsset}`}
-                  />
-                  <QuoteRow
-                    label={t('buy.feeDfx')}
-                    value={`${(fees.rate * 100).toFixed(2)}%`}
-                    {...(fees.dfx > 0 ? { sub: `${fmtFiat(fees.dfx)} ${selectedCurrency}` } : {})}
-                  />
-                  {fees.network > 0 ? (
-                    <QuoteRow
-                      label={t('buy.feeNetwork')}
-                      value={`${fmtFiat(fees.network)} ${selectedCurrency}`}
-                    />
-                  ) : null}
-                  {fees.fixed > 0 ? (
-                    <QuoteRow
-                      label={t('buy.feeFixed')}
-                      value={`${fmtFiat(fees.fixed)} ${selectedCurrency}`}
-                    />
-                  ) : null}
-                  <QuoteRow
-                    label={t('buy.feeTotal')}
-                    value={`${fmtFiat(fees.total)} ${selectedCurrency}`}
-                    emphasis
-                  />
-                  <View style={styles.quoteDivider} />
-                  <QuoteRow
-                    label={t('buy.youReceive')}
-                    value={`${fmtCrypto(paymentInfo!.estimatedAmount)} ${targetAsset}`}
-                    emphasis
-                  />
-                </>
-              ) : quoteError ? (
-                // DFX accepted the request but rejected the combination
-                // (e.g. asset unsupported for this user, KYC required, etc.).
-                // Surface the backend error code so the user sees *something*
-                // actionable instead of an endless "calculating" placeholder.
-                <Text style={styles.quoteError}>
-                  {t([`buy.quoteError.${quoteError}`, 'buy.quoteError.generic'], {
-                    code: quoteError,
-                  })}
-                </Text>
-              ) : needsContinue ? (
-                <Text style={styles.quoteHint}>{t('buy.continueHint')}</Text>
-              ) : (
-                // First quote still in flight — show a subtle placeholder so
-                // the card visibly "opens" the moment the user types instead
-                // of jumping in once the response lands.
-                <Text style={styles.quotePlaceholder}>{t('buy.fetchingQuote')}</Text>
-              )}
-            </View>
-          ) : null}
+          <MobileFeesPanel
+            mode="buy"
+            quote={hasQuote ? paymentInfo : null}
+            payAssetCode=""
+            receiveAssetCode={targetAsset}
+            currencyCode={selectedCurrency}
+            expanded={!collapsed}
+            onToggle={() => setCollapsed((value) => !value)}
+            testID="buy-fees-panel"
+            statusMessage={feePanelStatus}
+          />
 
           {belowMin ? (
             <Text style={styles.warning}>
@@ -663,12 +635,22 @@ export default function BuyScreen() {
             </Text>
           ) : null}
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          <View testID="buy-payment-method-row" style={styles.paymentMethodRow}>
+            <View style={styles.paymentMethodIcon}>
+              <Icon name="wallet" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.paymentMethodBody}>
+              <Text style={styles.paymentMethodTitle}>{t('buy.paymentMethodSepa')}</Text>
+              <Text style={styles.paymentMethodHint}>{t('buy.paymentMethodSepaHint')}</Text>
+            </View>
+          </View>
 
           <View style={styles.spacer} />
 
           <PrimaryButton
-            title={t('common.continue')}
+            testID="buy-cta"
+            title={`${t('buy.title')} ${targetAsset}`}
+            icon={<Icon name="arrow-right" size={18} color={colors.white} />}
             onPress={async () => {
               if (!selectedChainSpec) return;
               if (hasTargetWallet) {
@@ -690,12 +672,31 @@ export default function BuyScreen() {
               });
               if (info) setStep('payment');
             }}
-            disabled={!numAmount || numAmount <= 0 || belowMin || aboveMax || unsupportedChain}
+            disabled={
+              !numAmount ||
+              numAmount <= 0 ||
+              belowMin ||
+              aboveMax ||
+              unsupportedChain ||
+              isLoading ||
+              (!hasQuote && !canOpenGate)
+            }
             loading={isLoading}
           />
+          <View style={styles.securityRow} testID="buy-security-row">
+            <Icon name="shield" size={14} color={colors.textTertiary} />
+            <Text style={styles.securityText}>{t('buy.security')}</Text>
+          </View>
         </>
       ) : null}
     </View>
+  );
+
+  const renderAmountStep = () => (
+    <>
+      <TradeModeTabs active="buy" />
+      {renderAmountStepContent()}
+    </>
   );
 
   const renderPaymentStep = () =>
@@ -745,28 +746,6 @@ export default function BuyScreen() {
             label={t('buy.exchangeRate')}
             value={`1 ${paymentInfo.currency.name} = ${fmtCrypto(1 / paymentInfo.exchangeRate)} ${paymentInfo.asset.name}`}
           />
-          {paymentInfo.fees.dfx > 0 ? (
-            <QuoteRow
-              label={t('buy.feeDfx')}
-              value={`${(paymentInfo.fees.rate * 100).toFixed(2)}% · ${fmtFiat(paymentInfo.fees.dfx)} ${paymentInfo.currency.name}`}
-            />
-          ) : (
-            <QuoteRow
-              label={t('buy.feeDfx')}
-              value={`${(paymentInfo.fees.rate * 100).toFixed(2)}%`}
-            />
-          )}
-          {paymentInfo.fees.network > 0 ? (
-            <QuoteRow
-              label={t('buy.feeNetwork')}
-              value={`${fmtFiat(paymentInfo.fees.network)} ${paymentInfo.currency.name}`}
-            />
-          ) : null}
-          <QuoteRow
-            label={t('buy.feeTotal')}
-            value={`${fmtFiat(paymentInfo.fees.total)} ${paymentInfo.currency.name}`}
-            emphasis
-          />
           <View style={styles.quoteDivider} />
           <QuoteRow
             label={t('buy.youReceive')}
@@ -805,51 +784,31 @@ export default function BuyScreen() {
   );
 
   const body = (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <AppHeader
-        title={t('buy.title')}
-        onBack={() => {
-          if (step === 'payment') setStep('amount');
-          else router.back();
-        }}
-        testID="buy-screen"
-      />
-      <View style={styles.progressRow}>
-        {['amount', 'payment', 'confirm'].map((item, index) => {
-          const currentIndex = step === 'amount' ? 0 : step === 'payment' ? 1 : 2;
-          const active = index <= currentIndex;
-          return <View key={item} style={[styles.progressStep, active && styles.progressActive]} />;
-        })}
-      </View>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {step === 'amount' && renderAmountStep()}
-        {step === 'payment' && renderPaymentStep()}
-        {step === 'confirm' && renderConfirmStep()}
-      </ScrollView>
-    </SafeAreaView>
+    <TradeScreenShell
+      title={t('buy.title')}
+      onBack={() => {
+        if (step === 'payment') setStep('amount');
+        else router.back();
+      }}
+      headerTestID="buy-screen"
+      activeStep={step === 'amount' ? 0 : step === 'payment' ? 1 : 2}
+      steps={['amount', 'payment', 'confirm']}
+    >
+      {step === 'amount' && renderAmountStep()}
+      {step === 'payment' && renderPaymentStep()}
+      {step === 'confirm' && renderConfirmStep()}
+    </TradeScreenShell>
   );
 
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
-        {body}
-      </View>
-      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} onLinkChain={linkChainToDfx} />
+      {body}
+      <DfxAuthGate
+        gate={authGateIsCurrent ? authGate : null}
+        onClose={dismissAuthGate}
+        onLinkChain={linkChainToDfx}
+      />
       <ConfirmTargetWalletModal
         visible={confirmOpen}
         flow="buy"
@@ -904,11 +863,13 @@ function QuoteRow({
   value,
   sub,
   emphasis,
+  accent,
 }: {
   label: string;
   value: string;
   sub?: string;
   emphasis?: boolean;
+  accent?: boolean;
 }) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -916,7 +877,15 @@ function QuoteRow({
     <View style={styles.quoteRow}>
       <Text style={styles.quoteLabel}>{label}</Text>
       <View style={{ alignItems: 'flex-end' }}>
-        <Text style={[styles.quoteValue, emphasis && styles.quoteValueEmphasis]}>{value}</Text>
+        <Text
+          style={[
+            styles.quoteValue,
+            emphasis && styles.quoteValueEmphasis,
+            accent && styles.quoteValueAccent,
+          ]}
+        >
+          {value}
+        </Text>
         {sub ? <Text style={styles.quoteSub}>{sub}</Text> : null}
       </View>
     </View>
@@ -965,166 +934,52 @@ function CopyRow({
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    bg: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    safeArea: {
-      flex: 1,
-    },
-    scroll: {
-      flex: 1,
-    },
-    scrollContent: {
-      paddingHorizontal: 20,
-      paddingBottom: 32,
-      gap: 18,
-    },
     stepContent: {
-      gap: 18,
-    },
-    progressRow: {
-      flexDirection: 'row',
-      alignSelf: 'center',
-      gap: 8,
-      paddingTop: 4,
-      paddingBottom: 12,
-    },
-    progressStep: {
-      width: 34,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: colors.cardOverlay,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-    },
-    progressActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
+      gap: TRADE_STEP_GAP,
     },
     stepSubtitle: {
       ...Typography.bodyLarge,
       color: colors.textSecondary,
       fontWeight: '500',
     },
-    assetRow: {
+    prowBetween: {
       flexDirection: 'row',
-      gap: 8,
-    },
-    assetTile: {
-      flex: 1,
+      justifyContent: 'space-between',
       alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      paddingVertical: 12,
-      paddingHorizontal: 6,
-      gap: 2,
-      borderWidth: 1,
-      borderColor: colors.border,
-      minHeight: 54,
     },
-    assetTileActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
+    plabel: {
+      fontSize: 12.5,
+      fontWeight: '600',
+      color: colors.textSecondary,
     },
-    assetTileSymbol: {
-      ...Typography.bodyLarge,
-      color: colors.text,
+    pmeta: {
+      fontSize: 12,
+      color: colors.textTertiary,
+    },
+    amt: {
+      flex: 1,
+      minWidth: 0,
+      fontSize: 33,
       fontWeight: '700',
+      letterSpacing: -0.5,
+      color: colors.text,
+      padding: 0,
     },
-    assetTileSymbolActive: {
-      color: colors.primary,
-    },
-    chainBar: {
-      flexGrow: 0,
-    },
-    chainChip: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 10,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      marginRight: 8,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
-    },
-    chainChipActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
-    },
-    chainChipText: {
-      ...Typography.bodyMedium,
-      color: colors.textSecondary,
-      fontWeight: '500',
-    },
-    chainChipTextActive: {
-      color: colors.primary,
-      fontWeight: '600',
-    },
-    tokenRow: {
-      flexDirection: 'row',
-      gap: 8,
-    },
-    tokenChip: {
+    pillMeta: {
       flex: 1,
-      alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 10,
-      paddingVertical: 10,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
+      flexShrink: 1,
     },
-    tokenChipActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
-    },
-    tokenChipText: {
-      ...Typography.bodyMedium,
-      fontWeight: '600',
-      color: colors.textSecondary,
-    },
-    tokenChipTextActive: {
-      color: colors.primary,
-    },
-    amountCard: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 18,
-      gap: 16,
-    },
-    amountInput: {
-      fontSize: 36,
+    pillTitle: {
+      fontSize: 15,
       fontWeight: '700',
       color: colors.text,
-      textAlign: 'center',
-      paddingVertical: 8,
+      letterSpacing: -0.2,
     },
-    currencyRow: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      gap: 8,
-    },
-    currencyChip: {
-      paddingHorizontal: 18,
-      paddingVertical: 8,
-      borderRadius: 999,
-      backgroundColor: colors.background,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
-    },
-    currencyChipActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    currencyText: {
-      ...Typography.bodyMedium,
+    pillSubtitle: {
+      fontSize: 11,
       fontWeight: '600',
-      color: colors.textSecondary,
-    },
-    currencyTextActive: {
-      color: colors.white,
+      color: colors.textTertiary,
+      marginTop: 0,
     },
     quickRow: {
       flexDirection: 'row',
@@ -1133,6 +988,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
     quickAmount: {
       flex: 1,
+      minHeight: 44,
       paddingVertical: 8,
       borderRadius: 10,
       backgroundColor: colors.background,
@@ -1150,11 +1006,6 @@ const makeStyles = (colors: ThemeColors) =>
       borderColor: colors.border,
       padding: 18,
       gap: 14,
-    },
-    quoteHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
     },
     quoteTitle: {
       ...Typography.bodySmall,
@@ -1196,6 +1047,66 @@ const makeStyles = (colors: ThemeColors) =>
     },
     quoteValueEmphasis: {
       fontWeight: '700',
+    },
+    quoteValueAccent: {
+      color: colors.primary,
+    },
+    quoteToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    quoteToggleText: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      fontWeight: '500',
+      flex: 1,
+    },
+    quoteFeeBadge: {
+      backgroundColor: colors.primaryLight,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 999,
+    },
+    quoteFeeBadgeText: {
+      ...Typography.bodySmall,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    quoteChevronOpen: {
+      transform: [{ rotate: '90deg' }],
+    },
+    paymentMethodRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+    },
+    paymentMethodIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    paymentMethodBody: {
+      flex: 1,
+      gap: 2,
+    },
+    paymentMethodTitle: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    paymentMethodHint: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
     },
     quoteSub: {
       ...Typography.bodySmall,
@@ -1294,6 +1205,14 @@ const makeStyles = (colors: ThemeColors) =>
     spacer: {
       minHeight: 16,
     },
+    securityRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      marginTop: 12,
+    },
+    securityText: { ...Typography.bodySmall, color: colors.textTertiary, textAlign: 'center' },
     targetBanner: {
       flexDirection: 'row',
       alignItems: 'center',

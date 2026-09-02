@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -107,11 +107,13 @@ jest.mock('@/components', () => ({
     onPress,
     disabled,
     loading,
+    testID,
   }: {
     title: string;
     onPress: () => void | Promise<void>;
     disabled?: boolean;
     loading?: boolean;
+    testID?: string;
   }) => {
     const ReactActual = jest.requireActual('react');
     const { Pressable, Text } = jest.requireActual('react-native');
@@ -121,6 +123,7 @@ jest.mock('@/components', () => ({
         accessibilityRole: 'button',
         disabled: disabled || loading,
         onPress,
+        testID,
       },
       ReactActual.createElement(Text, null, loading ? 'common.loading' : title),
     );
@@ -136,13 +139,19 @@ const mockRetryLast = jest.fn();
 const flowState = {
   isLoading: false,
   error: null as string | null,
-  authGate: null,
+  authGate: null as { kind: string; message: string } | null,
   paymentInfo: null as Record<string, unknown> | null,
+  quoteKey: null as string | null,
+  errorKey: null as string | null,
+  actionErrorKey: null as string | null,
 };
 
 jest.mock('../../src/features/buy-sell/useBuyFlow', () => ({
   useBuyFlow: () => ({
     paymentInfo: flowState.paymentInfo,
+    quoteKey: flowState.quoteKey,
+    errorKey: flowState.errorKey,
+    actionErrorKey: flowState.actionErrorKey,
     isLoading: flowState.isLoading,
     error: flowState.error,
     authGate: flowState.authGate,
@@ -171,11 +180,15 @@ const PAYMENT_INFO = {
   maxVolume: 10000,
   currency: { name: 'CHF' },
   asset: { name: 'BTC' },
+  rate: 101000,
   fees: {
     rate: 0.01,
     dfx: 1,
     network: 0,
     fixed: 0,
+    bank: 0,
+    platform: 0,
+    min: 0,
     total: 1,
   },
 };
@@ -191,19 +204,42 @@ beforeEach(() => {
   flowState.error = null;
   flowState.authGate = null;
   flowState.paymentInfo = PAYMENT_INFO;
+  flowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
+  flowState.errorKey = null;
+  flowState.actionErrorKey = null;
 });
 
 describe('BuyScreenImpl', () => {
+  it('shows a current payment-info error while keeping the valid quote and clears it on input change', async () => {
+    mockCreatePaymentInfo.mockResolvedValueOnce(null);
+    const { getByTestId, queryByText, rerender } = render(<BuyScreenImpl />);
+
+    fireEvent.changeText(getByTestId('buy-pay-amount'), '100');
+    await act(async () => {
+      fireEvent.press(getByTestId('buy-cta'));
+    });
+
+    flowState.error = 'payment info failed';
+    flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
+    rerender(<BuyScreenImpl />);
+    fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
+    expect(queryByText('payment info failed')).toBeTruthy();
+    expect(getByTestId('buy-receive-amount').props.value).not.toBe('');
+    expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(false);
+
+    fireEvent.changeText(getByTestId('buy-pay-amount'), '101');
+    expect(queryByText('payment info failed')).toBeNull();
+  });
+
   it('keeps the payment instructions visible when transfer confirmation fails', async () => {
     mockCreatePaymentInfo.mockResolvedValueOnce(PAYMENT_INFO);
     mockConfirmPayment.mockResolvedValueOnce(false);
 
-    const { getByPlaceholderText, getByText, queryByText } = render(<BuyScreenImpl />);
+    const { getByTestId, getByText, queryByText } = render(<BuyScreenImpl />);
 
-    fireEvent.press(getByText('BTC'));
-    fireEvent.changeText(getByPlaceholderText('0.00'), '100');
+    fireEvent.changeText(getByTestId('buy-pay-amount'), '100');
     await act(async () => {
-      fireEvent.press(getByText('common.continue'));
+      fireEvent.press(getByText('buy.title BTC'));
     });
 
     await waitFor(() => expect(getByText('buy.paymentInfo')).toBeTruthy());
@@ -215,5 +251,112 @@ describe('BuyScreenImpl', () => {
     await waitFor(() => expect(mockConfirmPayment).toHaveBeenCalledWith(321));
     expect(queryByText('buy.confirmDescription')).toBeNull();
     expect(getByText('buy.paymentInfo')).toBeTruthy();
+  });
+
+  it('keeps the fee panel directly below the amount panels before a quote exists', () => {
+    flowState.paymentInfo = null;
+    flowState.quoteKey = null;
+
+    const { getByTestId } = render(<BuyScreenImpl />);
+
+    const feePanel = getByTestId('buy-fees-panel');
+    expect(feePanel).toBeTruthy();
+    expect(within(feePanel).getAllByText('—')).toHaveLength(2);
+  });
+
+  it('keeps backend quote errors visible in the expanded fee panel', () => {
+    flowState.paymentInfo = { isValid: false, error: 'AmountTooLow' };
+    flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
+
+    const { getByTestId, getByText } = render(<BuyScreenImpl />);
+    fireEvent.changeText(getByTestId('buy-pay-amount'), '1');
+    fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
+
+    expect(getByText(/buy\.quoteError\.AmountTooLow/)).toBeTruthy();
+    expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(true);
+  });
+
+  it('allows an account gate to continue without a valid quote', () => {
+    flowState.paymentInfo = { isValid: false, error: 'KycRequired' };
+    flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
+
+    const { getByTestId } = render(<BuyScreenImpl />);
+    fireEvent.changeText(getByTestId('buy-pay-amount'), '1');
+
+    expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(false);
+  });
+
+  it('shows a current generic quote error and hides it after the amount changes', () => {
+    flowState.paymentInfo = null;
+    flowState.error = 'network failed';
+    flowState.errorKey = '1|CHF|BTC|Bitcoin|bitcoin';
+
+    const { getByTestId, getByText, queryByText } = render(<BuyScreenImpl />);
+    fireEvent.changeText(getByTestId('buy-pay-amount'), '1');
+    fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
+
+    expect(getByText('network failed')).toBeTruthy();
+    expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(false);
+
+    fireEvent.changeText(getByTestId('buy-pay-amount'), '2');
+    expect(queryByText('network failed')).toBeNull();
+    expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(true);
+  });
+
+  it('does not reopen an old auth gate after the quote inputs change', () => {
+    flowState.paymentInfo = null;
+    flowState.authGate = { kind: 'login', message: 'sign in' };
+    flowState.errorKey = '1|CHF|BTC|Bitcoin|bitcoin';
+
+    const { getByTestId } = render(<BuyScreenImpl />);
+    fireEvent.changeText(getByTestId('buy-pay-amount'), '2');
+
+    expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(true);
+  });
+
+  it('keeps the continue hint visible for an invalid quote without an error', () => {
+    flowState.paymentInfo = { isValid: false };
+    flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
+
+    const { getByTestId, getByText } = render(<BuyScreenImpl />);
+    fireEvent.changeText(getByTestId('buy-pay-amount'), '1');
+    fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
+
+    expect(getByText('buy.continueHint')).toBeTruthy();
+  });
+
+  it('does not render a previous quote while a replacement quote is loading', () => {
+    flowState.paymentInfo = PAYMENT_INFO;
+    flowState.isLoading = true;
+    flowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
+
+    const { getByTestId } = render(<BuyScreenImpl />);
+
+    expect(getByTestId('buy-receive-amount').props.value).toBe('');
+    expect(within(getByTestId('buy-fees-panel')).getAllByText('—')).toHaveLength(2);
+  });
+
+  it('invalidates the previous quote immediately when the amount changes', () => {
+    flowState.paymentInfo = PAYMENT_INFO;
+    flowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
+
+    const { getByTestId } = render(<BuyScreenImpl />);
+    fireEvent.changeText(getByTestId('buy-pay-amount'), '101');
+
+    expect(getByTestId('buy-receive-amount').props.value).toBe('');
+    expect(within(getByTestId('buy-fees-panel')).getAllByText('—')).toHaveLength(2);
+    expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(true);
+  });
+
+  it('does not show a previous quote error after the amount changes', () => {
+    flowState.paymentInfo = { isValid: false, error: 'AmountTooLow' };
+    flowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
+
+    const { getByTestId, queryByText } = render(<BuyScreenImpl />);
+    fireEvent.changeText(getByTestId('buy-pay-amount'), '101');
+    fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
+
+    expect(queryByText(/buy\.quoteError\.AmountTooLow/)).toBeNull();
+    expect(queryByText('buy.continueHint')).toBeNull();
   });
 });
