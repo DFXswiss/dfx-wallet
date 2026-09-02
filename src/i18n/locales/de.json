@@ -11,6 +11,7 @@
     "confirmTransfer": "Ich habe die Überweisung getätigt",
     "continueHint": "Tippe auf Weiter, um deine Wallet mit DFX zu verknüpfen — dein Angebot erscheint danach automatisch.",
     "exchangeRate": "Wechselkurs",
+    "feeBank": "Bankgebühr",
     "feeDfx": "DFX-Gebühr",
     "feeFixed": "Fixe Gebühr",
     "feeNetwork": "Netzwerkgebühr",
@@ -36,6 +37,9 @@
       "RecommendationRequired": "Empfehlungscode erforderlich.",
       "generic": "Angebot konnte nicht erstellt werden ({{code}})."
     },
+    "paymentMethodSepa": "SEPA-Banküberweisung",
+    "paymentMethodSepaHint": "Kostenlos · 0-1 Werktag",
+    "rateInclFees": "1 {{asset}} ≈ {{amount}} {{currency}} (inkl. Gebühren)",
     "recipient": "Empfänger",
     "reference": "Verwendungszweck",
     "selectAsset": "Was möchtest du kaufen?",
@@ -535,6 +539,7 @@
     "depositAddress": "Einzahlungsadresse",
     "depositTo": "Einzahlung an",
     "exchangeRate": "Wechselkurs",
+    "feeBank": "Bankgebühr",
     "feeDfx": "DFX-Gebühr",
     "feeFixed": "Fixe Gebühr",
     "feeNetwork": "Netzwerkgebühr",
@@ -560,6 +565,7 @@
       "RecommendationRequired": "Empfehlungscode erforderlich.",
       "generic": "Angebot konnte nicht erstellt werden ({{code}})."
     },
+    "rateInclFees": "1 {{asset}} ≈ {{amount}} {{currency}} (inkl. Gebühren)",
     "selectAsset": "Was möchtest du verkaufen?",
     "summary": "Angebot",
     "title": "Verkaufen",
