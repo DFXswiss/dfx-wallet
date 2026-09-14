@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useColors, type ThemeColors, Typography } from '@/theme';
+import { Card, IconTile, Interaction, Typography, useColors, type ThemeColors } from '@/theme';
 
 type Props = {
   symbol: string;
@@ -54,18 +54,20 @@ const makeStyles = (colors: ThemeColors) =>
     container: {
       flexDirection: 'row',
       alignItems: 'center',
-      padding: 16,
-      backgroundColor: colors.surface,
-      borderRadius: 12,
-      gap: 12,
+      padding: Card.padding,
+      backgroundColor: colors.cardOverlay,
+      borderRadius: Card.radius,
+      borderWidth: Card.borderWidth,
+      borderColor: colors.cardOverlayBorder,
+      gap: Card.gap,
     },
     pressed: {
-      opacity: 0.7,
+      opacity: Interaction.pressedCardOpacity,
     },
     iconContainer: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
+      width: IconTile.md.size,
+      height: IconTile.md.size,
+      borderRadius: IconTile.md.radius,
       backgroundColor: colors.surfaceLight,
       alignItems: 'center',
       justifyContent: 'center',
