@@ -10,8 +10,14 @@ export default function OnboardingLayout() {
   const { activeWalletId } = useWalletManager();
   const currentScreen = segments.at(-1);
   const isOnboardingRoute = segments[0] === '(onboarding)';
+  const isUnauthenticatedRecovery = currentScreen === 'restore-wallet' && !isAuthenticated;
 
-  if (isOnboardingRoute && isOnboarded && currentScreen !== 'legal-disclaimer') {
+  if (
+    isOnboardingRoute &&
+    isOnboarded &&
+    currentScreen !== 'legal-disclaimer' &&
+    !isUnauthenticatedRecovery
+  ) {
     return <Redirect href={isAuthenticated ? '/(auth)/(tabs)/dashboard' : '/(pin)/verify'} />;
   }
 
@@ -19,7 +25,8 @@ export default function OnboardingLayout() {
     isOnboardingRoute &&
     activeWalletId &&
     currentScreen !== 'setup-pin' &&
-    currentScreen !== 'legal-disclaimer'
+    currentScreen !== 'legal-disclaimer' &&
+    !isUnauthenticatedRecovery
   ) {
     return <Redirect href="/(onboarding)/setup-pin" />;
   }

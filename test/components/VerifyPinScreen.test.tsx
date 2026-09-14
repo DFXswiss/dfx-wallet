@@ -10,10 +10,8 @@ jest.mock('expo-router', () => ({
 }));
 
 const mockUnlock = jest.fn();
-const mockWdk = { status: 'INITIALIZING' };
 jest.mock('@tetherto/wdk-react-native-core', () => ({
   useWalletManager: () => ({ unlock: mockUnlock }),
-  useWdkApp: () => ({ state: { status: mockWdk.status } }),
 }));
 
 const mockVerifyPin = jest.fn();
@@ -47,11 +45,15 @@ async function enterPin(getByTestId: (id: string) => unknown, digits: string) {
 describe('VerifyPinScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockReplace.mockReset();
+    mockSetAuthenticated.mockReset();
+    mockVerifyPin.mockReset();
+    mockUnlock.mockReset();
+    mockAuthenticateBiometric.mockReset();
     mockVerifyPin.mockResolvedValue(false);
     mockUnlock.mockResolvedValue(undefined);
     mockAuthenticateBiometric.mockResolvedValue(false);
     mockAuthState.biometricEnabled = false;
-    mockWdk.status = 'INITIALIZING';
   });
 
   it('verifies the 6-digit PIN, authenticates and unlocks the wallet on success', async () => {
@@ -63,6 +65,34 @@ describe('VerifyPinScreen', () => {
     expect(mockVerifyPin).toHaveBeenCalledWith('123456');
     expect(mockSetAuthenticated).toHaveBeenCalledWith(true);
     expect(mockUnlock).toHaveBeenCalledWith('default');
+    expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard');
+  });
+
+  it('authenticates only after the wallet unlock resolves', async () => {
+    mockVerifyPin.mockResolvedValue(true);
+    const calls: string[] = [];
+    let resolveUnlock: () => void = () => {};
+    mockUnlock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUnlock = resolve;
+          calls.push('unlock');
+        }),
+    );
+    mockSetAuthenticated.mockImplementation(() => void calls.push('auth'));
+    mockReplace.mockImplementation(() => void calls.push('route'));
+
+    const { getByTestId } = render(<VerifyPinScreen />);
+    await enterPin(getByTestId, '123456');
+
+    // Unlock is still pending: neither auth nor navigation may have happened.
+    expect(calls).toEqual(['unlock']);
+
+    await act(async () => {
+      resolveUnlock();
+    });
+
+    expect(calls).toEqual(['unlock', 'auth', 'route']);
   });
 
   it('only submits once the 6th digit is entered', async () => {
@@ -97,6 +127,70 @@ describe('VerifyPinScreen', () => {
     warn.mockRestore();
   });
 
+  it('stays fail-closed when the wallet unlock rejects a correct PIN', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockVerifyPin.mockResolvedValue(true);
+    mockUnlock.mockRejectedValue(new Error('secret unlock detail'));
+    const { getByTestId, queryByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+
+    const message = getByTestId('verify-pin-unlock-error').children.join('');
+    // The screen renders the generic i18n message; nothing from the thrown
+    // error reaches the UI.
+    expect(message).toBe('pin.unlockFailed');
+    expect(message).not.toContain('secret unlock detail');
+    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    // The user stays on the verify screen and can retry.
+    expect(getByTestId('verify-pin-screen')).toBeTruthy();
+    expect(queryByTestId('verify-pin-recovery-button')).toBeTruthy();
+    warn.mockRestore();
+  });
+
+  it('routes the recovery button to the restore-wallet screen', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockVerifyPin.mockResolvedValue(true);
+    mockUnlock.mockRejectedValue(new Error('worklet not booted'));
+    const { getByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+    await act(async () => {
+      fireEvent.press(getByTestId('verify-pin-recovery-button'));
+    });
+
+    expect(mockReplace).toHaveBeenCalledWith('/(onboarding)/restore-wallet');
+    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('stays fail-closed when a successful biometric is followed by a rejected unlock', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockAuthState.biometricEnabled = true;
+    mockAuthenticateBiometric.mockResolvedValue(true);
+    mockUnlock.mockRejectedValue(new Error('worklet not booted'));
+    const { getByTestId } = render(<VerifyPinScreen />);
+
+    await waitFor(() => expect(mockUnlock).toHaveBeenCalledWith('default'));
+
+    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(getByTestId('verify-pin-unlock-error')).toBeTruthy();
+    expect(getByTestId('verify-pin-recovery-button')).toBeTruthy();
+    warn.mockRestore();
+  });
+
+  it('authenticates and navigates after a successful biometric unlock', async () => {
+    mockAuthState.biometricEnabled = true;
+    mockAuthenticateBiometric.mockResolvedValue(true);
+    const { getByTestId } = render(<VerifyPinScreen />);
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard'));
+
+    expect(mockSetAuthenticated).toHaveBeenCalledWith(true);
+    expect(getByTestId('verify-pin-screen')).toBeTruthy();
+  });
+
   it('locks the screen after the maximum number of failed attempts', async () => {
     mockVerifyPin.mockResolvedValue(false);
     const { getByTestId, queryByTestId } = render(<VerifyPinScreen />);
@@ -123,11 +217,5 @@ describe('VerifyPinScreen', () => {
     await act(async () => {}); // flush mount effects
     expect(mockAuthenticateBiometric).not.toHaveBeenCalled();
     expect(queryByTestId('verify-pin-biometric-button')).toBeNull();
-  });
-
-  it('navigates to the dashboard once the wallet reports READY', async () => {
-    mockWdk.status = 'READY';
-    render(<VerifyPinScreen />);
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard'));
   });
 });
