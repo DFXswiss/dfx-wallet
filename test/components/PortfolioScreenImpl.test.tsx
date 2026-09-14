@@ -187,9 +187,9 @@ describe('PortfolioScreenImpl', () => {
 
   it('renders the portfolio shell and goes back / to manage', () => {
     const { getByTestId } = renderScreen();
-    expect(getByTestId('portfolio-back-button')).toBeTruthy();
+    expect(getByTestId('portfolio-back')).toBeTruthy();
     expect(getByTestId('portfolio-manage-button')).toBeTruthy();
-    fireEvent.press(getByTestId('portfolio-back-button'));
+    fireEvent.press(getByTestId('portfolio-back'));
     expect(mockBack).toHaveBeenCalled();
     fireEvent.press(getByTestId('portfolio-manage-button'));
     expect(mockPush).toHaveBeenCalledWith('/(auth)/portfolio/manage');
@@ -252,13 +252,13 @@ describe('PortfolioScreenImpl', () => {
     setBalances({ [USDT_ETH_ID]: '1000000' });
     const { getByTestId, unmount } = renderScreen();
     await waitFor(() => expect(init).toHaveBeenCalled());
-    expect(getByTestId('portfolio-back-button')).toBeTruthy();
+    expect(getByTestId('portfolio-back')).toBeTruthy();
     unmount();
 
     jest.spyOn(pricingService, 'isReady').mockReturnValue(false);
     jest.spyOn(pricingService, 'initialize').mockRejectedValue(new Error('offline'));
     const again = renderScreen();
-    await waitFor(() => expect(again.getByTestId('portfolio-back-button')).toBeTruthy());
+    await waitFor(() => expect(again.getByTestId('portfolio-back')).toBeTruthy());
   });
 
   it('pull-to-refresh invalidates balances and re-pulls the DFX user when authenticated', async () => {
@@ -378,13 +378,13 @@ describe('PortfolioScreenImpl', () => {
   it('renders the dark backdrop when the theme is dark', () => {
     useThemeStore.setState({ mode: 'dark' });
     const { getByTestId } = renderScreen();
-    expect(getByTestId('portfolio-back-button')).toBeTruthy();
+    expect(getByTestId('portfolio-back')).toBeTruthy();
   });
 
   it('treats a missing addresses array as empty', async () => {
     useAuthStore.setState({ isDfxAuthenticated: true });
     mockGetUser.mockResolvedValue({ addresses: undefined, activeAddress: undefined });
     const { getByTestId } = renderScreen();
-    await waitFor(() => expect(getByTestId('portfolio-back-button')).toBeTruthy());
+    await waitFor(() => expect(getByTestId('portfolio-back')).toBeTruthy());
   });
 });

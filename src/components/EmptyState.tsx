@@ -1,6 +1,6 @@
 import { ReactNode, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Typography, useColors, type ThemeColors } from '@/theme';
+import { IconTile, Spacing, Typography, useColors, type ThemeColors } from '@/theme';
 import { Icon } from './Icon';
 
 type IconName = Parameters<typeof Icon>[0]['name'];
@@ -43,18 +43,18 @@ const makeStyles = (colors: ThemeColors) =>
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: 32,
-      paddingVertical: 48,
-      gap: 14,
+      paddingHorizontal: Spacing.xxl,
+      paddingVertical: Spacing.huge,
+      gap: Spacing.md,
     },
     iconBubble: {
-      width: 64,
-      height: 64,
-      borderRadius: 22,
+      width: IconTile.lg.size,
+      height: IconTile.lg.size,
+      borderRadius: IconTile.lg.radius,
       backgroundColor: colors.primaryLight,
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: 4,
+      marginBottom: Spacing.xs,
     },
     title: {
       ...Typography.headlineSmall,
@@ -69,7 +69,7 @@ const makeStyles = (colors: ThemeColors) =>
       maxWidth: 320,
     },
     action: {
-      marginTop: 12,
+      marginTop: Spacing.md,
       alignSelf: 'stretch',
     },
   });
