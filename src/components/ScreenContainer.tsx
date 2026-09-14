@@ -1,7 +1,7 @@
 import { ReactNode, useMemo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Layout, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 import { DarkBackdrop } from './DarkBackdrop';
 
 type Props = {
@@ -41,10 +41,10 @@ const makeStyles = (colors: ThemeColors) =>
     },
     content: {
       flex: 1,
-      paddingHorizontal: 24,
+      paddingHorizontal: Layout.screenPadding,
     },
     scroll: {
       flexGrow: 1,
-      paddingHorizontal: 24,
+      paddingHorizontal: Layout.screenPadding,
     },
   });

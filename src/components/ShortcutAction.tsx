@@ -1,7 +1,7 @@
 import { ReactNode, useMemo } from 'react';
 import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { Icon } from './Icon';
-import { Typography, useColors, type ThemeColors } from '@/theme';
+import { Spacing, Typography, useColors, type ThemeColors } from '@/theme';
 
 type Props = {
   icon: ReactNode;
@@ -41,8 +41,8 @@ const makeStyles = (colors: ThemeColors) =>
       borderWidth: 1,
       borderColor: colors.border,
       paddingVertical: 10,
-      paddingLeft: 10,
-      paddingRight: 14,
+      paddingLeft: Spacing.md,
+      paddingRight: Spacing.md,
       gap: 10,
       shadowColor: colors.shadow,
       shadowOpacity: 0.08,
