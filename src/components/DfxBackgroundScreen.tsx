@@ -2,7 +2,7 @@ import { ReactNode, useMemo } from 'react';
 import { ImageBackground, ScrollView, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Edge, SafeAreaView } from 'react-native-safe-area-context';
-import { useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Layout, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 import { DarkBackdrop } from './DarkBackdrop';
 
 type Props = {
@@ -74,10 +74,10 @@ const makeStyles = (colors: ThemeColors) =>
     },
     content: {
       flex: 1,
-      paddingHorizontal: 24,
+      paddingHorizontal: Layout.screenPadding,
     },
     scrollContent: {
       flexGrow: 1,
-      paddingHorizontal: 24,
+      paddingHorizontal: Layout.screenPadding,
     },
   });
