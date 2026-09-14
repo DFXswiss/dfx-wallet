@@ -20,7 +20,7 @@ import { getPaymasterTokenInfo } from '@/config/chains';
 import { FEATURES } from '@/config/features';
 import { formatBalance } from '@/config/portfolio-presentation';
 import { getSendAssetForCanonical } from '@/config/tokens';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
 type SendStep = 'asset' | 'input' | 'confirm' | 'success';
 
@@ -484,7 +484,7 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
     },
     assetList: {
-      gap: 10,
+      gap: Layout.listGap,
     },
     assetCard: {
       flexDirection: 'row',

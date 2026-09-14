@@ -10,7 +10,7 @@ import { AppHeader, DarkBackdrop, Icon, PrimaryButton, QrCode } from '@/componen
 import type { ChainId } from '@/config/chains';
 import { FEATURES } from '@/config/features';
 import { useLdsWallet } from '@/hooks';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
 type ReceiveStep = 'asset' | 'qr';
 
@@ -275,7 +275,7 @@ const makeStyles = (colors: ThemeColors) =>
       marginBottom: 4,
     },
     assetList: {
-      gap: 10,
+      gap: Layout.listGap,
     },
     assetCard: {
       flexDirection: 'row',

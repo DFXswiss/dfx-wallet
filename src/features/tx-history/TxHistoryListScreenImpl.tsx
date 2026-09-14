@@ -25,7 +25,7 @@ import {
 } from '@/components';
 import { CHAIN_LABELS } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/features/dfx-backend/services';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
 type FilterType = 'all' | 'in' | 'out' | 'pay';
 
@@ -318,7 +318,7 @@ const makeStyles = (colors: ThemeColors) =>
       paddingBottom: 12,
     },
     segmentedWrapper: {
-      paddingHorizontal: 16,
+      paddingHorizontal: Layout.screenPadding,
       paddingVertical: 12,
     },
     segmented: {
