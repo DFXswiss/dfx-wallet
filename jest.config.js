@@ -65,6 +65,7 @@ module.exports = {
       testMatch: [
         '<rootDir>/test/services/**/*.test.ts',
         '<rootDir>/test/store/**/*.test.ts',
+        '<rootDir>/test/theme/**/*.test.ts',
       ],
       moduleNameMapper: {
         ...sharedNameMapper,
