@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import { AssetActions, DarkBackdrop, Icon } from '@/components';
+import { AppHeader, AssetActions, DarkBackdrop } from '@/components';
 import type { ChainId } from '@/config/chains';
 import {
   getAssetsForCanonicalSymbol,
@@ -25,7 +25,19 @@ import {
 import { useEnabledChains } from './useEnabledChains';
 import { useWalletStore } from '@/store';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import {
+  BackdropText,
+  Card,
+  IconTile,
+  Interaction,
+  Layout,
+  Spacing,
+  Typography,
+  useColors,
+  useResolvedScheme,
+  type ResolvedScheme,
+  type ThemeColors,
+} from '@/theme';
 
 type Holding = {
   id: string;
@@ -57,7 +69,7 @@ const BTC_VARIANT_LABEL: Record<string, string> = {
 export default function AssetDetailScreen() {
   const colors = useColors();
   const scheme = useResolvedScheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const styles = useMemo(() => makeStyles(colors, scheme), [colors, scheme]);
   const { symbol } = useLocalSearchParams<{ symbol: string }>();
   const canonicalSymbol = String(symbol ?? '').toUpperCase();
   const canonicalName = getCanonicalNameForSymbol(canonicalSymbol);
@@ -151,18 +163,7 @@ export default function AssetDetailScreen() {
 
   const body = (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          style={styles.headerIcon}
-          testID="asset-detail-back"
-        >
-          <Icon name="arrow-left" size={26} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>{canonicalName}</Text>
-        <View style={styles.headerPlaceholder} pointerEvents="none" />
-      </View>
+      <AppHeader title={canonicalName} testID="asset-detail" />
 
       <ScrollView
         style={styles.scroll}
@@ -258,8 +259,19 @@ export default function AssetDetailScreen() {
   );
 }
 
-const makeStyles = (colors: ThemeColors) =>
-  StyleSheet.create({
+const cardElevation = (colors: ThemeColors) => ({
+  shadowColor: colors.shadow,
+  shadowOpacity: 0.07,
+  shadowRadius: 12,
+  shadowOffset: { width: 0, height: 5 },
+  elevation: 2,
+});
+
+const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
+  const onBackdrop =
+    scheme === 'dark' ? { textShadowColor: colors.background, ...BackdropText } : {};
+
+  return StyleSheet.create({
     bg: {
       flex: 1,
       backgroundColor: colors.background,
@@ -267,51 +279,25 @@ const makeStyles = (colors: ThemeColors) =>
     safeArea: {
       flex: 1,
     },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingTop: 4,
-      paddingBottom: 8,
-    },
-    headerIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: colors.cardOverlay,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    headerPlaceholder: {
-      width: 40,
-      height: 40,
-    },
-    headerTitle: {
-      flex: 1,
-      textAlign: 'center',
-      ...Typography.headlineSmall,
-      color: colors.text,
-    },
     scroll: {
       flex: 1,
     },
     scrollContent: {
-      paddingHorizontal: 20,
-      paddingBottom: 48,
-      gap: 16,
+      paddingHorizontal: Layout.screenPadding,
+      paddingTop: Spacing.xl,
+      paddingBottom: Spacing.huge,
+      gap: Spacing.base,
     },
     totalCard: {
-      paddingTop: 12,
-      paddingBottom: 24,
+      paddingTop: Spacing.md,
+      paddingBottom: Spacing.xl,
       alignItems: 'center',
-      gap: 12,
+      gap: Spacing.md,
     },
     iconBubble: {
-      width: 64,
-      height: 64,
-      borderRadius: 18,
+      width: IconTile.lg.size,
+      height: IconTile.lg.size,
+      borderRadius: IconTile.lg.radius,
       alignItems: 'center',
       justifyContent: 'center',
       shadowColor: colors.shadow,
@@ -322,56 +308,52 @@ const makeStyles = (colors: ThemeColors) =>
     iconText: {
       color: colors.white,
       fontWeight: '700',
-      fontSize: 32,
-      lineHeight: 36,
+      fontSize: 30,
+      lineHeight: 34,
     },
     totalCrypto: {
       fontSize: 32,
       lineHeight: 36,
       fontWeight: '700',
       color: colors.text,
+      ...onBackdrop,
     },
     totalFiat: {
       ...Typography.bodyLarge,
       color: colors.textSecondary,
       fontWeight: '500',
+      ...onBackdrop,
     },
     actionsRow: {
-      marginTop: 12,
+      marginTop: Spacing.md,
+      alignSelf: 'stretch',
     },
     sectionLabel: {
-      ...Typography.bodySmall,
+      ...Typography.sectionLabel,
       color: colors.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-      fontWeight: '600',
-      marginTop: 4,
-      marginBottom: 4,
+      marginBottom: Spacing.sm,
+      ...onBackdrop,
     },
     holdingsList: {
-      gap: 8,
+      gap: Layout.listGap,
     },
     holdingRow: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 14,
-      gap: 12,
-      shadowColor: colors.shadow,
-      shadowOpacity: 0.05,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 3 },
-      elevation: 1,
+      borderRadius: Card.radius,
+      borderWidth: Card.borderWidth,
+      borderColor: colors.cardOverlayBorder,
+      padding: Card.padding,
+      gap: Card.gap,
+      ...cardElevation(colors),
     },
     holdingPressed: {
-      opacity: 0.7,
+      opacity: Interaction.pressedCardOpacity,
     },
     holdingInfo: {
       flex: 1,
-      gap: 2,
+      gap: Spacing.xs,
     },
     holdingChain: {
       ...Typography.bodyLarge,
@@ -396,3 +378,4 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
     },
   });
+};

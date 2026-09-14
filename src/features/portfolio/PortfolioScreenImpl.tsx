@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { DarkBackdrop, EmptyState, Icon, Skeleton } from '@/components';
+import { AppHeader, DarkBackdrop, EmptyState, Icon, Skeleton } from '@/components';
 import { getAssetMeta, getAssets, type TokenCategory } from '@/config/tokens';
 import { getRawBalance, useBalances } from '@/services/balances';
 import {
@@ -35,7 +35,19 @@ import { dfxUserService } from '@/features/dfx-backend/services';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { useAuthStore, useWalletStore } from '@/store';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import {
+  BackdropText,
+  Card,
+  IconTile,
+  Interaction,
+  Layout,
+  Spacing,
+  Typography,
+  useColors,
+  useResolvedScheme,
+  type ResolvedScheme,
+  type ThemeColors,
+} from '@/theme';
 
 type PortfolioGroup = {
   canonicalSymbol: string;
@@ -54,7 +66,7 @@ export default function PortfolioScreen() {
   const router = useRouter();
   const colors = useColors();
   const scheme = useResolvedScheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const styles = useMemo(() => makeStyles(colors, scheme), [colors, scheme]);
   const { enabledChains } = useEnabledChains();
   const { selectedCurrency } = useWalletStore();
   const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
@@ -248,29 +260,22 @@ export default function PortfolioScreen() {
 
   const body = (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          style={styles.headerIcon}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back')}
-          testID="portfolio-back-button"
-        >
-          <Icon name="arrow-left" size={26} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>{t('dashboard.portfolio')}</Text>
-        <Pressable
-          onPress={() => router.push('/(auth)/portfolio/manage')}
-          hitSlop={12}
-          style={styles.headerIcon}
-          accessibilityRole="button"
-          accessibilityLabel={t('portfolio.manage')}
-          testID="portfolio-manage-button"
-        >
-          <Text style={styles.manageLink}>{t('portfolio.manage')}</Text>
-        </Pressable>
-      </View>
+      <AppHeader
+        title={t('dashboard.portfolio')}
+        testID="portfolio"
+        rightActionPlain
+        rightAction={
+          <Pressable
+            onPress={() => router.push('/(auth)/portfolio/manage')}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={t('portfolio.manage')}
+            testID="portfolio-manage-button"
+          >
+            <Text style={styles.manageLink}>{t('portfolio.manage')}</Text>
+          </Pressable>
+        }
+      />
 
       <ScrollView
         style={styles.scroll}
@@ -305,8 +310,12 @@ export default function PortfolioScreen() {
           <View style={styles.assetList}>
             {[0, 1, 2, 3].map((i) => (
               <View key={i} style={styles.skeletonRow}>
-                <Skeleton width={44} height={44} radius={22} />
-                <View style={{ flex: 1, gap: 6 }}>
+                <Skeleton
+                  width={IconTile.md.size}
+                  height={IconTile.md.size}
+                  radius={IconTile.md.radius}
+                />
+                <View style={styles.skeletonCopy}>
                   <Skeleton width={'60%'} height={14} radius={6} />
                   <Skeleton width={'40%'} height={11} radius={6} />
                 </View>
@@ -413,7 +422,8 @@ function LinkedWalletCard({
 }) {
   const { t } = useTranslation();
   const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const scheme = useResolvedScheme();
+  const styles = useMemo(() => makeStyles(colors, scheme), [colors, scheme]);
   const { address } = wallet;
   const truncated = address.length > 18 ? `${address.slice(0, 10)}…${address.slice(-6)}` : address;
   const chains = (wallet.blockchains?.length ? wallet.blockchains : [wallet.blockchain]).join(
@@ -462,7 +472,8 @@ function LinkedWalletCard({
 function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) {
   const { t } = useTranslation();
   const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const scheme = useResolvedScheme();
+  const styles = useMemo(() => makeStyles(colors, scheme), [colors, scheme]);
   const color = SYMBOL_COLORS.get(group.canonicalSymbol) ?? colors.primary;
   const glyph = SYMBOL_GLYPH.get(group.canonicalSymbol) ?? group.canonicalSymbol.slice(0, 1);
   const networkLabel =
@@ -477,7 +488,10 @@ function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) 
       accessibilityRole="button"
       accessibilityLabel={group.canonicalName}
     >
-      <View style={[styles.iconBubble, { backgroundColor: color }]}>
+      <View
+        style={[styles.iconBubble, { backgroundColor: color }]}
+        testID={`portfolio-asset-icon-${group.canonicalSymbol}`}
+      >
         <Text style={styles.iconText}>{glyph}</Text>
       </View>
       <View style={styles.info}>
@@ -498,34 +512,25 @@ function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) 
   );
 }
 
-const makeStyles = (colors: ThemeColors) =>
-  StyleSheet.create({
+const cardElevation = (colors: ThemeColors) => ({
+  shadowColor: colors.shadow,
+  shadowOpacity: 0.07,
+  shadowRadius: 12,
+  shadowOffset: { width: 0, height: 5 },
+  elevation: 2,
+});
+
+const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
+  const onBackdrop =
+    scheme === 'dark' ? { textShadowColor: colors.background, ...BackdropText } : {};
+
+  return StyleSheet.create({
     bg: {
       flex: 1,
       backgroundColor: colors.background,
     },
     safeArea: {
       flex: 1,
-    },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingTop: 6,
-      paddingBottom: 12,
-    },
-    headerIcon: {
-      minWidth: 80,
-      height: 44,
-      borderRadius: 14,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    headerTitle: {
-      flex: 1,
-      textAlign: 'center',
-      ...Typography.headlineSmall,
-      color: colors.text,
     },
     manageLink: {
       ...Typography.bodyMedium,
@@ -537,27 +542,29 @@ const makeStyles = (colors: ThemeColors) =>
       flex: 1,
     },
     scrollContent: {
-      paddingHorizontal: 20,
-      paddingTop: 36,
-      paddingBottom: 48,
-      gap: 14,
+      paddingHorizontal: Layout.screenPadding,
+      paddingTop: Spacing.xl,
+      paddingBottom: Spacing.huge,
+      gap: Spacing.base,
     },
     totalLabel: {
       ...Typography.bodyMedium,
       color: colors.textSecondary,
       fontWeight: '500',
       textAlign: 'center',
+      ...onBackdrop,
     },
     totalRow: {
       flexDirection: 'row',
       alignItems: 'baseline',
       justifyContent: 'center',
-      gap: 6,
+      gap: Spacing.xs,
     },
     totalCurrency: {
-      fontSize: 26,
+      fontSize: 20,
       color: colors.textTertiary,
       fontWeight: '500',
+      ...onBackdrop,
     },
     totalValue: {
       fontSize: 46,
@@ -565,62 +572,45 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '700',
       color: colors.text,
       flexShrink: 1,
+      ...onBackdrop,
     },
     assetList: {
-      gap: 10,
-      marginTop: 22,
+      gap: Layout.listGap,
+      marginTop: Spacing.xl,
     },
     skeletonRow: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.cardOverlay,
-      borderRadius: 18,
-      borderWidth: 1,
+      borderRadius: Card.radius,
+      borderWidth: Card.borderWidth,
       borderColor: colors.cardOverlayBorder,
-      padding: 14,
-      gap: 12,
+      padding: Card.padding,
+      gap: Card.gap,
+      ...cardElevation(colors),
     },
-    emptyCard: {
-      marginTop: 28,
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 18,
-      gap: 6,
-    },
-    emptyTitle: {
-      ...Typography.bodyLarge,
-      fontWeight: '700',
-      color: colors.text,
-    },
-    emptyDescription: {
-      ...Typography.bodyMedium,
-      color: colors.textSecondary,
+    skeletonCopy: {
+      flex: 1,
+      gap: Spacing.xs,
     },
     card: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.cardOverlay,
-      borderRadius: 18,
-      borderWidth: 1,
+      borderRadius: Card.radius,
+      borderWidth: Card.borderWidth,
       borderColor: colors.cardOverlayBorder,
-      padding: 14,
-      gap: 12,
-      shadowColor: colors.shadow,
-      shadowOpacity: 0.07,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 5 },
-      elevation: 2,
+      padding: Card.padding,
+      gap: Card.gap,
+      ...cardElevation(colors),
     },
     cardPressed: {
-      opacity: 0.86,
-      transform: [{ scale: 0.99 }],
+      opacity: Interaction.pressedCardOpacity,
     },
     iconBubble: {
-      width: 46,
-      height: 46,
-      borderRadius: 15,
+      width: IconTile.md.size,
+      height: IconTile.md.size,
+      borderRadius: IconTile.md.radius,
       alignItems: 'center',
       justifyContent: 'center',
       shadowColor: colors.shadow,
@@ -636,7 +626,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
     info: {
       flex: 1,
-      gap: 4,
+      gap: Spacing.xs,
       minWidth: 0,
     },
     name: {
@@ -664,19 +654,16 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
     },
     linkedSection: {
-      marginTop: 24,
-      gap: 10,
+      marginTop: Spacing.xl,
     },
     linkedSectionLabel: {
-      ...Typography.bodySmall,
-      fontWeight: '700',
+      ...Typography.sectionLabel,
       color: colors.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-      paddingHorizontal: 4,
+      marginBottom: Spacing.sm,
+      ...onBackdrop,
     },
     linkedList: {
-      gap: 8,
+      gap: Layout.listGap,
     },
     linkedAddress: {
       ...Typography.bodyMedium,
@@ -685,3 +672,4 @@ const makeStyles = (colors: ThemeColors) =>
       fontFamily: 'monospace',
     },
   });
+};

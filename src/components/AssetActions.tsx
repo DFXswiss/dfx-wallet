@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useColors, type ThemeColors, Typography } from '@/theme';
+import { Interaction, Radius, Spacing, useColors, type ThemeColors, Typography } from '@/theme';
 import { Icon } from './Icon';
 
 type Props = {
@@ -16,9 +16,8 @@ type Props = {
 /**
  * Compact Kaufen / Verkaufen pill row for wallet- and asset-detail screens.
  *
- * Uses the same `primaryLight` + `primary` visual language as the existing
- * copyBadge / quickAmount chips so the row sits naturally inside the
- * surrounding card stack without competing for attention.
+ * Uses the opaque `pillSurface` fill so the row stays readable on the photo
+ * backdrop. `primaryLight` remains the in-card tint and is not used here.
  *
  * Both pills route to the existing Buy/Sell flows. Optional `asset` and
  * `chain` params are passed through so the Buy/Sell screen can preselect
@@ -67,20 +66,25 @@ const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     row: {
       flexDirection: 'row',
-      justifyContent: 'center',
-      gap: 10,
+      alignSelf: 'stretch',
+      gap: Spacing.md,
     },
     pill: {
+      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      backgroundColor: colors.primaryLight,
-      borderRadius: 999,
+      justifyContent: 'center',
+      gap: Spacing.xs,
+      minHeight: 44,
+      paddingHorizontal: Spacing.base,
+      paddingVertical: 0,
+      backgroundColor: colors.pillSurface,
+      borderRadius: Radius.pill,
+      borderWidth: 1,
+      borderColor: colors.pillBorder,
     },
     pressed: {
-      opacity: 0.7,
+      opacity: Interaction.pressedOpacity,
     },
     label: {
       ...Typography.bodyMedium,
