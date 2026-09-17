@@ -1,5 +1,6 @@
 import { ReactNode, useMemo } from 'react';
 import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { GlassSurface } from './GlassSurface';
 import { Icon } from './Icon';
 import { Spacing, Typography, useColors, type ThemeColors } from '@/theme';
 
@@ -17,15 +18,17 @@ export function ShortcutAction({ icon, label, onPress, style, testID }: Props) {
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.pill, pressed && styles.pressed, style]}
+      style={({ pressed }) => [pressed && styles.pressed, style]}
       onPress={onPress}
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <View style={styles.iconBubble}>{icon}</View>
-      <Text style={styles.label}>{label}</Text>
-      <Icon name="chevron-right" size={18} color={colors.primary} />
+      <GlassSurface variant="default" radius={22} style={styles.pill}>
+        <View style={styles.iconBubble}>{icon}</View>
+        <Text style={styles.label}>{label}</Text>
+        <Icon name="chevron-right" size={18} color={colors.primary} />
+      </GlassSurface>
     </Pressable>
   );
 }
@@ -35,20 +38,12 @@ const makeStyles = (colors: ThemeColors) =>
     pill: {
       flexDirection: 'row',
       alignItems: 'center',
+      alignSelf: 'stretch',
       minHeight: 60,
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 22,
-      borderWidth: 1,
-      borderColor: colors.border,
       paddingVertical: 10,
       paddingLeft: Spacing.md,
       paddingRight: Spacing.md,
       gap: 10,
-      shadowColor: colors.shadow,
-      shadowOpacity: 0.08,
-      shadowRadius: 14,
-      shadowOffset: { width: 0, height: 6 },
-      elevation: 2,
     },
     pressed: {
       transform: [{ scale: 0.985 }],
