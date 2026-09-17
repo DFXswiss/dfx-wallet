@@ -2,9 +2,10 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, waitFor } from '@testing-library/react-native';
+import type { ReactTestInstance } from 'react-test-renderer';
 import type { BalanceEntry, BalanceMap, BalanceSourceResult } from '@/services/balances';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
-import { Skeleton } from '@/components';
+import { GlassSurface, Skeleton } from '@/components';
 import { Card, IconTile, ThemeProvider, lightColors } from '@/theme';
 import { useAuthStore, useWalletStore } from '@/store';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
@@ -113,6 +114,15 @@ function flattenStyle(style: unknown): Record<string, unknown> {
   return StyleSheet.flatten(resolved) as Record<string, unknown>;
 }
 
+function flattenSurface(pressable: ReactTestInstance): Record<string, unknown> {
+  const glass = pressable.findByType(GlassSurface);
+  const host = glass.children[0];
+  if (host == null || typeof host === 'string') {
+    throw new Error('GlassSurface host view missing');
+  }
+  return flattenStyle(host.props.style);
+}
+
 function renderPortfolio() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -160,10 +170,10 @@ describe('portfolio list-row tokens', () => {
   it('renders portfolio cards and asset-detail holdings with the same card metrics', async () => {
     const portfolio = renderPortfolio();
     await waitFor(() => expect(portfolio.getByTestId('portfolio-asset-BTC')).toBeTruthy());
-    const card = flattenStyle(portfolio.getByTestId('portfolio-asset-BTC').props.style);
+    const card = flattenSurface(portfolio.getByTestId('portfolio-asset-BTC'));
 
     const detail = renderDetail();
-    const holding = flattenStyle(detail.getByTestId('holding-bitcoin-BTC').props.style);
+    const holding = flattenSurface(detail.getByTestId('holding-bitcoin-BTC'));
 
     expect(card.borderRadius).toBe(holding.borderRadius);
     expect(card.padding).toBe(holding.padding);
