@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { BrandLogo } from './BrandLogo';
+import { GlassSurface } from './GlassSurface';
 import { Icon } from './Icon';
-import { useColors, type ThemeColors } from '@/theme';
+import { useColors } from '@/theme';
 
 type Props = {
   onMenuPress?: (() => void) | undefined;
@@ -11,7 +11,6 @@ type Props = {
 
 export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
   const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
     <View style={styles.container}>
@@ -21,10 +20,11 @@ export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
           accessibilityLabel="Multi-Sig"
           hitSlop={12}
           onPress={onShieldPress}
-          style={styles.iconButton}
           testID="dashboard-shield-button"
         >
-          <Icon name="shield" size={26} color={colors.primary} strokeWidth={2.5} />
+          <GlassSurface variant="quiet" radius={14} style={styles.iconButton}>
+            <Icon name="shield" size={26} color={colors.primary} strokeWidth={2.5} />
+          </GlassSurface>
         </Pressable>
       ) : (
         <View style={styles.iconPlaceholder} pointerEvents="none" />
@@ -36,10 +36,11 @@ export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
           accessibilityLabel="Menu"
           hitSlop={12}
           onPress={onMenuPress}
-          style={styles.iconButton}
           testID="dashboard-menu-button"
         >
-          <Icon name="menu" size={26} color={colors.primary} strokeWidth={2.5} />
+          <GlassSurface variant="quiet" radius={14} style={styles.iconButton}>
+            <Icon name="menu" size={26} color={colors.primary} strokeWidth={2.5} />
+          </GlassSurface>
         </Pressable>
       ) : (
         <View style={styles.iconPlaceholder} pointerEvents="none" />
@@ -48,32 +49,22 @@ export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
   );
 }
 
-const makeStyles = (colors: ThemeColors) =>
-  StyleSheet.create({
-    container: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingTop: 6,
-      paddingBottom: 12,
-    },
-    iconButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 14,
-      backgroundColor: colors.cardOverlay,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-      shadowColor: colors.shadow,
-      shadowOpacity: 0.07,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 5 },
-      elevation: 2,
-    },
-    iconPlaceholder: {
-      width: 44,
-      height: 44,
-    },
-  });
+const styles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 6,
+    paddingBottom: 12,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconPlaceholder: {
+    width: 44,
+    height: 44,
+  },
+});

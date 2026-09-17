@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader, DarkBackdrop, EmptyState, Icon, Skeleton } from '@/components';
+import { AppHeader, DarkBackdrop, EmptyState, GlassSurface, Icon, Skeleton } from '@/components';
 import { getAssetMeta, getAssets, type TokenCategory } from '@/config/tokens';
 import { getRawBalance, useBalances } from '@/services/balances';
 import {
@@ -441,7 +441,7 @@ function LinkedWalletCard({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      style={({ pressed }) => [styles.linkedCard, pressed && styles.cardPressed]}
       testID={`portfolio-linked-wallet-${address.slice(0, 8)}`}
       accessibilityRole="button"
       accessibilityLabel={t('portfolio.linkedWalletA11y', { address: truncated })}
@@ -483,31 +483,33 @@ function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) 
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      style={({ pressed }) => [pressed && styles.cardPressed]}
       testID={`portfolio-asset-${group.canonicalSymbol}`}
       accessibilityRole="button"
       accessibilityLabel={group.canonicalName}
     >
-      <View
-        style={[styles.iconBubble, { backgroundColor: color }]}
-        testID={`portfolio-asset-icon-${group.canonicalSymbol}`}
-      >
-        <Text style={styles.iconText}>{glyph}</Text>
-      </View>
-      <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>
-          {group.canonicalName}
-        </Text>
-        <Text style={styles.chainCountText}>{networkLabel}</Text>
-      </View>
-      <View style={styles.balanceColumn}>
-        <Text style={styles.fiatValue} numberOfLines={1}>
-          {currencySymbol} {group.totalFiat.toFixed(2)}
-        </Text>
-        <Text style={styles.cryptoBalance} numberOfLines={1}>
-          {formatNumber(group.totalBalanceNum)} {group.canonicalSymbol}
-        </Text>
-      </View>
+      <GlassSurface variant="default" radius={Card.radius} style={styles.card}>
+        <View
+          style={[styles.iconBubble, { backgroundColor: color }]}
+          testID={`portfolio-asset-icon-${group.canonicalSymbol}`}
+        >
+          <Text style={styles.iconText}>{glyph}</Text>
+        </View>
+        <View style={styles.info}>
+          <Text style={styles.name} numberOfLines={1}>
+            {group.canonicalName}
+          </Text>
+          <Text style={styles.chainCountText}>{networkLabel}</Text>
+        </View>
+        <View style={styles.balanceColumn}>
+          <Text style={styles.fiatValue} numberOfLines={1}>
+            {currencySymbol} {group.totalFiat.toFixed(2)}
+          </Text>
+          <Text style={styles.cryptoBalance} numberOfLines={1}>
+            {formatNumber(group.totalBalanceNum)} {group.canonicalSymbol}
+          </Text>
+        </View>
+      </GlassSurface>
     </Pressable>
   );
 }
@@ -594,6 +596,12 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
       gap: Spacing.xs,
     },
     card: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: Card.padding,
+      gap: Card.gap,
+    },
+    linkedCard: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.cardOverlay,

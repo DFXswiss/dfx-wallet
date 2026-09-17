@@ -9,6 +9,7 @@ export { DashboardHeader } from './DashboardHeader';
 export { DfxBackgroundScreen } from './DfxBackgroundScreen';
 export { EmptyState } from './EmptyState';
 export { ErrorBoundary } from './ErrorBoundary';
+export { GlassSurface } from './GlassSurface';
 // `DfxAuthGate` lives in `@/features/dfx-backend/DfxAuthGate` — it is
 // deferred behind `EXPO_PUBLIC_ENABLE_DFX_BACKEND` and must not be
 // re-exported from the shared components barrel.
