@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { GlassSurface } from './GlassSurface';
 import { Card, IconTile, Interaction, Typography, useColors, type ThemeColors } from '@/theme';
 
 type Props = {
@@ -25,26 +26,28 @@ export function AssetListItem({ symbol, name, chain, balance, balanceFiat, onPre
   const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Pressable
-      style={({ pressed }) => [styles.container, pressed && styles.pressed]}
+      style={({ pressed }) => [pressed && styles.pressed]}
       onPress={onPress}
       disabled={!onPress}
     >
-      <View style={styles.iconContainer}>
-        <Text style={styles.iconText}>{symbol.slice(0, 2)}</Text>
-      </View>
+      <GlassSurface variant="default" radius={Card.radius} style={styles.container}>
+        <View style={styles.iconContainer}>
+          <Text style={styles.iconText}>{symbol.slice(0, 2)}</Text>
+        </View>
 
-      <View style={styles.info}>
-        <Text style={styles.name}>{name}</Text>
-        {/* eslint-disable-next-line security/detect-object-injection -- CHAIN_LABELS is a Record<string, string>, lookup yields a label string only */}
-        <Text style={styles.chain}>{CHAIN_LABELS[chain] ?? chain}</Text>
-      </View>
+        <View style={styles.info}>
+          <Text style={styles.name}>{name}</Text>
+          {/* eslint-disable-next-line security/detect-object-injection -- CHAIN_LABELS is a Record<string, string>, lookup yields a label string only */}
+          <Text style={styles.chain}>{CHAIN_LABELS[chain] ?? chain}</Text>
+        </View>
 
-      <View style={styles.balanceContainer}>
-        <Text style={styles.balance}>
-          {balance} {symbol}
-        </Text>
-        <Text style={styles.balanceFiat}>{balanceFiat}</Text>
-      </View>
+        <View style={styles.balanceContainer}>
+          <Text style={styles.balance}>
+            {balance} {symbol}
+          </Text>
+          <Text style={styles.balanceFiat}>{balanceFiat}</Text>
+        </View>
+      </GlassSurface>
     </Pressable>
   );
 }
@@ -54,11 +57,8 @@ const makeStyles = (colors: ThemeColors) =>
     container: {
       flexDirection: 'row',
       alignItems: 'center',
+      alignSelf: 'stretch',
       padding: Card.padding,
-      backgroundColor: colors.cardOverlay,
-      borderRadius: Card.radius,
-      borderWidth: Card.borderWidth,
-      borderColor: colors.cardOverlayBorder,
       gap: Card.gap,
     },
     pressed: {
