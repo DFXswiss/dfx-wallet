@@ -490,6 +490,7 @@
     "incorrectAttemptsLeft_other": "Falsche PIN. Noch {{count}} Versuche übrig.",
     "mismatch": "PINs stimmen nicht überein.",
     "recoveryCta": "Wallet wiederherstellen",
+    "processing": "Einen Moment …",
     "remainingAttempts": "{{count}} Versuche übrig.",
     "saveError": "PIN konnte nicht gespeichert werden. Bitte erneut versuchen.",
     "tooMany": "Zu viele Fehlversuche. Bitte starte die App neu.",

@@ -3,7 +3,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { BrandLogo, DfxBackgroundScreen, OnboardingStepIndicator } from '@/components';
+import {
+  BrandLogo,
+  DfxBackgroundScreen,
+  OnboardingStepIndicator,
+  PinProcessingOverlay,
+} from '@/components';
 import { FEATURES } from '@/config/features';
 import { useAuthStore } from '@/store';
 import { Typography, useColors, type ThemeColors } from '@/theme';
@@ -20,8 +25,10 @@ export default function SetupPinScreen() {
   const [step, setStep] = useState<'create' | 'confirm'>('create');
   const [firstPin, setFirstPin] = useState('');
   const [error, setError] = useState<SetupError | null>(null);
+  const [processing, setProcessing] = useState(false);
 
   const handleDigit = (digit: string) => {
+    if (processing) return;
     setError(null);
     const newPin = pin + digit;
     if (newPin.length > 6) return;
@@ -45,6 +52,8 @@ export default function SetupPinScreen() {
 
   const completeSetup = async (pinValue: string) => {
     try {
+      setProcessing(true);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       await setPin(pinValue);
       setAuthenticated(true);
       // With `EXPO_PUBLIC_ENABLE_LEGAL` off, the disclaimer step is
@@ -54,6 +63,7 @@ export default function SetupPinScreen() {
         FEATURES.LEGAL ? '/(onboarding)/legal-disclaimer' : '/(auth)/(tabs)/dashboard',
       );
     } catch (err) {
+      setProcessing(false);
       console.warn('setup-pin: failed to persist PIN', err);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError('save');
@@ -69,57 +79,63 @@ export default function SetupPinScreen() {
   };
 
   return (
-    <DfxBackgroundScreen
-      contentStyle={styles.content}
-      testID={step === 'create' ? 'setup-pin-screen' : 'setup-pin-confirm-screen'}
-    >
-      <BrandLogo size="auth" style={styles.logo} />
-      <OnboardingStepIndicator current={2} />
-      <Text style={styles.title}>{step === 'create' ? t('pin.create') : t('pin.confirm')}</Text>
-      <Text style={styles.description}>
-        {step === 'create' ? t('pin.createDescription') : t('pin.confirmDescription')}
-      </Text>
-      {error && (
-        <Text style={styles.error} testID="setup-pin-error">
-          {error === 'save' ? t('pin.saveError') : t('pin.mismatch')}
+    <View style={styles.screen}>
+      <DfxBackgroundScreen
+        contentStyle={styles.content}
+        testID={step === 'create' ? 'setup-pin-screen' : 'setup-pin-confirm-screen'}
+      >
+        <BrandLogo size="auth" style={styles.logo} />
+        <OnboardingStepIndicator current={2} />
+        <Text style={styles.title}>{step === 'create' ? t('pin.create') : t('pin.confirm')}</Text>
+        <Text style={styles.description}>
+          {step === 'create' ? t('pin.createDescription') : t('pin.confirmDescription')}
         </Text>
-      )}
+        {error && (
+          <Text style={styles.error} testID="setup-pin-error">
+            {error === 'save' ? t('pin.saveError') : t('pin.mismatch')}
+          </Text>
+        )}
 
-      <View style={styles.dots} testID="setup-pin-dots">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <View
-            key={i}
-            style={[styles.dot, i < pin.length && styles.dotFilled, error && styles.dotError]}
-          />
-        ))}
-      </View>
+        <View style={styles.dots} testID="setup-pin-dots">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <View
+              key={i}
+              style={[styles.dot, i < pin.length && styles.dotFilled, error && styles.dotError]}
+            />
+          ))}
+        </View>
 
-      <View style={styles.numpad}>
-        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((key) => {
-          if (key === '') {
-            return <View key={key} style={styles.numpadKey} />;
-          }
-          return (
-            <Pressable
-              key={key}
-              testID={key === 'del' ? 'pin-key-delete' : `pin-key-${key}`}
-              style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
-              onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
-              android_ripple={{ color: colors.surfaceLight, borderless: false, radius: 36 }}
-              accessibilityRole="button"
-              accessibilityLabel={key === 'del' ? 'Delete' : key}
-            >
-              <Text style={styles.numpadText}>{key === 'del' ? '\u232B' : key}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </DfxBackgroundScreen>
+        <View style={styles.numpad}>
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((key) => {
+            if (key === '') {
+              return <View key={key} style={styles.numpadKey} />;
+            }
+            return (
+              <Pressable
+                key={key}
+                testID={key === 'del' ? 'pin-key-delete' : `pin-key-${key}`}
+                style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
+                onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
+                android_ripple={{ color: colors.surfaceLight, borderless: false, radius: 36 }}
+                accessibilityRole="button"
+                accessibilityLabel={key === 'del' ? 'Delete' : key}
+              >
+                <Text style={styles.numpadText}>{key === 'del' ? '\u232B' : key}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </DfxBackgroundScreen>
+      {processing && <PinProcessingOverlay />}
+    </View>
   );
 }
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
+    screen: {
+      flex: 1,
+    },
     content: {
       alignItems: 'center',
       paddingVertical: 48,
