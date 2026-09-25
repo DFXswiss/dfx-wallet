@@ -57,4 +57,26 @@ describe('DfxLogoLoader', () => {
     unmount();
     expect(animation.stop).toHaveBeenCalledTimes(1);
   });
+
+  it('drives the loop with a 2400ms native-driver timing animation', () => {
+    mockReduceMotion = false;
+    const animation = {
+      start: jest.fn(),
+      stop: jest.fn(),
+      reset: jest.fn(),
+    };
+    jest.spyOn(Animated, 'loop').mockReturnValue(animation);
+    const timingSpy = jest.spyOn(Animated, 'timing');
+
+    render(<DfxLogoLoader />);
+
+    expect(timingSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        toValue: 1,
+        duration: 2400,
+        useNativeDriver: true,
+      }),
+    );
+  });
 });
