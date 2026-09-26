@@ -12,9 +12,7 @@ jest.mock('react-i18next', () => ({
 
 const mockBack = jest.fn();
 jest.mock('expo-router', () => ({
-  Stack: { Screen: () => null },
   useFocusEffect: (callback: () => void | (() => void)) => callback(),
-  useLocalSearchParams: () => ({}),
   useRouter: () => ({ back: mockBack, push: jest.fn(), replace: jest.fn(), canGoBack: () => true }),
 }));
 
@@ -164,7 +162,10 @@ jest.mock('../../src/features/buy-sell/useBuyFlow', () => ({
 }));
 
 // eslint-disable-next-line import/first
-import BuyScreenImpl from '../../src/features/buy-sell/BuyScreenImpl';
+import { BuyTradeAdapter } from '../../src/features/buy-sell/BuyTradeAdapter';
+
+const mockOnShellChange = jest.fn();
+const renderAdapter = () => render(<BuyTradeAdapter onShellChange={mockOnShellChange} />);
 
 const PAYMENT_INFO = {
   id: 321,
@@ -200,6 +201,7 @@ beforeEach(() => {
   mockConfirmPayment.mockReset();
   mockDismissAuthGate.mockReset();
   mockRetryLast.mockReset();
+  mockOnShellChange.mockReset();
   flowState.isLoading = false;
   flowState.error = null;
   flowState.authGate = null;
@@ -209,10 +211,10 @@ beforeEach(() => {
   flowState.actionErrorKey = null;
 });
 
-describe('BuyScreenImpl', () => {
+describe('BuyTradeAdapter', () => {
   it('shows a current payment-info error while keeping the valid quote and clears it on input change', async () => {
     mockCreatePaymentInfo.mockResolvedValueOnce(null);
-    const { getByTestId, queryByText, rerender } = render(<BuyScreenImpl />);
+    const { getByTestId, queryByText, rerender } = renderAdapter();
 
     fireEvent.changeText(getByTestId('buy-pay-amount'), '100');
     await act(async () => {
@@ -221,7 +223,7 @@ describe('BuyScreenImpl', () => {
 
     flowState.error = 'payment info failed';
     flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
-    rerender(<BuyScreenImpl />);
+    rerender(<BuyTradeAdapter onShellChange={mockOnShellChange} />);
     fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
     expect(queryByText('payment info failed')).toBeTruthy();
     expect(getByTestId('buy-receive-amount').props.value).not.toBe('');
@@ -235,7 +237,7 @@ describe('BuyScreenImpl', () => {
     mockCreatePaymentInfo.mockResolvedValueOnce(PAYMENT_INFO);
     mockConfirmPayment.mockResolvedValueOnce(false);
 
-    const { getByTestId, getByText, queryByText } = render(<BuyScreenImpl />);
+    const { getByTestId, getByText, queryByText } = renderAdapter();
 
     fireEvent.changeText(getByTestId('buy-pay-amount'), '100');
     await act(async () => {
@@ -257,7 +259,7 @@ describe('BuyScreenImpl', () => {
     flowState.paymentInfo = null;
     flowState.quoteKey = null;
 
-    const { getByTestId } = render(<BuyScreenImpl />);
+    const { getByTestId } = renderAdapter();
 
     const feePanel = getByTestId('buy-fees-panel');
     expect(feePanel).toBeTruthy();
@@ -268,7 +270,7 @@ describe('BuyScreenImpl', () => {
     flowState.paymentInfo = { isValid: false, error: 'AmountTooLow' };
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
 
-    const { getByTestId, getByText } = render(<BuyScreenImpl />);
+    const { getByTestId, getByText } = renderAdapter();
     fireEvent.changeText(getByTestId('buy-pay-amount'), '1');
     fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
 
@@ -280,7 +282,7 @@ describe('BuyScreenImpl', () => {
     flowState.paymentInfo = { isValid: false, error: 'KycRequired' };
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
 
-    const { getByTestId } = render(<BuyScreenImpl />);
+    const { getByTestId } = renderAdapter();
     fireEvent.changeText(getByTestId('buy-pay-amount'), '1');
 
     expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(false);
@@ -291,7 +293,7 @@ describe('BuyScreenImpl', () => {
     flowState.error = 'network failed';
     flowState.errorKey = '1|CHF|BTC|Bitcoin|bitcoin';
 
-    const { getByTestId, getByText, queryByText } = render(<BuyScreenImpl />);
+    const { getByTestId, getByText, queryByText } = renderAdapter();
     fireEvent.changeText(getByTestId('buy-pay-amount'), '1');
     fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
 
@@ -308,7 +310,7 @@ describe('BuyScreenImpl', () => {
     flowState.authGate = { kind: 'login', message: 'sign in' };
     flowState.errorKey = '1|CHF|BTC|Bitcoin|bitcoin';
 
-    const { getByTestId } = render(<BuyScreenImpl />);
+    const { getByTestId } = renderAdapter();
     fireEvent.changeText(getByTestId('buy-pay-amount'), '2');
 
     expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(true);
@@ -318,7 +320,7 @@ describe('BuyScreenImpl', () => {
     flowState.paymentInfo = { isValid: false };
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
 
-    const { getByTestId, getByText } = render(<BuyScreenImpl />);
+    const { getByTestId, getByText } = renderAdapter();
     fireEvent.changeText(getByTestId('buy-pay-amount'), '1');
     fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
 
@@ -330,7 +332,7 @@ describe('BuyScreenImpl', () => {
     flowState.isLoading = true;
     flowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
 
-    const { getByTestId } = render(<BuyScreenImpl />);
+    const { getByTestId } = renderAdapter();
 
     expect(getByTestId('buy-receive-amount').props.value).toBe('');
     expect(within(getByTestId('buy-fees-panel')).getAllByText('—')).toHaveLength(2);
@@ -340,7 +342,7 @@ describe('BuyScreenImpl', () => {
     flowState.paymentInfo = PAYMENT_INFO;
     flowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
 
-    const { getByTestId } = render(<BuyScreenImpl />);
+    const { getByTestId } = renderAdapter();
     fireEvent.changeText(getByTestId('buy-pay-amount'), '101');
 
     expect(getByTestId('buy-receive-amount').props.value).toBe('');
@@ -352,11 +354,24 @@ describe('BuyScreenImpl', () => {
     flowState.paymentInfo = { isValid: false, error: 'AmountTooLow' };
     flowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
 
-    const { getByTestId, queryByText } = render(<BuyScreenImpl />);
+    const { getByTestId, queryByText } = renderAdapter();
     fireEvent.changeText(getByTestId('buy-pay-amount'), '101');
     fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
 
     expect(queryByText(/buy\.quoteError\.AmountTooLow/)).toBeNull();
     expect(queryByText('buy.continueHint')).toBeNull();
+  });
+
+  it('reports the amount-step shell chrome on mount', () => {
+    renderAdapter();
+
+    expect(mockOnShellChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'buy.title',
+        headerTestID: 'buy-screen',
+        activeStep: 0,
+        steps: ['amount', 'payment', 'confirm'],
+      }),
+    );
   });
 });

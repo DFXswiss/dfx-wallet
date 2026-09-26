@@ -2,12 +2,6 @@ import { fireEvent, render } from '@testing-library/react-native';
 
 import TradeModeTabs from '../../src/features/buy-sell/TradeModeTabs';
 
-const mockReplace = jest.fn();
-
-jest.mock('expo-router', () => ({
-  useRouter: () => ({ replace: mockReplace }),
-}));
-
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -23,16 +17,12 @@ jest.mock('@/theme', () => ({
 }));
 
 describe('TradeModeTabs', () => {
-  beforeEach(() => {
-    mockReplace.mockClear();
-  });
-
   it.each([
     ['buy', 'trade-tab-buy'],
     ['sell', 'trade-tab-sell'],
     ['swap', 'trade-tab-swap'],
   ] as const)('marks %s as selected', (active, selectedTestId) => {
-    const { getByTestId } = render(<TradeModeTabs active={active} />);
+    const { getByTestId } = render(<TradeModeTabs active={active} onChange={jest.fn()} />);
 
     expect(getByTestId('trade-mode-tabs')).toBeTruthy();
     expect(getByTestId('trade-tab-buy')).toBeTruthy();
@@ -48,13 +38,25 @@ describe('TradeModeTabs', () => {
   });
 
   it.each([
-    ['sell', 'trade-tab-buy', '/(auth)/buy'],
-    ['buy', 'trade-tab-sell', '/(auth)/sell'],
-    ['buy', 'trade-tab-swap', '/(auth)/swap'],
-  ] as const)('navigates from %s via %s', (active, testId, route) => {
-    const { getByTestId } = render(<TradeModeTabs active={active} />);
+    ['sell', 'trade-tab-buy', 'buy'],
+    ['buy', 'trade-tab-sell', 'sell'],
+    ['buy', 'trade-tab-swap', 'swap'],
+  ] as const)('calls onChange(%s→%s) via %s — no navigation', (active, testId, nextMode) => {
+    const onChange = jest.fn();
+    const { getByTestId } = render(<TradeModeTabs active={active} onChange={onChange} />);
 
     fireEvent.press(getByTestId(testId));
-      expect(mockReplace).toHaveBeenCalledWith(route);
+
+    expect(onChange).toHaveBeenCalledWith(nextMode);
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call onChange when pressing the already-active tab', () => {
+    const onChange = jest.fn();
+    const { getByTestId } = render(<TradeModeTabs active="buy" onChange={onChange} />);
+
+    fireEvent.press(getByTestId('trade-tab-buy'));
+
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,7 @@
 import { fireEvent, render } from '@testing-library/react-native';
 import { Text, View } from 'react-native';
 import { ReceiveAssetSheet } from '../../src/features/buy-sell/ReceiveAssetSheet';
-import type { BuyAsset } from '../../src/features/buy-sell/BuyScreenImpl';
+import type { BuyAsset } from '../../src/features/buy-sell/tradeCatalog';
 
 const MockText = Text;
 const MockView = View;

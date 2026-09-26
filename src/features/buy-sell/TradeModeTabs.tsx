@@ -1,5 +1,4 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { useColors } from '@/theme';
@@ -8,16 +7,16 @@ export type TradeMode = 'buy' | 'sell' | 'swap';
 
 type TradeModeTabsProps = {
   active: TradeMode;
+  onChange: (mode: TradeMode) => void;
 };
 
 const tradeModes = [
-  { key: 'buy', label: 'buy.title', route: '/(auth)/buy' },
-  { key: 'sell', label: 'sell.title', route: '/(auth)/sell' },
-  { key: 'swap', label: 'swap.title', route: '/(auth)/swap' },
+  { key: 'buy', label: 'buy.title' },
+  { key: 'sell', label: 'sell.title' },
+  { key: 'swap', label: 'swap.title' },
 ] as const;
 
-export default function TradeModeTabs({ active }: TradeModeTabsProps) {
-  const router = useRouter();
+export default function TradeModeTabs({ active, onChange }: TradeModeTabsProps) {
   const { t } = useTranslation();
   const colors = useColors();
 
@@ -43,7 +42,7 @@ export default function TradeModeTabs({ active }: TradeModeTabsProps) {
             key={mode.key}
             onPress={() => {
               if (!selected) {
-                router.replace(mode.route);
+                onChange(mode.key);
               }
             }}
             style={[

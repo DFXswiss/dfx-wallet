@@ -1,7 +1,7 @@
 // Characterization tests for the steps AFTER the amount step (payment,
-// confirm) and for the linkChain recovery flow. BuyScreenImpl.test.tsx only
-// covers the amount step; these tests pin today's behavior before the
-// buy/sell/swap module unification (see AUFTRAG for the follow-up).
+// confirm) and for the linkChain recovery flow. BuyTradeAdapter.test.tsx only
+// covers the amount step; these tests pin today's behavior across the
+// buy/sell/swap module unification (see AUFTRAG).
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import {
@@ -19,11 +19,8 @@ jest.mock('react-i18next', () => ({
 }));
 
 const mockBack = jest.fn();
-let mockSearchParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
-  Stack: { Screen: () => null },
   useFocusEffect: (callback: () => void | (() => void)) => callback(),
-  useLocalSearchParams: () => mockSearchParams,
   useRouter: () => ({ back: mockBack, push: jest.fn(), replace: jest.fn(), canGoBack: () => true }),
 }));
 
@@ -91,10 +88,13 @@ jest.mock('@/features/dfx-backend/services', () => ({
   },
   DfxApiError: class DfxApiError extends Error {
     statusCode: number;
+    code: string;
 
-    constructor(message: string, statusCode: number) {
+    constructor(statusCode: number, code: string, message: string) {
       super(message);
       this.statusCode = statusCode;
+      this.code = code;
+      this.name = 'DfxApiError';
     }
   },
 }));
@@ -196,11 +196,15 @@ jest.mock('../../src/features/buy-sell/useBuyFlow', () => ({
 }));
 
 // eslint-disable-next-line import/first
-import BuyScreenImpl from '../../src/features/buy-sell/BuyScreenImpl';
+import { BuyTradeAdapter } from '../../src/features/buy-sell/BuyTradeAdapter';
 // Resolves to the mocked class above (jest intercepts this module path for
 // the whole file); imported here so test bodies can construct instances.
 // eslint-disable-next-line import/first
 import { DfxApiError } from '@/features/dfx-backend/services';
+
+const mockOnShellChange = jest.fn();
+const renderAdapter = (props: Partial<React.ComponentProps<typeof BuyTradeAdapter>> = {}) =>
+  render(<BuyTradeAdapter onShellChange={mockOnShellChange} {...props} />);
 
 const PAYMENT_INFO = {
   id: 321,
@@ -236,7 +240,6 @@ function requireCallback<T>(value: T | null): T {
 }
 
 beforeEach(() => {
-  mockSearchParams = {};
   capturedOnLinkChain = null;
   mockBack.mockReset();
   mockGetQuote.mockReset();
@@ -244,6 +247,7 @@ beforeEach(() => {
   mockConfirmPayment.mockReset();
   mockDismissAuthGate.mockReset();
   mockRetryLast.mockReset();
+  mockOnShellChange.mockReset();
   mockSign.mockClear();
   mockLinkAddress.mockReset();
   mockLoginAsAddressOwner.mockReset();
@@ -259,10 +263,10 @@ beforeEach(() => {
   flowState.actionErrorKey = null;
 });
 
-describe('BuyScreenImpl — payment/confirm steps', () => {
+describe('BuyTradeAdapter — payment/confirm steps', () => {
   it('shows payment step fields and quote rows; back returns to amount', async () => {
     mockCreatePaymentInfo.mockResolvedValueOnce(PAYMENT_INFO);
-    const { getByTestId, getByText, queryByTestId } = render(<BuyScreenImpl />);
+    const { getByTestId, getByText } = renderAdapter();
 
     fireEvent.changeText(getByTestId('buy-pay-amount'), '100');
     await act(async () => {
@@ -290,15 +294,21 @@ describe('BuyScreenImpl — payment/confirm steps', () => {
     expect(getByText(rateText)).toBeTruthy();
     expect(getByText(receiveText)).toBeTruthy();
 
-    fireEvent.press(getByTestId('buy-screen-back'));
-    expect(queryByTestId('buy-cta')).toBeTruthy();
-    expect(queryByTestId('buy-pay-amount')).toBeTruthy();
+    // Back on the payment step is reported via the shell's onBack, not a
+    // rendered header button — the shared shell lives in `TradeScreen` now.
+    const calls = mockOnShellChange.mock.calls;
+    const lastShell = calls[calls.length - 1][0];
+    act(() => {
+      lastShell.onBack();
+    });
+    expect(getByTestId('buy-cta')).toBeTruthy();
+    expect(getByTestId('buy-pay-amount')).toBeTruthy();
   });
 
   it('confirms the transfer, shows the success step, and Done navigates back', async () => {
     mockCreatePaymentInfo.mockResolvedValueOnce(PAYMENT_INFO);
     mockConfirmPayment.mockResolvedValueOnce(true);
-    const { getByTestId, getByText, queryByText } = render(<BuyScreenImpl />);
+    const { getByTestId, getByText, queryByText } = renderAdapter();
 
     fireEvent.changeText(getByTestId('buy-pay-amount'), '100');
     await act(async () => {
@@ -320,10 +330,10 @@ describe('BuyScreenImpl — payment/confirm steps', () => {
   });
 });
 
-describe('BuyScreenImpl — linkChainToDfx (linkChain gate recovery)', () => {
+describe('BuyTradeAdapter — linkChainToDfx (linkChain gate recovery)', () => {
   it('links the chain, caches it, and replays the last call on success', async () => {
     mockLinkAddress.mockResolvedValueOnce('new-token');
-    render(<BuyScreenImpl />);
+    renderAdapter();
     const onLinkChain = requireCallback(capturedOnLinkChain);
 
     await act(async () => {
@@ -342,9 +352,11 @@ describe('BuyScreenImpl — linkChainToDfx (linkChain gate recovery)', () => {
   });
 
   it('on a 409 conflict, re-authenticates as the owner and wipes the chain cache', async () => {
-    mockLinkAddress.mockRejectedValueOnce(new DfxApiError('address owned by another user', 409));
+    mockLinkAddress.mockRejectedValueOnce(
+      new DfxApiError(409, 'CONFLICT', 'address owned by another user'),
+    );
     mockLoginAsAddressOwner.mockResolvedValueOnce('owner-token');
-    render(<BuyScreenImpl />);
+    renderAdapter();
     const onLinkChain = requireCallback(capturedOnLinkChain);
 
     await act(async () => {
@@ -363,13 +375,12 @@ describe('BuyScreenImpl — linkChainToDfx (linkChain gate recovery)', () => {
   });
 });
 
-describe('BuyScreenImpl — linked-wallet target params', () => {
+describe('BuyTradeAdapter — linked-wallet target params', () => {
   it('shows the banner and opens the confirm modal from the CTA when params are present', () => {
-    mockSearchParams = {
+    const { getByTestId, queryByTestId } = renderAdapter({
       targetAddress: '0x1234567890123456789012345678901234567890',
       targetBlockchain: 'Ethereum',
-    };
-    const { getByTestId, queryByTestId } = render(<BuyScreenImpl />);
+    });
 
     expect(getByTestId('buy-target-wallet-banner')).toBeTruthy();
     expect(queryByTestId('confirm-target-wallet-modal')).toBeNull();
@@ -381,7 +392,7 @@ describe('BuyScreenImpl — linked-wallet target params', () => {
   });
 
   it('shows no target-wallet banner without linked-wallet params', () => {
-    const { queryByTestId } = render(<BuyScreenImpl />);
+    const { queryByTestId } = renderAdapter();
     expect(queryByTestId('buy-target-wallet-banner')).toBeNull();
   });
 });
