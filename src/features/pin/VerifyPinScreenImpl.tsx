@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { BrandLogo, Icon, PrimaryButton, ScreenBackdrop } from '@/components';
+import { BrandLogo, Icon, PinPad, PrimaryButton, ScreenBackdrop } from '@/components';
 import { needsPinRehash } from '@/services/pin';
 import { useAuthStore } from '@/store';
 import { Typography, useColors, type ThemeColors } from '@/theme';
@@ -171,36 +171,14 @@ export default function VerifyPinScreen() {
               </Text>
             )}
 
-            <View style={styles.dots} testID="verify-pin-dots">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <View
-                  key={i}
-                  style={[styles.dot, i < pin.length && styles.dotFilled, error && styles.dotError]}
-                />
-              ))}
-            </View>
-
-            <View style={styles.numpad}>
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((key) => {
-                if (key === '') {
-                  return <View key={key} style={styles.numpadKey} />;
-                }
-                return (
-                  <Pressable
-                    key={key}
-                    testID={key === 'del' ? 'pin-key-delete' : `pin-key-${key}`}
-                    style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
-                    disabled={isLocked}
-                    onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
-                    android_ripple={{ color: colors.surfaceLight, borderless: false, radius: 36 }}
-                    accessibilityRole="button"
-                    accessibilityLabel={key === 'del' ? 'Delete' : key}
-                  >
-                    <Text style={styles.numpadText}>{key === 'del' ? '⌫' : key}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <PinPad
+              value={pin}
+              error={error}
+              disabled={isLocked}
+              onDigit={handleDigit}
+              onDelete={handleDelete}
+              dotsTestID="verify-pin-dots"
+            />
           </>
         )}
       </View>
@@ -267,54 +245,5 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodyMedium,
       color: colors.primary,
       fontWeight: '700',
-    },
-    dots: {
-      flexDirection: 'row',
-      gap: 16,
-      marginVertical: 24,
-    },
-    dot: {
-      width: 16,
-      height: 16,
-      borderRadius: 8,
-      borderWidth: 2,
-      borderColor: colors.primary,
-    },
-    dotFilled: {
-      backgroundColor: colors.primary,
-    },
-    dotError: {
-      borderColor: colors.error,
-    },
-    numpad: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      justifyContent: 'center',
-      width: 280,
-      marginTop: 32,
-    },
-    numpadKey: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      margin: 8,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.cardOverlay,
-    },
-    // Brand-coloured pressed state — PIN entry is high-confidence and the
-    // tap should feel definite, not subtle. `primaryLight` is the same
-    // tint used on Settings row icons so the interaction language is
-    // consistent across the app.
-    numpadKeyPressed: {
-      backgroundColor: colors.primaryLight,
-    },
-    numpadText: {
-      color: colors.text,
-      fontSize: 28,
-      fontWeight: '600',
-      lineHeight: 32,
-      textAlign: 'center',
-      includeFontPadding: false,
     },
   });

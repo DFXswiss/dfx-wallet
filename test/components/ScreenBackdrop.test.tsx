@@ -1,4 +1,4 @@
-import { Image, View } from 'react-native';
+import { Dimensions, Image, StyleSheet, View } from 'react-native';
 import Svg, { LinearGradient, Rect, Stop } from 'react-native-svg';
 import { render } from '@testing-library/react-native';
 import { ScreenBackdrop, type ScreenBackdropVariant } from '../../src/components/ScreenBackdrop';
@@ -52,6 +52,15 @@ describe('ScreenBackdrop', () => {
     expect(dark.UNSAFE_getByType(Image).props.source).toEqual(
       require('../../assets/dashboard-bg-dark.jpg'),
     );
+  });
+
+  it('sizes the Image explicitly to the window dimensions (regression: an unsized Image kept the asset intrinsic size and cropped off-centre)', () => {
+    useThemeStore.setState({ mode: 'light' });
+    const { UNSAFE_getByType } = renderBackdrop();
+    const { width, height } = Dimensions.get('window');
+    const flat = StyleSheet.flatten(UNSAFE_getByType(Image).props.style);
+    expect(flat.width).toBe(width);
+    expect(flat.height).toBe(height);
   });
 
   it('swaps in the pay photo for variant="pay" in light mode', () => {

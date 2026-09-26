@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { BrandLogo, DfxBackgroundScreen, OnboardingStepIndicator } from '@/components';
+import { BrandLogo, DfxBackgroundScreen, OnboardingStepIndicator, PinPad } from '@/components';
 import { FEATURES } from '@/config/features';
 import { useAuthStore } from '@/store';
 import { Typography, useColors, type ThemeColors } from '@/theme';
@@ -85,35 +85,13 @@ export default function SetupPinScreen() {
         </Text>
       )}
 
-      <View style={styles.dots} testID="setup-pin-dots">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <View
-            key={i}
-            style={[styles.dot, i < pin.length && styles.dotFilled, error && styles.dotError]}
-          />
-        ))}
-      </View>
-
-      <View style={styles.numpad}>
-        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((key) => {
-          if (key === '') {
-            return <View key={key} style={styles.numpadKey} />;
-          }
-          return (
-            <Pressable
-              key={key}
-              testID={key === 'del' ? 'pin-key-delete' : `pin-key-${key}`}
-              style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
-              onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
-              android_ripple={{ color: colors.surfaceLight, borderless: false, radius: 36 }}
-              accessibilityRole="button"
-              accessibilityLabel={key === 'del' ? 'Delete' : key}
-            >
-              <Text style={styles.numpadText}>{key === 'del' ? '\u232B' : key}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <PinPad
+        value={pin}
+        error={error !== null}
+        onDigit={handleDigit}
+        onDelete={handleDelete}
+        dotsTestID="setup-pin-dots"
+      />
     </DfxBackgroundScreen>
   );
 }
@@ -140,49 +118,5 @@ const makeStyles = (colors: ThemeColors) =>
     error: {
       ...Typography.bodyMedium,
       color: colors.error,
-    },
-    dots: {
-      flexDirection: 'row',
-      gap: 16,
-      marginVertical: 32,
-    },
-    dot: {
-      width: 16,
-      height: 16,
-      borderRadius: 8,
-      borderWidth: 2,
-      borderColor: colors.primary,
-    },
-    dotFilled: {
-      backgroundColor: colors.primary,
-    },
-    dotError: {
-      borderColor: colors.error,
-    },
-    numpad: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      justifyContent: 'center',
-      width: 280,
-      marginTop: 'auto',
-    },
-    numpadKey: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      margin: 8,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    numpadKeyPressed: {
-      backgroundColor: colors.primaryLight,
-    },
-    numpadText: {
-      color: colors.text,
-      fontSize: 28,
-      fontWeight: '600',
-      lineHeight: 32,
-      textAlign: 'center',
-      includeFontPadding: false,
     },
   });

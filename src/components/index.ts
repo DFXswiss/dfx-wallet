@@ -17,6 +17,7 @@ export { Icon } from './Icon';
 export { MenuModal } from './MenuModal';
 export { OfflineBanner } from './OfflineBanner';
 export { OnboardingStepIndicator } from './OnboardingStepIndicator';
+export { PinPad } from './PinPad';
 export { PrimaryButton } from './PrimaryButton';
 export { QrCode } from './QrCode';
 export { RenameWalletModal } from './RenameWalletModal';
