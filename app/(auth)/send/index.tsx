@@ -1,37 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ImageBackground,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import * as Haptics from 'expo-haptics';
-import { Stack, useRouter } from 'expo-router';
-import { usePreventRemove } from '@react-navigation/native';
-import { getAddress, isAddress, ZeroAddress } from 'ethers';
-import { useTranslation } from 'react-i18next';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { AppHeader, DarkBackdrop, Icon, PrimaryButton, ShortcutAction } from '@/components';
+import { Stack, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import * as Haptics from 'expo-haptics';
+import { AppHeader, Icon, PrimaryButton, ScreenBackdrop, ShortcutAction } from '@/components';
 import { QrScanner } from '@/components/QrScanner';
 import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
 import { getPaymasterTokenInfo } from '@/config/chains';
 import { FEATURES } from '@/config/features';
-import { CHAIN_LABELS, formatBalance, parseUnits } from '@/config/portfolio-presentation';
+import { formatBalance } from '@/config/portfolio-presentation';
 import { getSendAssetForCanonical } from '@/config/tokens';
-import { isBitcoinOnChainAddress, isSparkMainnetAddress } from '@/services/bitcoin-address';
-import {
-  Layout,
-  MonospaceFontFamily,
-  Typography,
-  useColors,
-  useResolvedScheme,
-  type ThemeColors,
-} from '@/theme';
+import { Layout, Typography, useColors, type ThemeColors } from '@/theme';
 
 type SendStep = 'asset' | 'input' | 'confirm' | 'success';
 
@@ -83,7 +64,6 @@ export default function SendScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [step, setStep] = useState<SendStep>('asset');
   // Start unselected so no card has a border on first render — the active
@@ -93,7 +73,7 @@ export default function SendScreen() {
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [scannerVisible, setScannerVisible] = useState(false);
-  const [isSending, setIsSending] = useState(false);
+  const { send, estimate, isLoading, txHash, error, reset } = useSendFlow(selectedChain);
 
   type FeeState =
     | { status: 'idle' }
@@ -102,35 +82,15 @@ export default function SendScreen() {
     | { status: 'error'; message: string };
   const [feeState, setFeeState] = useState<FeeState>({ status: 'idle' });
   const estimateReqRef = useRef(0);
-  const sendAttemptRef = useRef(0);
-  const sendingRef = useRef(false);
-
-  usePreventRemove(isSending, () => {
-    // The screen blocks navigation during a send without showing a confirmation dialog.
-  });
-
-  useEffect(
-    () => () => {
-      sendAttemptRef.current += 1;
-    },
-    [],
-  );
 
   const symbol = selectedAsset?.symbol ?? '';
-  const normalizedRecipient = recipient.trim();
-  const effectiveChain =
-    symbol === 'BTC' && isBitcoinOnChainAddress(normalizedRecipient) ? 'bitcoin' : selectedChain;
-  const { send, estimate, isLoading, txHash, error, reset } = useSendFlow(effectiveChain);
   const sendAsset = useMemo(
     () =>
-      selectedAsset ? getSendAssetForCanonical(selectedAsset.symbol, effectiveChain) : undefined,
-    [selectedAsset, effectiveChain],
+      selectedAsset ? getSendAssetForCanonical(selectedAsset.symbol, selectedChain) : undefined,
+    [selectedAsset, selectedChain],
   );
-  const paymasterToken = useMemo(() => getPaymasterTokenInfo(effectiveChain), [effectiveChain]);
-  const isValidAddress =
-    selectedAsset?.symbol === 'BTC'
-      ? isBitcoinOnChainAddress(normalizedRecipient) || isSparkMainnetAddress(normalizedRecipient)
-      : isAddress(normalizedRecipient) && getAddress(normalizedRecipient) !== ZeroAddress;
+  const paymasterToken = useMemo(() => getPaymasterTokenInfo(selectedChain), [selectedChain]);
+  const isValidAddress = recipient.length >= 26;
 
   const handleAssetSelect = (asset: AssetOption) => {
     setSelectedAsset(asset);
@@ -139,12 +99,12 @@ export default function SendScreen() {
   };
 
   const goToConfirm = useCallback(async () => {
-    // Continue is gated on `sendAsset`, and Confirm is only enabled after this
-    // estimate succeeds, so it is non-null by the time either handler runs.
+    // Continue + Confirm buttons are gated on `sendAsset` via their
+    // `disabled` props, so it is non-null by the time these handlers run.
     setStep('confirm');
     setFeeState({ status: 'loading' });
     const reqId = ++estimateReqRef.current;
-    const result = await estimate({ asset: sendAsset!, to: normalizedRecipient, amount });
+    const result = await estimate({ asset: sendAsset!, to: recipient, amount });
     // Drop stale results from earlier estimate calls (e.g. user went back, edited, returned).
     if (reqId !== estimateReqRef.current) return;
     if (result.success) {
@@ -152,28 +112,13 @@ export default function SendScreen() {
     } else {
       setFeeState({ status: 'error', message: result.error });
     }
-  }, [sendAsset, estimate, normalizedRecipient, amount]);
+  }, [sendAsset, estimate, recipient, amount]);
 
   const handleSend = async () => {
-    if (!sendAsset || sendingRef.current) return;
-
-    const confirmedParams = { asset: sendAsset, to: normalizedRecipient, amount };
-    const attemptId = ++sendAttemptRef.current;
-    sendingRef.current = true;
-    setIsSending(true);
-
-    try {
-      const hash = await send(confirmedParams);
-      if (attemptId !== sendAttemptRef.current) return;
-      if (hash) {
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setStep('success');
-      }
-    } finally {
-      if (attemptId === sendAttemptRef.current) {
-        sendingRef.current = false;
-        setIsSending(false);
-      }
+    const hash = await send({ asset: sendAsset!, to: recipient, amount });
+    if (hash) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setStep('success');
     }
   };
 
@@ -313,14 +258,12 @@ export default function SendScreen() {
           testID="send-continue-button"
           title={t('common.continue')}
           onPress={goToConfirm}
-          disabled={
-            !sendAsset || !isValidAddress || parseUnits(amount, sendAsset.getDecimals()) === '0'
-          }
+          disabled={!sendAsset || !isValidAddress || !amount || parseFloat(amount) <= 0}
         />
 
         {FEATURES.BUY_SELL && (
           <ShortcutAction
-            icon={<Icon name="swap" size={18} color={colors.onPrimary} strokeWidth={2.2} />}
+            icon={<Icon name="swap" size={18} color={colors.white} strokeWidth={2.2} />}
             label={t('send.sellInstead')}
             onPress={() => router.push('/(auth)/sell')}
             testID="send-action-sell"
@@ -337,14 +280,12 @@ export default function SendScreen() {
       <View style={styles.summary}>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>{t('send.network')}</Text>
-          <Text style={styles.summaryValue}>
-            {CHAIN_LABELS.get(effectiveChain) ?? effectiveChain}
-          </Text>
+          <Text style={styles.summaryValue}>{selectedChain}</Text>
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>{t('send.recipient')}</Text>
           <Text style={styles.summaryValue} numberOfLines={1}>
-            {normalizedRecipient.slice(0, 10)}...{normalizedRecipient.slice(-6)}
+            {recipient.slice(0, 10)}...{recipient.slice(-6)}
           </Text>
         </View>
         <View style={styles.summaryRow}>
@@ -359,9 +300,8 @@ export default function SendScreen() {
             {feeState.status === 'loading' && t('send.feeEstimating')}
             {feeState.status === 'error' && t('send.feeUnavailable')}
             {feeState.status === 'ok' &&
-              (paymasterToken
-                ? `${formatBalance(feeState.fee, paymasterToken.decimals)} ${paymasterToken.symbol}`
-                : `${formatBalance(feeState.fee, 8)} BTC`)}
+              paymasterToken &&
+              `${formatBalance(feeState.fee, paymasterToken.decimals)} ${paymasterToken.symbol}`}
           </Text>
         </View>
       </View>
@@ -372,30 +312,17 @@ export default function SendScreen() {
 
       <View style={styles.spacer} />
 
-      {feeState.status === 'error' ? (
-        <PrimaryButton
-          testID="send-fee-retry-button"
-          title={t('common.retry')}
-          onPress={goToConfirm}
-        />
-      ) : (
-        <PrimaryButton
-          testID="send-confirm-button"
-          title={t('common.confirm')}
-          onPress={handleSend}
-          disabled={feeState.status !== 'ok'}
-          loading={isLoading || isSending}
-        />
-      )}
+      <PrimaryButton
+        testID="send-confirm-button"
+        title={t('common.confirm')}
+        onPress={handleSend}
+        loading={isLoading}
+      />
       <PrimaryButton
         testID="send-cancel-button"
         title={t('common.cancel')}
         variant="outlined"
-        disabled={isSending}
         onPress={() => {
-          sendAttemptRef.current += 1;
-          sendingRef.current = false;
-          setIsSending(false);
           reset();
           // Drop any in-flight estimate so a late-arriving result doesn't render after cancel.
           estimateReqRef.current += 1;
@@ -415,7 +342,7 @@ export default function SendScreen() {
           {t('send.sentDescription', {
             amount,
             symbol,
-            recipient: `${normalizedRecipient.slice(0, 10)}...${normalizedRecipient.slice(-6)}`,
+            recipient: `${recipient.slice(0, 10)}...${recipient.slice(-6)}`,
           })}
         </Text>
         {txHash && (
@@ -435,7 +362,6 @@ export default function SendScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <AppHeader
         title={t('send.title')}
-        backDisabled={isSending}
         onBack={() => {
           if (step === 'confirm') setStep('input');
           else if (step === 'input') setStep('asset');
@@ -470,17 +396,9 @@ export default function SendScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: !isSending }} />
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>
@@ -685,7 +603,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
     warning: {
       ...Typography.bodySmall,
-      color: colors.warningText,
+      color: colors.warning,
       textAlign: 'center',
     },
     errorText: {

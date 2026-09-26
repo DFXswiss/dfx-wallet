@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import { AppHeader, AssetActions, DarkBackdrop, GlassSurface } from '@/components';
+import { AppHeader, AssetActions, GlassSurface, ScreenBackdrop } from '@/components';
 import type { ChainId } from '@/config/chains';
 import {
   getAssetsForCanonicalSymbol,
@@ -246,15 +246,7 @@ export default function AssetDetailScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>

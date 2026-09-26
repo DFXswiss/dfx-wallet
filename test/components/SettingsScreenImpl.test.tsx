@@ -110,7 +110,7 @@ jest.mock('@/components', () => {
   return {
     ...actual,
     Icon: ({ name }: { name: string }) => ReactActual.createElement(Text, null, name),
-    DarkBackdrop: () => ReactActual.createElement(View, { testID: 'dark-backdrop' }),
+    ScreenBackdrop: () => ReactActual.createElement(View, { testID: 'screen-backdrop' }),
   };
 });
 
@@ -819,10 +819,10 @@ describe('SettingsScreenImpl', () => {
     expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard');
   });
 
-  it('renders the dark backdrop when the theme is dark', async () => {
+  it('renders the screen backdrop', async () => {
     useThemeStore.setState({ mode: 'dark' });
     const { getByTestId } = renderScreen();
-    await waitFor(() => expect(getByTestId('dark-backdrop')).toBeTruthy());
+    await waitFor(() => expect(getByTestId('screen-backdrop')).toBeTruthy());
   });
 
   it('cycles an unknown stored currency back onto the CHF/EUR/USD ring', async () => {

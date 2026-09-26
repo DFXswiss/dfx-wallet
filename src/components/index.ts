@@ -24,6 +24,7 @@ export { QrCode } from './QrCode';
 export { ReauthPinModal } from './ReauthPinModal';
 export { RenameWalletModal } from './RenameWalletModal';
 export { QrScanner } from './QrScanner';
+export { ScreenBackdrop, type ScreenBackdropVariant } from './ScreenBackdrop';
 export { ScreenContainer } from './ScreenContainer';
 export { ShortcutAction } from './ShortcutAction';
 export { Skeleton } from './Skeleton';
