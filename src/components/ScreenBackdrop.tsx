@@ -42,6 +42,9 @@ export function ScreenBackdrop({ variant = 'content' }: Props) {
         source={photo}
         style={[StyleSheet.absoluteFill, { width: W, height: H }]}
         resizeMode="cover"
+        // Content softens the peak so headings/amounts stay legible; other
+        // variants keep the photo sharp.
+        blurRadius={variant === 'content' ? recipe.contentBlurRadius : 0}
       />
       <Svg width={W} height={H} style={StyleSheet.absoluteFill}>
         <Defs>

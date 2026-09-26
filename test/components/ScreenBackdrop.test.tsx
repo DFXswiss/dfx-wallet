@@ -115,11 +115,34 @@ describe('ScreenBackdrop', () => {
     const { UNSAFE_getAllByType } = renderBackdrop();
     const topStops = UNSAFE_getAllByType(Stop).slice(0, 4);
     expect(topStops.map((stop) => [stop.props.offset, stop.props.stopOpacity])).toEqual([
-      ['0%', '0.58'],
-      ['30%', '0.50'],
-      ['48%', '0.34'],
-      ['64%', '0'],
+      ['0%', '0.66'],
+      ['30%', '0.58'],
+      ['55%', '0.40'],
+      ['80%', '0.10'],
     ]);
+  });
+
+  it('blurs the photo for variant="content" with the recipe radius, in both themes', () => {
+    useThemeStore.setState({ mode: 'light' });
+    const light = renderBackdrop();
+    expect(light.UNSAFE_getByType(Image).props.blurRadius).toBe(12);
+    light.unmount();
+
+    useThemeStore.setState({ mode: 'dark' });
+    const dark = renderBackdrop();
+    expect(dark.UNSAFE_getByType(Image).props.blurRadius).toBe(12);
+  });
+
+  it('does not blur the photo for hero, pin or pay in either theme', () => {
+    const unblurredVariants: ScreenBackdropVariant[] = ['hero', 'pin', 'pay'];
+    for (const mode of ['light', 'dark'] as const) {
+      useThemeStore.setState({ mode });
+      for (const variant of unblurredVariants) {
+        const result = renderBackdrop(variant);
+        expect(result.UNSAFE_getByType(Image).props.blurRadius).toBe(0);
+        result.unmount();
+      }
+    }
   });
 
   it('renders the hero top scrim with the old (pre-content) spec stops in dark mode', () => {
