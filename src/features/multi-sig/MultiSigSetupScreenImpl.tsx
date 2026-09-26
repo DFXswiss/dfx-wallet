@@ -1,21 +1,12 @@
 import { useState, useMemo } from 'react';
-import {
-  Alert,
-  ImageBackground,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { AppHeader, DarkBackdrop, Icon, PrimaryButton } from '@/components';
+import { AppHeader, Icon, PrimaryButton, ScreenBackdrop } from '@/components';
 import { useMultiSigStore } from './store';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type Step = 'intro' | 'concept' | 'quorum' | 'cosigners' | 'backup' | 'success';
 
@@ -33,7 +24,6 @@ const MAX_TOTAL = 9;
 
 export default function MultiSigSetupScreen() {
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
@@ -391,15 +381,7 @@ export default function MultiSigSetupScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>

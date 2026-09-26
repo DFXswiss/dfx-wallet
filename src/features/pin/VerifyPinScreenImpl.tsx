@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { BrandLogo, DarkBackdrop, Icon, PrimaryButton } from '@/components';
+import { BrandLogo, Icon, PrimaryButton, ScreenBackdrop } from '@/components';
 import { needsPinRehash } from '@/services/pin';
 import { useAuthStore } from '@/store';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 const MAX_ATTEMPTS = 5;
 
@@ -27,7 +27,6 @@ export default function VerifyPinScreen() {
     useAuthStore();
   const { unlock } = useWalletManager();
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [pin, setPinValue] = useState('');
   const [error, setError] = useState(false);
@@ -210,15 +209,7 @@ export default function VerifyPinScreen() {
 
   return (
     <View style={styles.bg}>
-      {scheme === 'dark' ? (
-        <DarkBackdrop baseColor={colors.background} />
-      ) : (
-        <ImageBackground
-          source={require('../../../assets/dashboard-bg.png')}
-          style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-        />
-      )}
+      <ScreenBackdrop />
       {body}
     </View>
   );

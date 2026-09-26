@@ -1,18 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  ImageBackground,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { BrandLogo, DarkBackdrop, Icon } from '@/components';
+import { BrandLogo, Icon, ScreenBackdrop } from '@/components';
 import { isOpenCryptoPayQR } from '@/services/opencryptopay';
 import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
@@ -125,15 +117,7 @@ export default function PayScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/pay-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop variant="pay" />
         {content}
       </View>
     </>

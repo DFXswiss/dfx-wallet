@@ -1,18 +1,10 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import {
-  ImageBackground,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { AppHeader, DarkBackdrop, Icon, PrimaryButton, ShortcutAction } from '@/components';
+import { AppHeader, Icon, PrimaryButton, ScreenBackdrop, ShortcutAction } from '@/components';
 import { QrScanner } from '@/components/QrScanner';
 import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
@@ -20,7 +12,7 @@ import { getPaymasterTokenInfo } from '@/config/chains';
 import { FEATURES } from '@/config/features';
 import { formatBalance } from '@/config/portfolio-presentation';
 import { getSendAssetForCanonical } from '@/config/tokens';
-import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Layout, Typography, useColors, type ThemeColors } from '@/theme';
 
 type SendStep = 'asset' | 'input' | 'confirm' | 'success';
 
@@ -72,7 +64,6 @@ export default function SendScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [step, setStep] = useState<SendStep>('asset');
   // Start unselected so no card has a border on first render — the active
@@ -407,15 +398,7 @@ export default function SendScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>

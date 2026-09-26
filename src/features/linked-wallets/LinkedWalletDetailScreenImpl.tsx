@@ -1,19 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  ImageBackground,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { AppHeader, DarkBackdrop, Icon } from '@/components';
+import { AppHeader, Icon, ScreenBackdrop } from '@/components';
 import { formatCryptoAmount, resolveFiatCurrency } from '@/config/portfolio-presentation';
 import { defaultLinkedWalletName, useLinkedWalletNames } from './useLinkedWalletNames';
 import { useLinkedWalletDiscovery } from './useLinkedWalletDiscovery';
@@ -22,7 +14,7 @@ import { dfxUserService } from '@/features/dfx-backend/services';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { useWalletStore } from '@/store';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 const truncate = (addr: string): string =>
   addr.length <= 18 ? addr : `${addr.slice(0, 10)}…${addr.slice(-6)}`;
@@ -101,7 +93,6 @@ function TransactionRow({ tx, now }: { tx: WalletTransaction; now: number }) {
 
 export default function LinkedWalletDetailScreen() {
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const params = useLocalSearchParams<{ address: string }>();
   const router = useRouter();
@@ -352,15 +343,7 @@ export default function LinkedWalletDetailScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>
