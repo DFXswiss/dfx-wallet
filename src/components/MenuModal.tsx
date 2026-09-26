@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GlassSheet } from './GlassSheet';
 import { Icon } from './Icon';
 import { useColors, type ThemeColors, Typography } from '@/theme';
 
@@ -23,58 +24,34 @@ export function MenuModal({ visible, onClose }: Props) {
   };
 
   return (
-    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <SafeAreaView style={styles.safeArea} edges={['top', 'right']}>
+    <GlassSheet visible={visible} onRequestClose={onClose} position="side" testID="menu-modal">
+      <SafeAreaView style={styles.safeArea} edges={['top', 'right']}>
+        <View style={styles.header}>
+          <View style={{ flex: 1 }} />
           <Pressable
-            style={styles.sheet}
-            onPress={(e) => e.stopPropagation()}
-            accessibilityViewIsModal
+            onPress={onClose}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Close menu"
+            testID="menu-close-button"
           >
-            <View style={styles.header}>
-              <View style={{ flex: 1 }} />
-              <Pressable
-                onPress={onClose}
-                hitSlop={12}
-                accessibilityRole="button"
-                accessibilityLabel="Close menu"
-                testID="menu-close-button"
-              >
-                <Icon name="close" size={24} color={colors.text} />
-              </Pressable>
-            </View>
-
-            <Pressable style={styles.item} onPress={goToSettings} testID="menu-item-settings">
-              <Text style={styles.itemLabel}>{t('settings.title')}</Text>
-              <Icon name="chevron-right" size={20} color={colors.textTertiary} />
-            </Pressable>
+            <Icon name="close" size={24} color={colors.text} />
           </Pressable>
-        </SafeAreaView>
-      </Pressable>
-    </Modal>
+        </View>
+
+        <Pressable style={styles.item} onPress={goToSettings} testID="menu-item-settings">
+          <Text style={styles.itemLabel}>{t('settings.title')}</Text>
+          <Icon name="chevron-right" size={20} color={colors.textTertiary} />
+        </Pressable>
+      </SafeAreaView>
+    </GlassSheet>
   );
 }
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    backdrop: {
-      flex: 1,
-      backgroundColor: colors.scrimMedium,
-      alignItems: 'flex-end',
-    },
     safeArea: {
       flex: 1,
-      width: '78%',
-    },
-    sheet: {
-      flex: 1,
-      backgroundColor: colors.surface,
-      paddingHorizontal: 20,
-      paddingTop: 8,
-      shadowColor: colors.shadow,
-      shadowOpacity: 0.08,
-      shadowRadius: 24,
-      shadowOffset: { width: -4, height: 0 },
     },
     header: {
       flexDirection: 'row',
@@ -87,7 +64,7 @@ const makeStyles = (colors: ThemeColors) =>
       justifyContent: 'space-between',
       paddingVertical: 16,
       borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
+      borderBottomColor: colors.divider,
     },
     itemLabel: {
       ...Typography.bodyLarge,

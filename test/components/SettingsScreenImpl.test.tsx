@@ -89,6 +89,8 @@ jest.mock('@/components', () => {
 
 // eslint-disable-next-line import/first
 import SettingsScreenImpl from '../../src/features/settings/SettingsScreenImpl';
+// eslint-disable-next-line import/first
+import { GlassListGroup } from '../../src/components/GlassListGroup';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { __i18n } = require('react-i18next') as {
   __i18n: { language: string; changeLanguage: jest.Mock };
@@ -144,9 +146,12 @@ describe('SettingsScreenImpl', () => {
   });
 
   it('renders the settings sections and navigates a route row', async () => {
-    const { getByTestId, getByText } = renderScreen();
+    const { getByTestId, getByText, UNSAFE_getAllByType } = renderScreen();
     await waitFor(() => expect(getByTestId('settings-user-data')).toBeTruthy());
     expect(getByText('settings.title')).toBeTruthy();
+    // Every section renders on the shared glass list module, not a one-off
+    // opaque card (JK: "alle Karten ... müssen Glas design haben").
+    expect(UNSAFE_getAllByType(GlassListGroup).length).toBeGreaterThan(0);
     fireEvent.press(getByTestId('settings-user-data'));
     expect(mockPush).toHaveBeenCalledWith('/(auth)/kyc');
   });
@@ -309,17 +314,18 @@ describe('SettingsScreenImpl', () => {
   });
 
   it('goes back when history exists and replaces the dashboard otherwise', async () => {
-    const { getByText, unmount } = renderScreen();
+    const { getByText, getByLabelText, unmount } = renderScreen();
     await waitFor(() => expect(getByText('settings.title')).toBeTruthy());
-    // The back button is the first pressable in the header (no testID).
-    fireEvent.press(getByText('arrow-left'));
+    // The back button is `GlassIconButton` / `AppHeader` now — it carries no
+    // visible icon text, so it's found by its accessibility label instead.
+    fireEvent.press(getByLabelText('Back'));
     expect(mockBack).toHaveBeenCalled();
     unmount();
 
     mockCanGoBack.mockReturnValue(false);
     const again = renderScreen();
     await waitFor(() => expect(again.getByText('settings.title')).toBeTruthy());
-    fireEvent.press(again.getByText('arrow-left'));
+    fireEvent.press(again.getByLabelText('Back'));
     expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard');
   });
 

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
@@ -7,6 +7,7 @@ import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import {
   AppHeader,
   DfxBackgroundScreen,
+  GlassInputField,
   OnboardingStepIndicator,
   PrimaryButton,
 } from '@/components';
@@ -78,7 +79,7 @@ export default function RestoreWalletScreen() {
       </View>
 
       <View style={styles.inputCard}>
-        <TextInput
+        <GlassInputField
           testID="restore-wallet-seed-input"
           style={styles.input}
           value={seedPhrase}
@@ -87,7 +88,6 @@ export default function RestoreWalletScreen() {
             setError(null);
           }}
           placeholder={t('onboarding.restoreSeedPlaceholder')}
-          placeholderTextColor={colors.textTertiary}
           multiline
           blurOnSubmit
           returnKeyType="done"
@@ -140,22 +140,10 @@ const makeStyles = (colors: ThemeColors) =>
       textAlign: 'center',
     },
     inputCard: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 14,
       gap: 10,
     },
     input: {
-      backgroundColor: colors.surfaceLight,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 14,
       minHeight: 160,
-      color: colors.text,
-      ...Typography.bodyLarge,
       textAlignVertical: 'top',
     },
     wordCount: {

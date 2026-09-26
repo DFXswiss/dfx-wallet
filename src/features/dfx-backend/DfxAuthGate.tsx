@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import type { ChainId } from '@/config/chains';
 import type { DfxAuthGateState } from '@/features/dfx-backend/services';
 import { Typography, useColors, type ThemeColors } from '@/theme';
+import { GlassSheet } from '@/components/GlassSheet';
 import { Icon } from '@/components/Icon';
 import { PrimaryButton } from '@/components/PrimaryButton';
 
@@ -79,50 +80,36 @@ export function DfxAuthGate({ gate, onClose, onLinkChain }: Props) {
   };
 
   return (
-    <Modal transparent visible animationType="fade" onRequestClose={onClose} testID="dfx-auth-gate">
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          <View style={styles.iconCircle}>
-            <Icon name="shield" size={28} color={colors.white} strokeWidth={2.5} />
-          </View>
-          <Text style={styles.title}>{t(titleKey, { chain: chainLabel })}</Text>
-          <Text style={styles.body}>{t(bodyKey, { chain: chainLabel })}</Text>
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+    <GlassSheet visible onRequestClose={onClose} position="center" testID="dfx-auth-gate">
+      <View style={styles.card}>
+        <View style={styles.iconCircle}>
+          <Icon name="shield" size={28} color={colors.white} strokeWidth={2.5} />
+        </View>
+        <Text style={styles.title}>{t(titleKey, { chain: chainLabel })}</Text>
+        <Text style={styles.body}>{t(bodyKey, { chain: chainLabel })}</Text>
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          <View style={styles.actions}>
-            <PrimaryButton
-              title={t(ctaKey, { chain: chainLabel })}
-              onPress={handlePrimary}
-              loading={busy}
-              testID="dfx-auth-gate-primary"
-            />
-            <Pressable onPress={onClose} hitSlop={8} testID="dfx-auth-gate-cancel">
-              <Text style={styles.cancelButton}>{t('common.cancel')}</Text>
-            </Pressable>
-          </View>
+        <View style={styles.actions}>
+          <PrimaryButton
+            title={t(ctaKey, { chain: chainLabel })}
+            onPress={handlePrimary}
+            loading={busy}
+            testID="dfx-auth-gate-primary"
+          />
+          <Pressable onPress={onClose} hitSlop={8} testID="dfx-auth-gate-cancel">
+            <Text style={styles.cancelButton}>{t('common.cancel')}</Text>
+          </Pressable>
         </View>
       </View>
-    </Modal>
+    </GlassSheet>
   );
 }
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    backdrop: {
-      flex: 1,
-      backgroundColor: colors.scrimStrong,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 24,
-    },
     card: {
-      backgroundColor: colors.surface,
-      borderRadius: 24,
-      padding: 24,
       alignItems: 'center',
       gap: 12,
-      width: '100%',
-      maxWidth: 380,
     },
     iconCircle: {
       width: 64,
