@@ -3,10 +3,11 @@ import { ScrollView, StyleProp, StyleSheet, View, ViewStyle } from 'react-native
 import { StatusBar } from 'expo-status-bar';
 import { Edge, SafeAreaView } from 'react-native-safe-area-context';
 import { Layout, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
-import { ScreenBackdrop } from './ScreenBackdrop';
+import { ScreenBackdrop, type ScreenBackdropVariant } from './ScreenBackdrop';
 
 type Props = {
   children: ReactNode;
+  backdropVariant?: ScreenBackdropVariant;
   contentStyle?: StyleProp<ViewStyle>;
   edges?: Edge[];
   scrollable?: boolean;
@@ -15,6 +16,7 @@ type Props = {
 
 export function DfxBackgroundScreen({
   children,
+  backdropVariant,
   contentStyle,
   edges = ['top', 'left', 'right', 'bottom'],
   scrollable = false,
@@ -46,7 +48,7 @@ export function DfxBackgroundScreen({
   return (
     <View style={styles.background}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
-      <ScreenBackdrop />
+      <ScreenBackdrop {...(backdropVariant ? { variant: backdropVariant } : {})} />
       {inner}
     </View>
   );
