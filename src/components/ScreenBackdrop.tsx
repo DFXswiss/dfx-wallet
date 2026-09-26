@@ -104,7 +104,12 @@ export function ScreenBackdrop({ variant = 'default' }: Props) {
       pointerEvents="none"
       style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}
     >
-      <Image source={photo} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      {/* Explicit size: with absoluteFill alone the Image kept the asset's intrinsic width and cropped off-centre. */}
+      <Image
+        source={photo}
+        style={[StyleSheet.absoluteFill, { width: W, height: H }]}
+        resizeMode="cover"
+      />
       <Svg width={W} height={H} style={StyleSheet.absoluteFill}>
         <Defs>
           <LinearGradient id="dfx-backdrop-scrim-top" x1="0" y1="0" x2="0" y2="1">
