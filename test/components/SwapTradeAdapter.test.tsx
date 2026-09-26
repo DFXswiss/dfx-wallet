@@ -57,11 +57,10 @@ describe('SwapTradeAdapter', () => {
     );
 
     expect(getByTestId('swap-screen')).toBeTruthy();
-    // "Swap" appears twice in this adapter's own content: the CTA and the
-    // placeholder title. The header title ("Swap" a third time) is chrome
-    // owned by `TradeScreen`'s shared shell — see TradeScreen.test.tsx.
-    expect(getAllByText('Swap', { exact: true })).toHaveLength(2);
-    expect(getAllByText('Swap is coming soon.')).toHaveLength(2);
+    // "Swap" appears once in this adapter's own content: the CTA. The header
+    // title is chrome owned by `TradeScreen`'s shared shell — see TradeScreen.test.tsx.
+    expect(getAllByText('Swap', { exact: true })).toHaveLength(1);
+    expect(getAllByText('Swap is coming soon.')).toHaveLength(1);
     expect(getByTestId('swap-amount-panels')).toBeTruthy();
     expect(getByTestId('swap-pay-amount')).toBeTruthy();
     expect(getByTestId('swap-receive-amount')).toBeTruthy();
