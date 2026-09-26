@@ -4,6 +4,7 @@
 // buy/sell/swap module unification (see AUFTRAG).
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { GlassListGroup } from '../../src/components/GlassListGroup';
 import {
   formatFiat as fmtFiat,
   formatCryptoAmount as fmtCrypto,
@@ -288,7 +289,7 @@ beforeEach(() => {
 describe('BuyTradeAdapter — payment/confirm steps', () => {
   it('shows payment step fields and quote rows; back returns to amount', async () => {
     mockCreatePaymentInfo.mockResolvedValueOnce(PAYMENT_INFO);
-    const { getByTestId, getByText } = renderAdapter();
+    const { getByTestId, getByText, UNSAFE_getAllByType } = renderAdapter();
 
     fireEvent.changeText(getByTestId('buy-amount-input'), '100');
     await act(async () => {
@@ -315,6 +316,8 @@ describe('BuyTradeAdapter — payment/confirm steps', () => {
     expect(getByText(amountText)).toBeTruthy();
     expect(getByText(rateText)).toBeTruthy();
     expect(getByText(receiveText)).toBeTruthy();
+    // Bank-details row + quote summary both sit in a `GlassListGroup`.
+    expect(UNSAFE_getAllByType(GlassListGroup).length).toBeGreaterThanOrEqual(2);
 
     // Back on the payment step is reported via the shell's onBack, not a
     // rendered header button — the shared shell lives in `TradeScreen` now.

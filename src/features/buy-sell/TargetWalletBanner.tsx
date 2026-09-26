@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { GlassCard } from '@/components/GlassCard';
 import { Icon } from '@/components';
 import { useColors } from '@/theme';
 import { makeTradeSharedStyles } from './tradeSharedStyles';
@@ -22,7 +23,7 @@ export function TargetWalletBanner({ testID, addressShort }: Props) {
   const styles = useMemo(() => makeTradeSharedStyles(colors), [colors]);
 
   return (
-    <View style={styles.targetBanner} testID={testID}>
+    <GlassCard testID={testID} tone="accent" radius={12} padding={0} style={styles.targetBanner}>
       <View style={styles.targetIcon}>
         <Icon name="wallet" size={18} color={colors.primary} />
       </View>
@@ -32,6 +33,6 @@ export function TargetWalletBanner({ testID, addressShort }: Props) {
           {addressShort}
         </Text>
       </View>
-    </View>
+    </GlassCard>
   );
 }

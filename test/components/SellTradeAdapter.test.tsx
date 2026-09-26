@@ -226,6 +226,7 @@ jest.mock('@/components', () => ({
     return null;
   },
 import { act, fireEvent, render, within } from '@testing-library/react-native';
+import { GlassCard } from '../../src/components/GlassCard';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -305,29 +306,13 @@ jest.mock('@/config/tokens', () => ({
   ],
   getAssetMeta: (id: string) => ({ symbol: id }),
 }));
-jest.mock('@/theme', () => {
-  const actual = jest.requireActual('@/theme');
-  return {
-    ...actual,
-    useColors: () => ({
-      background: '#fff',
-      border: '#ddd',
-      card: '#f8f8f8',
-      cardOverlay: '#fff',
-      divider: '#ddd',
-      primary: '#06f',
-      primaryLight: '#def',
-      surface: '#fff',
-      surfaceLight: '#f2f2f2',
-      success: '#16a34a',
-      text: '#111',
-      textSecondary: '#555',
-      textTertiary: '#888',
-      white: '#fff',
-    }),
-    useResolvedScheme: () => 'light',
-  };
-});
+// The Sell flow now renders Glass modules for real (`GlassCard`,
+// `GlassInputField`, `GlassListGroup`, …) — they need the actual theme
+// tokens (`Card`, `Radius`, `useGlassRecipe`, …) instead of a hand-picked
+// color subset.
+jest.mock('@/theme', () => ({
+  ...jest.requireActual('@/theme'),
+}));
 jest.mock('@/components', () => ({
   AppHeader: ({ title, testID }: { title?: string; testID?: string }) => {
     const ReactActual = jest.requireActual('react');
@@ -335,7 +320,6 @@ jest.mock('@/components', () => ({
     return ReactActual.createElement(Text, { testID }, title);
   },
   ConfirmTargetWalletModal: () => null,
-  DarkBackdrop: () => null,
   Icon: ({ name }: { name: string }) => {
     const ReactActual = jest.requireActual('react');
     const { Text } = jest.requireActual('react-native');
@@ -1297,12 +1281,14 @@ beforeEach(() => {
 
 describe('SellTradeAdapter', () => {
   it('renders empty amount, fees, disabled CTA, and security shell without a selection', () => {
-    const { getByTestId } = renderAdapter();
+    const { getByTestId, UNSAFE_getAllByType } = renderAdapter();
 
     expect(getByTestId('sell-amount-panels-empty')).toBeTruthy();
     expect(getByTestId('sell-fees-panel')).toBeTruthy();
     expect(getByTestId('sell-cta').props.accessibilityState.disabled).toBe(true);
     expect(getByTestId('sell-security-row')).toBeTruthy();
+    // Amount panels + fees panel both render on `GlassCard` now.
+    expect(UNSAFE_getAllByType(GlassCard).length).toBeGreaterThan(0);
   });
 
   it('labels the flip action as navigation to Buy', () => {

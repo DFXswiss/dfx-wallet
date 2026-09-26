@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { ImageBackground, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
-import { DarkBackdrop } from '@/components/DarkBackdrop';
-import { useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { ScreenBackdrop } from '@/components/ScreenBackdrop';
+import { useColors, type ThemeColors } from '@/theme';
 import { TRADE_STEP_GAP } from './tradePanelStyles';
 
 /** Shell chrome the active trade-mode adapter controls: header title, back
@@ -39,20 +39,11 @@ export function TradeScreenShell({
   children,
 }: Props) {
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = makeStyles(colors);
 
   return (
     <View style={styles.background} testID={`${headerTestID}-background`}>
-      {scheme === 'dark' ? (
-        <DarkBackdrop baseColor={colors.background} />
-      ) : (
-        <ImageBackground
-          source={require('../../../assets/dashboard-bg.png')}
-          style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-        />
-      )}
+      <ScreenBackdrop />
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <AppHeader title={title} onBack={onBack} testID={headerTestID} />
         <View style={styles.progressRow} testID={`${headerTestID}-progress`}>

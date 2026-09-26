@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { GlassCard } from '@/components/GlassCard';
+import { GlassIconButton } from '@/components/GlassIconButton';
+import { GlassPill } from '@/components/GlassPill';
 import { Icon } from '@/components/Icon';
 import { useColors, type ThemeColors } from '@/theme';
 import { SELECTOR_PILL_LAYOUT, TRADE_PANEL_GEOMETRY } from './tradePanelStyles';
@@ -17,6 +20,10 @@ type TradeAmountPanelsProps = {
   onFlip?: () => void;
 };
 
+// no-op fallback so `GlassIconButton`'s required `onPress` stays satisfied
+// while the flip button is disabled (no `onFlip` supplied).
+const noopFlip = () => undefined;
+
 export function TradeAmountPanels({
   payLabel,
   payAmount,
@@ -33,7 +40,12 @@ export function TradeAmountPanels({
   const styles = makeStyles(colors);
 
   return (
-    <View style={styles.panels} testID={testID}>
+    <GlassCard
+      testID={testID}
+      radius={TRADE_PANEL_GEOMETRY.panelRadius}
+      padding={0}
+      style={styles.panels}
+    >
       <View style={styles.panel}>
         {payLabel}
         <View style={styles.pinput}>
@@ -41,16 +53,15 @@ export function TradeAmountPanels({
           {paySelector}
         </View>
       </View>
-      <Pressable
-        style={styles.flipButton}
-        onPress={onFlip}
+      <GlassIconButton
+        icon={<Icon name="swap" size={18} color={colors.primary} />}
+        onPress={onFlip ?? noopFlip}
         disabled={!onFlip}
+        size={TRADE_PANEL_GEOMETRY.flipSize}
+        style={styles.flipButton}
         testID={flipTestID}
-        accessibilityRole="button"
         accessibilityLabel={flipAccessibilityLabel}
-      >
-        <Icon name="swap" size={18} color={colors.primary} />
-      </Pressable>
+      />
       <View style={[styles.panel, styles.receivePanel]}>
         {receiveLabel}
         <View style={styles.pinput}>
@@ -58,7 +69,7 @@ export function TradeAmountPanels({
           {receiveSelector}
         </View>
       </View>
-    </View>
+    </GlassCard>
   );
 }
 
@@ -80,28 +91,26 @@ export function TradeSelectorPill({
   const colors = useColors();
   const styles = makeStyles(colors);
   return (
-    <Pressable
-      style={styles.pill}
-      onPress={onPress}
-      disabled={disabled || !onPress}
+    <GlassPill
+      {...(onPress ? { onPress } : {})}
+      disabled={disabled}
+      style={styles.pillOuter}
+      contentStyle={styles.pillContent}
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
+      {...(accessibilityLabel ? { accessibilityLabel } : {})}
     >
-      {children}
-      <Icon name="chevron-right" size={16} color={colors.textTertiary} />
-    </Pressable>
+      <>
+        {children}
+        <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+      </>
+    </GlassPill>
   );
 }
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     panels: {
-      position: 'relative',
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: TRADE_PANEL_GEOMETRY.panelRadius,
-      backgroundColor: colors.card,
       overflow: 'hidden',
     },
     panel: {
@@ -109,7 +118,6 @@ const makeStyles = (colors: ThemeColors) =>
       paddingHorizontal: TRADE_PANEL_GEOMETRY.panelPaddingHorizontal,
     },
     receivePanel: {
-      backgroundColor: colors.surfaceLight,
       borderTopWidth: TRADE_PANEL_GEOMETRY.dividerWidth,
       borderTopColor: colors.divider,
     },
@@ -121,28 +129,16 @@ const makeStyles = (colors: ThemeColors) =>
     },
     flipButton: {
       alignSelf: 'center',
-      width: TRADE_PANEL_GEOMETRY.flipSize,
-      height: TRADE_PANEL_GEOMETRY.flipSize,
-      borderRadius: TRADE_PANEL_GEOMETRY.flipRadius,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
       marginTop: -20,
       marginBottom: -20,
       zIndex: 2,
     },
-    pill: {
-      flexDirection: 'row',
-      alignItems: 'center',
+    pillOuter: {
+      ...SELECTOR_PILL_LAYOUT,
+    },
+    pillContent: {
       gap: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surfaceLight,
-      borderRadius: 999,
       paddingVertical: 8,
       paddingHorizontal: 14,
-      ...SELECTOR_PILL_LAYOUT,
     },
   });

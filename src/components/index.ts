@@ -3,7 +3,6 @@ export { AssetActions } from './AssetActions';
 export { BrandLogo } from './BrandLogo';
 export { ChainSelector } from './ChainSelector';
 export { ConfirmTargetWalletModal } from './ConfirmTargetWalletModal';
-export { DarkBackdrop } from './DarkBackdrop';
 export { DashboardHeader } from './DashboardHeader';
 export { DfxBackgroundScreen } from './DfxBackgroundScreen';
 export { DfxLogoLoader, PinProcessingOverlay } from './DfxLogoLoader';

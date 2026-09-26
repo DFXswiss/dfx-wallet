@@ -39,6 +39,7 @@ jest.mock('react-i18next', () => {
   return { useTranslation: () => ({ t }) };
 });
 import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
+import { GlassCard } from '../../src/components/GlassCard';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -931,12 +932,14 @@ describe('BuyTradeAdapter', () => {
     flowState.paymentInfo = null;
     flowState.quoteKey = null;
 
-    const { getByTestId } = renderAdapter();
+    const { getByTestId, UNSAFE_getAllByType } = renderAdapter();
 
     const feePanel = getByTestId('buy-fees-panel');
     expect(feePanel).toBeTruthy();
     expect(within(feePanel).getByText('buy.summary')).toBeTruthy();
     expect(within(feePanel).getAllByText('—')).toHaveLength(1);
+    // Amount panels + fees panel both render on `GlassCard` now.
+    expect(UNSAFE_getAllByType(GlassCard).length).toBeGreaterThan(0);
   });
 
   it('keeps backend quote errors visible while the fee panel is collapsed', () => {

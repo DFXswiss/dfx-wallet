@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { GlassCard } from '@/components/GlassCard';
 import { Icon } from '@/components/Icon';
 import {
   formatCryptoAmount as fmtCrypto,
@@ -84,7 +85,7 @@ export function MobileFeesPanel({
   const dfxLabel = `${mode === 'buy' ? t('buy.feeDfx') : mode === 'sell' ? t('sell.feeDfx') : t('buy.feeDfx')}${fees ? ` · ${(fees.rate * 100).toFixed(2)}%` : ''}`;
 
   return (
-    <View style={styles.card} testID={testID}>
+    <GlassCard testID={testID} padding={0} radius={12} style={styles.card}>
       <Pressable style={styles.summaryRow} onPress={onToggle} accessibilityRole="button">
         <Icon name="shield" size={18} color={colors.primary} />
         <Text style={styles.summaryText} numberOfLines={2}>
@@ -170,7 +171,7 @@ export function MobileFeesPanel({
           ) : null}
         </View>
       ) : null}
-    </View>
+    </GlassCard>
   );
 }
 
@@ -229,10 +230,6 @@ function FeeRow({
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     card: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
       overflow: 'hidden',
     },
     summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14 },

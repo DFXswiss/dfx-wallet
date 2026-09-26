@@ -1,9 +1,12 @@
 import { fireEvent, render, within } from '@testing-library/react-native';
 import { StyleSheet, Text } from 'react-native';
+import { GlassCard } from '../../src/components/GlassCard';
+import { GlassIconButton } from '../../src/components/GlassIconButton';
 import { MobileFeesPanel } from '../../src/features/buy-sell/MobileFeesPanel';
 import {
   makeTradeQuoteKey,
   SELECTOR_PILL_LAYOUT,
+  TRADE_PANEL_GEOMETRY,
 } from '../../src/features/buy-sell/tradePanelStyles';
 import {
   TradeAmountPanels,
@@ -14,26 +17,12 @@ jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-jest.mock('@/theme', () => {
-  const actual = jest.requireActual('@/theme');
-  return {
-    ...actual,
-    useColors: () => ({
-      cardOverlay: '#fff',
-      border: '#ddd',
-      primary: '#06f',
-      primaryLight: '#def',
-      text: '#111',
-      textSecondary: '#555',
-      textTertiary: '#888',
-      success: '#16a34a',
-      card: '#f8f8f8',
-      surface: '#ffffff',
-      surfaceLight: '#f2f2f2',
-      divider: '#dddddd',
-    }),
-  };
-});
+// Both components now render Glass modules for real (`GlassCard`,
+// `GlassIconButton`, `GlassPill`) — they need the actual theme tokens
+// instead of a hand-picked color subset.
+jest.mock('@/theme', () => ({
+  ...jest.requireActual('@/theme'),
+}));
 
 jest.mock('@/components/Icon', () => ({
   Icon: () => null,
@@ -81,7 +70,7 @@ describe('MobileFeesPanel', () => {
   });
 
   it('uses shared fixed selector and flip geometry for every trade mode', () => {
-    const { getByTestId } = render(
+    const { getByTestId, UNSAFE_getByType } = render(
       <TradeAmountPanels
         testID="shared-panels"
         flipTestID="shared-flip"
@@ -109,11 +98,29 @@ describe('MobileFeesPanel', () => {
       maxWidth: 152,
       minWidth: 152,
     });
-    expect(StyleSheet.flatten(getByTestId('shared-flip').props.style)).toMatchObject({
-      width: 40,
-      height: 40,
-      borderRadius: 13,
-    });
+    // The flip control is now `GlassIconButton` — geometry (size, so its own
+    // radius) lives on that module's props, not on the outer Pressable's
+    // flattened style, which only carries the centering/overlap offsets.
+    expect(getByTestId('shared-flip')).toBeTruthy();
+    expect(UNSAFE_getByType(GlassIconButton).props.size).toBe(TRADE_PANEL_GEOMETRY.flipSize);
+  });
+
+  it('renders the amount panels as a GlassCard', () => {
+    const { UNSAFE_getAllByType } = render(
+      <TradeAmountPanels
+        testID="glass-panels"
+        flipTestID="glass-flip"
+        flipAccessibilityLabel="flip"
+        payLabel={<Text>pay</Text>}
+        payAmount={<Text>0</Text>}
+        paySelector={<TradeSelectorPill testID="glass-pay">—</TradeSelectorPill>}
+        receiveLabel={<Text>receive</Text>}
+        receiveAmount={<Text>0</Text>}
+        receiveSelector={<TradeSelectorPill testID="glass-receive">—</TradeSelectorPill>}
+      />,
+    );
+
+    expect(UNSAFE_getAllByType(GlassCard).length).toBeGreaterThan(0);
   });
 
   it('includes every quote input in the freshness key', () => {
@@ -250,7 +257,7 @@ describe('MobileFeesPanel', () => {
   });
 
   it('renders the empty summary and empty body without a quote', () => {
-    const { getByTestId, getAllByText } = render(
+    const { getByTestId, getAllByText, UNSAFE_getAllByType } = render(
       <MobileFeesPanel
         mode="swap"
         quote={null}
@@ -265,6 +272,7 @@ describe('MobileFeesPanel', () => {
 
     expect(getByTestId('empty-fees')).toBeTruthy();
     expect(getAllByText('—')).toHaveLength(2);
+    expect(UNSAFE_getAllByType(GlassCard).length).toBeGreaterThan(0);
   });
 
   it('renders an invalid-quote status below the empty summary when expanded', () => {
