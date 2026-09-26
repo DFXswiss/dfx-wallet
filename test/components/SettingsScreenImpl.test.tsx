@@ -83,14 +83,16 @@ jest.mock('@/components', () => {
   return {
     ...actual,
     Icon: ({ name }: { name: string }) => ReactActual.createElement(Text, null, name),
-    DarkBackdrop: () => ReactActual.createElement(View, { testID: 'dark-backdrop' }),
+    ScreenBackdrop: () => ReactActual.createElement(View, { testID: 'screen-backdrop' }),
   };
 });
 
 // eslint-disable-next-line import/first
 import SettingsScreenImpl from '../../src/features/settings/SettingsScreenImpl';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { __i18n } = require('react-i18next') as { __i18n: { language: string; changeLanguage: jest.Mock } };
+const { __i18n } = require('react-i18next') as {
+  __i18n: { language: string; changeLanguage: jest.Mock };
+};
 
 function renderScreen() {
   return render(
@@ -321,10 +323,10 @@ describe('SettingsScreenImpl', () => {
     expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard');
   });
 
-  it('renders the dark backdrop when the theme is dark', async () => {
+  it('renders the screen backdrop', async () => {
     useThemeStore.setState({ mode: 'dark' });
     const { getByTestId } = renderScreen();
-    await waitFor(() => expect(getByTestId('dark-backdrop')).toBeTruthy());
+    await waitFor(() => expect(getByTestId('screen-backdrop')).toBeTruthy());
   });
 
   it('cycles an unknown stored currency back onto the CHF/EUR/USD ring', async () => {

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { DarkBackdrop, DashboardHeader, GlassSurface, Icon, ShortcutAction } from '@/components';
+import { DashboardHeader, GlassSurface, Icon, ScreenBackdrop, ShortcutAction } from '@/components';
 import { FEATURES } from '@/config/features';
 import { useDfxAuth, useTotalPortfolioFiat } from '@/hooks';
 import { useAuthStore, useWalletStore } from '@/store';
@@ -178,15 +178,7 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.bg}>
-      {scheme === 'dark' ? (
-        <DarkBackdrop baseColor={colors.background} />
-      ) : (
-        <ImageBackground
-          source={require('../../../assets/dashboard-bg.png')}
-          style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-        />
-      )}
+      <ScreenBackdrop />
       {content}
     </View>
   );

@@ -1,21 +1,13 @@
 import { useMemo } from 'react';
-import {
-  ImageBackground,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { DarkBackdrop, Icon } from '@/components';
+import { Icon, ScreenBackdrop } from '@/components';
 import type { ChainId } from '@/config/chains';
 import { ALWAYS_ON_CHAINS, SELECTABLE_CHAINS } from '@/config/tokens';
 import { useEnabledChains } from './useEnabledChains';
-import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Layout, Typography, useColors, type ThemeColors } from '@/theme';
 
 const CHAIN_LABEL = new Map<ChainId, string>([
   ['ethereum', 'Ethereum'],
@@ -35,7 +27,6 @@ export default function ManageChainsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { enabledChains, toggleChain } = useEnabledChains();
 
@@ -97,15 +88,7 @@ export default function ManageChainsScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>

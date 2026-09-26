@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  ImageBackground,
   Linking,
   Pressable,
   ScrollView,
@@ -12,10 +11,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader, DarkBackdrop, Icon } from '@/components';
+import { AppHeader, Icon, ScreenBackdrop } from '@/components';
 import { CHAIN_LABELS } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/features/dfx-backend/services';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 const EXPLORER_BASE = new Map<string, string>([
   ['ethereum', 'https://etherscan.io/tx/'],
@@ -28,7 +27,6 @@ const EXPLORER_BASE = new Map<string, string>([
 
 export default function TransactionDetailScreen() {
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const stateColors = useMemo(
     () =>
@@ -168,15 +166,7 @@ export default function TransactionDetailScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>

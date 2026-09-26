@@ -1,20 +1,12 @@
 import { useMemo } from 'react';
-import {
-  Alert,
-  ImageBackground,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader, DarkBackdrop, Icon, PrimaryButton } from '@/components';
+import { AppHeader, Icon, PrimaryButton, ScreenBackdrop } from '@/components';
 import { useMultiSigStore } from './store';
 import type { MultiSigVault } from './store';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 const truncateAddress = (addr: string): string => {
   const trimmed = addr.trim();
@@ -24,7 +16,6 @@ const truncateAddress = (addr: string): string => {
 
 export default function MultiSigManageScreen() {
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
@@ -163,15 +154,7 @@ export default function MultiSigManageScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>

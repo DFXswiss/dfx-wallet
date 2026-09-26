@@ -1,16 +1,16 @@
 import { useMemo, useState } from 'react';
-import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { AppHeader, DarkBackdrop, Icon, PrimaryButton, QrCode } from '@/components';
+import { AppHeader, Icon, PrimaryButton, QrCode, ScreenBackdrop } from '@/components';
 import type { ChainId } from '@/config/chains';
 import { FEATURES } from '@/config/features';
 import { useLdsWallet } from '@/hooks';
-import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Layout, Typography, useColors, type ThemeColors } from '@/theme';
 
 type ReceiveStep = 'asset' | 'qr';
 
@@ -55,7 +55,6 @@ export default function ReceiveScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const receiveAssets = useMemo(buildReceiveAssets, []);
   const [step, setStep] = useState<ReceiveStep>('asset');
@@ -233,15 +232,7 @@ export default function ReceiveScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>

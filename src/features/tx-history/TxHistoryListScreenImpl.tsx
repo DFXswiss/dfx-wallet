@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
-  ImageBackground,
   type ListRenderItemInfo,
   Pressable,
   RefreshControl,
@@ -17,15 +16,15 @@ import { useAccount } from '@tetherto/wdk-react-native-core';
 import {
   AppHeader,
   AssetActions,
-  DarkBackdrop,
   EmptyState,
   Icon,
+  ScreenBackdrop,
   Skeleton,
   TransactionRow,
 } from '@/components';
 import { CHAIN_LABELS } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/features/dfx-backend/services';
-import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Layout, Typography, useColors, type ThemeColors } from '@/theme';
 
 type FilterType = 'all' | 'in' | 'out' | 'pay';
 
@@ -43,7 +42,6 @@ export default function TransactionHistoryScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const params = useLocalSearchParams<{ asset?: string; network?: string }>();
   const assetFilter = typeof params.asset === 'string' ? params.asset.toUpperCase() : undefined;
@@ -205,15 +203,7 @@ export default function TransactionHistoryScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>
