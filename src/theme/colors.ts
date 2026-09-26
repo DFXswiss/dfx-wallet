@@ -142,6 +142,9 @@ export const lightColors: ThemeColors = {
 export const Interaction = {
   pressedOpacity: 0.85,
   pressedCardOpacity: 0.92,
+  /** Shared dim for any disabled pressable — matches the pre-existing 0.5
+   *  literal every disabled style in the app already converged on. */
+  disabledOpacity: 0.5,
 } as const;
 
 // DFX brand-navy dark palette — sourced from the DFX Design Pod

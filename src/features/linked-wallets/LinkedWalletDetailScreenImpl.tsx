@@ -5,7 +5,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { AppHeader, Icon, ScreenBackdrop } from '@/components';
+import { AppHeader, GlassCard, GlassListGroup, Icon, ScreenBackdrop } from '@/components';
 import { formatCryptoAmount, resolveFiatCurrency } from '@/config/portfolio-presentation';
 import { defaultLinkedWalletName, useLinkedWalletNames } from './useLinkedWalletNames';
 import { useLinkedWalletDiscovery } from './useLinkedWalletDiscovery';
@@ -53,7 +53,15 @@ function formatRelative(ts: number, now: number): string {
   return `vor ${years} y`;
 }
 
-function TransactionRow({ tx, now }: { tx: WalletTransaction; now: number }) {
+function TransactionRow({
+  tx,
+  now,
+  last = false,
+}: {
+  tx: WalletTransaction;
+  now: number;
+  last?: boolean;
+}) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const sign = tx.direction === 'send' ? '−' : tx.direction === 'receive' ? '+' : '·';
@@ -64,7 +72,7 @@ function TransactionRow({ tx, now }: { tx: WalletTransaction; now: number }) {
         ? colors.success
         : colors.text;
   return (
-    <View style={styles.txRow}>
+    <GlassListGroup.Row style={styles.txRow} last={last}>
       <View style={styles.txIcon}>
         <Icon
           name={tx.direction === 'send' ? 'arrow-up' : 'arrow-down'}
@@ -87,7 +95,7 @@ function TransactionRow({ tx, now }: { tx: WalletTransaction; now: number }) {
         </Text>
         <Text style={styles.txRelative}>{formatRelative(tx.timestamp, now)}</Text>
       </View>
-    </View>
+    </GlassListGroup.Row>
   );
 }
 
@@ -227,7 +235,7 @@ export default function LinkedWalletDetailScreen() {
           <Text style={styles.errorText}>{t('linkedWallet.notFound')}</Text>
         ) : (
           <>
-            <View style={styles.addressCard}>
+            <GlassCard style={styles.addressCard} testID="linked-wallet-address-card">
               <Text style={styles.addressLabel}>{t('linkedWallet.addressLabel')}</Text>
               <Pressable
                 style={({ pressed }) => [styles.copyBlock, pressed && styles.pressed]}
@@ -247,7 +255,7 @@ export default function LinkedWalletDetailScreen() {
               <Text style={styles.addressMeta} numberOfLines={1}>
                 {blockchains.join(' · ')}
               </Text>
-            </View>
+            </GlassCard>
 
             <View style={styles.actionsRow}>
               <Pressable
@@ -283,13 +291,16 @@ export default function LinkedWalletDetailScreen() {
                   <ActivityIndicator color={colors.primary} />
                 </View>
               ) : !walletDiscovery || walletDiscovery.assets.length === 0 ? (
-                <Text style={styles.emptyText}>{t('linkedWallet.assetsEmpty')}</Text>
+                <GlassCard testID="linked-wallet-assets-empty-card">
+                  <Text style={styles.emptyText}>{t('linkedWallet.assetsEmpty')}</Text>
+                </GlassCard>
               ) : (
-                <View style={styles.assetList}>
-                  {walletDiscovery.assets.map((asset) => (
-                    <View
+                <GlassListGroup testID="linked-wallet-asset-list">
+                  {walletDiscovery.assets.map((asset, idx) => (
+                    <GlassListGroup.Row
                       key={`${asset.chain}:${asset.contract ?? 'native'}`}
                       style={styles.assetRow}
+                      last={idx === walletDiscovery.assets.length - 1}
                       testID={`linked-wallet-asset-${asset.chain}-${asset.symbol}`}
                     >
                       <View style={styles.assetMain}>
@@ -306,9 +317,9 @@ export default function LinkedWalletDetailScreen() {
                           {formatCryptoAmount(asset.balance)} {asset.symbol}
                         </Text>
                       </View>
-                    </View>
+                    </GlassListGroup.Row>
                   ))}
-                </View>
+                </GlassListGroup>
               )}
             </View>
 
@@ -322,13 +333,15 @@ export default function LinkedWalletDetailScreen() {
                   <ActivityIndicator color={colors.primary} />
                 </View>
               ) : transactions.length === 0 ? (
-                <Text style={styles.emptyText}>{t('linkedWallet.txEmpty')}</Text>
+                <GlassCard testID="linked-wallet-tx-empty-card">
+                  <Text style={styles.emptyText}>{t('linkedWallet.txEmpty')}</Text>
+                </GlassCard>
               ) : (
-                <View style={styles.txList}>
-                  {transactions.slice(0, 50).map((tx) => (
-                    <TransactionRow key={tx.id} tx={tx} now={now} />
+                <GlassListGroup testID="linked-wallet-tx-list">
+                  {transactions.slice(0, 50).map((tx, idx, arr) => (
+                    <TransactionRow key={tx.id} tx={tx} now={now} last={idx === arr.length - 1} />
                   ))}
-                </View>
+                </GlassListGroup>
               )}
             </View>
 
@@ -379,11 +392,6 @@ const makeStyles = (colors: ThemeColors) =>
       paddingVertical: 24,
     },
     addressCard: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 18,
       gap: 10,
     },
     addressLabel: {
@@ -460,29 +468,12 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodyMedium,
       color: colors.textTertiary,
       textAlign: 'center',
-      paddingVertical: 24,
-      paddingHorizontal: 16,
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    assetList: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      overflow: 'hidden',
     },
     assetRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingVertical: 12,
-      paddingHorizontal: 14,
       gap: 12,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
     },
     assetMain: {
       flex: 1,
@@ -510,21 +501,10 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodySmall,
       color: colors.textSecondary,
     },
-    txList: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      overflow: 'hidden',
-    },
     txRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      paddingVertical: 12,
-      paddingHorizontal: 14,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
     },
     txValues: {
       alignItems: 'flex-end',

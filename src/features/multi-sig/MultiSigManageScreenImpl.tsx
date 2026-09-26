@@ -3,7 +3,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader, Icon, PrimaryButton, ScreenBackdrop } from '@/components';
+import { AppHeader, GlassCard, Icon, PrimaryButton, ScreenBackdrop } from '@/components';
 import { useMultiSigStore } from './store';
 import type { MultiSigVault } from './store';
 import { Typography, useColors, type ThemeColors } from '@/theme';
@@ -68,15 +68,20 @@ export default function MultiSigManageScreen() {
           </View>
         ) : (
           <View style={styles.listContent}>
-            <View style={styles.summaryCard}>
+            <GlassCard
+              variant="lead"
+              tone="accent"
+              style={styles.summaryCard}
+              testID="multi-sig-summary-card"
+            >
               <Text style={styles.summaryLabel}>{t('multiSig.manage.summaryLabel')}</Text>
               <Text style={styles.summaryValue}>
                 {t('multiSig.manage.summaryValue', { count: vaults.length })}
               </Text>
-            </View>
+            </GlassCard>
 
             {vaults.map((vault) => (
-              <View key={vault.id} style={styles.vaultCard} testID={`vault-${vault.id}`}>
+              <GlassCard key={vault.id} style={styles.vaultCard} testID={`vault-${vault.id}`}>
                 <View style={styles.vaultHeader}>
                   <View style={styles.vaultLead}>
                     <Text style={styles.vaultLeadText}>
@@ -135,7 +140,7 @@ export default function MultiSigManageScreen() {
                     </View>
                   </View>
                 ))}
-              </View>
+              </GlassCard>
             ))}
 
             <View style={styles.spacer} />
@@ -196,11 +201,6 @@ const makeStyles = (colors: ThemeColors) =>
       gap: 16,
     },
     summaryCard: {
-      backgroundColor: colors.primaryLight,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 14,
       gap: 4,
     },
     summaryLabel: {
@@ -216,11 +216,6 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '600',
     },
     vaultCard: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 16,
       gap: 12,
     },
     vaultHeader: {

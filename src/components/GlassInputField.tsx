@@ -1,5 +1,12 @@
 import { forwardRef } from 'react';
-import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
+import {
+  StyleSheet,
+  TextInput,
+  View,
+  type StyleProp,
+  type TextInputProps,
+  type ViewStyle,
+} from 'react-native';
 import { GlassSurface } from './GlassSurface';
 import { Radius, Typography, useColors } from '@/theme';
 
@@ -7,6 +14,9 @@ type Props = TextInputProps & {
   /** Tints the outer ring `colors.error` — does not touch `GlassSurface`'s
    *  own gradient edge. */
   error?: boolean;
+  /** Reaches the outer ring (width/flex) — `style` still reaches the
+   *  `TextInput` itself, unchanged. */
+  containerStyle?: StyleProp<ViewStyle>;
   testID?: string;
 };
 
@@ -18,7 +28,7 @@ type Props = TextInputProps & {
  * of its own.
  */
 export const GlassInputField = forwardRef<TextInput, Props>(function GlassInputField(
-  { error = false, style, testID, ...inputProps },
+  { error = false, containerStyle, style, testID, ...inputProps },
   ref,
 ) {
   const colors = useColors();
@@ -29,6 +39,7 @@ export const GlassInputField = forwardRef<TextInput, Props>(function GlassInputF
         styles.ring,
         { borderColor: colors.transparent },
         error && { borderColor: colors.error, borderWidth: 1.5 },
+        containerStyle,
       ]}
     >
       <GlassSurface variant="quiet" radius={Radius.sm} style={styles.surface}>
