@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { Icon } from '@/components/Icon';
 import { Typography, useColors } from '@/theme';
 import { MobileFeesPanel } from './MobileFeesPanel';
 import { TradeAmountPanels, TradeSelectorPill } from './TradeAmountPanels';
@@ -114,13 +113,6 @@ export function SwapTradeAdapter({ onShellChange }: SwapTradeAdapterProps) {
         <Text style={[styles.security, { color: colors.textTertiary }]}>
           {t('swap.comingSoon')}
         </Text>
-        <View style={styles.placeholder}>
-          <Icon name="wallet" />
-          <Text style={[styles.title, { color: colors.text }]}>{t('swap.title')}</Text>
-          <Text style={[styles.description, { color: colors.textTertiary }]}>
-            {t('swap.comingSoon')}
-          </Text>
-        </View>
       </View>
     </View>
   );
@@ -143,21 +135,4 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       backgroundColor: colors.borderLight,
     },
     ctaText: { ...Typography.bodyLarge, fontWeight: '600', color: colors.textTertiary },
-    placeholder: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 24,
-      paddingBottom: 48,
-    },
-    title: {
-      marginTop: 16,
-      ...Typography.headlineMedium,
-      textAlign: 'center',
-    },
-    description: {
-      marginTop: 8,
-      ...Typography.bodyLarge,
-      textAlign: 'center',
-    },
   });
