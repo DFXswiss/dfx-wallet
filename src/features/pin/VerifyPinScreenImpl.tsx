@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { BrandLogo, Icon, PinPad, PrimaryButton, ScreenBackdrop } from '@/components';
+import { BrandLogo, GlassPill, Icon, PinPad, PrimaryButton, ScreenBackdrop } from '@/components';
 import { needsPinRehash } from '@/services/pin';
 import { useAuthStore } from '@/store';
 import { Typography, useColors, type ThemeColors } from '@/theme';
@@ -138,17 +138,20 @@ export default function VerifyPinScreen() {
         ) : (
           <>
             {biometricEnabled && (
-              <Pressable
+              <GlassPill
                 testID="verify-pin-biometric-button"
-                style={({ pressed }) => [styles.biometricPill, pressed && styles.pressed]}
+                selected
                 onPress={tryBiometric}
                 disabled={biometricInFlight}
+                style={styles.biometricPill}
                 accessibilityRole="button"
                 accessibilityLabel={t('pin.biometricCta')}
               >
-                <Icon name="user" size={18} color={colors.primary} />
-                <Text style={styles.biometricText}>{t('pin.biometricCta')}</Text>
-              </Pressable>
+                <View style={styles.biometricContent}>
+                  <Icon name="user" size={18} color={colors.primary} />
+                  <Text style={styles.biometricText}>{t('pin.biometricCta')}</Text>
+                </View>
+              </GlassPill>
             )}
 
             {unlockFailed && (
@@ -230,16 +233,12 @@ const makeStyles = (colors: ThemeColors) =>
       marginTop: 48,
     },
     biometricPill: {
+      alignSelf: 'center',
+    },
+    biometricContent: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-      paddingHorizontal: 18,
-      paddingVertical: 10,
-      borderRadius: 999,
-      backgroundColor: colors.primaryLight,
-    },
-    pressed: {
-      opacity: 0.7,
     },
     biometricText: {
       ...Typography.bodyMedium,

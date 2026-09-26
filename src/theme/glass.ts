@@ -8,10 +8,18 @@
  *
  * Values are unchanged from the pre-move recipe in `GlassSurface.tsx`.
  */
-import { darkColors } from './colors';
+import type { ViewStyle } from 'react-native';
+import { darkColors, type ThemeColors } from './colors';
+import { Card } from './layout';
 import { useResolvedScheme } from './theme-store';
 
 export type GlassVariant = 'quiet' | 'default' | 'lead';
+
+/**
+ * Semantic edge tint for a glass module — layered on top of `variant`, not
+ * a replacement for it. `default` renders no tint at all.
+ */
+export type GlassTone = 'default' | 'accent' | 'warning' | 'danger' | 'success';
 
 export type GlassGradientStop = { offset: string; stopColor: string; stopOpacity: string };
 
@@ -119,4 +127,33 @@ const LIGHT_GLASS_RECIPE: GlassRecipe = {
 export function useGlassRecipe(): GlassRecipe {
   const scheme = useResolvedScheme();
   return scheme === 'dark' ? DARK_GLASS_RECIPE : LIGHT_GLASS_RECIPE;
+}
+
+/**
+ * Tone → theme-color recipe, kept here (not in the modules) so `GlassCard`,
+ * `GlassListGroup` and `GlassPill` all tint the same way from one source.
+ * Colors a thin edge only — no opaque fill — matching the hand-rolled
+ * `borderWidth`/`borderColor` overrides this replaces across screens.
+ * `default` renders no edge at all (`undefined`, so it composes cleanly
+ * into a `style` array).
+ */
+function toneColorFor(tone: Exclude<GlassTone, 'default'>, colors: ThemeColors): string {
+  switch (tone) {
+    case 'accent':
+      return colors.primary;
+    case 'warning':
+      return colors.warning;
+    case 'danger':
+      return colors.error;
+    case 'success':
+      return colors.success;
+  }
+}
+
+export function glassToneEdge(
+  tone: GlassTone,
+  colors: ThemeColors,
+): Pick<ViewStyle, 'borderWidth' | 'borderColor'> | undefined {
+  if (tone === 'default') return undefined;
+  return { borderWidth: Card.borderWidth + 0.5, borderColor: toneColorFor(tone, colors) };
 }

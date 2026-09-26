@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Icon, ScreenBackdrop } from '@/components';
+import { GlassCard, GlassIconButton, Icon, ScreenBackdrop } from '@/components';
 import type { ChainId } from '@/config/chains';
 import { ALWAYS_ON_CHAINS, SELECTABLE_CHAINS } from '@/config/tokens';
 import { useEnabledChains } from './useEnabledChains';
@@ -33,14 +33,12 @@ export default function ManageChainsScreen() {
   const body = (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <Pressable
+        <GlassIconButton
+          icon={<Icon name="arrow-left" size={26} color={colors.text} />}
           onPress={() => router.back()}
-          hitSlop={12}
-          style={styles.headerIcon}
+          accessibilityLabel="Back"
           testID="manage-back-button"
-        >
-          <Icon name="arrow-left" size={26} color={colors.text} />
-        </Pressable>
+        />
         <Text style={styles.headerTitle}>{t('portfolio.manageChains')}</Text>
         <View style={styles.headerPlaceholder} pointerEvents="none" />
       </View>
@@ -52,12 +50,12 @@ export default function ManageChainsScreen() {
       >
         <Text style={styles.sectionLabel}>{t('portfolio.alwaysOn')}</Text>
         {ALWAYS_ON_CHAINS.map((chain) => (
-          <View key={chain} style={[styles.row, styles.rowDisabled]}>
+          <GlassCard key={chain} style={[styles.row, styles.rowDisabled]}>
             <View style={styles.info}>
               <Text style={styles.label}>{CHAIN_LABEL.get(chain) ?? chain}</Text>
             </View>
             <Switch value disabled />
-          </View>
+          </GlassCard>
         ))}
 
         <Text style={styles.sectionLabel}>{t('portfolio.optional')}</Text>
@@ -65,7 +63,7 @@ export default function ManageChainsScreen() {
           const enabled = enabledChains.includes(chain);
           const description = CHAIN_DESCRIPTION.get(chain);
           return (
-            <View key={chain} style={styles.row}>
+            <GlassCard key={chain} style={styles.row}>
               <View style={styles.info}>
                 <Text style={styles.label}>{CHAIN_LABEL.get(chain) ?? chain}</Text>
                 {description && <Text style={styles.description}>{description}</Text>}
@@ -77,7 +75,7 @@ export default function ManageChainsScreen() {
                 thumbColor={colors.white}
                 testID={`manage-chain-${chain}`}
               />
-            </View>
+            </GlassCard>
           );
         })}
       </ScrollView>
@@ -111,16 +109,6 @@ const makeStyles = (colors: ThemeColors) =>
       paddingTop: 4,
       paddingBottom: 8,
     },
-    headerIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: colors.cardOverlay,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
     headerPlaceholder: {
       width: 40,
       height: 40,
@@ -151,17 +139,8 @@ const makeStyles = (colors: ThemeColors) =>
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
       padding: 14,
       gap: 12,
-      shadowColor: colors.shadow,
-      shadowOpacity: 0.05,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 3 },
-      elevation: 1,
     },
     rowDisabled: {
       opacity: 0.65,

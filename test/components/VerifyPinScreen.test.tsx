@@ -32,7 +32,10 @@ jest.mock('expo-haptics', () => ({
   NotificationFeedbackType: { Success: 'success', Error: 'error' },
 }));
 
+// eslint-disable-next-line import/first
 import VerifyPinScreen from '../../src/features/pin/VerifyPinScreenImpl';
+// eslint-disable-next-line import/first
+import { GlassPill } from '../../src/components/GlassPill';
 
 async function enterPin(getByTestId: (id: string) => unknown, digits: string) {
   for (const d of digits) {
@@ -206,9 +209,17 @@ describe('VerifyPinScreen', () => {
 
   it('auto-prompts biometric unlock on mount when enabled', async () => {
     mockAuthState.biometricEnabled = true;
-    const { getByTestId } = render(<VerifyPinScreen />);
+    const { getByTestId, getByLabelText, UNSAFE_getByType } = render(<VerifyPinScreen />);
     await waitFor(() => expect(mockAuthenticateBiometric).toHaveBeenCalledTimes(1));
     expect(getByTestId('verify-pin-biometric-button')).toBeTruthy();
+    // The biometric CTA renders on the shared glass pill module instead of
+    // a one-off opaque pill (JK: "alle Karten ... müssen Glas design haben").
+    expect(UNSAFE_getByType(GlassPill)).toBeTruthy();
+    // Regression: switching the CTA from a plain Pressable to GlassPill (G3)
+    // silently dropped `accessibilityRole`/`accessibilityLabel` since the
+    // module had no a11y passthrough yet — restored now that it does (G5).
+    expect(getByTestId('verify-pin-biometric-button').props.accessibilityRole).toBe('button');
+    expect(getByLabelText('pin.biometricCta')).toBeTruthy();
   });
 
   it('does not prompt biometrics when disabled', async () => {

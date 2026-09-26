@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
-import { AppHeader, Icon, ScreenContainer } from '@/components';
+import { AppHeader, GlassListGroup, Icon, ScreenContainer } from '@/components';
 import { FEATURES } from '@/config/features';
 import { isAllowedDfxHost } from '@/services/security/safe-url';
 import { Typography, useColors, type ThemeColors } from '@/theme';
@@ -57,15 +57,12 @@ export default function LegalIndexScreen() {
       <AppHeader title={t('settings.legalDocuments')} testID="legal" />
       <View style={styles.content}>
         <Text style={styles.intro}>{t('legal.intro')}</Text>
-        <View style={styles.list}>
+        <GlassListGroup testID="legal-list">
           {LEGAL_LINKS.map((entry, idx) => (
-            <Pressable
+            <GlassListGroup.Row
               key={entry.id}
-              style={({ pressed }) => [
-                styles.row,
-                idx < LEGAL_LINKS.length - 1 && styles.rowDivider,
-                pressed && styles.pressed,
-              ]}
+              style={styles.row}
+              last={idx === LEGAL_LINKS.length - 1}
               onPress={() => open(entry.url, t(entry.titleKey))}
               testID={`legal-${entry.id}`}
             >
@@ -74,9 +71,9 @@ export default function LegalIndexScreen() {
               </View>
               <Text style={styles.rowTitle}>{t(entry.titleKey)}</Text>
               <Icon name="chevron-right" size={18} color={colors.textTertiary} />
-            </Pressable>
+            </GlassListGroup.Row>
           ))}
-        </View>
+        </GlassListGroup>
       </View>
     </ScreenContainer>
   );
@@ -94,21 +91,10 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
       lineHeight: 20,
     },
-    list: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      overflow: 'hidden',
-    },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 14,
-      paddingHorizontal: 14,
       gap: 12,
-    },
-    rowDivider: {
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
     },
     iconBubble: {
       width: 32,
@@ -123,8 +109,5 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodyLarge,
       color: colors.text,
       fontWeight: '500',
-    },
-    pressed: {
-      opacity: 0.7,
     },
   });

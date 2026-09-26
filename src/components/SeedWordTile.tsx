@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { GlassSurface } from './GlassSurface';
 import { Radius, Typography, useColors, type ThemeColors } from '@/theme';
 
@@ -10,6 +10,9 @@ type Props = {
   /** Masks `word` behind dots while keeping the tile's layout — for
    *  screenshot-guarded reveal flows. */
   hidden?: boolean;
+  /** Reaches the tile itself (width/flex) — lets a grid lay tiles out
+   *  without wrapping each one in its own `View` just for sizing. */
+  style?: StyleProp<ViewStyle>;
   testID?: string;
 };
 
@@ -20,7 +23,7 @@ const MASK = '••••';
  * export/verify/restore screens (mirrors the current `wordCard` markup in
  * `SeedExportScreenImpl`, moved onto glass and made reusable).
  */
-export function SeedWordTile({ index, word, hidden = false, testID }: Props) {
+export function SeedWordTile({ index, word, hidden = false, style, testID }: Props) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -28,7 +31,7 @@ export function SeedWordTile({ index, word, hidden = false, testID }: Props) {
     <GlassSurface
       variant="quiet"
       radius={Radius.xs}
-      style={styles.tile}
+      style={[styles.tile, style]}
       {...(testID ? { testID } : {})}
     >
       <Text style={styles.index}>{index + 1}.</Text>

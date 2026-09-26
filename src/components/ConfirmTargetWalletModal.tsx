@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { GlassCard } from './GlassCard';
+import { GlassSheet } from './GlassSheet';
 import { useColors, type ThemeColors, Typography } from '@/theme';
 
 type Props = {
@@ -52,85 +54,64 @@ export function ConfirmTargetWalletModal({
   const { t } = useTranslation();
 
   return (
-    <Modal
+    <GlassSheet
       visible={visible}
-      animationType="fade"
-      transparent
       onRequestClose={() => {
         if (!loading) onCancel();
       }}
+      position="center"
     >
-      <View style={styles.overlay}>
-        <View style={styles.card}>
-          <Text style={styles.title}>{t(`linkedWallet.confirm.${flow}.title`)}</Text>
-          <Text style={styles.body}>
-            {t(`linkedWallet.confirm.${flow}.body`, { asset: assetLabel })}
-          </Text>
+      <View style={styles.content}>
+        <Text style={styles.title}>{t(`linkedWallet.confirm.${flow}.title`)}</Text>
+        <Text style={styles.body}>
+          {t(`linkedWallet.confirm.${flow}.body`, { asset: assetLabel })}
+        </Text>
 
-          <View style={styles.walletBlock}>
-            <Text style={styles.walletAddress}>{walletAddressShort}</Text>
-            {walletBlockchain ? (
-              <Text style={styles.walletBlockchain}>{walletBlockchain}</Text>
-            ) : null}
-          </View>
+        <GlassCard variant="quiet" padding={14} style={styles.walletBlock}>
+          <Text style={styles.walletAddress}>{walletAddressShort}</Text>
+          {walletBlockchain ? (
+            <Text style={styles.walletBlockchain}>{walletBlockchain}</Text>
+          ) : null}
+        </GlassCard>
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          <View style={styles.actions}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.button,
-                styles.buttonGhost,
-                pressed && styles.pressed,
-              ]}
-              onPress={onCancel}
-              disabled={loading}
-              testID="confirm-target-cancel"
-            >
-              <Text style={[styles.buttonLabel, styles.buttonGhostLabel]}>
-                {t('common.cancel')}
+        <View style={styles.actions}>
+          <Pressable
+            style={({ pressed }) => [styles.button, styles.buttonGhost, pressed && styles.pressed]}
+            onPress={onCancel}
+            disabled={loading}
+            testID="confirm-target-cancel"
+          >
+            <Text style={[styles.buttonLabel, styles.buttonGhostLabel]}>{t('common.cancel')}</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              styles.buttonPrimary,
+              pressed && styles.pressed,
+            ]}
+            onPress={onConfirm}
+            disabled={loading}
+            testID="confirm-target-confirm"
+          >
+            {loading ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={[styles.buttonLabel, styles.buttonPrimaryLabel]}>
+                {t('common.confirm')}
               </Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [
-                styles.button,
-                styles.buttonPrimary,
-                pressed && styles.pressed,
-              ]}
-              onPress={onConfirm}
-              disabled={loading}
-              testID="confirm-target-confirm"
-            >
-              {loading ? (
-                <ActivityIndicator color={colors.white} />
-              ) : (
-                <Text style={[styles.buttonLabel, styles.buttonPrimaryLabel]}>
-                  {t('common.confirm')}
-                </Text>
-              )}
-            </Pressable>
-          </View>
+            )}
+          </Pressable>
         </View>
       </View>
-    </Modal>
+    </GlassSheet>
   );
 }
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    overlay: {
-      flex: 1,
-      backgroundColor: colors.scrimStrong,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 24,
-    },
-    card: {
-      width: '100%',
-      maxWidth: 380,
-      backgroundColor: colors.surface,
-      borderRadius: 20,
-      padding: 22,
+    content: {
       gap: 14,
     },
     title: {
@@ -143,9 +124,6 @@ const makeStyles = (colors: ThemeColors) =>
       lineHeight: 22,
     },
     walletBlock: {
-      backgroundColor: colors.background,
-      borderRadius: 14,
-      padding: 14,
       gap: 4,
     },
     walletAddress: {

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   type ListRenderItemInfo,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -17,6 +16,8 @@ import {
   AppHeader,
   AssetActions,
   EmptyState,
+  GlassCard,
+  GlassPill,
   Icon,
   ScreenBackdrop,
   Skeleton,
@@ -122,12 +123,12 @@ export default function TransactionHistoryScreen() {
             {filters.map((f) => {
               const isActive = filter === f.key;
               return (
-                <Pressable
+                <GlassPill
                   key={f.key}
-                  style={[styles.segment, isActive && styles.segmentActive]}
+                  selected={isActive}
                   onPress={() => setFilter(f.key)}
+                  style={styles.segment}
                   accessibilityRole="button"
-                  accessibilityState={{ selected: isActive }}
                 >
                   <Text
                     style={[styles.segmentText, isActive && styles.segmentTextActive]}
@@ -135,7 +136,7 @@ export default function TransactionHistoryScreen() {
                   >
                     {f.label}
                   </Text>
-                </Pressable>
+                </GlassPill>
               );
             })}
           </View>
@@ -231,7 +232,7 @@ function WalletAddressBar({ network }: { network: string }) {
   };
 
   return (
-    <Pressable style={styles.addressCard} onPress={handleCopy} testID="wallet-address-copy">
+    <GlassCard contentStyle={styles.addressCard} onPress={handleCopy} testID="wallet-address-copy">
       <View style={styles.addressIconCircle}>
         <Icon name="wallet" size={22} color={colors.primary} />
       </View>
@@ -239,10 +240,10 @@ function WalletAddressBar({ network }: { network: string }) {
       <Text style={styles.addressText} numberOfLines={1} selectable>
         {short}
       </Text>
-      <View style={styles.copyBadge}>
+      <GlassPill style={styles.copyBadge}>
         <Text style={styles.copyText}>{copied ? t('common.copied') : t('common.copy')}</Text>
-      </View>
-    </Pressable>
+      </GlassPill>
+    </GlassCard>
   );
 }
 
@@ -255,10 +256,6 @@ const makeStyles = (colors: ThemeColors) =>
       paddingVertical: 24,
       paddingHorizontal: 20,
       gap: 8,
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
     },
     addressIconCircle: {
       width: 48,
@@ -285,10 +282,6 @@ const makeStyles = (colors: ThemeColors) =>
     },
     copyBadge: {
       marginTop: 4,
-      paddingHorizontal: 20,
-      paddingVertical: 8,
-      backgroundColor: colors.primaryLight,
-      borderRadius: 12,
     },
     copyText: {
       ...Typography.bodyMedium,
@@ -313,21 +306,11 @@ const makeStyles = (colors: ThemeColors) =>
     },
     segmented: {
       flexDirection: 'row',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 4,
+      gap: 4,
     },
     segment: {
       flex: 1,
-      height: 36,
-      borderRadius: 8,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    segmentActive: {
-      backgroundColor: colors.primary,
+      alignSelf: 'stretch',
     },
     segmentText: {
       ...Typography.bodySmall,
@@ -338,7 +321,7 @@ const makeStyles = (colors: ThemeColors) =>
       textAlignVertical: 'center',
     },
     segmentTextActive: {
-      color: colors.white,
+      color: colors.primary,
     },
     loadingContainer: {
       flex: 1,

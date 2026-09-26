@@ -15,7 +15,7 @@ import { GlassIconButton } from '../../src/components/GlassIconButton';
 // eslint-disable-next-line import/first
 import { GlassSurface } from '../../src/components/GlassSurface';
 // eslint-disable-next-line import/first
-import { ThemeProvider, useThemeStore } from '@/theme';
+import { Interaction, ThemeProvider, useThemeStore } from '@/theme';
 
 function flatten(style: unknown): Record<string, unknown> {
   return StyleSheet.flatten(style as StyleProp<ViewStyle>) as Record<string, unknown>;
@@ -73,5 +73,98 @@ describe('GlassIconButton', () => {
     expect(getByLabelText('Menu')).toBeTruthy();
     fireEvent.press(getByTestId('btn'));
     expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  it('defaults accessibilityRole to "button" but lets a caller override it', () => {
+    const { getByTestId, rerender } = render(
+      <ThemeProvider>
+        <GlassIconButton
+          icon={<Text>i</Text>}
+          onPress={() => undefined}
+          accessibilityLabel="Menu"
+          testID="btn"
+        />
+      </ThemeProvider>,
+    );
+    expect(getByTestId('btn').props.accessibilityRole).toBe('button');
+
+    rerender(
+      <ThemeProvider>
+        <GlassIconButton
+          icon={<Text>i</Text>}
+          onPress={() => undefined}
+          accessibilityLabel="Menu"
+          accessibilityRole="link"
+          accessibilityHint="Opens the menu"
+          testID="btn"
+        />
+      </ThemeProvider>,
+    );
+    expect(getByTestId('btn').props.accessibilityRole).toBe('link');
+    expect(getByTestId('btn').props.accessibilityHint).toBe('Opens the menu');
+  });
+
+  it('when disabled: dims via Interaction.disabledOpacity, no callback, no "lead" on press', () => {
+    const onPress = jest.fn();
+    const { getByTestId } = render(
+      <ThemeProvider>
+        <GlassIconButton
+          icon={<Text>i</Text>}
+          onPress={onPress}
+          disabled
+          accessibilityLabel="Menu"
+          testID="btn"
+        />
+      </ThemeProvider>,
+    );
+    fireEvent.press(getByTestId('btn'));
+    expect(onPress).not.toHaveBeenCalled();
+
+    const surface = getByTestId('btn').findByType(GlassSurface);
+    expect(flatten(surface.props.style).opacity).toBe(Interaction.disabledOpacity);
+
+    // A disabled Pressable never registers the touch, so no pressed re-render
+    // happens — the surface should still read the resting `quiet` variant.
+    fireEvent(getByTestId('btn'), 'pressIn');
+    expect(getByTestId('btn').findByType(GlassSurface).props.variant).toBe('quiet');
+  });
+
+  it('switches to "lead" while pressed when enabled', () => {
+    const { getByTestId } = render(
+      <ThemeProvider>
+        <GlassIconButton
+          icon={<Text>i</Text>}
+          onPress={() => undefined}
+          accessibilityLabel="Menu"
+          testID="btn"
+        />
+      </ThemeProvider>,
+    );
+    expect(getByTestId('btn').findByType(GlassSurface).props.variant).toBe('quiet');
+
+    fireEvent(getByTestId('btn'), 'pressIn');
+    expect(getByTestId('btn').findByType(GlassSurface).props.variant).toBe('lead');
+
+    fireEvent(getByTestId('btn'), 'pressOut');
+    expect(getByTestId('btn').findByType(GlassSurface).props.variant).toBe('quiet');
+  });
+
+  it('style reaches the outer Pressable, contentStyle reaches the inner surface', () => {
+    const { getByTestId } = render(
+      <ThemeProvider>
+        <GlassIconButton
+          icon={<Text>i</Text>}
+          onPress={() => undefined}
+          accessibilityLabel="Menu"
+          testID="btn"
+          style={{ marginTop: 12 }}
+          contentStyle={{ borderColor: 'red' }}
+        />
+      </ThemeProvider>,
+    );
+    expect(flatten(getByTestId('btn').props.style).marginTop).toBe(12);
+
+    const surface = getByTestId('btn').findByType(GlassSurface);
+    expect(flatten(surface.props.style).borderColor).toBe('red');
   });
 });

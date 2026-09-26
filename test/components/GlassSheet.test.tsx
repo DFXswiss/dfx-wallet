@@ -1,5 +1,12 @@
 import React from 'react';
-import { Modal, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  StyleSheet,
+  Text,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 
 jest.mock('expo-blur', () => {
@@ -82,5 +89,28 @@ describe('GlassSheet', () => {
       </ThemeProvider>,
     );
     expect(UNSAFE_getByType(Modal).props.onRequestClose).toBe(onRequestClose);
+  });
+
+  it('avoidKeyboard renders a KeyboardAvoidingView wrapping the sheet', () => {
+    const { UNSAFE_queryAllByType, getByText } = render(
+      <ThemeProvider>
+        <GlassSheet visible onRequestClose={() => undefined} avoidKeyboard>
+          <Text>sheet body</Text>
+        </GlassSheet>
+      </ThemeProvider>,
+    );
+    expect(UNSAFE_queryAllByType(KeyboardAvoidingView)).toHaveLength(1);
+    expect(getByText('sheet body')).toBeTruthy();
+  });
+
+  it('without avoidKeyboard: no KeyboardAvoidingView is rendered', () => {
+    const { UNSAFE_queryAllByType } = render(
+      <ThemeProvider>
+        <GlassSheet visible onRequestClose={() => undefined}>
+          <Text>sheet body</Text>
+        </GlassSheet>
+      </ThemeProvider>,
+    );
+    expect(UNSAFE_queryAllByType(KeyboardAvoidingView)).toHaveLength(0);
   });
 });

@@ -1,12 +1,20 @@
 import { useState, useMemo } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { AppHeader, Icon, PrimaryButton, ScreenBackdrop } from '@/components';
+import {
+  AppHeader,
+  GlassCard,
+  GlassInputField,
+  GlassPill,
+  Icon,
+  PrimaryButton,
+  ScreenBackdrop,
+} from '@/components';
 import { useMultiSigStore } from './store';
-import { Typography, useColors, type ThemeColors } from '@/theme';
+import { Radius, Typography, useColors, type ThemeColors } from '@/theme';
 
 type Step = 'intro' | 'concept' | 'quorum' | 'cosigners' | 'backup' | 'success';
 
@@ -123,13 +131,13 @@ export default function MultiSigSetupScreen() {
           <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>{t('multiSig.concept.title')}</Text>
             <Text style={styles.stepBody}>{t('multiSig.concept.body')}</Text>
-            <View style={styles.analogyCard}>
+            <GlassCard style={styles.analogyCard} testID="multi-sig-analogy-card">
               <Text style={styles.analogyEmoji}>{'🔐'}</Text>
               <Text style={styles.analogyTitle}>{t('multiSig.concept.analogyTitle')}</Text>
               <Text style={styles.analogyBody}>{t('multiSig.concept.analogyBody')}</Text>
-            </View>
+            </GlassCard>
 
-            <View style={styles.diagramCard}>
+            <GlassCard style={styles.diagramCard} testID="multi-sig-diagram-card">
               <Text style={styles.diagramHeader}>{t('multiSig.concept.exampleTitle')}</Text>
               <View style={styles.diagramRow}>
                 <DiagramSigner
@@ -151,7 +159,11 @@ export default function MultiSigSetupScreen() {
               <View style={styles.diagramArrow}>
                 <Icon name="arrow-down" size={20} color={colors.primary} />
               </View>
-              <View style={styles.diagramResultCard}>
+              <GlassCard
+                variant="lead"
+                style={styles.diagramResultCard}
+                testID="multi-sig-diagram-result-card"
+              >
                 <View style={styles.diagramResultIcon}>
                   <Icon name="shield" size={20} color={colors.white} strokeWidth={2.5} />
                 </View>
@@ -163,8 +175,8 @@ export default function MultiSigSetupScreen() {
                     {t('multiSig.concept.diagramSubResult')}
                   </Text>
                 </View>
-              </View>
-            </View>
+              </GlassCard>
+            </GlassCard>
 
             <Text style={styles.exampleCaption}>{t('multiSig.concept.exampleCaption')}</Text>
             <View style={styles.spacer} />
@@ -179,10 +191,12 @@ export default function MultiSigSetupScreen() {
             {QUORUM_OPTIONS.map((opt, i) => {
               const isActive = quorumIdx === i;
               return (
-                <Pressable
+                <GlassPill
                   key={`${opt.required}-of-${opt.total}`}
-                  style={[styles.optionCard, isActive && styles.optionCardActive]}
+                  shape="tile"
+                  selected={isActive}
                   onPress={() => setQuorumIdx(i)}
+                  contentStyle={styles.optionCard}
                   testID={`quorum-${opt.required}-${opt.total}`}
                 >
                   <View style={styles.optionLead}>
@@ -199,13 +213,15 @@ export default function MultiSigSetupScreen() {
                     </Text>
                   </View>
                   {isActive ? <Icon name="shield" size={18} color={colors.primary} /> : null}
-                </Pressable>
+                </GlassPill>
               );
             })}
 
-            <Pressable
-              style={[styles.optionCard, isCustomQuorum && styles.optionCardActive]}
+            <GlassPill
+              shape="tile"
+              selected={isCustomQuorum}
               onPress={() => setQuorumIdx(CUSTOM_IDX)}
+              contentStyle={styles.optionCard}
               testID="quorum-custom"
             >
               <View style={styles.optionLead}>
@@ -218,10 +234,15 @@ export default function MultiSigSetupScreen() {
                 <Text style={styles.optionDesc}>{t('multiSig.quorum.option_custom_desc')}</Text>
               </View>
               {isCustomQuorum ? <Icon name="shield" size={18} color={colors.primary} /> : null}
-            </Pressable>
+            </GlassPill>
 
             {isCustomQuorum && (
-              <View style={styles.customCard}>
+              <GlassCard
+                variant="lead"
+                tone="accent"
+                style={styles.customCard}
+                testID="multi-sig-custom-card"
+              >
                 <Stepper
                   label={t('multiSig.quorum.customTotalLabel')}
                   value={customTotal}
@@ -244,7 +265,7 @@ export default function MultiSigSetupScreen() {
                     total: customTotal,
                   })}
                 </Text>
-              </View>
+              </GlassCard>
             )}
 
             <View style={styles.spacer} />
@@ -259,7 +280,12 @@ export default function MultiSigSetupScreen() {
               {t('multiSig.cosigners.body', { count: requiredCosigners })}
             </Text>
 
-            <View style={styles.youCard}>
+            <GlassCard
+              variant="lead"
+              tone="accent"
+              style={styles.youCard}
+              testID="multi-sig-you-card"
+            >
               <View style={styles.youAvatar}>
                 <Icon name="user" size={20} color={colors.white} />
               </View>
@@ -267,22 +293,21 @@ export default function MultiSigSetupScreen() {
                 <Text style={styles.youLabel}>{t('multiSig.cosigners.youLabel')}</Text>
                 <Text style={styles.youDesc}>{t('multiSig.cosigners.youDesc')}</Text>
               </View>
-            </View>
+            </GlassCard>
 
             {Array.from({ length: requiredCosigners }).map((_, idx) => (
               <View key={idx} style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>
                   {t('multiSig.cosigners.cosignerLabel', { n: idx + 1 })}
                 </Text>
-                <TextInput
-                  style={styles.input}
+                <GlassInputField
                   // eslint-disable-next-line security/detect-object-injection -- bounded by requiredCosigners
                   value={cosignerInputs[idx] ?? ''}
                   onChangeText={(v) => setCosignerAt(idx, v)}
                   placeholder={t('multiSig.cosigners.placeholder')}
-                  placeholderTextColor={colors.textTertiary}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  style={styles.input}
                 />
               </View>
             ))}
@@ -303,7 +328,7 @@ export default function MultiSigSetupScreen() {
             <Text style={styles.stepTitle}>{t('multiSig.backup.title')}</Text>
             <Text style={styles.stepBody}>{t('multiSig.backup.body')}</Text>
 
-            <View style={styles.checklist}>
+            <GlassCard testID="multi-sig-checklist-card">
               <BackupItem
                 icon="document"
                 title={t('multiSig.backup.item1Title')}
@@ -319,10 +344,12 @@ export default function MultiSigSetupScreen() {
                 title={t('multiSig.backup.item3Title')}
                 desc={t('multiSig.backup.item3Desc')}
               />
-            </View>
+            </GlassCard>
 
-            <Pressable
-              style={[styles.confirmRow, backupConfirmed && styles.confirmRowActive]}
+            <GlassCard
+              variant={backupConfirmed ? 'lead' : 'default'}
+              tone={backupConfirmed ? 'success' : 'default'}
+              contentStyle={styles.confirmRow}
               onPress={() => setBackupConfirmed((v) => !v)}
               testID="multi-sig-confirm-backup"
             >
@@ -330,7 +357,7 @@ export default function MultiSigSetupScreen() {
                 {backupConfirmed ? <Icon name="shield" size={14} color={colors.white} /> : null}
               </View>
               <Text style={styles.confirmText}>{t('multiSig.backup.confirm')}</Text>
-            </Pressable>
+            </GlassCard>
 
             <View style={styles.spacer} />
             <PrimaryButton
@@ -365,10 +392,10 @@ export default function MultiSigSetupScreen() {
                 total: quorum.total,
               })}
             </Text>
-            <View style={styles.successCard}>
+            <GlassCard style={styles.successCard} testID="multi-sig-success-card">
               <Text style={styles.successCardLabel}>{t('multiSig.success.nextLabel')}</Text>
               <Text style={styles.successCardBody}>{t('multiSig.success.nextBody')}</Text>
-            </View>
+            </GlassCard>
             <View style={styles.spacer} />
             <PrimaryButton title={t('common.done')} onPress={() => router.back()} />
           </View>
@@ -421,7 +448,7 @@ function Stepper({
   return (
     <View style={styles.stepperRow}>
       <Text style={styles.stepperLabel}>{label}</Text>
-      <View style={styles.stepperControls}>
+      <GlassCard variant="quiet" padding={6} radius={Radius.sm} style={styles.stepperControls}>
         <Pressable
           style={[styles.stepperButton, decDisabled && styles.stepperButtonDisabled]}
           onPress={() => !decDisabled && onChange(value - 1)}
@@ -443,7 +470,7 @@ function Stepper({
         >
           <Text style={styles.stepperButtonText}>{'+'}</Text>
         </Pressable>
-      </View>
+      </GlassCard>
     </View>
   );
 }
@@ -566,9 +593,6 @@ const makeStyles = (colors: ThemeColors) =>
       lineHeight: 24,
     },
     analogyCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 18,
-      padding: 20,
       gap: 8,
       alignItems: 'center',
     },
@@ -593,9 +617,6 @@ const makeStyles = (colors: ThemeColors) =>
       lineHeight: 22,
     },
     diagramCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 18,
-      padding: 18,
       gap: 12,
     },
     diagramHeader: {
@@ -672,9 +693,6 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      backgroundColor: colors.primaryLight,
-      borderRadius: 14,
-      padding: 14,
     },
     diagramResultIcon: {
       width: 40,
@@ -697,15 +715,7 @@ const makeStyles = (colors: ThemeColors) =>
     optionCard: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 16,
       gap: 14,
-      borderWidth: 2,
-      borderColor: 'transparent',
-    },
-    optionCardActive: {
-      borderColor: colors.primary,
     },
     optionLead: {
       width: 56,
@@ -735,9 +745,6 @@ const makeStyles = (colors: ThemeColors) =>
       lineHeight: 18,
     },
     customCard: {
-      backgroundColor: colors.primaryLight,
-      borderRadius: 16,
-      padding: 16,
       gap: 14,
     },
     stepperRow: { gap: 8 },
@@ -752,9 +759,6 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      backgroundColor: colors.surface,
-      borderRadius: 12,
-      padding: 6,
     },
     stepperButton: {
       width: 44,
@@ -790,9 +794,6 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      backgroundColor: colors.primaryLight,
-      borderRadius: 14,
-      padding: 14,
     },
     youAvatar: {
       width: 36,
@@ -820,11 +821,6 @@ const makeStyles = (colors: ThemeColors) =>
       letterSpacing: 1,
     },
     input: {
-      backgroundColor: colors.surface,
-      borderRadius: 12,
-      padding: 14,
-      color: colors.text,
-      ...Typography.bodyMedium,
       fontFamily: 'monospace',
     },
     helperHint: {
@@ -832,11 +828,6 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textTertiary,
       paddingHorizontal: 4,
       lineHeight: 18,
-    },
-    checklist: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 4,
     },
     checklistItem: {
       flexDirection: 'row',
@@ -867,14 +858,6 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      padding: 14,
-      borderRadius: 14,
-      backgroundColor: colors.surface,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
-    },
-    confirmRowActive: {
-      borderColor: colors.primary,
     },
     checkbox: {
       width: 22,
@@ -917,9 +900,6 @@ const makeStyles = (colors: ThemeColors) =>
       lineHeight: 24,
     },
     successCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 18,
       gap: 6,
     },
     successCardLabel: {

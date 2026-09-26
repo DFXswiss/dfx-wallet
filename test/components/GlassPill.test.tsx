@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 
 jest.mock('expo-blur', () => {
@@ -15,7 +15,11 @@ import { GlassPill } from '../../src/components/GlassPill';
 // eslint-disable-next-line import/first
 import { GlassSurface } from '../../src/components/GlassSurface';
 // eslint-disable-next-line import/first
-import { ThemeProvider, useThemeStore, lightColors } from '@/theme';
+import { Card, Radius, ThemeProvider, useThemeStore, Interaction, lightColors } from '@/theme';
+
+function flatten(style: unknown): Record<string, unknown> {
+  return StyleSheet.flatten(style as StyleProp<ViewStyle>) as Record<string, unknown>;
+}
 
 describe('GlassPill', () => {
   beforeEach(() => useThemeStore.setState({ mode: 'light' }));
@@ -73,5 +77,144 @@ describe('GlassPill', () => {
     );
     fireEvent.press(getByTestId('pill'));
     expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  it('sets accessibilityState.selected automatically, overridable by an explicit state', () => {
+    const { getByTestId, rerender } = render(
+      <ThemeProvider>
+        <GlassPill onPress={() => undefined} selected testID="pill">
+          Kauf
+        </GlassPill>
+      </ThemeProvider>,
+    );
+    // `toMatchObject` — RN's own renderer may add further accessibility-state
+    // keys (e.g. `busy: undefined`) beyond what was actually passed in.
+    expect(getByTestId('pill').props.accessibilityState).toMatchObject({ selected: true });
+
+    rerender(
+      <ThemeProvider>
+        <GlassPill
+          onPress={() => undefined}
+          selected
+          disabled
+          accessibilityState={{ selected: false }}
+          testID="pill"
+        >
+          Kauf
+        </GlassPill>
+      </ThemeProvider>,
+    );
+    expect(getByTestId('pill').props.accessibilityState).toMatchObject({
+      selected: false,
+      disabled: true,
+    });
+  });
+
+  it('passes accessibilityRole/Label/Hint through to the Pressable', () => {
+    const { getByLabelText } = render(
+      <ThemeProvider>
+        <GlassPill
+          onPress={() => undefined}
+          accessibilityRole="button"
+          accessibilityLabel="Filter: all"
+          accessibilityHint="Shows every transaction"
+        >
+          All
+        </GlassPill>
+      </ThemeProvider>,
+    );
+    const node = getByLabelText('Filter: all');
+    expect(node.props.accessibilityRole).toBe('button');
+    expect(node.props.accessibilityHint).toBe('Shows every transaction');
+  });
+
+  it('switches an unselected, enabled pill to "lead" while pressed', () => {
+    const { getByTestId } = render(
+      <ThemeProvider>
+        <GlassPill onPress={() => undefined} testID="pill">
+          Kauf
+        </GlassPill>
+      </ThemeProvider>,
+    );
+    expect(getByTestId('pill').findByType(GlassSurface).props.variant).toBe('default');
+
+    fireEvent(getByTestId('pill'), 'pressIn');
+    expect(getByTestId('pill').findByType(GlassSurface).props.variant).toBe('lead');
+
+    fireEvent(getByTestId('pill'), 'pressOut');
+    expect(getByTestId('pill').findByType(GlassSurface).props.variant).toBe('default');
+  });
+
+  it('a disabled pill dims but never shows the pressed "lead" swap', () => {
+    const { getByTestId } = render(
+      <ThemeProvider>
+        <GlassPill onPress={() => undefined} disabled testID="pill">
+          Kauf
+        </GlassPill>
+      </ThemeProvider>,
+    );
+    const restSurface = getByTestId('pill').findByType(GlassSurface);
+    expect(flatten(restSurface.props.style).opacity).toBe(Interaction.disabledOpacity);
+
+    fireEvent(getByTestId('pill'), 'pressIn');
+    expect(getByTestId('pill').findByType(GlassSurface).props.variant).toBe('default');
+  });
+
+  it('shape="tile" renders at Radius.lg instead of the pill radius', () => {
+    const { getByTestId } = render(
+      <ThemeProvider>
+        <GlassPill onPress={() => undefined} shape="tile" testID="tile">
+          <Text>Quorum option</Text>
+        </GlassPill>
+      </ThemeProvider>,
+    );
+    expect(getByTestId('tile').findByType(GlassSurface).props.radius).toBe(Radius.lg);
+  });
+
+  it('defaults shape="pill" to the pill radius', () => {
+    const { getByTestId } = render(
+      <ThemeProvider>
+        <GlassPill onPress={() => undefined} testID="pill">
+          Kauf
+        </GlassPill>
+      </ThemeProvider>,
+    );
+    expect(getByTestId('pill').findByType(GlassSurface).props.radius).toBe(Radius.pill);
+  });
+
+  it.each([
+    ['accent', lightColors.primary],
+    ['warning', lightColors.warning],
+    ['danger', lightColors.error],
+    ['success', lightColors.success],
+  ] as const)('tone="%s" tints the glass edge with the theme token', (tone, expected) => {
+    const { getByTestId } = render(
+      <ThemeProvider>
+        <GlassPill onPress={() => undefined} tone={tone} testID="pill">
+          Kauf
+        </GlassPill>
+      </ThemeProvider>,
+    );
+    const style = flatten(getByTestId('pill').findByType(GlassSurface).props.style);
+    expect(style.borderColor).toBe(expected);
+    expect(style.borderWidth).toBe(Card.borderWidth + 0.5);
+  });
+
+  it('contentStyle reaches the inner surface while style reaches the outer Pressable', () => {
+    const { getByTestId } = render(
+      <ThemeProvider>
+        <GlassPill
+          onPress={() => undefined}
+          style={{ flex: 1 }}
+          contentStyle={{ paddingVertical: 30 }}
+          testID="pill"
+        >
+          Kauf
+        </GlassPill>
+      </ThemeProvider>,
+    );
+    expect(flatten(getByTestId('pill').props.style).flex).toBe(1);
+    const surfaceStyle = flatten(getByTestId('pill').findByType(GlassSurface).props.style);
+    expect(surfaceStyle.paddingVertical).toBe(30);
   });
 });

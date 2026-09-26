@@ -7,6 +7,7 @@ import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import {
   AppHeader,
   DfxBackgroundScreen,
+  GlassCard,
   OnboardingStepIndicator,
   PrimaryButton,
 } from '@/components';
@@ -61,9 +62,9 @@ export default function RestorePasskeyScreen() {
 
       <Text style={styles.description}>{t('passkey.restoreDescription')}</Text>
 
-      <View style={styles.infoContainer}>
+      <GlassCard style={styles.infoContainer}>
         <Text style={styles.infoText}>{t('passkey.restoreInfo')}</Text>
-      </View>
+      </GlassCard>
 
       <View style={styles.spacer} />
 
@@ -89,10 +90,6 @@ const makeStyles = (colors: ThemeColors) =>
       textAlign: 'center',
     },
     infoContainer: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
       padding: 18,
     },
     infoText: {

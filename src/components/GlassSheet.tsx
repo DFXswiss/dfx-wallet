@@ -1,5 +1,12 @@
 import type { ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, type ViewStyle } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  type ViewStyle,
+} from 'react-native';
 import { GlassSurface } from './GlassSurface';
 import { Radius, useColors } from '@/theme';
 
@@ -10,6 +17,12 @@ type Props = {
   onRequestClose: () => void;
   /** @default 'center' */
   position?: Position;
+  /**
+   * Wraps the sheet in a `KeyboardAvoidingView` (iOS `padding`, matching the
+   * pre-glass `RenameWalletModal`) so an open keyboard doesn't cover a text
+   * input inside the sheet.
+   */
+  avoidKeyboard?: boolean;
   testID?: string;
   children?: ReactNode;
 };
@@ -49,6 +62,7 @@ export function GlassSheet({
   visible,
   onRequestClose,
   position = 'center',
+  avoidKeyboard = false,
   testID,
   children,
 }: Props) {
@@ -61,6 +75,27 @@ export function GlassSheet({
   const backdropTestID = testID ? `${testID}-backdrop` : undefined;
   const bodyTestID = testID ? `${testID}-body` : undefined;
 
+  const backdrop = (
+    <Pressable
+      style={[styles.backdrop, { backgroundColor: colors.scrimStrong }, backdropAlignFor(position)]}
+      onPress={onRequestClose}
+      accessibilityRole="button"
+      accessibilityLabel="Close"
+      {...(backdropTestID ? { testID: backdropTestID } : {})}
+    >
+      <Pressable
+        onPress={(event) => event.stopPropagation()}
+        style={bodyBoxFor(position)}
+        accessibilityViewIsModal
+        {...(bodyTestID ? { testID: bodyTestID } : {})}
+      >
+        <GlassSurface variant="default" radius={bodyRadiusFor(position)} style={styles.body}>
+          {children}
+        </GlassSurface>
+      </Pressable>
+    </Pressable>
+  );
+
   return (
     <Modal
       visible={visible}
@@ -69,34 +104,25 @@ export function GlassSheet({
       onRequestClose={onRequestClose}
       {...(testID ? { testID } : {})}
     >
-      <Pressable
-        style={[
-          styles.backdrop,
-          { backgroundColor: colors.scrimStrong },
-          backdropAlignFor(position),
-        ]}
-        onPress={onRequestClose}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-        {...(backdropTestID ? { testID: backdropTestID } : {})}
-      >
-        <Pressable
-          onPress={(event) => event.stopPropagation()}
-          style={bodyBoxFor(position)}
-          accessibilityViewIsModal
-          {...(bodyTestID ? { testID: bodyTestID } : {})}
+      {avoidKeyboard ? (
+        <KeyboardAvoidingView
+          style={styles.avoidKeyboard}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <GlassSurface variant="default" radius={bodyRadiusFor(position)} style={styles.body}>
-            {children}
-          </GlassSurface>
-        </Pressable>
-      </Pressable>
+          {backdrop}
+        </KeyboardAvoidingView>
+      ) : (
+        backdrop
+      )}
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   backdrop: {
+    flex: 1,
+  },
+  avoidKeyboard: {
     flex: 1,
   },
   body: {
