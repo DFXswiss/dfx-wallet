@@ -8,7 +8,7 @@ import {
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useColors, useResolvedScheme } from '@/theme';
 
-export type ScreenBackdropVariant = 'default' | 'pay';
+export type ScreenBackdropVariant = 'default' | 'pay' | 'pin';
 
 type Props = {
   variant?: ScreenBackdropVariant;
@@ -32,6 +32,10 @@ type BackdropRecipe = {
   /** Resolves the shared scrim/wash color from the theme's `background`. */
   scrimColor: (baseColor: string) => string;
   scrimTopStops: readonly GradientStop[];
+  /** Overrides `scrimTopStops` for `variant="pin"`: a stronger scrim that
+   *  calms the top ~55% of the photo behind logo, title and PIN dots.
+   *  Same photo, bottom scrim and wash as `default`. */
+  pinScrimTopStops: readonly GradientStop[];
   scrimBottomStops: readonly GradientStop[];
   washOpacity: number;
 };
@@ -53,6 +57,12 @@ const DARK_RECIPE: BackdropRecipe = {
     { offset: '14%', stopOpacity: '0.44' },
     { offset: '32%', stopOpacity: '0.36' },
     { offset: '52%', stopOpacity: '0' },
+  ],
+  pinScrimTopStops: [
+    { offset: '0%', stopOpacity: '0.86' },
+    { offset: '30%', stopOpacity: '0.66' },
+    { offset: '44%', stopOpacity: '0.50' },
+    { offset: '58%', stopOpacity: '0' },
   ],
   scrimBottomStops: [
     { offset: '55%', stopOpacity: '0' },
@@ -76,6 +86,12 @@ const LIGHT_RECIPE: BackdropRecipe = {
     { offset: '18%', stopOpacity: '0.12' },
     { offset: '32%', stopOpacity: '0' },
   ],
+  pinScrimTopStops: [
+    { offset: '0%', stopOpacity: '0.62' },
+    { offset: '30%', stopOpacity: '0.52' },
+    { offset: '44%', stopOpacity: '0.38' },
+    { offset: '58%', stopOpacity: '0' },
+  ],
   scrimBottomStops: [
     { offset: '0%', stopOpacity: '0' },
     { offset: '100%', stopOpacity: '0' },
@@ -98,6 +114,9 @@ export function ScreenBackdrop({ variant = 'default' }: Props) {
   const recipe = scheme === 'dark' ? DARK_RECIPE : LIGHT_RECIPE;
   const photo = variant === 'pay' && recipe.payPhoto ? recipe.payPhoto : recipe.photo;
   const scrimColor = recipe.scrimColor(colors.background);
+  // `pin` keeps `default`'s photo, bottom scrim and wash; only the top
+  // scrim gets a stronger recipe so logo/title/PIN dots read over the photo.
+  const scrimTopStops = variant === 'pin' ? recipe.pinScrimTopStops : recipe.scrimTopStops;
 
   return (
     <View
@@ -113,7 +132,7 @@ export function ScreenBackdrop({ variant = 'default' }: Props) {
       <Svg width={W} height={H} style={StyleSheet.absoluteFill}>
         <Defs>
           <LinearGradient id="dfx-backdrop-scrim-top" x1="0" y1="0" x2="0" y2="1">
-            {recipe.scrimTopStops.map((stop) => (
+            {scrimTopStops.map((stop) => (
               <Stop
                 key={stop.offset}
                 offset={stop.offset}
