@@ -197,7 +197,7 @@ export default function VerifyPinScreen() {
 
   return (
     <View style={styles.bg}>
-      <ScreenBackdrop />
+      <ScreenBackdrop variant="pin" />
       {body}
       {processing && <PinProcessingOverlay />}
     </View>
