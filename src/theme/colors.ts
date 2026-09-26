@@ -46,6 +46,39 @@ export type ThemeColors = {
   divider: string;
   shadow: string;
   statusBar: 'dark' | 'light';
+
+  /**
+   * Shared scrim scale for anything that dims content behind a modal or a
+   * cutout (all on the brand-navy base `rgb(11, 20, 38)`). Replaces the
+   * five identical `rgba(11, 20, 38, …)` literals that used to be copied
+   * into each modal's stylesheet.
+   */
+  scrimStrong: string; // 0.45 — full-screen modal backdrops
+  scrimMedium: string; // 0.35 — side-sheet backdrops (MenuModal)
+  scrimSoft: string; // 0.18 — in-content cutouts (Pay QR window)
+
+  /**
+   * Wordmark ink for `BrandLogo` / `DfxLogoLoader`. The icon-circle
+   * gradients themselves are scheme-invariant (see `theme/brand.ts`) — only
+   * the lettering switches per scheme.
+   */
+  logoInk: string;
+
+  /**
+   * Transaction-type chip backgrounds (the icon-chip fill in
+   * `TransactionRow`), one per `TransactionDto['type']`. Foregrounds reuse
+   * `success` / `error` / `primary` directly (Buy/Receive → success,
+   * Sell/Send → error, Swap → primary) since those already carry the right
+   * per-scheme value; only Pay's accent has no existing analog, hence
+   * `payChipFg`.
+   */
+  buyChipBg: string;
+  sellChipBg: string;
+  swapChipBg: string;
+  payChipBg: string;
+  payChipFg: string;
+  sendChipBg: string;
+  receiveChipBg: string;
 };
 
 export const lightColors: ThemeColors = {
@@ -84,6 +117,20 @@ export const lightColors: ThemeColors = {
   divider: '#DDE5F0',
   shadow: '#0B1426',
   statusBar: 'dark',
+
+  scrimStrong: 'rgba(11, 20, 38, 0.45)',
+  scrimMedium: 'rgba(11, 20, 38, 0.35)',
+  scrimSoft: 'rgba(11, 20, 38, 0.18)',
+
+  logoInk: '#072440',
+
+  buyChipBg: '#DCFCE7',
+  sellChipBg: '#FEE2E2',
+  swapChipBg: '#DCEAFE',
+  payChipBg: '#EDE9FE',
+  payChipFg: '#7C3AED',
+  sendChipBg: '#FEE2E2',
+  receiveChipBg: '#DCFCE7',
 };
 
 /**
@@ -144,6 +191,20 @@ export const darkColors: ThemeColors = {
   divider: 'rgba(255,255,255,0.10)',
   shadow: '#000000',
   statusBar: 'light',
+
+  scrimStrong: 'rgba(11, 20, 38, 0.45)',
+  scrimMedium: 'rgba(11, 20, 38, 0.35)',
+  scrimSoft: 'rgba(11, 20, 38, 0.18)',
+
+  logoInk: '#F1F4F9',
+
+  buyChipBg: 'rgba(52,211,153,0.16)',
+  sellChipBg: 'rgba(248,113,113,0.16)',
+  swapChipBg: 'rgba(95,168,255,0.16)',
+  payChipBg: 'rgba(167,139,250,0.18)',
+  payChipFg: '#A78BFA',
+  sendChipBg: 'rgba(248,113,113,0.16)',
+  receiveChipBg: 'rgba(52,211,153,0.16)',
 };
 
 // Backwards-compat alias for screens that still consume the static colour
