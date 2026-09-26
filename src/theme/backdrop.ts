@@ -4,7 +4,8 @@
  * `ScreenBackdrop.tsx` for the same reason as `theme/glass.ts`: one place
  * to change the recipe instead of a component-local constant.
  *
- * Values are unchanged from the pre-move recipe in `ScreenBackdrop.tsx`.
+ * `heroScrimTopStops` and `pinScrimTopStops` are unchanged from the pre-move
+ * recipe; `contentScrimTopStops` is new (content screens' default veil).
  */
 import type { ImageSourcePropType } from 'react-native';
 import { lightColors } from './colors';
@@ -20,10 +21,16 @@ export type BackdropRecipe = {
   payPhoto?: ImageSourcePropType;
   /** Resolves the shared scrim/wash color from the theme's `background`. */
   scrimColor: (baseColor: string) => string;
-  scrimTopStops: readonly BackdropGradientStop[];
-  /** Overrides `scrimTopStops` for `variant="pin"`: a stronger scrim that
+  /** Top scrim for `variant="hero"` (full-stage recipe, Dashboard only) and
+   *  `variant="pay"` (pay keeps this recipe unchanged, not `content`'s). */
+  heroScrimTopStops: readonly BackdropGradientStop[];
+  /** Top scrim for `variant="content"` (the default): a calmer veil over the
+   *  upper area so intro text, section headings and amounts stay readable
+   *  on top of the photo, while the peak keeps a soft silhouette. */
+  contentScrimTopStops: readonly BackdropGradientStop[];
+  /** Overrides the top scrim for `variant="pin"`: a stronger scrim that
    *  calms the top ~55% of the photo behind logo, title and PIN dots.
-   *  Same photo, bottom scrim and wash as `default`. */
+   *  Same photo, bottom scrim and wash as the other variants. */
   pinScrimTopStops: readonly BackdropGradientStop[];
   scrimBottomStops: readonly BackdropGradientStop[];
   washOpacity: number;
@@ -40,11 +47,17 @@ export type BackdropRecipe = {
 const DARK_BACKDROP_RECIPE: BackdropRecipe = {
   photo: require('../../assets/dashboard-bg-dark.jpg'),
   scrimColor: (baseColor) => baseColor,
-  scrimTopStops: [
+  heroScrimTopStops: [
     { offset: '0%', stopOpacity: '0.78' },
     { offset: '14%', stopOpacity: '0.44' },
     { offset: '32%', stopOpacity: '0.36' },
     { offset: '52%', stopOpacity: '0' },
+  ],
+  contentScrimTopStops: [
+    { offset: '0%', stopOpacity: '0.84' },
+    { offset: '30%', stopOpacity: '0.64' },
+    { offset: '48%', stopOpacity: '0.46' },
+    { offset: '64%', stopOpacity: '0' },
   ],
   pinScrimTopStops: [
     { offset: '0%', stopOpacity: '0.86' },
@@ -69,10 +82,16 @@ const LIGHT_BACKDROP_RECIPE: BackdropRecipe = {
   photo: require('../../assets/dashboard-bg-light.jpg'),
   payPhoto: require('../../assets/pay-bg.png'),
   scrimColor: () => lightColors.white,
-  scrimTopStops: [
+  heroScrimTopStops: [
     { offset: '0%', stopOpacity: '0.30' },
     { offset: '18%', stopOpacity: '0.12' },
     { offset: '32%', stopOpacity: '0' },
+  ],
+  contentScrimTopStops: [
+    { offset: '0%', stopOpacity: '0.58' },
+    { offset: '30%', stopOpacity: '0.50' },
+    { offset: '48%', stopOpacity: '0.34' },
+    { offset: '64%', stopOpacity: '0' },
   ],
   pinScrimTopStops: [
     { offset: '0%', stopOpacity: '0.62' },
