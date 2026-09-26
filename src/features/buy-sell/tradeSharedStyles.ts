@@ -12,10 +12,6 @@ import { Typography, type ThemeColors } from '@/theme';
 export const makeTradeSharedStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     bankCard: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
       paddingVertical: 4,
     },
     copyRow: {
@@ -61,10 +57,6 @@ export const makeTradeSharedStyles = (colors: ThemeColors) =>
       opacity: 0.7,
     },
     quoteCard: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
       padding: 18,
       gap: 14,
     },
@@ -114,12 +106,6 @@ export const makeTradeSharedStyles = (colors: ThemeColors) =>
       gap: 12,
       paddingVertical: 12,
       paddingHorizontal: 14,
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderLeftWidth: 4,
-      borderLeftColor: colors.primary,
     },
     targetIcon: {
       width: 34,

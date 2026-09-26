@@ -1,8 +1,10 @@
 import { useMemo } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from '@/components';
+import { GlassListGroup } from '@/components/GlassListGroup';
+import { GlassSheet } from '@/components/GlassSheet';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 import { CurrencyGlyph } from './CurrencyGlyph';
 
@@ -23,36 +25,37 @@ export function PayCurrencySheet({ visible, onClose, currencies, selected, onSel
   const { t } = useTranslation();
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalContent}>
-        <Pressable testID="pay-currency-sheet-backdrop" style={styles.backdrop} onPress={onClose} />
-        <SafeAreaView
-          style={styles.sheet}
-          edges={['bottom', 'left', 'right']}
-          accessibilityViewIsModal
-        >
-          <View style={styles.header}>
-            <Text style={styles.title}>{t('buy.youPay')}</Text>
-            <Pressable
-              onPress={onClose}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.close')}
-            >
-              <Icon name="close" size={22} color={colors.text} />
-            </Pressable>
-          </View>
+    <GlassSheet
+      visible={visible}
+      onRequestClose={onClose}
+      position="bottom"
+      testID="pay-currency-sheet"
+    >
+      <SafeAreaView style={styles.sheetBody} edges={['bottom', 'left', 'right']}>
+        <View style={styles.header}>
+          <Text style={styles.title}>{t('buy.youPay')}</Text>
+          <Pressable
+            onPress={onClose}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close')}
+          >
+            <Icon name="close" size={22} color={colors.text} />
+          </Pressable>
+        </View>
 
-          {currencies.map((currency) => {
+        <GlassListGroup>
+          {currencies.map((currency, index) => {
             const isSelected = currency === selected;
             return (
-              <Pressable
+              <GlassListGroup.Row
                 key={currency}
-                style={styles.option}
                 onPress={() => onSelect(currency)}
+                last={index === currencies.length - 1}
                 testID={`pay-currency-option-${currency}`}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isSelected }}
+                style={styles.option}
               >
                 <CurrencyGlyph code={currency} size={32} />
                 <Text style={styles.optionLabel}>{currency}</Text>
@@ -61,33 +64,19 @@ export function PayCurrencySheet({ visible, onClose, currencies, selected, onSel
                     <Icon name="check" size={20} color={colors.primary} />
                   </View>
                 ) : null}
-              </Pressable>
+              </GlassListGroup.Row>
             );
           })}
-        </SafeAreaView>
-      </View>
-    </Modal>
+        </GlassListGroup>
+      </SafeAreaView>
+    </GlassSheet>
   );
 }
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    modalContent: {
-      flex: 1,
-      justifyContent: 'flex-end',
-    },
-    backdrop: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(11, 20, 38, 0.35)',
-    },
-    sheet: {
-      width: '100%',
-      backgroundColor: colors.surface,
-      borderTopLeftRadius: 22,
-      borderTopRightRadius: 22,
-      paddingHorizontal: 20,
-      paddingTop: 8,
-      paddingBottom: 8,
+    sheetBody: {
+      gap: 8,
     },
     header: {
       minHeight: 52,
@@ -104,8 +93,6 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
     },
     optionLabel: {
       ...Typography.bodyLarge,

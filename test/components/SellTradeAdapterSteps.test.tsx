@@ -4,6 +4,8 @@
 // buy/sell/swap module unification (see AUFTRAG).
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { GlassInputField } from '../../src/components/GlassInputField';
+import { GlassListGroup } from '../../src/components/GlassListGroup';
 import {
   formatCryptoAmount as fmtCrypto,
   formatFiat as fmtFiat,
@@ -115,29 +117,13 @@ jest.mock('@/config/tokens', () => ({
   ],
   getAssetMeta: (id: string) => ({ symbol: id }),
 }));
-jest.mock('@/theme', () => {
-  const actual = jest.requireActual('@/theme');
-  return {
-    ...actual,
-    useColors: () => ({
-      background: '#fff',
-      border: '#ddd',
-      card: '#f8f8f8',
-      cardOverlay: '#fff',
-      divider: '#ddd',
-      primary: '#06f',
-      primaryLight: '#def',
-      surface: '#fff',
-      surfaceLight: '#f2f2f2',
-      success: '#16a34a',
-      text: '#111',
-      textSecondary: '#555',
-      textTertiary: '#888',
-      white: '#fff',
-    }),
-    useResolvedScheme: () => 'light',
-  };
-});
+// The Sell flow now renders Glass modules for real (`GlassCard`,
+// `GlassInputField`, `GlassListGroup`, …) — they need the actual theme
+// tokens (`Card`, `Radius`, `useGlassRecipe`, …) instead of a hand-picked
+// color subset.
+jest.mock('@/theme', () => ({
+  ...jest.requireActual('@/theme'),
+}));
 jest.mock('@/components', () => ({
   AppHeader: ({ title, testID }: { title?: string; testID?: string }) => {
     const ReactActual = jest.requireActual('react');
@@ -145,7 +131,6 @@ jest.mock('@/components', () => ({
     return ReactActual.createElement(Text, { testID }, title);
   },
   ConfirmTargetWalletModal: () => null,
-  DarkBackdrop: () => null,
   Icon: ({ name }: { name: string }) => {
     const ReactActual = jest.requireActual('react');
     const { Text } = jest.requireActual('react-native');
@@ -305,8 +290,15 @@ beforeEach(() => {
 
 describe('SellTradeAdapter — bank/confirm steps', () => {
   it('submits the IBAN and shows deposit + quote rows; back returns bank then amount', async () => {
-    const { getByTestId, getByText, getByPlaceholderText, queryByTestId, queryByText } =
-      renderAdapter();
+    const {
+      getByTestId,
+      getByText,
+      getByPlaceholderText,
+      queryByTestId,
+      queryByText,
+      UNSAFE_getByType,
+      UNSAFE_getAllByType,
+    } = renderAdapter();
 
     act(() => {
       fireEvent.press(getByTestId('sell-pay-asset-pill'));
@@ -317,6 +309,8 @@ describe('SellTradeAdapter — bank/confirm steps', () => {
     fireEvent.changeText(getByTestId('sell-amount-input'), '1');
     fireEvent.press(getByTestId('sell-cta'));
 
+    // The IBAN field is `GlassInputField` now.
+    expect(UNSAFE_getByType(GlassInputField)).toBeTruthy();
     fireEvent.changeText(
       getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
       'CH93 0076 2011 6238 5295 7',
@@ -352,6 +346,8 @@ describe('SellTradeAdapter — bank/confirm steps', () => {
     expect(queryByText('sell.feeFixed')).toBeNull();
     expect(getByText(receiveText)).toBeTruthy();
     expect(getByText(PAYMENT_INFO.beneficiary.iban)).toBeTruthy();
+    // Deposit-address row + quote summary both sit in a `GlassListGroup`.
+    expect(UNSAFE_getAllByType(GlassListGroup).length).toBeGreaterThanOrEqual(2);
 
     pressShellBack();
     expect(getByPlaceholderText('CH00 0000 0000 0000 0000 0')).toBeTruthy();

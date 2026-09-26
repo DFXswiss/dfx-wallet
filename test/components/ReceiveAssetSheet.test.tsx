@@ -1,5 +1,6 @@
 import { fireEvent, render } from '@testing-library/react-native';
 import { Text, View } from 'react-native';
+import { GlassListGroup } from '../../src/components/GlassListGroup';
 import { ReceiveAssetSheet } from '../../src/features/buy-sell/ReceiveAssetSheet';
 import type { BuyAsset } from '../../src/features/buy-sell/tradeCatalog';
 
@@ -22,22 +23,11 @@ jest.mock('@/components', () => {
   };
 });
 
+// The sheet now renders `GlassSheet`/`GlassListGroup` for real — they need
+// the actual theme tokens (`Card`, `Radius`, `useGlassRecipe`, …) instead of
+// a hand-picked color subset.
 jest.mock('@/theme', () => ({
-  Typography: {
-    bodyLarge: {},
-    bodyMedium: {},
-    bodySmall: {},
-    headlineSmall: {},
-  },
-  useColors: () => ({
-    border: '#dddddd',
-    primary: '#0066ff',
-    primaryLight: '#e6f0ff',
-    surface: '#ffffff',
-    text: '#111111',
-    textSecondary: '#555555',
-    textTertiary: '#777777',
-  }),
+  ...jest.requireActual('@/theme'),
 }));
 
 const BTC_ASSET: BuyAsset = {
@@ -122,22 +112,38 @@ describe('ReceiveAssetSheet', () => {
     expect(onSelect).toHaveBeenCalledWith(USD_ASSET, 0, 1);
   });
 
-  it('keeps the backdrop outside the asset option subtree', () => {
+  it('closes on backdrop press without selecting an asset', () => {
+    const onClose = jest.fn();
+    const onSelect = jest.fn();
     const { getByTestId } = render(
       <ReceiveAssetSheet
         visible
-        onClose={jest.fn()}
+        onClose={onClose}
         assets={[BTC_ASSET]}
+        selectedAssetSymbol="BTC"
+        selectedChainIndex={0}
+        onSelect={onSelect}
+      />,
+    );
+
+    fireEvent.press(getByTestId('receive-asset-sheet-backdrop'));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('renders each asset section as a GlassListGroup', () => {
+    const { UNSAFE_getAllByType } = render(
+      <ReceiveAssetSheet
+        visible
+        onClose={jest.fn()}
+        assets={[BTC_ASSET, USD_ASSET]}
         selectedAssetSymbol="BTC"
         selectedChainIndex={0}
         onSelect={jest.fn()}
       />,
     );
 
-    const backdrop = getByTestId('receive-asset-sheet-backdrop');
-
-    expect(
-      backdrop.findAllByProps({ testID: 'receive-asset-option-BTC-bitcoin-lightning' }),
-    ).toHaveLength(0);
+    expect(UNSAFE_getAllByType(GlassListGroup)).toHaveLength(2);
   });
 });
