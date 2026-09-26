@@ -59,7 +59,7 @@ const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     backdrop: {
       flex: 1,
-      backgroundColor: 'rgba(11, 20, 38, 0.35)',
+      backgroundColor: colors.scrimMedium,
       alignItems: 'flex-end',
     },
     safeArea: {

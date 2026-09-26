@@ -8,6 +8,7 @@ import { FEATURES } from '@/config/features';
 import { useDfxAuth, useTotalPortfolioFiat } from '@/hooks';
 import { useAuthStore, useWalletStore } from '@/store';
 import {
+  backdropTextShadow,
   Typography,
   useColors,
   useResolvedScheme,
@@ -188,14 +189,9 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
   // In dark mode the balance sits over the cinematic mountain photo, so the
   // muted label/symbol/fraction tones need a soft navy shadow to stay crisp
   // over the brighter mist. Light mode keeps its flat surface — no shadow.
-  const overImage =
-    scheme === 'dark'
-      ? ({
-          textShadowColor: 'rgba(4,16,32,0.6)',
-          textShadowOffset: { width: 0, height: 1 },
-          textShadowRadius: 10,
-        } as const)
-      : null;
+  // Shared with PortfolioScreenImpl / PortfolioAssetDetailScreenImpl's
+  // `onBackdrop` pattern instead of a screen-local shadow recipe.
+  const overImage = backdropTextShadow(scheme, colors);
   return StyleSheet.create({
     bg: {
       flex: 1,

@@ -138,7 +138,7 @@ const makeStyles = (colors: ThemeColors) =>
       position: 'absolute',
       overflow: 'hidden',
       borderRadius: 20,
-      backgroundColor: 'rgba(11, 20, 38, 0.18)',
+      backgroundColor: colors.scrimSoft,
     },
     // Dark mode has no photo backdrop, so the scan window gets an
     // explicit elevated surface + hairline so the empty state still

@@ -1,6 +1,6 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { BrandLogo } from './BrandLogo';
-import { GlassSurface } from './GlassSurface';
+import { GlassIconButton } from './GlassIconButton';
 import { Icon } from './Icon';
 import { useColors } from '@/theme';
 
@@ -15,33 +15,25 @@ export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
   return (
     <View style={styles.container}>
       {onShieldPress ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Multi-Sig"
-          hitSlop={12}
+        <GlassIconButton
+          icon={<Icon name="shield" size={26} color={colors.primary} strokeWidth={2.5} />}
           onPress={onShieldPress}
+          size={44}
+          accessibilityLabel="Multi-Sig"
           testID="dashboard-shield-button"
-        >
-          <GlassSurface variant="quiet" radius={14} style={styles.iconButton}>
-            <Icon name="shield" size={26} color={colors.primary} strokeWidth={2.5} />
-          </GlassSurface>
-        </Pressable>
+        />
       ) : (
         <View style={styles.iconPlaceholder} pointerEvents="none" />
       )}
       <BrandLogo size="header" />
       {onMenuPress ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Menu"
-          hitSlop={12}
+        <GlassIconButton
+          icon={<Icon name="menu" size={26} color={colors.primary} strokeWidth={2.5} />}
           onPress={onMenuPress}
+          size={44}
+          accessibilityLabel="Menu"
           testID="dashboard-menu-button"
-        >
-          <GlassSurface variant="quiet" radius={14} style={styles.iconButton}>
-            <Icon name="menu" size={26} color={colors.primary} strokeWidth={2.5} />
-          </GlassSurface>
-        </Pressable>
+        />
       ) : (
         <View style={styles.iconPlaceholder} pointerEvents="none" />
       )}
@@ -56,12 +48,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 6,
     paddingBottom: 12,
-  },
-  iconButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   iconPlaceholder: {
     width: 44,
