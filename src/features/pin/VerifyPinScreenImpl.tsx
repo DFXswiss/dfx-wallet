@@ -187,7 +187,7 @@ export default function VerifyPinScreen() {
 
   return (
     <View style={styles.bg}>
-      <ScreenBackdrop />
+      <ScreenBackdrop variant="pin" />
       {body}
     </View>
   );

@@ -70,6 +70,7 @@ export default function SetupPinScreen() {
 
   return (
     <DfxBackgroundScreen
+      backdropVariant="pin"
       contentStyle={styles.content}
       testID={step === 'create' ? 'setup-pin-screen' : 'setup-pin-confirm-screen'}
     >
