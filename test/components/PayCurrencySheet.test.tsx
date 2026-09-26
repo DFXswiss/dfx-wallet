@@ -36,15 +36,19 @@ jest.mock('@/theme', () => ({
   }),
 }));
 
-jest.mock('../../src/features/buy-sell/BuyScreenImpl', () => ({
-  CURRENCIES: ['CHF', 'EUR'] as const,
-}));
+const CURRENCIES = ['CHF', 'EUR'] as const;
 
 describe('PayCurrencySheet', () => {
   it('shows both currencies, selects a currency, and marks the selected row', () => {
     const onSelect = jest.fn();
     const { getByTestId, getByText, queryByTestId } = render(
-      <PayCurrencySheet visible onClose={jest.fn()} selected="CHF" onSelect={onSelect} />,
+      <PayCurrencySheet
+        visible
+        onClose={jest.fn()}
+        currencies={CURRENCIES}
+        selected="CHF"
+        onSelect={onSelect}
+      />,
     );
 
     expect(getByText('CHF')).toBeTruthy();
@@ -59,7 +63,13 @@ describe('PayCurrencySheet', () => {
 
   it('keeps the backdrop outside the currency option subtree', () => {
     const { getByTestId } = render(
-      <PayCurrencySheet visible onClose={jest.fn()} selected="CHF" onSelect={jest.fn()} />,
+      <PayCurrencySheet
+        visible
+        onClose={jest.fn()}
+        currencies={CURRENCIES}
+        selected="CHF"
+        onSelect={jest.fn()}
+      />,
     );
 
     const backdrop = getByTestId('pay-currency-sheet-backdrop');

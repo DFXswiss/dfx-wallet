@@ -12,9 +12,7 @@ jest.mock('react-i18next', () => ({
 
 const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({
-  Stack: { Screen: () => null },
   useFocusEffect: (callback: () => void | (() => void)) => callback(),
-  useLocalSearchParams: () => ({}),
   useRouter: () => ({ back: jest.fn(), push: jest.fn(), replace: mockReplace }),
 }));
 
@@ -134,7 +132,6 @@ jest.mock('@/components', () => ({
     );
   },
 }));
-jest.mock('../../src/features/buy-sell/TradeModeTabs', () => () => null);
 jest.mock('../../src/features/buy-sell/AssetGlyph', () => ({
   AssetGlyph: ({ symbol }: { symbol: string }) => {
     const ReactActual = jest.requireActual('react');
@@ -175,7 +172,10 @@ jest.mock('../../src/features/buy-sell/useSellFlow', () => ({
 }));
 
 // eslint-disable-next-line import/first
-import SellScreenImpl from '../../src/features/buy-sell/SellScreenImpl';
+import { SellTradeAdapter } from '../../src/features/buy-sell/SellTradeAdapter';
+
+const mockOnShellChange = jest.fn();
+const renderAdapter = () => render(<SellTradeAdapter onShellChange={mockOnShellChange} />);
 
 const PAYMENT_INFO = {
   id: 123,
@@ -197,6 +197,7 @@ beforeEach(() => {
   mockGetQuote.mockReset();
   mockCreatePaymentInfo.mockReset();
   mockConfirmSell.mockReset();
+  mockOnShellChange.mockReset();
   flowState.isLoading = false;
   flowState.error = null;
   flowState.authGate = null;
@@ -206,9 +207,9 @@ beforeEach(() => {
   flowState.actionErrorKey = null;
 });
 
-describe('SellScreenImpl', () => {
+describe('SellTradeAdapter', () => {
   it('renders empty amount, fees, disabled CTA, and security shell without a selection', () => {
-    const { getByTestId } = render(<SellScreenImpl />);
+    const { getByTestId } = renderAdapter();
 
     expect(getByTestId('sell-amount-panels-empty')).toBeTruthy();
     expect(getByTestId('sell-fees-panel')).toBeTruthy();
@@ -217,7 +218,7 @@ describe('SellScreenImpl', () => {
   });
 
   it('labels the flip action as navigation to Buy', () => {
-    const { getByTestId } = render(<SellScreenImpl />);
+    const { getByTestId } = renderAdapter();
 
     expect(getByTestId('sell-flip-to-buy').props.accessibilityLabel).toBe('sell.flipToBuy');
   });
@@ -225,7 +226,7 @@ describe('SellScreenImpl', () => {
   it('renders feesTarget rows after selecting an asset and entering an amount', () => {
     flowState.paymentInfo = PAYMENT_INFO;
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
-    const { getByTestId } = render(<SellScreenImpl />);
+    const { getByTestId } = renderAdapter();
 
     act(() => {
       fireEvent.press(getByTestId('sell-pay-asset-pill'));
@@ -244,7 +245,7 @@ describe('SellScreenImpl', () => {
   it('prefers a concrete errors entry over the continue hint', () => {
     flowState.paymentInfo = { isValid: false, errors: ['AmountTooLow'] };
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
-    const { getByTestId, getByText } = render(<SellScreenImpl />);
+    const { getByTestId, getByText } = renderAdapter();
 
     act(() => {
       fireEvent.press(getByTestId('sell-pay-asset-pill'));
@@ -264,7 +265,7 @@ describe('SellScreenImpl', () => {
   it('allows an account gate to continue without a valid quote', () => {
     flowState.paymentInfo = { isValid: false, error: 'KycRequired' };
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
-    const { getByTestId } = render(<SellScreenImpl />);
+    const { getByTestId } = renderAdapter();
 
     act(() => {
       fireEvent.press(getByTestId('sell-pay-asset-pill'));
@@ -281,7 +282,7 @@ describe('SellScreenImpl', () => {
     flowState.paymentInfo = null;
     flowState.error = 'network failed';
     flowState.errorKey = '1|CHF|BTC|Bitcoin|bitcoin';
-    const { getByTestId, getByText, queryByText } = render(<SellScreenImpl />);
+    const { getByTestId, getByText, queryByText } = renderAdapter();
 
     act(() => {
       fireEvent.press(getByTestId('sell-pay-asset-pill'));
@@ -303,7 +304,7 @@ describe('SellScreenImpl', () => {
   it('does not reopen an old auth gate after the quote inputs change', () => {
     flowState.authGate = { kind: 'login', message: 'sign in' };
     flowState.errorKey = '1|CHF|BTC|Bitcoin|bitcoin';
-    const { getByTestId } = render(<SellScreenImpl />);
+    const { getByTestId } = renderAdapter();
 
     act(() => {
       fireEvent.press(getByTestId('sell-pay-asset-pill'));
@@ -320,7 +321,7 @@ describe('SellScreenImpl', () => {
     flowState.paymentInfo = PAYMENT_INFO;
     flowState.isLoading = true;
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
-    const { getByTestId } = render(<SellScreenImpl />);
+    const { getByTestId } = renderAdapter();
 
     act(() => {
       fireEvent.press(getByTestId('sell-pay-asset-pill'));
@@ -338,7 +339,7 @@ describe('SellScreenImpl', () => {
   it('invalidates the previous quote immediately when payout currency changes', () => {
     flowState.paymentInfo = PAYMENT_INFO;
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
-    const { getByTestId } = render(<SellScreenImpl />);
+    const { getByTestId } = renderAdapter();
 
     act(() => {
       fireEvent.press(getByTestId('sell-pay-asset-pill'));
@@ -359,7 +360,7 @@ describe('SellScreenImpl', () => {
   it('keeps USDC-only holdings selectable and uses the selected token in the quote key', () => {
     flowState.paymentInfo = { ...PAYMENT_INFO, asset: { name: 'USDC' } };
     flowState.quoteKey = '1|CHF|USDC|Ethereum|ethereum';
-    const { getByTestId, getAllByText } = render(<SellScreenImpl />);
+    const { getByTestId, getAllByText } = renderAdapter();
 
     act(() => {
       fireEvent.press(getByTestId('sell-pay-asset-pill'));
@@ -374,5 +375,18 @@ describe('SellScreenImpl', () => {
     expect(getAllByText('USDC', { exact: true }).length).toBeGreaterThan(0);
     expect(getByTestId('sell-receive-amount').props.value).toBe("25'000.00");
     expect(getByTestId('sell-cta').props.accessibilityState.disabled).toBe(false);
+  });
+
+  it('reports the amount-step shell chrome on mount', () => {
+    renderAdapter();
+
+    expect(mockOnShellChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'sell.title',
+        headerTestID: 'sell-screen',
+        activeStep: 0,
+        steps: ['amount', 'bank', 'confirm'],
+      }),
+    );
   });
 });

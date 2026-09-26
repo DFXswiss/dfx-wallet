@@ -1,205 +1,61 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { useAccount } from '@tetherto/wdk-react-native-core';
 import { ConfirmTargetWalletModal, Icon, PrimaryButton } from '@/components';
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
-import type { ChainId } from '@/config/chains';
 import {
   formatFiat as fmtFiat,
   formatCryptoAmount as fmtCrypto,
   SYMBOL_GLYPH,
 } from '@/config/portfolio-presentation';
-import { useLdsWallet } from '@/hooks';
 import { useLinkedWalletReauth } from '@/features/linked-wallets/useLinkedWalletReauth';
 import { useBuyFlow } from './useBuyFlow';
-import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
-import { dfxAuthService, DfxApiError } from '@/features/dfx-backend/services';
-import { secureStorage, StorageKeys } from '@/services/storage';
+import { useLinkChainToDfx } from './useLinkChainToDfx';
 import { useAuthStore } from '@/store';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 import { PayCurrencySheet } from './PayCurrencySheet';
 import { ReceiveAssetSheet } from './ReceiveAssetSheet';
 import { AssetGlyph } from './AssetGlyph';
 import { CurrencyGlyph } from './CurrencyGlyph';
-import TradeModeTabs from './TradeModeTabs';
 import { MobileFeesPanel } from './MobileFeesPanel';
 import { isAccountGateError, makeTradeQuoteKey, TRADE_STEP_GAP } from './tradePanelStyles';
 import { TradeAmountPanels, TradeSelectorPill } from './TradeAmountPanels';
-import { TradeScreenShell } from './TradeScreenShell';
+import { CURRENCIES, BUY_ASSETS, type BuyAsset } from './tradeCatalog';
+import { CopyRow, QuoteRow } from './TradeSummaryCard';
+import { TargetWalletBanner } from './TargetWalletBanner';
+import { makeTradeSharedStyles } from './tradeSharedStyles';
+import type { TradeShellReport } from './TradeScreenShell';
 
 type BuyStep = 'amount' | 'payment' | 'confirm';
 
-// DFX bank-transfer Buy only supports EUR (SEPA) and CHF (SIC) — USD removed.
-export const CURRENCIES = ['CHF', 'EUR'] as const;
+const BUY_STEPS = ['amount', 'payment', 'confirm'] as const;
 
-// What the user is buying. Each asset maps to one or more chains, and each
-// chain offers one or more concrete tokens (e.g. USD on Ethereum has both
-// USDT and USDC; CHF has only ZCHF; BTC has only the native asset).
-export type BuyChain = {
-  chain: ChainId;
-  label: string;
-  blockchain: string;
-  tokens: { assetSymbol: string; label: string }[];
-  /** Pill is shown but tapping it surfaces a "not yet supported" hint
-   *  instead of running the quote/link flow (e.g. Spark/Lightning native:
-   *  DFX' /v1/auth doesn't accept the WDK Spark signature yet). */
-  unsupported?: boolean;
-};
-export type BuyAsset = {
-  symbol: string;
-  label: string;
-  chains: BuyChain[];
+export type BuyTradeAdapterProps = {
+  asset?: string | undefined;
+  chain?: string | undefined;
+  targetAddress?: string | undefined;
+  targetBlockchain?: string | undefined;
+  /** Reports the shell chrome (title, back action, step progress, whether
+   *  the tab bar should show) this adapter wants; `TradeScreen` feeds it
+   *  into the one shared shell. */
+  onShellChange: (shell: TradeShellReport) => void;
 };
 
-const USD_TOKENS = [
-  { assetSymbol: 'USDT', label: 'USDT' },
-  { assetSymbol: 'USDC', label: 'USDC' },
-];
-
-const BUY_ASSETS: BuyAsset[] = [
-  {
-    symbol: 'BTC',
-    label: 'Bitcoin',
-    chains: [
-      {
-        chain: 'bitcoin',
-        label: 'SegWit',
-        blockchain: 'Bitcoin',
-        tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
-      },
-      {
-        chain: 'bitcoin-taproot',
-        // Taproot pill = the DFX Lightning Address (lightning.space-managed
-        // Taproot Asset channels). Stays consistent with receive's "Taproot"
-        // label so users see one BTC layer name across screens.
-        label: 'Taproot',
-        blockchain: 'Lightning',
-        tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
-      },
-      {
-        chain: 'bitcoin-lightning',
-        // Lightning pill = same DFX Lightning Network rails as Taproot
-        // (also driven by the lightning.space LDS user). Surfaced as a
-        // separate pill because "Lightning" is the label most users expect.
-        // Auth/buy flow routes through the LDS LNURL helper just like
-        // Taproot.
-        label: 'Lightning',
-        blockchain: 'Lightning',
-        tokens: [{ assetSymbol: 'BTC', label: 'BTC' }],
-      },
-      {
-        chain: 'ethereum',
-        label: 'Ethereum',
-        blockchain: 'Ethereum',
-        tokens: [{ assetSymbol: 'WBTC', label: 'WBTC' }],
-      },
-      {
-        chain: 'arbitrum',
-        label: 'Arbitrum',
-        blockchain: 'Arbitrum',
-        tokens: [{ assetSymbol: 'WBTC', label: 'WBTC' }],
-      },
-      {
-        chain: 'polygon',
-        label: 'Polygon',
-        blockchain: 'Polygon',
-        tokens: [{ assetSymbol: 'WBTC', label: 'WBTC' }],
-      },
-      {
-        chain: 'base',
-        label: 'Base',
-        blockchain: 'Base',
-        tokens: [{ assetSymbol: 'cbBTC', label: 'cbBTC' }],
-      },
-    ],
-  },
-  {
-    symbol: 'CHF',
-    label: 'Frankencoin',
-    chains: [
-      {
-        chain: 'ethereum',
-        label: 'Ethereum',
-        blockchain: 'Ethereum',
-        tokens: [{ assetSymbol: 'ZCHF', label: 'ZCHF' }],
-      },
-      {
-        chain: 'arbitrum',
-        label: 'Arbitrum',
-        blockchain: 'Arbitrum',
-        tokens: [{ assetSymbol: 'ZCHF', label: 'ZCHF' }],
-      },
-      {
-        chain: 'polygon',
-        label: 'Polygon',
-        blockchain: 'Polygon',
-        tokens: [{ assetSymbol: 'ZCHF', label: 'ZCHF' }],
-      },
-      {
-        chain: 'base',
-        label: 'Base',
-        blockchain: 'Base',
-        tokens: [{ assetSymbol: 'ZCHF', label: 'ZCHF' }],
-      },
-    ],
-  },
-  {
-    symbol: 'EUR',
-    label: 'dEURO',
-    chains: [
-      {
-        chain: 'ethereum',
-        label: 'Ethereum',
-        blockchain: 'Ethereum',
-        tokens: [{ assetSymbol: 'dEURO', label: 'dEURO' }],
-      },
-      {
-        chain: 'arbitrum',
-        label: 'Arbitrum',
-        blockchain: 'Arbitrum',
-        tokens: [{ assetSymbol: 'dEURO', label: 'dEURO' }],
-      },
-      {
-        chain: 'polygon',
-        label: 'Polygon',
-        blockchain: 'Polygon',
-        tokens: [{ assetSymbol: 'dEURO', label: 'dEURO' }],
-      },
-      {
-        chain: 'base',
-        label: 'Base',
-        blockchain: 'Base',
-        tokens: [{ assetSymbol: 'dEURO', label: 'dEURO' }],
-      },
-    ],
-  },
-  {
-    symbol: 'USD',
-    label: 'Dollar',
-    chains: [
-      { chain: 'ethereum', label: 'Ethereum', blockchain: 'Ethereum', tokens: USD_TOKENS },
-      { chain: 'arbitrum', label: 'Arbitrum', blockchain: 'Arbitrum', tokens: USD_TOKENS },
-      { chain: 'polygon', label: 'Polygon', blockchain: 'Polygon', tokens: USD_TOKENS },
-      { chain: 'base', label: 'Base', blockchain: 'Base', tokens: USD_TOKENS },
-    ],
-  },
-];
-
-export default function BuyScreen() {
+export function BuyTradeAdapter({
+  asset,
+  chain,
+  targetAddress: targetAddressProp,
+  targetBlockchain: targetBlockchainProp,
+  onShellChange,
+}: BuyTradeAdapterProps) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const sharedStyles = useMemo(() => makeTradeSharedStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
-  const params = useLocalSearchParams<{
-    asset?: string;
-    chain?: string;
-    targetAddress?: string;
-    targetBlockchain?: string;
-  }>();
   const {
     paymentInfo,
     quoteKey,
@@ -214,6 +70,7 @@ export default function BuyScreen() {
     dismissAuthGate,
     retryLast,
   } = useBuyFlow();
+  const { linkChainToDfx } = useLinkChainToDfx({ retryLast });
   const [step, setStep] = useState<BuyStep>('amount');
 
   // When the user opened the buy screen by tapping a linked-wallet card in
@@ -222,12 +79,12 @@ export default function BuyScreen() {
   // modal that re-authenticates as the target wallet's owner before posting
   // /buy/paymentInfos so the bank wire credits the chosen wallet.
   const targetAddress =
-    typeof params.targetAddress === 'string' && params.targetAddress.length > 0
-      ? params.targetAddress
+    typeof targetAddressProp === 'string' && targetAddressProp.length > 0
+      ? targetAddressProp
       : null;
   const targetBlockchain =
-    typeof params.targetBlockchain === 'string' && params.targetBlockchain.length > 0
-      ? params.targetBlockchain
+    typeof targetBlockchainProp === 'string' && targetBlockchainProp.length > 0
+      ? targetBlockchainProp
       : null;
   const hasTargetWallet = !!targetAddress && !!targetBlockchain;
   const targetAddressShort = targetAddress
@@ -240,13 +97,13 @@ export default function BuyScreen() {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const initialPreselect = useMemo(() => {
-    const wantedSymbol = typeof params.asset === 'string' ? params.asset.toUpperCase() : null;
-    const wantedChain = typeof params.chain === 'string' ? params.chain : null;
+    const wantedSymbol = typeof asset === 'string' ? asset.toUpperCase() : null;
+    const wantedChain = typeof chain === 'string' ? chain : null;
     if (!wantedSymbol) return null;
-    const asset = BUY_ASSETS.find((a) => a.symbol === wantedSymbol);
-    if (!asset) return null;
-    const chainIdx = wantedChain ? asset.chains.findIndex((c) => c.chain === wantedChain) : 0;
-    return { asset, chainIdx: chainIdx >= 0 ? chainIdx : 0 };
+    const found = BUY_ASSETS.find((a) => a.symbol === wantedSymbol);
+    if (!found) return null;
+    const chainIdx = wantedChain ? found.chains.findIndex((c) => c.chain === wantedChain) : 0;
+    return { asset: found, chainIdx: chainIdx >= 0 ? chainIdx : 0 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [selectedAsset, setSelectedAsset] = useState<BuyAsset | null>(
@@ -270,117 +127,6 @@ export default function BuyScreen() {
         void retryLast();
       }
     }, [isDfxAuthenticated, retryLast]),
-  );
-
-  // WDK accounts for the chains the user can buy on. We hold each at the
-  // top of the screen because hooks can't be called conditionally; the
-  // linkChain handler picks the right one based on the failed buy params.
-  const btcAccount = useAccount({ network: 'bitcoin', accountIndex: 0 });
-  const sparkAccount = useAccount({ network: 'spark', accountIndex: 0 });
-  const ethAccount = useAccount({ network: 'ethereum', accountIndex: 0 });
-  const lds = useLdsWallet();
-
-  const linkChainToDfx = useCallback(
-    async (chain: ChainId) => {
-      // Taproot + Lightning both ride the same DFX Lightning Network rails
-      // (lightning.space-managed LDS user). The deposit address is a Lightning
-      // Address (`name@dfx.swiss`) and we hand DFX the LNURL form plus the
-      // ownership proof LDS issued instead of running a wallet sign-flow.
-      if (chain === 'bitcoin-taproot' || chain === 'bitcoin-lightning') {
-        const user = lds.user ?? (await lds.signIn());
-        if (!user) {
-          throw new Error('DFX Lightning wallet not ready — please retry.');
-        }
-        try {
-          const ldsToken = await dfxAuthService.linkLnurlAddress(
-            user.lightning.addressLnurl,
-            user.lightning.addressOwnershipProof,
-            { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
-          );
-          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ldsToken);
-          await markChainLinkedInAutoLinkCache('lightning');
-          void retryLast();
-        } catch (err) {
-          // 409 → the LDS LNURL is on another DFX user. Mirror the EVM/BTC
-          // recovery: drop the current JWT and re-auth as the LNURL owner
-          // so the buy flow can continue against the account that already
-          // has Lightning attached.
-          if (err instanceof DfxApiError && err.statusCode === 409) {
-            const ownerToken = await dfxAuthService.loginAsLnurlAddressOwner(
-              user.lightning.addressLnurl,
-              user.lightning.addressOwnershipProof,
-              { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
-            );
-            await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
-            await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
-            void retryLast();
-            return;
-          }
-          throw err;
-        }
-        return;
-      }
-
-      const account =
-        chain === 'bitcoin' ? btcAccount : chain === 'spark' ? sparkAccount : ethAccount;
-      if (!account.address) {
-        throw new Error(`Wallet for ${chain} not ready`);
-      }
-      const blockchainName =
-        chain === 'bitcoin'
-          ? 'Bitcoin'
-          : chain === 'spark'
-            ? 'Spark'
-            : chain === 'arbitrum'
-              ? 'Arbitrum'
-              : chain === 'polygon'
-                ? 'Polygon'
-                : chain === 'base'
-                  ? 'Base'
-                  : 'Ethereum';
-      const sign = async (message: string) => {
-        const result = await account.sign(message);
-        if (!result.success) {
-          throw new Error(result.error ?? 'Failed to sign message');
-        }
-        return result.signature;
-      };
-      try {
-        const newToken = await dfxAuthService.linkAddress(account.address, sign, {
-          wallet: 'DFX Wallet',
-          blockchain: blockchainName,
-        });
-        await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, newToken);
-        // Mark in the auto-link cache so the next cold start skips this
-        // chain instead of re-prompting. Only chains that auto-link knows
-        // about: bitcoin + the EVM chains (ethereum is the login, no cache
-        // entry needed).
-        if (chain === 'bitcoin' || chain === 'arbitrum' || chain === 'polygon' || chain === 'base')
-          await markChainLinkedInAutoLinkCache(chain);
-        void retryLast();
-      } catch (err) {
-        // 409 means the address belongs to a *different* DFX user. The user's
-        // mental model is "this is MY wallet" — so re-auth as the owner of
-        // this address (drop the prior JWT) instead of forcing a merge that
-        // DFX won't allow. The buy flow then runs against the account that
-        // already has the chain in `user.blockchains`, dodging both the
-        // 409 and the next "Asset blockchain mismatch".
-        if (err instanceof DfxApiError && err.statusCode === 409) {
-          const ownerToken = await dfxAuthService.loginAsAddressOwner(account.address, sign, {
-            wallet: 'DFX Wallet',
-            blockchain: blockchainName,
-          });
-          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
-          // Wipe the per-chain link cache: a different user means different
-          // already-linked chains, so auto-link should re-evaluate from scratch.
-          await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
-          void retryLast();
-          return;
-        }
-        throw err;
-      }
-    },
-    [btcAccount, sparkAccount, ethAccount, lds, retryLast],
   );
 
   // eslint-disable-next-line security/detect-object-injection -- selectedChainIndex is bounded by chains.length
@@ -417,6 +163,33 @@ export default function BuyScreen() {
     }, 350);
     return () => clearTimeout(id);
   }, [amount, selectedCurrency, targetAsset, blockchain, step, getQuote, selectedChainSpec]);
+
+  // Own callback (real deps) instead of an inline closure in the effect
+  // below — keeps `router` out of that effect's dependency list entirely,
+  // since the effect body never reads it directly.
+  const onBack = useCallback(() => {
+    if (step === 'payment') setStep('amount');
+    else router.back();
+  }, [step, router]);
+
+  // Report the shell chrome for the step currently active. Runs after every
+  // step change so the one shared `TradeScreenShell` in `TradeScreen` always
+  // shows the right title/back-action/progress for Buy. `t` re-creates on
+  // every render in the test mocks (and isn't guaranteed stable in the app
+  // either), so this can fire more often than "just on step changes" — that
+  // no longer causes an update loop because `onShellChange` (see
+  // `TradeScreen`) bails out when the reported shell hasn't actually
+  // changed, regardless of how often it's called.
+  useEffect(() => {
+    onShellChange({
+      title: t('buy.title'),
+      onBack,
+      headerTestID: 'buy-screen',
+      activeStep: step === 'amount' ? 0 : step === 'payment' ? 1 : 2,
+      showTabs: step === 'amount',
+      steps: BUY_STEPS,
+    });
+  }, [step, t, onBack, onShellChange]);
 
   const copy = async (label: string, value: string) => {
     if (!value) return;
@@ -487,17 +260,7 @@ export default function BuyScreen() {
   const renderAmountStepContent = () => (
     <View style={styles.stepContent}>
       {hasTargetWallet ? (
-        <View style={styles.targetBanner} testID="buy-target-wallet-banner">
-          <View style={styles.targetIcon}>
-            <Icon name="wallet" size={18} color={colors.primary} />
-          </View>
-          <View style={styles.targetBody}>
-            <Text style={styles.targetLabel}>{t('linkedWallet.banner.label')}</Text>
-            <Text style={styles.targetAddress} numberOfLines={1}>
-              {targetAddressShort}
-            </Text>
-          </View>
-        </View>
+        <TargetWalletBanner testID="buy-target-wallet-banner" addressShort={targetAddressShort} />
       ) : null}
       <TradeAmountPanels
         testID="buy-amount-panels"
@@ -583,6 +346,7 @@ export default function BuyScreen() {
       <PayCurrencySheet
         visible={payPickerOpen}
         onClose={() => setPayPickerOpen(false)}
+        currencies={CURRENCIES}
         selected={selectedCurrency}
         onSelect={(currency) => {
           setSelectedCurrency(currency);
@@ -596,8 +360,8 @@ export default function BuyScreen() {
         selectedAssetSymbol={selectedAsset?.symbol}
         selectedChainIndex={selectedChainIndex}
         selectedTokenIndex={selectedTokenIndex}
-        onSelect={(asset, chainIndex, tokenIndex) => {
-          setSelectedAsset(asset);
+        onSelect={(pickedAsset, chainIndex, tokenIndex) => {
+          setSelectedAsset(pickedAsset);
           setSelectedChainIndex(chainIndex);
           setSelectedTokenIndex(tokenIndex);
           setReceivePickerOpen(false);
@@ -619,7 +383,7 @@ export default function BuyScreen() {
           />
 
           {belowMin ? (
-            <Text style={styles.warning}>
+            <Text style={sharedStyles.warning}>
               {t('buy.volumeMin', {
                 amount: fmtFiat(minVolume!),
                 currency: selectedCurrency,
@@ -627,7 +391,7 @@ export default function BuyScreen() {
             </Text>
           ) : null}
           {aboveMax ? (
-            <Text style={styles.warning}>
+            <Text style={sharedStyles.warning}>
               {t('buy.volumeMax', {
                 amount: fmtFiat(maxVolume!),
                 currency: selectedCurrency,
@@ -645,7 +409,7 @@ export default function BuyScreen() {
             </View>
           </View>
 
-          <View style={styles.spacer} />
+          <View style={sharedStyles.spacer} />
 
           <PrimaryButton
             testID="buy-cta"
@@ -683,20 +447,13 @@ export default function BuyScreen() {
             }
             loading={isLoading}
           />
-          <View style={styles.securityRow} testID="buy-security-row">
+          <View style={sharedStyles.securityRow} testID="buy-security-row">
             <Icon name="shield" size={14} color={colors.textTertiary} />
-            <Text style={styles.securityText}>{t('buy.security')}</Text>
+            <Text style={sharedStyles.securityText}>{t('buy.security')}</Text>
           </View>
         </>
       ) : null}
     </View>
-  );
-
-  const renderAmountStep = () => (
-    <>
-      <TradeModeTabs active="buy" />
-      {renderAmountStepContent()}
-    </>
   );
 
   const renderPaymentStep = () =>
@@ -704,27 +461,24 @@ export default function BuyScreen() {
       <View style={styles.stepContent}>
         <Text style={styles.stepSubtitle}>{t('buy.paymentInfo')}</Text>
 
-        <View style={styles.bankCard}>
+        <View style={sharedStyles.bankCard}>
           <CopyRow
             label={t('buy.iban')}
             value={paymentInfo.iban}
             copied={copiedField === 'iban'}
             onCopy={() => copy('iban', paymentInfo.iban)}
-            t={t}
           />
           <CopyRow
             label={t('buy.bic')}
             value={paymentInfo.bic}
             copied={copiedField === 'bic'}
             onCopy={() => copy('bic', paymentInfo.bic)}
-            t={t}
           />
           <CopyRow
             label={t('buy.recipient')}
             value={paymentInfo.name || 'DFX AG'}
             copied={copiedField === 'name'}
             onCopy={() => copy('name', paymentInfo.name || 'DFX AG')}
-            t={t}
           />
           <CopyRow
             label={t('buy.reference')}
@@ -732,12 +486,11 @@ export default function BuyScreen() {
             copied={copiedField === 'ref'}
             onCopy={() => copy('ref', paymentInfo.remittanceInfo)}
             highlight
-            t={t}
           />
         </View>
 
-        <View style={styles.quoteCard}>
-          <Text style={styles.quoteTitle}>{t('buy.summary')}</Text>
+        <View style={sharedStyles.quoteCard}>
+          <Text style={sharedStyles.quoteTitle}>{t('buy.summary')}</Text>
           <QuoteRow
             label={t('common.amount')}
             value={`${fmtFiat(paymentInfo.amount)} ${paymentInfo.currency.name}`}
@@ -746,7 +499,7 @@ export default function BuyScreen() {
             label={t('buy.exchangeRate')}
             value={`1 ${paymentInfo.currency.name} = ${fmtCrypto(1 / paymentInfo.exchangeRate)} ${paymentInfo.asset.name}`}
           />
-          <View style={styles.quoteDivider} />
+          <View style={sharedStyles.quoteDivider} />
           <QuoteRow
             label={t('buy.youReceive')}
             value={`${fmtCrypto(paymentInfo.estimatedAmount)} ${paymentInfo.asset.name}`}
@@ -754,9 +507,9 @@ export default function BuyScreen() {
           />
         </View>
 
-        <Text style={styles.hint}>{t('buy.transfer')}</Text>
+        <Text style={sharedStyles.hint}>{t('buy.transfer')}</Text>
 
-        <View style={styles.spacer} />
+        <View style={sharedStyles.spacer} />
 
         <PrimaryButton
           title={t('buy.confirmTransfer')}
@@ -777,33 +530,17 @@ export default function BuyScreen() {
         <Text style={styles.successDescription}>{t('buy.confirmDescription')}</Text>
       </View>
 
-      <View style={styles.spacer} />
+      <View style={sharedStyles.spacer} />
 
       <PrimaryButton title={t('common.done')} onPress={() => router.back()} />
     </View>
   );
 
-  const body = (
-    <TradeScreenShell
-      title={t('buy.title')}
-      onBack={() => {
-        if (step === 'payment') setStep('amount');
-        else router.back();
-      }}
-      headerTestID="buy-screen"
-      activeStep={step === 'amount' ? 0 : step === 'payment' ? 1 : 2}
-      steps={['amount', 'payment', 'confirm']}
-    >
-      {step === 'amount' && renderAmountStep()}
-      {step === 'payment' && renderPaymentStep()}
-      {step === 'confirm' && renderConfirmStep()}
-    </TradeScreenShell>
-  );
-
   return (
     <>
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
-      {body}
+      {step === 'amount' && renderAmountStepContent()}
+      {step === 'payment' && renderPaymentStep()}
+      {step === 'confirm' && renderConfirmStep()}
       <DfxAuthGate
         gate={authGateIsCurrent ? authGate : null}
         onClose={dismissAuthGate}
@@ -855,80 +592,6 @@ export default function BuyScreen() {
         }}
       />
     </>
-  );
-}
-
-function QuoteRow({
-  label,
-  value,
-  sub,
-  emphasis,
-  accent,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  emphasis?: boolean;
-  accent?: boolean;
-}) {
-  const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  return (
-    <View style={styles.quoteRow}>
-      <Text style={styles.quoteLabel}>{label}</Text>
-      <View style={{ alignItems: 'flex-end' }}>
-        <Text
-          style={[
-            styles.quoteValue,
-            emphasis && styles.quoteValueEmphasis,
-            accent && styles.quoteValueAccent,
-          ]}
-        >
-          {value}
-        </Text>
-        {sub ? <Text style={styles.quoteSub}>{sub}</Text> : null}
-      </View>
-    </View>
-  );
-}
-
-function CopyRow({
-  label,
-  value,
-  copied,
-  onCopy,
-  highlight,
-  t,
-}: {
-  label: string;
-  value: string;
-  copied: boolean;
-  onCopy: () => void;
-  highlight?: boolean;
-  t: (key: string) => string;
-}) {
-  const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.copyRow, pressed && styles.pressed]}
-      onPress={onCopy}
-    >
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text style={styles.copyLabel}>{label}</Text>
-        <Text
-          style={[styles.copyValue, highlight && styles.copyValueHighlight]}
-          numberOfLines={1}
-          selectable
-        >
-          {value}
-        </Text>
-      </View>
-      <View style={styles.copyBadge}>
-        <Icon name="document" size={14} color={colors.primary} />
-        <Text style={styles.copyBadgeText}>{copied ? t('common.copied') : t('common.copy')}</Text>
-      </View>
-    </Pressable>
   );
 }
 
@@ -999,83 +662,6 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '600',
       color: colors.textSecondary,
     },
-    quoteCard: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 18,
-      gap: 14,
-    },
-    quoteTitle: {
-      ...Typography.bodySmall,
-      fontWeight: '600',
-      color: colors.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-    },
-    quotePlaceholder: {
-      ...Typography.bodyMedium,
-      color: colors.textTertiary,
-      paddingVertical: 8,
-    },
-    quoteError: {
-      ...Typography.bodyMedium,
-      color: colors.error,
-      paddingVertical: 8,
-    },
-    quoteHint: {
-      ...Typography.bodyMedium,
-      color: colors.primary,
-      paddingVertical: 8,
-    },
-    quoteRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      gap: 12,
-    },
-    quoteLabel: {
-      ...Typography.bodyMedium,
-      color: colors.textSecondary,
-    },
-    quoteValue: {
-      ...Typography.bodyMedium,
-      color: colors.text,
-      fontWeight: '500',
-      textAlign: 'right',
-    },
-    quoteValueEmphasis: {
-      fontWeight: '700',
-    },
-    quoteValueAccent: {
-      color: colors.primary,
-    },
-    quoteToggle: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    quoteToggleText: {
-      ...Typography.bodyMedium,
-      color: colors.text,
-      fontWeight: '500',
-      flex: 1,
-    },
-    quoteFeeBadge: {
-      backgroundColor: colors.primaryLight,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 999,
-    },
-    quoteFeeBadgeText: {
-      ...Typography.bodySmall,
-      color: colors.primary,
-      fontWeight: '600',
-    },
-    quoteChevronOpen: {
-      transform: [{ rotate: '90deg' }],
-    },
     paymentMethodRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1108,82 +694,6 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodySmall,
       color: colors.textSecondary,
     },
-    quoteSub: {
-      ...Typography.bodySmall,
-      color: colors.textTertiary,
-      textAlign: 'right',
-      marginTop: 2,
-    },
-    quoteDivider: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: colors.border,
-      marginVertical: 4,
-    },
-    bankCard: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      paddingVertical: 4,
-    },
-    copyRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 14,
-      paddingHorizontal: 16,
-      gap: 12,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-    copyLabel: {
-      ...Typography.bodySmall,
-      fontWeight: '600',
-      color: colors.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-    },
-    copyValue: {
-      ...Typography.bodyMedium,
-      color: colors.text,
-      fontFamily: 'monospace',
-    },
-    copyValueHighlight: {
-      color: colors.primary,
-      fontWeight: '700',
-    },
-    copyBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      paddingVertical: 6,
-      paddingHorizontal: 10,
-      backgroundColor: colors.primaryLight,
-      borderRadius: 999,
-    },
-    copyBadgeText: {
-      ...Typography.bodySmall,
-      color: colors.primary,
-      fontWeight: '600',
-    },
-    pressed: {
-      opacity: 0.7,
-    },
-    hint: {
-      ...Typography.bodySmall,
-      color: colors.textTertiary,
-      textAlign: 'center',
-      paddingHorizontal: 16,
-    },
-    warning: {
-      ...Typography.bodySmall,
-      color: colors.warning,
-      textAlign: 'center',
-    },
-    errorText: {
-      ...Typography.bodySmall,
-      color: colors.error,
-      textAlign: 'center',
-    },
     successBlock: {
       alignItems: 'center',
       paddingVertical: 48,
@@ -1201,54 +711,5 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
       textAlign: 'center',
       paddingHorizontal: 16,
-    },
-    spacer: {
-      minHeight: 16,
-    },
-    securityRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 7,
-      marginTop: 12,
-    },
-    securityText: { ...Typography.bodySmall, color: colors.textTertiary, textAlign: 'center' },
-    targetBanner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      paddingVertical: 12,
-      paddingHorizontal: 14,
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderLeftWidth: 4,
-      borderLeftColor: colors.primary,
-    },
-    targetIcon: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
-      backgroundColor: colors.primaryLight,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    targetBody: {
-      flex: 1,
-      gap: 2,
-    },
-    targetLabel: {
-      ...Typography.bodySmall,
-      fontWeight: '700',
-      color: colors.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-    },
-    targetAddress: {
-      ...Typography.bodyMedium,
-      fontWeight: '600',
-      color: colors.text,
-      fontFamily: 'monospace',
     },
   });

@@ -4,19 +4,20 @@ import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from '@/components';
 import { Typography, useColors, type ThemeColors } from '@/theme';
-import { CURRENCIES } from './BuyScreenImpl';
 import { CurrencyGlyph } from './CurrencyGlyph';
 
-type PayCurrency = (typeof CURRENCIES)[number];
+/** Buy's pay-currency selection — bank-transfer rails only support these two. */
+type PayCurrencyCode = 'CHF' | 'EUR';
 
 type Props = {
   visible: boolean;
   onClose: () => void;
-  selected: PayCurrency;
-  onSelect: (currency: PayCurrency) => void;
+  currencies: readonly PayCurrencyCode[];
+  selected: PayCurrencyCode;
+  onSelect: (currency: PayCurrencyCode) => void;
 };
 
-export function PayCurrencySheet({ visible, onClose, selected, onSelect }: Props) {
+export function PayCurrencySheet({ visible, onClose, currencies, selected, onSelect }: Props) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { t } = useTranslation();
@@ -46,7 +47,7 @@ export function PayCurrencySheet({ visible, onClose, selected, onSelect }: Props
             </Pressable>
           </View>
 
-          {CURRENCIES.map((currency) => {
+          {currencies.map((currency) => {
             const isSelected = currency === selected;
             return (
               <Pressable

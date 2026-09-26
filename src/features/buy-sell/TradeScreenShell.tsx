@@ -6,13 +6,28 @@ import { DarkBackdrop } from '@/components/DarkBackdrop';
 import { useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 import { TRADE_STEP_GAP } from './tradePanelStyles';
 
-type Props = {
+/** Shell chrome the active trade-mode adapter controls: header title, back
+ *  action, step progress. Reported up to `TradeScreen` via a callback so one
+ *  shell instance can serve whichever adapter (Buy/Sell/Swap) is mounted. */
+export type TradeScreenShellProps = {
   title: string;
   onBack: () => void;
   headerTestID: string;
   activeStep: number;
   steps: readonly string[];
+};
+
+type Props = TradeScreenShellProps & {
   children: ReactNode;
+};
+
+/** What an adapter reports up to `TradeScreen` on every step change: the
+ *  shell chrome above, plus whether the tab bar should show. Tabs hide past
+ *  the amount step (payment/bank/confirm) — a mid-flow tab switch would
+ *  unmount the adapter and discard bank/payment data already in flight.
+ *  Swap has only one step, so it always reports `showTabs: true`. */
+export type TradeShellReport = TradeScreenShellProps & {
+  showTabs: boolean;
 };
 
 export function TradeScreenShell({
