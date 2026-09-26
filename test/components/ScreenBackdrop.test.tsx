@@ -98,9 +98,33 @@ describe('ScreenBackdrop', () => {
     );
   });
 
-  it('renders the dark top scrim with the spec stops', () => {
+  it('renders the content (default) dark top scrim with the spec stops', () => {
     useThemeStore.setState({ mode: 'dark' });
     const { UNSAFE_getAllByType } = renderBackdrop();
+    const topStops = UNSAFE_getAllByType(Stop).slice(0, 4);
+    expect(topStops.map((stop) => [stop.props.offset, stop.props.stopOpacity])).toEqual([
+      ['0%', '0.84'],
+      ['30%', '0.64'],
+      ['48%', '0.46'],
+      ['64%', '0'],
+    ]);
+  });
+
+  it('renders the content (default) light top scrim with the spec stops', () => {
+    useThemeStore.setState({ mode: 'light' });
+    const { UNSAFE_getAllByType } = renderBackdrop();
+    const topStops = UNSAFE_getAllByType(Stop).slice(0, 4);
+    expect(topStops.map((stop) => [stop.props.offset, stop.props.stopOpacity])).toEqual([
+      ['0%', '0.58'],
+      ['30%', '0.50'],
+      ['48%', '0.34'],
+      ['64%', '0'],
+    ]);
+  });
+
+  it('renders the hero top scrim with the old (pre-content) spec stops in dark mode', () => {
+    useThemeStore.setState({ mode: 'dark' });
+    const { UNSAFE_getAllByType } = renderBackdrop('hero');
     const topStops = UNSAFE_getAllByType(Stop).slice(0, 4);
     expect(topStops.map((stop) => [stop.props.offset, stop.props.stopOpacity])).toEqual([
       ['0%', '0.78'],
@@ -110,18 +134,37 @@ describe('ScreenBackdrop', () => {
     ]);
   });
 
+  it('renders the hero top scrim with the old (pre-content) spec stops in light mode', () => {
+    useThemeStore.setState({ mode: 'light' });
+    const { UNSAFE_getAllByType } = renderBackdrop('hero');
+    const topStops = UNSAFE_getAllByType(Stop).slice(0, 3);
+    expect(topStops.map((stop) => [stop.props.offset, stop.props.stopOpacity])).toEqual([
+      ['0%', '0.30'],
+      ['18%', '0.12'],
+      ['32%', '0'],
+    ]);
+  });
+
+  it('renders the pay top scrim like hero (unchanged), not content, in light mode', () => {
+    useThemeStore.setState({ mode: 'light' });
+    const { UNSAFE_getAllByType } = renderBackdrop('pay');
+    const firstTopStop = UNSAFE_getAllByType(Stop)[0];
+    expect(firstTopStop?.props.stopOpacity).toBe('0.30');
+  });
+
   it('renders the light bottom scrim fully transparent', () => {
     useThemeStore.setState({ mode: 'light' });
     const { UNSAFE_getAllByType } = renderBackdrop();
-    // Light's top scrim has 3 stops; everything after that is the bottom scrim.
-    const bottomStops = UNSAFE_getAllByType(Stop).slice(3);
+    // Content's (default) top scrim has 4 stops; everything after that is
+    // the bottom scrim.
+    const bottomStops = UNSAFE_getAllByType(Stop).slice(4);
     expect(bottomStops.length).toBeGreaterThan(0);
     for (const stop of bottomStops) {
       expect(stop.props.stopOpacity).toBe('0');
     }
   });
 
-  it('renders the same layer structure for variant="pin" as for "default"', () => {
+  it('renders the same layer structure for all four variants', () => {
     useThemeStore.setState({ mode: 'light' });
     const countsOf = (result: ReturnType<typeof renderBackdrop>) => ({
       views: result.UNSAFE_getAllByType(View).length,
@@ -131,12 +174,16 @@ describe('ScreenBackdrop', () => {
       rects: result.UNSAFE_getAllByType(Rect).length,
     });
 
-    const defaultResult = renderBackdrop();
-    const defaultCounts = countsOf(defaultResult);
-    defaultResult.unmount();
+    const contentResult = renderBackdrop();
+    const contentCounts = countsOf(contentResult);
+    contentResult.unmount();
 
-    const pinResult = renderBackdrop('pin');
-    expect(countsOf(pinResult)).toEqual(defaultCounts);
+    const otherVariants: ScreenBackdropVariant[] = ['hero', 'pin', 'pay'];
+    for (const variant of otherVariants) {
+      const result = renderBackdrop(variant);
+      expect(countsOf(result)).toEqual(contentCounts);
+      result.unmount();
+    }
   });
 
   it('uses the default photo (not the pay photo) for variant="pin" in both themes', () => {
@@ -190,7 +237,7 @@ describe('DfxBackgroundScreen backdropVariant passthrough', () => {
       </ThemeProvider>,
     );
     // Dark pin's first top-scrim stop (0.86) only appears when the variant
-    // prop actually reached ScreenBackdrop; default's dark stop is 0.78.
+    // prop actually reached ScreenBackdrop; content's (default) dark stop is 0.84.
     const firstTopStop = UNSAFE_getAllByType(Stop)[0];
     expect(firstTopStop?.props.stopOpacity).toBe('0.86');
   });
