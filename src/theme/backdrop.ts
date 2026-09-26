@@ -28,6 +28,9 @@ export type BackdropRecipe = {
    *  upper area so intro text, section headings and amounts stay readable
    *  on top of the photo, while the peak keeps a soft silhouette. */
   contentScrimTopStops: readonly BackdropGradientStop[];
+  /** `blurRadius` applied to the photo for `variant="content"` only. Softens
+   *  the peak so section headings and amounts stay legible over it. */
+  contentBlurRadius: number;
   /** Overrides the top scrim for `variant="pin"`: a stronger scrim that
    *  calms the top ~55% of the photo behind logo, title and PIN dots.
    *  Same photo, bottom scrim and wash as the other variants. */
@@ -59,6 +62,7 @@ const DARK_BACKDROP_RECIPE: BackdropRecipe = {
     { offset: '48%', stopOpacity: '0.46' },
     { offset: '64%', stopOpacity: '0' },
   ],
+  contentBlurRadius: 12,
   pinScrimTopStops: [
     { offset: '0%', stopOpacity: '0.86' },
     { offset: '30%', stopOpacity: '0.66' },
@@ -88,11 +92,12 @@ const LIGHT_BACKDROP_RECIPE: BackdropRecipe = {
     { offset: '32%', stopOpacity: '0' },
   ],
   contentScrimTopStops: [
-    { offset: '0%', stopOpacity: '0.58' },
-    { offset: '30%', stopOpacity: '0.50' },
-    { offset: '48%', stopOpacity: '0.34' },
-    { offset: '64%', stopOpacity: '0' },
+    { offset: '0%', stopOpacity: '0.66' },
+    { offset: '30%', stopOpacity: '0.58' },
+    { offset: '55%', stopOpacity: '0.40' },
+    { offset: '80%', stopOpacity: '0.10' },
   ],
+  contentBlurRadius: 12,
   pinScrimTopStops: [
     { offset: '0%', stopOpacity: '0.62' },
     { offset: '30%', stopOpacity: '0.52' },
