@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { render } from '@testing-library/react-native';
 
 jest.mock('expo-blur', () => {
@@ -13,6 +14,10 @@ jest.mock('expo-blur', () => {
 import { SeedWordTile } from '../../src/components/SeedWordTile';
 // eslint-disable-next-line import/first
 import { ThemeProvider, useThemeStore } from '@/theme';
+
+function flatten(style: unknown): Record<string, unknown> {
+  return StyleSheet.flatten(style as StyleProp<ViewStyle>) as Record<string, unknown>;
+}
 
 describe('SeedWordTile', () => {
   beforeEach(() => useThemeStore.setState({ mode: 'light' }));
@@ -36,5 +41,14 @@ describe('SeedWordTile', () => {
     expect(getByText('12.')).toBeTruthy();
     expect(queryByText('zoo')).toBeNull();
     expect(getByText('••••')).toBeTruthy();
+  });
+
+  it('style reaches the tile itself, for width/flex in a grid', () => {
+    const { getByTestId } = render(
+      <ThemeProvider>
+        <SeedWordTile index={0} word="abandon" style={{ width: '31%' }} testID="tile" />
+      </ThemeProvider>,
+    );
+    expect(flatten(getByTestId('tile').props.style).width).toBe('31%');
   });
 });

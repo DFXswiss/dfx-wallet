@@ -112,6 +112,10 @@ function mockPasskeyStorage(derivationVersion: string | null = '1') {
 
 // eslint-disable-next-line import/first
 import SeedExportScreenImpl from '../../src/features/settings/SeedExportScreenImpl';
+// eslint-disable-next-line import/first
+import { GlassCard } from '../../src/components/GlassCard';
+// eslint-disable-next-line import/first
+import { SeedWordTile } from '../../src/components/SeedWordTile';
 
 describe('SeedExportScreenImpl', () => {
   const getMnemonic = jest.fn();
@@ -142,9 +146,12 @@ describe('SeedExportScreenImpl', () => {
   });
 
   it('renders the seed-flow shell and goes back', async () => {
-    const { getByTestId, getByText } = render(<SeedExportScreenImpl />);
+    const { getByTestId, getByText, UNSAFE_getByType } = render(<SeedExportScreenImpl />);
     expect(getByTestId('seed-export-screen')).toBeTruthy();
     await waitFor(() => expect(getByText('seedExport.revealSeed')).toBeTruthy());
+    // The reveal button renders on the shared glass card module instead of
+    // a one-off opaque card (JK: "alle Karten ... müssen Glas design haben").
+    expect(UNSAFE_getByType(GlassCard)).toBeTruthy();
     fireEvent.press(getByTestId('seed-export-back'));
     expect(mockBack).toHaveBeenCalled();
   });
@@ -189,7 +196,7 @@ describe('SeedExportScreenImpl', () => {
     }) as unknown as typeof setTimeout);
 
     try {
-      const { getByText, getAllByText } = render(<SeedExportScreenImpl />);
+      const { getByText, getAllByText, UNSAFE_getAllByType } = render(<SeedExportScreenImpl />);
       await waitFor(() => expect(getByText('seedExport.revealSeed')).toBeTruthy());
       await act(async () => {
         fireEvent.press(getByText('seedExport.revealSeed'));
@@ -198,6 +205,9 @@ describe('SeedExportScreenImpl', () => {
       await waitFor(() => expectTestVectorVisible(getAllByText));
       expect(mockPrevent).toHaveBeenCalledWith(expect.stringMatching(/^seed-export:/));
       expect(Haptics.impactAsync).toHaveBeenCalled();
+      // Every seed word renders on the shared glass tile module instead of
+      // a one-off opaque card (JK: "alle Karten ... müssen Glas design haben").
+      expect(UNSAFE_getAllByType(SeedWordTile).length).toBe(12);
 
       await act(async () => {
         fireEvent.press(getByText('common.copy'));

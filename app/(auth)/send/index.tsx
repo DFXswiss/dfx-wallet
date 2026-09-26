@@ -1,10 +1,19 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { AppHeader, Icon, PrimaryButton, ScreenBackdrop, ShortcutAction } from '@/components';
+import {
+  AppHeader,
+  GlassCard,
+  GlassInputField,
+  GlassPill,
+  Icon,
+  PrimaryButton,
+  ScreenBackdrop,
+  ShortcutAction,
+} from '@/components';
 import { QrScanner } from '@/components/QrScanner';
 import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
@@ -126,33 +135,32 @@ export default function SendScreen() {
     <View style={styles.stepContent}>
       <Text style={styles.stepSubtitle}>{t('send.sendToCrypto')}</Text>
       <View style={styles.assetList} testID="send-asset-list">
-        {SEND_ASSETS.map((asset) => (
-          <Pressable
-            key={asset.symbol}
-            testID={`send-asset-${asset.symbol.toLowerCase()}`}
-            style={({ pressed }) => [
-              styles.assetCard,
-              selectedAsset?.symbol === asset.symbol && styles.assetCardActive,
-              pressed && styles.pressed,
-            ]}
-            onPress={() => handleAssetSelect(asset)}
-          >
-            <Text
-              style={[
-                styles.assetSymbol,
-                selectedAsset?.symbol === asset.symbol && styles.assetSymbolActive,
-              ]}
+        {SEND_ASSETS.map((asset) => {
+          const active = selectedAsset?.symbol === asset.symbol;
+          return (
+            <GlassCard
+              key={asset.symbol}
+              testID={`send-asset-${asset.symbol.toLowerCase()}`}
+              variant={active ? 'lead' : 'default'}
+              tone={active ? 'accent' : 'default'}
+              padding={18}
+              contentStyle={styles.assetCard}
+              onPress={() => handleAssetSelect(asset)}
             >
-              {asset.symbol}
-            </Text>
-            <Text style={styles.assetLabel}>{asset.label}</Text>
-          </Pressable>
-        ))}
+              <Text style={[styles.assetSymbol, active && styles.assetSymbolActive]}>
+                {asset.symbol}
+              </Text>
+              <Text style={styles.assetLabel}>{asset.label}</Text>
+            </GlassCard>
+          );
+        })}
       </View>
 
       {FEATURES.BUY_SELL && (
-        <Pressable
-          style={({ pressed }) => [styles.destinationCard, pressed && styles.pressed]}
+        <GlassCard
+          padding={16}
+          tone="accent"
+          contentStyle={styles.destinationCard}
           onPress={() => router.push('/(auth)/sell')}
           testID="send-destination-bank"
           accessibilityRole="button"
@@ -166,7 +174,7 @@ export default function SendScreen() {
             <Text style={styles.destinationSubtitle}>{t('send.sendToBankSubtitle')}</Text>
           </View>
           <Icon name="chevron-right" size={18} color={colors.textTertiary} />
-        </Pressable>
+        </GlassCard>
       )}
     </View>
   );
@@ -174,24 +182,28 @@ export default function SendScreen() {
   const renderInputStep = (asset: AssetOption) => {
     return (
       <View style={styles.stepContent} testID="send-input-step">
-        <Pressable
+        <GlassPill
+          selected
           testID="send-selected-asset-pill"
           style={styles.selectedAssetPill}
           onPress={() => setStep('asset')}
         >
-          <Text style={styles.selectedAssetText}>{asset.symbol}</Text>
-          <Icon name="chevron-right" size={14} color={colors.textTertiary} />
-        </Pressable>
+          <View style={styles.selectedAssetContent}>
+            <Text style={styles.selectedAssetText}>{asset.symbol}</Text>
+            <Icon name="chevron-right" size={14} color={colors.textTertiary} />
+          </View>
+        </GlassPill>
 
         {asset.chains.length > 1 && (
           <View style={styles.inputGroup} testID="send-chain-bar">
             <Text style={styles.inputLabel}>{t('send.network')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
               {asset.chains.map((c) => (
-                <Pressable
+                <GlassPill
                   key={c.chain}
                   testID={`send-chain-${c.chain}`}
-                  style={[styles.chainChip, selectedChain === c.chain && styles.chainChipActive]}
+                  selected={selectedChain === c.chain}
+                  style={styles.chainChip}
                   onPress={() => setSelectedChain(c.chain)}
                 >
                   <Text
@@ -202,7 +214,7 @@ export default function SendScreen() {
                   >
                     {c.label}
                   </Text>
-                </Pressable>
+                </GlassPill>
               ))}
             </ScrollView>
           </View>
@@ -211,23 +223,19 @@ export default function SendScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>{t('send.recipient')}</Text>
           <View style={styles.recipientRow}>
-            <TextInput
-              testID="send-recipient-input"
-              style={[styles.input, styles.recipientInput]}
-              value={recipient}
-              onChangeText={setRecipient}
-              placeholder={t('send.addressPlaceholder')}
-              placeholderTextColor={colors.textTertiary}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <Pressable
-              testID="send-recipient-scan-button"
-              style={styles.scanButton}
-              onPress={() => setScannerVisible(true)}
-            >
+            <View style={styles.recipientInputWrap}>
+              <GlassInputField
+                testID="send-recipient-input"
+                value={recipient}
+                onChangeText={setRecipient}
+                placeholder={t('send.addressPlaceholder')}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+            <GlassPill testID="send-recipient-scan-button" onPress={() => setScannerVisible(true)}>
               <Text style={styles.scanText}>{t('send.scan')}</Text>
-            </Pressable>
+            </GlassPill>
           </View>
         </View>
 
@@ -235,13 +243,11 @@ export default function SendScreen() {
           <Text style={styles.inputLabel}>
             {t('send.amount')} ({symbol})
           </Text>
-          <TextInput
+          <GlassInputField
             testID="send-amount-input"
-            style={styles.input}
             value={amount}
             onChangeText={setAmount}
             placeholder="0.00"
-            placeholderTextColor={colors.textTertiary}
             keyboardType="decimal-pad"
           />
         </View>
@@ -277,7 +283,7 @@ export default function SendScreen() {
     <View style={styles.stepContent} testID="send-confirm-step">
       <Text style={styles.stepTitle}>{t('send.confirmTransaction')}</Text>
 
-      <View style={styles.summary}>
+      <GlassCard padding={20} style={styles.summary}>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>{t('send.network')}</Text>
           <Text style={styles.summaryValue}>{selectedChain}</Text>
@@ -304,7 +310,7 @@ export default function SendScreen() {
               `${formatBalance(feeState.fee, paymasterToken.decimals)} ${paymasterToken.symbol}`}
           </Text>
         </View>
-      </View>
+      </GlassCard>
 
       <Text style={styles.warning}>{t('send.irreversible')}</Text>
 
@@ -438,12 +444,7 @@ const makeStyles = (colors: ThemeColors) =>
     destinationCard: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      padding: 16,
       gap: 14,
-      borderWidth: 1,
-      borderColor: colors.primary,
     },
     destinationIcon: {
       width: 40,
@@ -472,19 +473,7 @@ const makeStyles = (colors: ThemeColors) =>
     assetCard: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      padding: 18,
       gap: 14,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    assetCardActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
-    },
-    pressed: {
-      opacity: 0.7,
     },
     assetSymbol: {
       ...Typography.headlineSmall,
@@ -500,15 +489,12 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
     },
     selectedAssetPill: {
+      marginBottom: 4,
+    },
+    selectedAssetContent: {
       flexDirection: 'row',
       alignItems: 'center',
-      alignSelf: 'flex-start',
-      backgroundColor: colors.primaryLight,
-      borderRadius: 12,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
       gap: 6,
-      marginBottom: 4,
     },
     selectedAssetText: {
       ...Typography.bodyMedium,
@@ -519,17 +505,7 @@ const makeStyles = (colors: ThemeColors) =>
       flexGrow: 0,
     },
     chainChip: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 10,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
       marginRight: 8,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
-    },
-    chainChipActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
     },
     chainChipText: {
       ...Typography.bodyMedium,
@@ -550,29 +526,12 @@ const makeStyles = (colors: ThemeColors) =>
       textTransform: 'uppercase',
       letterSpacing: 1,
     },
-    input: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 16,
-      color: colors.text,
-      ...Typography.bodyLarge,
-    },
     recipientRow: {
       flexDirection: 'row',
       gap: 8,
     },
-    recipientInput: {
+    recipientInputWrap: {
       flex: 1,
-    },
-    scanButton: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      paddingHorizontal: 16,
-      justifyContent: 'center',
     },
     scanText: {
       ...Typography.bodyMedium,
@@ -580,11 +539,6 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.primary,
     },
     summary: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 20,
       gap: 16,
     },
     summaryRow: {

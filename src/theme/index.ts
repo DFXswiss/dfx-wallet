@@ -20,7 +20,9 @@ export {
 } from './theme-store';
 export {
   useGlassRecipe,
+  glassToneEdge,
   type GlassVariant,
+  type GlassTone,
   type GlassRecipe,
   type GlassGradientStop,
   type GlassShadowRecipe,

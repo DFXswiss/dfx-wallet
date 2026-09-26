@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { BrandLogo, Icon, ScreenBackdrop } from '@/components';
+import { BrandLogo, GlassIconButton, Icon, ScreenBackdrop } from '@/components';
 import { isOpenCryptoPayQR } from '@/services/opencryptopay';
 import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
@@ -58,29 +58,23 @@ export default function PayScreen() {
     <>
       <SafeAreaView style={styles.flow} edges={['top', 'left', 'right', 'bottom']}>
         <View style={styles.header}>
-          <Pressable
+          <GlassIconButton
+            icon={<Icon name="arrow-left" size={26} color={colors.text} />}
             onPress={() => router.back()}
-            hitSlop={12}
-            style={styles.headerSlot}
-            accessibilityRole="button"
+            size={36}
             accessibilityLabel={t('common.back')}
             testID="pay-back-button"
-          >
-            <Icon name="arrow-left" size={26} color={colors.text} />
-          </Pressable>
+          />
 
           <BrandLogo size="header" />
 
-          <Pressable
+          <GlassIconButton
+            icon={<Icon name="menu" size={26} color={colors.primary} strokeWidth={2.5} />}
             onPress={() => router.push('/settings')}
-            hitSlop={12}
-            style={[styles.headerSlot, styles.headerSlotRight]}
-            accessibilityRole="button"
+            size={36}
             accessibilityLabel={t('settings.title')}
             testID="pay-menu-button"
-          >
-            <Icon name="menu" size={26} color={colors.primary} strokeWidth={2.5} />
-          </Pressable>
+          />
         </View>
 
         <View style={{ flex: 1 }} />
@@ -192,15 +186,6 @@ const makeStyles = (colors: ThemeColors) =>
       justifyContent: 'space-between',
       paddingTop: 4,
       paddingBottom: 8,
-    },
-    headerSlot: {
-      width: 36,
-      height: 36,
-      alignItems: 'flex-start',
-      justifyContent: 'center',
-    },
-    headerSlotRight: {
-      alignItems: 'flex-end',
     },
     permissionFallback: {
       alignItems: 'center',

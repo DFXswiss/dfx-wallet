@@ -1,10 +1,27 @@
-import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import {
+  Pressable,
+  StyleSheet,
+  View,
+  type AccessibilityRole,
+  type AccessibilityState,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { GlassSurface, type GlassVariant } from './GlassSurface';
-import { Card, useColors } from '@/theme';
+import {
+  Card,
+  Interaction,
+  glassToneEdge,
+  useColors,
+  useGlassRecipe,
+  type GlassTone,
+} from '@/theme';
 
 type GroupProps = {
   variant?: GlassVariant;
+  /** Semantic edge tint for the whole group. */
+  tone?: GlassTone;
   /** @default `Card.radius` */
   radius?: number;
   style?: StyleProp<ViewStyle>;
@@ -19,16 +36,20 @@ type GroupProps = {
  */
 function GlassListGroupBase({
   variant = 'default',
+  tone = 'default',
   radius = Card.radius,
   style,
   testID,
   children,
 }: GroupProps) {
+  const colors = useColors();
+  const toneEdge = glassToneEdge(tone, colors);
+
   return (
     <GlassSurface
       variant={variant}
       radius={radius}
-      style={[styles.group, style]}
+      style={[styles.group, toneEdge, style]}
       {...(testID ? { testID } : {})}
     >
       {children}
@@ -38,31 +59,81 @@ function GlassListGroupBase({
 
 type RowProps = {
   onPress?: () => void;
+  /** Dims the row and drops the callback. Has no effect without `onPress`. */
+  disabled?: boolean;
   /** The caller marks the last row explicitly (e.g. `i === rows.length - 1`)
    *  so it renders without a trailing divider. */
   last?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  accessibilityRole?: AccessibilityRole;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
+  accessibilityState?: AccessibilityState;
   children?: ReactNode;
 };
 
-function GlassListRow({ onPress, last = false, style, testID, children }: RowProps) {
+function GlassListRow({
+  onPress,
+  disabled = false,
+  last = false,
+  style,
+  testID,
+  accessibilityRole,
+  accessibilityLabel,
+  accessibilityHint,
+  accessibilityState,
+  children,
+}: RowProps) {
   const colors = useColors();
-  const Container = onPress ? Pressable : View;
+  const recipe = useGlassRecipe();
+  // Pressed feedback is tracked in real state — see the same note in
+  // `GlassCard` for why `Pressable`'s own render-prop can't be used here.
+  const [pressed, setPressed] = useState(false);
   const rowStyle = [
     styles.row,
     !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider },
     style,
   ];
-  // `Container` is `Pressable | View` — a plain object literal here would
-  // fail against the narrower of the two prop types (View has no
-  // `onPress`), so it's assembled once and spread with a cast, matching
-  // the existing `TransactionRow` pattern for the same union.
-  const containerProps = onPress
-    ? { onPress, style: rowStyle, testID }
-    : { style: rowStyle, testID };
 
-  return <Container {...(containerProps as object)}>{children}</Container>;
+  if (!onPress) {
+    return (
+      <View style={rowStyle} {...(testID ? { testID } : {})}>
+        {children}
+      </View>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      onPressIn={() => {
+        if (!disabled) setPressed(true);
+      }}
+      onPressOut={() => {
+        if (!disabled) setPressed(false);
+      }}
+      disabled={disabled}
+      {...(testID ? { testID } : {})}
+      {...(accessibilityRole ? { accessibilityRole } : {})}
+      {...(accessibilityLabel ? { accessibilityLabel } : {})}
+      {...(accessibilityHint ? { accessibilityHint } : {})}
+      {...(accessibilityState ? { accessibilityState } : {})}
+    >
+      <View
+        style={[
+          rowStyle,
+          // Rows share one `GlassSurface` (the group's), so press feedback
+          // reuses its `lead` overlay recipe as a background tint instead
+          // of nesting a second blur/edge-stroke per row.
+          pressed && !disabled && { backgroundColor: recipe.overlay('lead') },
+          disabled && { opacity: Interaction.disabledOpacity },
+        ]}
+      >
+        {children}
+      </View>
+    </Pressable>
+  );
 }
 
 const styles = StyleSheet.create({

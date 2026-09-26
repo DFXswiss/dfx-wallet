@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { ScreenContainer, PrimaryButton } from '@/components';
+import { GlassPill, ScreenContainer, PrimaryButton } from '@/components';
 import { seedToWords } from '@/services/wallet';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 
@@ -124,9 +124,9 @@ export default function VerifySeedScreen() {
           ))}
         </View>
 
-        <View style={styles.wordNumber}>
+        <GlassPill style={styles.wordNumber}>
           <Text style={styles.wordNumberText}>Word #{currentIndex + 1}</Text>
-        </View>
+        </GlassPill>
 
         <View style={styles.options}>
           {options.map((word) => {
@@ -135,15 +135,12 @@ export default function VerifySeedScreen() {
             const isWrong = isSelected && error;
 
             return (
-              <Pressable
+              <GlassPill
                 key={word}
-                style={[
-                  styles.option,
-                  isCorrect && styles.optionCorrect,
-                  isWrong && styles.optionError,
-                ]}
+                selected={isSelected}
                 onPress={() => handleSelect(word)}
                 disabled={selectedWord !== null}
+                style={styles.option}
               >
                 <Text
                   style={[
@@ -154,7 +151,7 @@ export default function VerifySeedScreen() {
                 >
                   {word}
                 </Text>
-              </Pressable>
+              </GlassPill>
             );
           })}
         </View>
@@ -205,10 +202,6 @@ const makeStyles = (colors: ThemeColors) =>
     },
     wordNumber: {
       alignSelf: 'center',
-      backgroundColor: colors.surface,
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderRadius: 24,
     },
     wordNumberText: {
       ...Typography.headlineSmall,
@@ -218,16 +211,7 @@ const makeStyles = (colors: ThemeColors) =>
       gap: 12,
     },
     option: {
-      padding: 16,
-      borderRadius: 12,
-      backgroundColor: colors.surface,
-      alignItems: 'center',
-    },
-    optionCorrect: {
-      backgroundColor: colors.success,
-    },
-    optionError: {
-      backgroundColor: colors.error,
+      alignSelf: 'stretch',
     },
     optionText: {
       ...Typography.bodyLarge,
@@ -235,10 +219,10 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '600',
     },
     optionTextCorrect: {
-      color: colors.black,
+      color: colors.success,
     },
     optionTextError: {
-      color: colors.white,
+      color: colors.error,
     },
     spacer: {
       flex: 1,

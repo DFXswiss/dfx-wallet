@@ -1,57 +1,38 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { useEffect, useState, useMemo } from 'react';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { AppHeader, DfxBackgroundScreen, ReauthPinModal } from '@/components';
+import { AppHeader, DfxBackgroundScreen, GlassCard, SeedWordTile } from '@/components';
 import {
   authenticatePasskey,
   deriveMnemonicFromPrf,
-  PasskeyCredentialMismatchError,
   PasskeyPrfUnsupportedError,
 } from '@/features/passkey/services';
-import { useReauthenticate } from '@/hooks/useReauthenticate';
-import { useScreenCaptureProtection } from '@/hooks/useScreenCaptureProtection';
-import { copySensitive } from '@/services/clipboard';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { seedToWords } from '@/services/wallet';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 
-type WalletOriginState = 'loading' | 'seed' | 'passkey' | 'error';
-
-type WalletMetadata = {
-  credentialId: string | null;
-  derivationVersion: string | null;
-  origin: string | null;
-  state: Exclude<WalletOriginState, 'loading'>;
+/**
+ * Soft import for expo-screen-capture — the native module isn't linked yet
+ * in dev/sim builds (`expo prebuild` hasn't run since the package was added).
+ * Without this guard the static `import * as ScreenCapture` blows up the
+ * whole screen bundle with "Cannot find native module 'ExpoScreenCapture'",
+ * which manifests as an Unmatched Route. Once iOS is rebuilt the require
+ * succeeds and capture protection kicks in automatically.
+ */
+type ScreenCaptureApi = {
+  preventScreenCaptureAsync: (key?: string) => Promise<unknown>;
+  allowScreenCaptureAsync: (key?: string) => Promise<unknown>;
 };
-
-async function readWalletMetadata(): Promise<WalletMetadata> {
-  const [origin, credentialId, derivationVersion] = await Promise.all([
-    secureStorage.get(StorageKeys.WALLET_ORIGIN),
-    secureStorage.get(StorageKeys.PASSKEY_CREDENTIAL_ID),
-    secureStorage.get(StorageKeys.PASSKEY_DERIVATION_VERSION),
-  ]);
-  const state: WalletMetadata['state'] =
-    origin === 'passkey' ||
-    origin === 'passkey-pending' ||
-    credentialId !== null ||
-    derivationVersion !== null
-      ? 'passkey'
-      : origin === null
-        ? 'seed'
-        : 'error';
-
-  return { credentialId, derivationVersion, origin, state };
+let screenCaptureModule: ScreenCaptureApi | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  screenCaptureModule = require('expo-screen-capture') as ScreenCaptureApi;
+} catch {
+  screenCaptureModule = null;
 }
 
 export default function SeedExportScreen() {
@@ -59,84 +40,43 @@ export default function SeedExportScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { t } = useTranslation();
   const router = useRouter();
-  const [walletOrigin, setWalletOrigin] = useState<WalletOriginState>('loading');
+  const [walletOrigin, setWalletOrigin] = useState<string | null>(null);
   const [seedWords, setSeedWords] = useState<string[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const { requestReauth, modalProps } = useReauthenticate();
   // Defensive — older WDK versions don't always have getMnemonic. Bind via
   // the hook return rather than destructuring at the top so a missing
   // method doesn't take down the entire screen render.
   const wallet = useWalletManager();
-  const getMnemonic = wallet?.getMnemonic?.bind(wallet);
 
   useEffect(() => {
-    let mounted = true;
-    void readWalletMetadata()
-      .then((metadata) => {
-        if (mounted) setWalletOrigin(metadata.state);
-      })
-      .catch(() => {
-        if (mounted) setWalletOrigin('error');
-      });
-    return () => {
-      mounted = false;
-    };
+    void secureStorage.get(StorageKeys.WALLET_ORIGIN).then(setWalletOrigin);
   }, []);
 
-  const captureProtection = useScreenCaptureProtection(seedWords !== null, 'seed-export');
+  // Block screenshots and the iOS app-switcher snapshot whenever the seed
+  // is on screen. expo-screen-capture wires into FLAG_SECURE on Android
+  // and the iOS UIScreen capture observer; both are no-ops in the
+  // simulator but enforced on real devices. Released on unmount or when
+  // the seed is hidden again. Skipped silently if the native module isn't
+  // linked yet — that's expected in dev until the next iOS rebuild.
+  useEffect(() => {
+    if (!seedWords || !screenCaptureModule) return;
+    void screenCaptureModule.preventScreenCaptureAsync('seed-export');
+    return () => {
+      void screenCaptureModule!.allowScreenCaptureAsync('seed-export');
+    };
+  }, [seedWords]);
 
   const isPasskey = walletOrigin === 'passkey';
-  const isOriginReady = walletOrigin === 'seed' || walletOrigin === 'passkey';
-  const canRenderSeed = seedWords !== null && captureProtection !== 'pending';
 
   const handleReveal = async () => {
-    if (!isOriginReady) return;
-    if (!(await requestReauth())) return;
-
-    let metadata: WalletMetadata;
-    try {
-      metadata = await readWalletMetadata();
-    } catch {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(t('common.error'), t('seedExport.passkeyVerificationUnavailable'));
-      return;
-    }
-
-    if (
-      metadata.state === 'error' ||
-      metadata.state !== walletOrigin ||
-      (metadata.state === 'passkey' && metadata.origin !== 'passkey')
-    ) {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(t('common.error'), t('seedExport.passkeyVerificationUnavailable'));
-      return;
-    }
-
     if (isPasskey) {
       setIsLoading(true);
       try {
-        const credentialId = metadata.credentialId;
-        if (!credentialId || !getMnemonic) {
-          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert(t('common.error'), t('seedExport.passkeyVerificationUnavailable'));
-          return;
-        }
-        const versionStr = metadata.derivationVersion;
+        const versionStr = await secureStorage.get(StorageKeys.PASSKEY_DERIVATION_VERSION);
         const version = versionStr ? parseInt(versionStr, 10) : 1;
-        const { prfOutput } = await authenticatePasskey({ credentialId });
+        const { prfOutput } = await authenticatePasskey();
         const mnemonic = deriveMnemonicFromPrf(prfOutput, version);
-        const wdkMnemonic = await getMnemonic('default');
-        if (!wdkMnemonic) {
-          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert(t('common.error'), t('seedExport.passkeyVerificationUnavailable'));
-          return;
-        }
-        if (mnemonic !== wdkMnemonic) {
-          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert(t('common.error'), t('seedExport.seedMismatch'));
-          return;
-        }
         setSeedWords(seedToWords(mnemonic));
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       } catch (error) {
@@ -147,8 +87,6 @@ export default function SeedExportScreen() {
             default: 'Google Password Manager',
           });
           Alert.alert(t('common.error'), t('passkey.prfUnsupported', { provider }));
-        } else if (error instanceof PasskeyCredentialMismatchError) {
-          Alert.alert(t('common.error'), t('seedExport.passkeyVerificationUnavailable'));
         } else {
           Alert.alert(t('common.error'), t('seedExport.deriveFailed'));
         }
@@ -164,6 +102,7 @@ export default function SeedExportScreen() {
       // mnemonic from WDK' authoritative store instead.
       setIsLoading(true);
       try {
+        const getMnemonic = wallet?.getMnemonic;
         const mnemonic = getMnemonic ? await getMnemonic('default') : null;
         if (mnemonic) {
           setSeedWords(seedToWords(mnemonic));
@@ -191,7 +130,7 @@ export default function SeedExportScreen() {
 
   const handleCopy = async () => {
     if (!seedWords) return;
-    await copySensitive(seedWords.join(' '));
+    await Clipboard.setStringAsync(seedWords.join(' '));
     setCopied(true);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTimeout(() => setCopied(false), 2000);
@@ -210,44 +149,24 @@ export default function SeedExportScreen() {
         </Text>
 
         {!seedWords ? (
-          <Pressable
-            testID="seed-export-reveal-button"
-            style={[
-              styles.revealButton,
-              (isLoading || !isOriginReady) && styles.revealButtonDisabled,
-            ]}
-            onPress={handleReveal}
-            disabled={isLoading || !isOriginReady}
-          >
+          <GlassCard contentStyle={styles.revealButton} onPress={handleReveal} disabled={isLoading}>
             <Text style={styles.revealText}>
-              {walletOrigin === 'loading' || isLoading
+              {isLoading
                 ? t('common.loading')
-                : walletOrigin === 'error'
-                  ? t('common.error')
-                  : isPasskey
-                    ? t('seedExport.revealPasskey')
-                    : t('seedExport.revealSeed')}
+                : isPasskey
+                  ? t('seedExport.revealPasskey')
+                  : t('seedExport.revealSeed')}
             </Text>
-          </Pressable>
-        ) : !canRenderSeed ? (
-          <ActivityIndicator testID="seed-export-protection-loading" color={colors.primary} />
+          </GlassCard>
         ) : (
           <>
-            {captureProtection === 'unavailable' && (
-              <View style={styles.warningContainer} testID="seed-export-capture-warning">
-                <Text style={styles.warningText}>{t('common.screenCaptureUnavailable')}</Text>
-              </View>
-            )}
-            <View style={styles.warningContainer}>
+            <GlassCard tone="warning" style={styles.warningContainer}>
               <Text style={styles.warningText}>{t('seedExport.warning')}</Text>
-            </View>
+            </GlassCard>
 
             <View style={styles.seedContainer}>
               {seedWords.map((word, index) => (
-                <View key={index} style={styles.wordCard}>
-                  <Text style={styles.wordIndex}>{index + 1}.</Text>
-                  <Text style={styles.word}>{word}</Text>
-                </View>
+                <SeedWordTile key={index} index={index} word={word} style={styles.wordCard} />
               ))}
             </View>
 
@@ -257,7 +176,6 @@ export default function SeedExportScreen() {
           </>
         )}
       </View>
-      <ReauthPinModal {...modalProps} />
     </DfxBackgroundScreen>
   );
 }
@@ -282,16 +200,8 @@ const makeStyles = (colors: ThemeColors) =>
     },
     revealButton: {
       padding: 48,
-      borderRadius: 12,
-      backgroundColor: colors.cardOverlay,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderStyle: 'dashed',
       alignItems: 'center',
       justifyContent: 'center',
-    },
-    revealButtonDisabled: {
-      opacity: 0.5,
     },
     revealText: {
       ...Typography.bodyLarge,
@@ -299,10 +209,6 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '600',
     },
     warningContainer: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.warning,
       padding: 16,
     },
     warningText: {
@@ -315,25 +221,7 @@ const makeStyles = (colors: ThemeColors) =>
       gap: 8,
     },
     wordCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.border,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      gap: 6,
       width: '31%',
-    },
-    wordIndex: {
-      ...Typography.bodySmall,
-      color: colors.textTertiary,
-      width: 24,
-    },
-    word: {
-      ...Typography.bodyMedium,
-      color: colors.text,
     },
     copyButton: {
       alignSelf: 'center',

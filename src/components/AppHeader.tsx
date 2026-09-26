@@ -1,14 +1,14 @@
 import { ReactNode, useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
+import { GlassIconButton } from './GlassIconButton';
+import { GlassSurface } from './GlassSurface';
 import { Icon } from './Icon';
 import { Header, Typography, useColors, type ThemeColors } from '@/theme';
 
 type Props = {
   title: string;
   onBack?: () => void;
-  backDisabled?: boolean;
   /**
    * Hide the back button entirely (e.g. consent screens that may only be
    * left forwards via an explicit action). The left slot keeps its width
@@ -35,14 +35,12 @@ type Props = {
 export function AppHeader({
   title,
   onBack,
-  backDisabled = false,
   hideBack = false,
   rightAction,
   rightActionPlain = false,
   testID,
 }: Props) {
   const router = useRouter();
-  const { t } = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   // When a screen is mounted directly via deep-link (e.g. simctl openurl,
@@ -61,18 +59,13 @@ export function AppHeader({
     <View style={styles.sideSlot} pointerEvents="none" />
   ) : (
     <View style={styles.sideSlot}>
-      <Pressable
+      <GlassIconButton
+        icon={<Icon name="arrow-left" size={26} color={colors.text} />}
         onPress={handleBack}
-        disabled={backDisabled}
-        hitSlop={12}
-        style={[styles.iconSlot, styles.iconButton, backDisabled && styles.disabled]}
-        accessibilityRole="button"
-        accessibilityLabel={t('common.back')}
-        accessibilityState={{ disabled: backDisabled }}
-        testID={testID ? `${testID}-back` : undefined}
-      >
-        <Icon name="arrow-left" size={26} color={colors.text} />
-      </Pressable>
+        size={Header.slotSize}
+        accessibilityLabel="Back"
+        {...(testID ? { testID: `${testID}-back` } : {})}
+      />
     </View>
   );
 
@@ -81,7 +74,9 @@ export function AppHeader({
       {rightActionPlain ? (
         rightAction
       ) : (
-        <View style={[styles.iconSlot, styles.iconButton]}>{rightAction}</View>
+        <GlassSurface variant="quiet" radius={Header.slotRadius} style={styles.iconSlot}>
+          {rightAction}
+        </GlassSurface>
       )}
     </View>
   ) : (
@@ -123,15 +118,6 @@ const makeStyles = (colors: ThemeColors) =>
       height: Header.slotSize,
       alignItems: 'center',
       justifyContent: 'center',
-    },
-    iconButton: {
-      borderRadius: Header.slotRadius,
-      backgroundColor: colors.cardOverlay,
-      borderWidth: 1,
-      borderColor: colors.cardOverlayBorder,
-    },
-    disabled: {
-      opacity: 0.5,
     },
     title: {
       flexShrink: 1,

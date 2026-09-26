@@ -38,7 +38,10 @@ jest.mock('@tetherto/wdk-react-native-core', () => ({
   }),
 }));
 
+// eslint-disable-next-line import/first
 import CreateWalletScreen from '../../app/(onboarding)/create-wallet';
+// eslint-disable-next-line import/first
+import { GlassCard } from '../../src/components/GlassCard';
 
 function readDisplayedSeedWords(
   getByTestId: (testId: string) => Parameters<typeof within>[0],
@@ -129,6 +132,10 @@ describe('CreateWalletScreen', () => {
     const protectionTag = mockPreventScreenCapture.mock.calls[0]![0]!;
     view.unmount();
     await waitFor(() => expect(mockAllowScreenCapture).toHaveBeenCalledWith(protectionTag));
+  it('renders the seed card and word tiles on glass surfaces', () => {
+    const { getByTestId, UNSAFE_queryAllByType } = render(<CreateWalletScreen />);
+    fireEvent.press(getByTestId('create-wallet-reveal-button'));
+    expect(UNSAFE_queryAllByType(GlassCard).length).toBeGreaterThanOrEqual(1);
   });
 
   it('disables the continue CTA before the seed is revealed', () => {

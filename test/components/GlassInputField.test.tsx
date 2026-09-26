@@ -68,4 +68,18 @@ describe('GlassInputField', () => {
     );
     expect(ringStyle(withError).borderColor).toBe(lightColors.error);
   });
+
+  it('containerStyle reaches the outer ring, style still reaches the TextInput', () => {
+    const result = render(
+      <ThemeProvider>
+        <GlassInputField
+          testID="input"
+          containerStyle={{ flex: 1 }}
+          style={{ fontSize: 22 }}
+        />
+      </ThemeProvider>,
+    );
+    expect(ringStyle(result).flex).toBe(1);
+    expect(flatten(result.getByTestId('input').props.style).fontSize).toBe(22);
+  });
 });
