@@ -5,6 +5,9 @@
  * This module is the canonical source for distances, radii and icon-tile
  * sizes — screens must not invent parallel literals for the same role.
  */
+import type { TextStyle } from 'react-native';
+import type { ThemeColors } from './colors';
+import type { ResolvedScheme } from './theme-store';
 
 export const Spacing = {
   xs: 4,
@@ -67,3 +70,15 @@ export const BackdropText = {
   textShadowOffset: { width: 0, height: 1 },
   textShadowRadius: 8,
 };
+
+/**
+ * Shared text-shadow for copy that sits directly on the photo backdrop
+ * (no card behind it). Pairs `BackdropText`'s offset/radius with the
+ * theme's own `background` as the shadow color — the same pattern
+ * `PortfolioScreenImpl` / `PortfolioAssetDetailScreenImpl` already use
+ * locally, pulled out so every screen reads one helper instead of copying
+ * the ternary. Light theme returns `{}` — see `BackdropText` above.
+ */
+export function backdropTextShadow(scheme: ResolvedScheme, colors: ThemeColors): TextStyle {
+  return scheme === 'dark' ? { textShadowColor: colors.background, ...BackdropText } : {};
+}
