@@ -1,7 +1,7 @@
 // Characterization tests for the steps AFTER the amount step (bank,
-// confirm) and for the linkChain recovery flow. SellScreenImpl.test.tsx
-// only covers the amount step; these tests pin today's behavior before the
-// buy/sell/swap module unification (see AUFTRAG for the follow-up).
+// confirm) and for the linkChain recovery flow. SellTradeAdapter.test.tsx
+// only covers the amount step; these tests pin today's behavior across the
+// buy/sell/swap module unification (see AUFTRAG).
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import {
@@ -20,9 +20,7 @@ jest.mock('react-i18next', () => ({
 
 const mockBack = jest.fn();
 jest.mock('expo-router', () => ({
-  Stack: { Screen: () => null },
   useFocusEffect: (callback: () => void | (() => void)) => callback(),
-  useLocalSearchParams: () => ({}),
   useRouter: () => ({ back: mockBack, push: jest.fn(), replace: jest.fn(), canGoBack: () => true }),
 }));
 
@@ -84,10 +82,13 @@ jest.mock('@/features/dfx-backend/services', () => ({
   },
   DfxApiError: class DfxApiError extends Error {
     statusCode: number;
+    code: string;
 
-    constructor(message: string, statusCode: number) {
+    constructor(statusCode: number, code: string, message: string) {
       super(message);
       this.statusCode = statusCode;
+      this.code = code;
+      this.name = 'DfxApiError';
     }
   },
 }));
@@ -167,7 +168,6 @@ jest.mock('@/components', () => ({
     );
   },
 }));
-jest.mock('../../src/features/buy-sell/TradeModeTabs', () => () => null);
 jest.mock('../../src/features/buy-sell/AssetGlyph', () => ({
   AssetGlyph: ({ symbol }: { symbol: string }) => {
     const ReactActual = jest.requireActual('react');
@@ -209,11 +209,26 @@ jest.mock('../../src/features/buy-sell/useSellFlow', () => ({
 }));
 
 // eslint-disable-next-line import/first
-import SellScreenImpl from '../../src/features/buy-sell/SellScreenImpl';
+import { SellTradeAdapter } from '../../src/features/buy-sell/SellTradeAdapter';
 // Resolves to the mocked class above (jest intercepts this module path for
 // the whole file); imported here so test bodies can construct instances.
 // eslint-disable-next-line import/first
 import { DfxApiError } from '@/features/dfx-backend/services';
+
+const mockOnShellChange = jest.fn();
+const renderAdapter = () => render(<SellTradeAdapter onShellChange={mockOnShellChange} />);
+
+/** Invokes the onBack the adapter most recently reported to the shell — the
+ *  shared `TradeScreenShell` (and its rendered back button) now lives in
+ *  `TradeScreen`, not in this adapter, so the test drives it the same way
+ *  `TradeScreen` would: via the reported shell chrome. */
+function pressShellBack() {
+  const calls = mockOnShellChange.mock.calls;
+  const lastShell = calls[calls.length - 1][0];
+  act(() => {
+    lastShell.onBack();
+  });
+}
 
 const PAYMENT_INFO = {
   id: 123,
@@ -245,6 +260,7 @@ beforeEach(() => {
   mockCreatePaymentInfo.mockReset();
   mockConfirmSell.mockReset();
   mockRetryLast.mockReset();
+  mockOnShellChange.mockReset();
   mockSign.mockClear();
   mockLinkAddress.mockReset();
   mockLoginAsAddressOwner.mockReset();
@@ -260,11 +276,9 @@ beforeEach(() => {
   flowState.actionErrorKey = null;
 });
 
-describe('SellScreenImpl — bank/confirm steps', () => {
+describe('SellTradeAdapter — bank/confirm steps', () => {
   it('submits the IBAN and shows deposit + quote rows; back returns bank then amount', async () => {
-    const { getByTestId, getByText, getByPlaceholderText, queryByTestId } = render(
-      <SellScreenImpl />,
-    );
+    const { getByTestId, getByText, getByPlaceholderText, queryByTestId } = renderAdapter();
 
     act(() => {
       fireEvent.press(getByTestId('sell-pay-asset-pill'));
@@ -305,18 +319,16 @@ describe('SellScreenImpl — bank/confirm steps', () => {
     expect(getByText(receiveText)).toBeTruthy();
     expect(getByText(PAYMENT_INFO.beneficiary.iban)).toBeTruthy();
 
-    fireEvent.press(getByTestId('sell-screen-back'));
+    pressShellBack();
     expect(getByPlaceholderText('CH00 0000 0000 0000 0000 0')).toBeTruthy();
     expect(queryByTestId('sell-cta')).toBeNull();
 
-    fireEvent.press(getByTestId('sell-screen-back'));
+    pressShellBack();
     expect(getByTestId('sell-cta')).toBeTruthy();
   });
 
   it('shows the error and stays on the bank step when createPaymentInfo fails', async () => {
-    const { getByTestId, getByText, queryByText, getByPlaceholderText, rerender } = render(
-      <SellScreenImpl />,
-    );
+    const { getByTestId, getByText, queryByText, getByPlaceholderText, rerender } = renderAdapter();
 
     act(() => {
       fireEvent.press(getByTestId('sell-pay-asset-pill'));
@@ -337,7 +349,7 @@ describe('SellScreenImpl — bank/confirm steps', () => {
     });
 
     flowState.error = 'sell failed';
-    rerender(<SellScreenImpl />);
+    rerender(<SellTradeAdapter onShellChange={mockOnShellChange} />);
 
     expect(getByText('sell failed')).toBeTruthy();
     expect(getByPlaceholderText('CH00 0000 0000 0000 0000 0')).toBeTruthy();
@@ -345,10 +357,10 @@ describe('SellScreenImpl — bank/confirm steps', () => {
   });
 });
 
-describe('SellScreenImpl — linkChainToDfx (linkChain gate recovery)', () => {
+describe('SellTradeAdapter — linkChainToDfx (linkChain gate recovery)', () => {
   it('links the chain, caches it, and replays the last call on success', async () => {
     mockLinkAddress.mockResolvedValueOnce('new-token');
-    render(<SellScreenImpl />);
+    renderAdapter();
     const onLinkChain = requireCallback(capturedOnLinkChain);
 
     await act(async () => {
@@ -367,9 +379,11 @@ describe('SellScreenImpl — linkChainToDfx (linkChain gate recovery)', () => {
   });
 
   it('on a 409 conflict, re-authenticates as the owner and wipes the chain cache', async () => {
-    mockLinkAddress.mockRejectedValueOnce(new DfxApiError('address owned by another user', 409));
+    mockLinkAddress.mockRejectedValueOnce(
+      new DfxApiError(409, 'CONFLICT', 'address owned by another user'),
+    );
     mockLoginAsAddressOwner.mockResolvedValueOnce('owner-token');
-    render(<SellScreenImpl />);
+    renderAdapter();
     const onLinkChain = requireCallback(capturedOnLinkChain);
 
     await act(async () => {
