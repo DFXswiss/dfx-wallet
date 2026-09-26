@@ -1,24 +1,18 @@
 import { fireEvent, render } from '@testing-library/react-native';
 
+import { GlassPill } from '../../src/components/GlassPill';
 import TradeModeTabs from '../../src/features/buy-sell/TradeModeTabs';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-jest.mock('@/theme', () => {
-  const actual = jest.requireActual('@/theme');
-  return {
-    ...actual,
-    useColors: () => ({
-      border: '#dddddd',
-      card: '#ffffff',
-      surfaceLight: '#f5f5f5',
-      text: '#111111',
-      textTertiary: '#777777',
-    }),
-  };
-});
+// The segmented control now renders `GlassSurface`/`GlassPill` for real, so
+// it needs the actual theme tokens (`Card`, `Radius`, `useGlassRecipe`, …)
+// instead of a hand-picked color subset.
+jest.mock('@/theme', () => ({
+  ...jest.requireActual('@/theme'),
+}));
 
 describe('TradeModeTabs', () => {
   it.each([
@@ -32,13 +26,23 @@ describe('TradeModeTabs', () => {
     expect(getByTestId('trade-tab-buy')).toBeTruthy();
     expect(getByTestId('trade-tab-sell')).toBeTruthy();
     expect(getByTestId('trade-tab-swap')).toBeTruthy();
-    expect(getByTestId(selectedTestId).props.accessibilityState).toEqual({ selected: true });
+    expect(getByTestId(selectedTestId).props.accessibilityState).toMatchObject({ selected: true });
 
     for (const testId of ['trade-tab-buy', 'trade-tab-sell', 'trade-tab-swap']) {
       if (testId !== selectedTestId) {
-        expect(getByTestId(testId).props.accessibilityState).toEqual({ selected: false });
+        expect(getByTestId(testId).props.accessibilityState).toMatchObject({ selected: false });
       }
     }
+  });
+
+  it('renders the active tab as a selected GlassPill', () => {
+    const { UNSAFE_getAllByType } = render(<TradeModeTabs active="sell" onChange={jest.fn()} />);
+
+    const pills = UNSAFE_getAllByType(GlassPill);
+    expect(pills).toHaveLength(3);
+    const selectedPills = pills.filter((pill) => pill.props.selected === true);
+    expect(selectedPills).toHaveLength(1);
+    expect(selectedPills[0]?.props.testID).toBe('trade-tab-sell');
   });
 
   it.each([

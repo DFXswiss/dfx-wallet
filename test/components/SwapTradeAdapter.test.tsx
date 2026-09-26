@@ -1,5 +1,6 @@
 import { render } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
+import { GlassCard } from '../../src/components/GlassCard';
 import { TRADE_STEP_GAP } from '../../src/features/buy-sell/tradePanelStyles';
 import { SwapTradeAdapter } from '../../src/features/buy-sell/SwapTradeAdapter';
 
@@ -19,24 +20,12 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-jest.mock('@/theme', () => {
-  const actual = jest.requireActual('@/theme');
-  return {
-    ...actual,
-    useColors: () => ({
-      background: '#ffffff',
-      border: '#dddddd',
-      borderLight: '#eeeeee',
-      cardOverlay: '#ffffff',
-      primary: '#0066ff',
-      primaryLight: '#e6f0ff',
-      surface: '#ffffff',
-      text: '#111111',
-      textTertiary: '#777777',
-    }),
-    useResolvedScheme: () => 'light',
-  };
-});
+// The amount panels and fees panel now render `GlassCard`/`GlassIconButton`
+// for real — they need the actual theme tokens instead of a hand-picked
+// color subset.
+jest.mock('@/theme', () => ({
+  ...jest.requireActual('@/theme'),
+}));
 
 jest.mock('../../src/components/Icon', () => {
   const ReactActual = jest.requireActual('react');
@@ -55,7 +44,7 @@ beforeEach(() => {
 
 describe('SwapTradeAdapter', () => {
   it('renders the swap placeholder content, disabled CTA, and reports its shell chrome', () => {
-    const { getByTestId, getAllByText } = render(
+    const { getByTestId, getAllByText, UNSAFE_getAllByType } = render(
       <SwapTradeAdapter onShellChange={mockOnShellChange} />,
     );
 
@@ -72,6 +61,8 @@ describe('SwapTradeAdapter', () => {
     expect(StyleSheet.flatten(getByTestId('swap-step-content').props.style).gap).toBe(
       TRADE_STEP_GAP,
     );
+    // The shared amount panels and fees panel render on `GlassCard`.
+    expect(UNSAFE_getAllByType(GlassCard).length).toBeGreaterThan(0);
 
     expect(mockOnShellChange).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { ConfirmTargetWalletModal, Icon, PrimaryButton } from '@/components';
+import { GlassCard } from '@/components/GlassCard';
+import { GlassListGroup } from '@/components/GlassListGroup';
+import { GlassPill } from '@/components/GlassPill';
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
 import {
   formatFiat as fmtFiat,
@@ -346,16 +349,17 @@ export function BuyTradeAdapter({
 
       <View style={styles.quickRow}>
         {['50', '100', '250', '500'].map((val) => (
-          <Pressable
+          <GlassPill
             key={val}
             testID={`buy-preset-${val}`}
-            style={styles.quickAmount}
+            style={styles.quickAmountOuter}
+            contentStyle={styles.quickAmountContent}
             onPress={() => setAmount(val)}
           >
             <Text style={styles.quickAmountText}>
               {`${SYMBOL_GLYPH.get(selectedCurrency) ?? selectedCurrency}${val}`}
             </Text>
-          </Pressable>
+          </GlassPill>
         ))}
       </View>
 
@@ -416,7 +420,12 @@ export function BuyTradeAdapter({
             </Text>
           ) : null}
 
-          <View testID="buy-payment-method-row" style={styles.paymentMethodRow}>
+          <GlassCard
+            testID="buy-payment-method-row"
+            padding={0}
+            radius={12}
+            style={styles.paymentMethodRow}
+          >
             <View style={styles.paymentMethodIcon}>
               <Icon name="wallet" size={18} color={colors.primary} />
             </View>
@@ -426,7 +435,7 @@ export function BuyTradeAdapter({
               </Text>
               <Text style={styles.paymentMethodHint}>{t('buy.paymentMethodHint')}</Text>
             </View>
-          </View>
+          </GlassCard>
 
           <View style={sharedStyles.spacer} />
 
@@ -480,7 +489,7 @@ export function BuyTradeAdapter({
       <View style={styles.stepContent}>
         <Text style={styles.stepSubtitle}>{t('buy.paymentInfo')}</Text>
 
-        <View style={sharedStyles.bankCard}>
+        <GlassListGroup style={sharedStyles.bankCard}>
           <CopyRow
             label={t('buy.iban')}
             value={paymentInfo.iban}
@@ -506,9 +515,9 @@ export function BuyTradeAdapter({
             onCopy={() => copy('ref', paymentInfo.remittanceInfo)}
             highlight
           />
-        </View>
+        </GlassListGroup>
 
-        <View style={sharedStyles.quoteCard}>
+        <GlassListGroup style={sharedStyles.quoteCard}>
           <Text style={sharedStyles.quoteTitle}>{t('buy.summary')}</Text>
           <QuoteRow
             label={t('common.amount')}
@@ -524,7 +533,7 @@ export function BuyTradeAdapter({
             value={`${fmtCrypto(paymentInfo.estimatedAmount)} ${paymentInfo.asset.name}`}
             emphasis
           />
-        </View>
+        </GlassListGroup>
 
         <Text style={sharedStyles.hint}>{t('buy.transfer')}</Text>
 
@@ -668,13 +677,14 @@ const makeStyles = (colors: ThemeColors) =>
       gap: 8,
       justifyContent: 'space-between',
     },
-    quickAmount: {
+    quickAmountOuter: {
       flex: 1,
+    },
+    quickAmountContent: {
       minHeight: 44,
       paddingVertical: 8,
-      borderRadius: 10,
-      backgroundColor: colors.background,
       alignItems: 'center',
+      justifyContent: 'center',
     },
     quickAmountText: {
       ...Typography.bodySmall,
@@ -685,10 +695,6 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
       paddingVertical: 14,
       paddingHorizontal: 16,
     },

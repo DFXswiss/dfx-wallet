@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, type ReactNode } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from '@/components';
+import { GlassListGroup } from '@/components/GlassListGroup';
+import { GlassSheet } from '@/components/GlassSheet';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 import { AssetGlyph } from './AssetGlyph';
 import { CurrencyGlyph } from './CurrencyGlyph';
@@ -38,6 +40,101 @@ type Props<T extends TradeAssetOption> = {
   optionTestIDPrefix?: string;
 };
 
+// One entry rendered inside an asset's `GlassListGroup`: either a
+// non-interactive sub-group label (multi-token chains) or a selectable row.
+// Built as plain data first so the group can mark its last *row* (`last`
+// suppresses `GlassListGroup.Row`'s own divider) without counting labels.
+type AssetEntry =
+  | { kind: 'label'; key: string; text: string }
+  | {
+      kind: 'row';
+      key: string;
+      testID: string;
+      selected: boolean;
+      unsupported?: boolean;
+      onPress: () => void;
+      content: ReactNode;
+    };
+
+function buildAssetEntries<T extends TradeAssetOption>(
+  asset: T,
+  selectedAssetSymbol: string | undefined,
+  selectedChainIndex: number,
+  selectedTokenIndex: number,
+  onSelect: (asset: T, chainIndex: number, tokenIndex: number) => void,
+  optionTestIDPrefix: string,
+  colors: ThemeColors,
+  styles: ReturnType<typeof makeStyles>,
+): AssetEntry[] {
+  const entries: AssetEntry[] = [];
+
+  asset.chains.forEach((chain, chainIndex) => {
+    const isChainSelected =
+      selectedAssetSymbol === asset.symbol && selectedChainIndex === chainIndex;
+
+    if (chain.tokens.length > 1) {
+      entries.push({
+        kind: 'label',
+        key: `${asset.symbol}-${chain.chain}-title`,
+        text: chain.label,
+      });
+      chain.tokens.forEach((token, tokenIndex) => {
+        const isSelected = isChainSelected && selectedTokenIndex === tokenIndex;
+        entries.push({
+          kind: 'row',
+          key: `${asset.symbol}-${chain.chain}-${token.assetSymbol}`,
+          testID: `${optionTestIDPrefix}-${asset.symbol}-${chain.chain}-${token.assetSymbol}`,
+          selected: isSelected,
+          onPress: () => onSelect(asset, chainIndex, tokenIndex),
+          content: (
+            <>
+              {isCurrencyCode(asset.symbol) ? (
+                <CurrencyGlyph code={asset.symbol} size={32} />
+              ) : (
+                <AssetGlyph symbol={token.assetSymbol} size={32} />
+              )}
+              <View style={styles.tokenMeta}>
+                <Text style={styles.optionLabel} numberOfLines={1}>
+                  {token.label}
+                </Text>
+                <Text style={styles.tokenChainLabel} numberOfLines={1}>
+                  {chain.label}
+                </Text>
+              </View>
+              {isSelected ? <Icon name="check" size={20} color={colors.primary} /> : null}
+            </>
+          ),
+        });
+      });
+    } else {
+      const isSelected = isChainSelected && selectedTokenIndex === 0;
+      entries.push({
+        kind: 'row',
+        key: `${asset.symbol}-${chain.chain}`,
+        testID: `${optionTestIDPrefix}-${asset.symbol}-${chain.chain}`,
+        selected: isSelected,
+        ...(chain.unsupported ? { unsupported: chain.unsupported } : {}),
+        onPress: () => onSelect(asset, chainIndex, 0),
+        content: (
+          <>
+            {isCurrencyCode(asset.symbol) ? (
+              <CurrencyGlyph code={asset.symbol} size={32} />
+            ) : (
+              <AssetGlyph symbol={asset.symbol} size={32} />
+            )}
+            <Text style={[styles.optionLabel, chain.unsupported && styles.optionLabelUnsupported]}>
+              {chain.label}
+            </Text>
+            {isSelected ? <Icon name="check" size={20} color={colors.primary} /> : null}
+          </>
+        ),
+      });
+    }
+  });
+
+  return entries;
+}
+
 export function ReceiveAssetSheet<T extends TradeAssetOption>({
   visible,
   onClose,
@@ -54,132 +151,80 @@ export function ReceiveAssetSheet<T extends TradeAssetOption>({
   const { t } = useTranslation();
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalContent}>
-        <Pressable
-          testID="receive-asset-sheet-backdrop"
-          style={styles.backdrop}
-          onPress={onClose}
-        />
-        <SafeAreaView
-          style={styles.sheet}
-          edges={['bottom', 'left', 'right']}
-          accessibilityViewIsModal
-        >
-          <View style={styles.header}>
-            <Text style={styles.title}>{t(titleKey)}</Text>
-            <Pressable
-              onPress={onClose}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.close')}
-            >
-              <Icon name="close" size={22} color={colors.text} />
-            </Pressable>
-          </View>
+    <GlassSheet
+      visible={visible}
+      onRequestClose={onClose}
+      position="bottom"
+      testID="receive-asset-sheet"
+    >
+      <SafeAreaView style={styles.sheetBody} edges={['bottom', 'left', 'right']}>
+        <View style={styles.header}>
+          <Text style={styles.title}>{t(titleKey)}</Text>
+          <Pressable
+            onPress={onClose}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close')}
+          >
+            <Icon name="close" size={22} color={colors.text} />
+          </Pressable>
+        </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {assets.map((asset) => (
+        <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+          {assets.map((asset) => {
+            const entries = buildAssetEntries(
+              asset,
+              selectedAssetSymbol,
+              selectedChainIndex,
+              selectedTokenIndex,
+              onSelect,
+              optionTestIDPrefix,
+              colors,
+              styles,
+            );
+            const rowKeys = entries
+              .filter((entry) => entry.kind === 'row')
+              .map((entry) => entry.key);
+            const lastRowKey = rowKeys[rowKeys.length - 1];
+
+            return (
               <View key={asset.symbol} style={styles.section}>
                 <Text style={styles.sectionTitle}>{asset.label ?? asset.symbol}</Text>
-                {asset.chains.map((chain, chainIndex) => {
-                  const isChainSelected =
-                    selectedAssetSymbol === asset.symbol && selectedChainIndex === chainIndex;
-
-                  if (chain.tokens.length > 1) {
-                    return (
-                      <View key={`${asset.symbol}-${chain.chain}`} style={styles.tokenGroup}>
-                        <Text style={styles.tokenGroupTitle}>{chain.label}</Text>
-                        {chain.tokens.map((token, tokenIndex) => {
-                          const isSelected = isChainSelected && selectedTokenIndex === tokenIndex;
-                          return (
-                            <Pressable
-                              key={`${asset.symbol}-${chain.chain}-${token.assetSymbol}`}
-                              style={styles.option}
-                              onPress={() => onSelect(asset, chainIndex, tokenIndex)}
-                              testID={`${optionTestIDPrefix}-${asset.symbol}-${chain.chain}-${token.assetSymbol}`}
-                              accessibilityRole="button"
-                              accessibilityState={{ selected: isSelected }}
-                            >
-                              {isCurrencyCode(asset.symbol) ? (
-                                <CurrencyGlyph code={asset.symbol} size={32} />
-                              ) : (
-                                <AssetGlyph symbol={token.assetSymbol} size={32} />
-                              )}
-                              <View style={styles.tokenMeta}>
-                                <Text style={styles.optionLabel} numberOfLines={1}>
-                                  {token.label}
-                                </Text>
-                                <Text style={styles.tokenChainLabel} numberOfLines={1}>
-                                  {chain.label}
-                                </Text>
-                              </View>
-                              {isSelected ? (
-                                <Icon name="check" size={20} color={colors.primary} />
-                              ) : null}
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    );
-                  }
-
-                  return (
-                    <Pressable
-                      key={`${asset.symbol}-${chain.chain}`}
-                      style={[styles.option, chain.unsupported && styles.optionUnsupported]}
-                      onPress={() => onSelect(asset, chainIndex, 0)}
-                      testID={`${optionTestIDPrefix}-${asset.symbol}-${chain.chain}`}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: isChainSelected && selectedTokenIndex === 0 }}
-                    >
-                      {isCurrencyCode(asset.symbol) ? (
-                        <CurrencyGlyph code={asset.symbol} size={32} />
-                      ) : (
-                        <AssetGlyph symbol={asset.symbol} size={32} />
-                      )}
-                      <Text
-                        style={[
-                          styles.optionLabel,
-                          chain.unsupported && styles.optionLabelUnsupported,
-                        ]}
-                      >
-                        {chain.label}
+                <GlassListGroup>
+                  {entries.map((entry) =>
+                    entry.kind === 'label' ? (
+                      <Text key={entry.key} style={styles.tokenGroupTitle}>
+                        {entry.text}
                       </Text>
-                      {isChainSelected && selectedTokenIndex === 0 ? (
-                        <Icon name="check" size={20} color={colors.primary} />
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
+                    ) : (
+                      <GlassListGroup.Row
+                        key={entry.key}
+                        onPress={entry.onPress}
+                        last={entry.key === lastRowKey}
+                        testID={entry.testID}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: entry.selected }}
+                        style={[styles.option, entry.unsupported && styles.optionUnsupported]}
+                      >
+                        {entry.content}
+                      </GlassListGroup.Row>
+                    ),
+                  )}
+                </GlassListGroup>
               </View>
-            ))}
-          </ScrollView>
-        </SafeAreaView>
-      </View>
-    </Modal>
+            );
+          })}
+        </ScrollView>
+      </SafeAreaView>
+    </GlassSheet>
   );
 }
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    modalContent: {
-      flex: 1,
-      justifyContent: 'flex-end',
-    },
-    backdrop: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(11, 20, 38, 0.35)',
-    },
-    sheet: {
-      width: '100%',
+    sheetBody: {
       maxHeight: '82%',
-      backgroundColor: colors.surface,
-      borderTopLeftRadius: 22,
-      borderTopRightRadius: 22,
-      paddingHorizontal: 20,
-      paddingTop: 8,
-      paddingBottom: 8,
+      gap: 8,
     },
     header: {
       minHeight: 52,
@@ -191,6 +236,9 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.headlineSmall,
       color: colors.text,
     },
+    scroll: {
+      flexGrow: 0,
+    },
     section: {
       paddingBottom: 8,
     },
@@ -200,9 +248,6 @@ const makeStyles = (colors: ThemeColors) =>
       paddingBottom: 6,
       fontWeight: '700',
       color: colors.textSecondary,
-    },
-    tokenGroup: {
-      paddingBottom: 4,
     },
     tokenGroupTitle: {
       ...Typography.bodySmall,
@@ -216,8 +261,6 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
     },
     optionUnsupported: {
       opacity: 0.45,

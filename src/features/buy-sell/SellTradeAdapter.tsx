@@ -6,6 +6,8 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { ConfirmTargetWalletModal, Icon, PrimaryButton } from '@/components';
+import { GlassInputField } from '@/components/GlassInputField';
+import { GlassListGroup } from '@/components/GlassListGroup';
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
 import type { ChainId } from '@/config/chains';
 import {
@@ -471,12 +473,11 @@ export function SellTradeAdapter({
       <Text style={styles.stepSubtitle}>{t('sell.bankAccount')}</Text>
       <Text style={styles.description}>{t('sell.bankDescription')}</Text>
 
-      <TextInput
-        style={styles.ibanInput}
+      <GlassInputField
+        style={styles.ibanInputText}
         value={iban}
         onChangeText={setIban}
         placeholder="CH00 0000 0000 0000 0000 0"
-        placeholderTextColor={colors.textTertiary}
         autoCapitalize="characters"
         autoCorrect={false}
       />
@@ -510,7 +511,7 @@ export function SellTradeAdapter({
       <View style={styles.stepContent}>
         <Text style={styles.stepSubtitle}>{t('sell.confirmSale')}</Text>
 
-        <View style={sharedStyles.bankCard}>
+        <GlassListGroup style={sharedStyles.bankCard}>
           <CopyRow
             label={t('sell.depositAddress')}
             value={paymentInfo.depositAddress}
@@ -518,9 +519,9 @@ export function SellTradeAdapter({
             onCopy={() => copy('addr', paymentInfo.depositAddress)}
             highlight
           />
-        </View>
+        </GlassListGroup>
 
-        <View style={sharedStyles.quoteCard}>
+        <GlassListGroup style={sharedStyles.quoteCard}>
           <Text style={sharedStyles.quoteTitle}>{t('sell.summary')}</Text>
           <QuoteRow
             label={t('sell.youSell')}
@@ -576,7 +577,7 @@ export function SellTradeAdapter({
           />
           <View style={sharedStyles.quoteDivider} />
           <QuoteRow label={t('sell.payoutTo')} value={paymentInfo.beneficiary?.iban ?? iban} />
-        </View>
+        </GlassListGroup>
 
         <Text style={sharedStyles.hint}>{t('sell.transferHint')}</Text>
 
@@ -681,13 +682,7 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textTertiary,
       marginTop: 0,
     },
-    ibanInput: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 16,
-      color: colors.text,
+    ibanInputText: {
       ...Typography.bodyLarge,
       letterSpacing: 1,
     },

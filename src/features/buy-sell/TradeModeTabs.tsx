@@ -1,7 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { useColors } from '@/theme';
+import { GlassPill } from '@/components/GlassPill';
+import { GlassSurface } from '@/components/GlassSurface';
 
 export type TradeMode = 'buy' | 'sell' | 'swap';
 
@@ -18,42 +19,31 @@ const tradeModes = [
 
 export default function TradeModeTabs({ active, onChange }: TradeModeTabsProps) {
   const { t } = useTranslation();
-  const colors = useColors();
 
   return (
-    <View
-      accessibilityRole="tablist"
-      testID="trade-mode-tabs"
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.surfaceLight,
-          borderColor: colors.border,
-        },
-      ]}
-    >
-      {tradeModes.map((mode) => {
-        const selected = mode.key === active;
+    <View accessibilityRole="tablist" testID="trade-mode-tabs">
+      <GlassSurface variant="quiet" radius={15} style={styles.container}>
+        {tradeModes.map((mode) => {
+          const selected = mode.key === active;
 
-        return (
-          <Pressable
-            accessibilityRole="tab"
-            accessibilityState={{ selected }}
-            key={mode.key}
-            onPress={() => {
-              if (!selected) {
-                onChange(mode.key);
-              }
-            }}
-            style={[styles.tab, { backgroundColor: selected ? colors.card : 'transparent' }]}
-            testID={`trade-tab-${mode.key}`}
-          >
-            <Text style={[styles.label, { color: selected ? colors.text : colors.textTertiary }]}>
+          return (
+            <GlassPill
+              key={mode.key}
+              selected={selected}
+              onPress={() => {
+                if (!selected) {
+                  onChange(mode.key);
+                }
+              }}
+              style={styles.tab}
+              testID={`trade-tab-${mode.key}`}
+              accessibilityRole="tab"
+            >
               {t(mode.label)}
-            </Text>
-          </Pressable>
-        );
-      })}
+            </GlassPill>
+          );
+        })}
+      </GlassSurface>
     </View>
   );
 }
@@ -61,20 +51,10 @@ export default function TradeModeTabs({ active, onChange }: TradeModeTabsProps) 
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    borderRadius: 15,
     padding: 4,
-    borderWidth: 1,
     marginBottom: 14,
   },
   tab: {
     flex: 1,
-    borderRadius: 11,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: {
-    fontWeight: '600',
-    fontSize: 14,
   },
 });

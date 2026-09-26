@@ -83,32 +83,13 @@ jest.mock('@/config/tokens', () => ({
   getAssets: () => [],
   getAssetMeta: (id: string) => ({ symbol: id }),
 }));
-jest.mock('@/theme', () => {
-  const actual = jest.requireActual('@/theme');
-  return {
-    ...actual,
-    useColors: () => ({
-      background: '#fff',
-      border: '#ddd',
-      borderLight: '#eee',
-      card: '#f8f8f8',
-      cardOverlay: '#fff',
-      divider: '#ddd',
-      primary: '#06f',
-      primaryLight: '#def',
-      surface: '#fff',
-      surfaceLight: '#f2f2f2',
-      success: '#16a34a',
-      text: '#111',
-      textSecondary: '#555',
-      textTertiary: '#888',
-      warning: '#c60',
-      error: '#c00',
-      white: '#fff',
-    }),
-    useResolvedScheme: () => 'light',
-  };
-});
+// The Trade screens now render the shared Glass modules (`GlassCard`,
+// `GlassPill`, `GlassListGroup`, …) for real — they need the actual theme
+// tokens (`Card`, `Radius`, `useGlassRecipe`, …), not a hand-picked color
+// subset, so this spreads the real module instead of reassembling one.
+jest.mock('@/theme', () => ({
+  ...jest.requireActual('@/theme'),
+}));
 jest.mock('@/components', () => ({
   ConfirmTargetWalletModal: ({ visible }: { visible: boolean }) => {
     if (!visible) return null;
@@ -143,9 +124,10 @@ jest.mock('@/components', () => ({
     );
   },
 }));
-// `TradeScreenShell` imports `AppHeader`/`Icon`/`DarkBackdrop` directly from
-// their own files, not the `@/components` barrel above — only `Icon` needs
-// a stand-in (`AppHeader`/`DarkBackdrop` are cheap enough to run for real).
+// `TradeScreenShell` imports `AppHeader`/`Icon`/`ScreenBackdrop` directly
+// from their own files, not the `@/components` barrel above — only `Icon`
+// needs a stand-in (`AppHeader`/`ScreenBackdrop` are cheap enough to run
+// for real).
 jest.mock('../../src/components/Icon', () => {
   const ReactActual = jest.requireActual('react');
   const { Text } = jest.requireActual('react-native');
