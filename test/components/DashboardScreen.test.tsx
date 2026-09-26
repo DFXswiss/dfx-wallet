@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
+import { Stop } from 'react-native-svg';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -230,6 +231,14 @@ describe('DashboardScreen', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(mockAuthenticate).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders ScreenBackdrop with variant="hero" (full-stage recipe, not "content")', () => {
+    const { UNSAFE_getAllByType } = render(<DashboardScreen />);
+    // Light "hero" top scrim starts at 0.30; light "content" starts at
+    // 0.58 — only the hero prop reaching ScreenBackdrop produces 0.30 here.
+    const firstTopStop = UNSAFE_getAllByType(Stop)[0];
+    expect(firstTopStop?.props.stopOpacity).toBe('0.30');
   });
 
   it('hides the Transactions link when TX_HISTORY is off', () => {
