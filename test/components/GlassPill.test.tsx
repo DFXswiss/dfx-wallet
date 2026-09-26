@@ -15,7 +15,15 @@ import { GlassPill } from '../../src/components/GlassPill';
 // eslint-disable-next-line import/first
 import { GlassSurface } from '../../src/components/GlassSurface';
 // eslint-disable-next-line import/first
-import { Card, Radius, ThemeProvider, useThemeStore, Interaction, lightColors } from '@/theme';
+import {
+  Card,
+  Radius,
+  ThemeProvider,
+  useThemeStore,
+  Interaction,
+  darkColors,
+  lightColors,
+} from '@/theme';
 
 function flatten(style: unknown): Record<string, unknown> {
   return StyleSheet.flatten(style as StyleProp<ViewStyle>) as Record<string, unknown>;
@@ -54,6 +62,25 @@ describe('GlassPill', () => {
     const label = getByText('Kauf');
     const flat = StyleSheet.flatten(label.props.style) as Record<string, unknown>;
     expect(flat.color).toBe(lightColors.primary);
+  });
+
+  it('gives an unselected text child colors.text, in light and dark', () => {
+    useThemeStore.setState({ mode: 'light' });
+    const light = render(
+      <ThemeProvider>
+        <GlassPill onPress={() => undefined}>Kauf</GlassPill>
+      </ThemeProvider>,
+    );
+    expect(flatten(light.getByText('Kauf').props.style).color).toBe(lightColors.text);
+    light.unmount();
+
+    useThemeStore.setState({ mode: 'dark' });
+    const dark = render(
+      <ThemeProvider>
+        <GlassPill onPress={() => undefined}>Kauf</GlassPill>
+      </ThemeProvider>,
+    );
+    expect(flatten(dark.getByText('Kauf').props.style).color).toBe(darkColors.text);
   });
 
   it('fires onPress when tapped and ignores taps while disabled', () => {

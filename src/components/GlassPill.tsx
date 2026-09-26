@@ -69,7 +69,9 @@ export function GlassPill({
   const toneEdge = glassToneEdge(tone, colors);
   const content =
     typeof children === 'string' ? (
-      <Text style={[styles.label, selected && { color: colors.primary }]}>{children}</Text>
+      <Text style={[styles.label, { color: selected ? colors.primary : colors.text }]}>
+        {children}
+      </Text>
     ) : (
       children
     );

@@ -189,7 +189,7 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.bg}>
-      <ScreenBackdrop />
+      <ScreenBackdrop variant="hero" />
       {content}
     </View>
   );

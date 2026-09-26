@@ -2,7 +2,7 @@ import { Image, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useBackdropRecipe, useColors } from '@/theme';
 
-export type ScreenBackdropVariant = 'default' | 'pay' | 'pin';
+export type ScreenBackdropVariant = 'hero' | 'content' | 'pin' | 'pay';
 
 type Props = {
   variant?: ScreenBackdropVariant;
@@ -16,15 +16,21 @@ type Props = {
  * its own light photo) with no single place to fix it. This component owns
  * both themes: one render path, a recipe object per scheme.
  */
-export function ScreenBackdrop({ variant = 'default' }: Props) {
+export function ScreenBackdrop({ variant = 'content' }: Props) {
   const colors = useColors();
   const { width: W, height: H } = useWindowDimensions();
   const recipe = useBackdropRecipe();
   const photo = variant === 'pay' && recipe.payPhoto ? recipe.payPhoto : recipe.photo;
   const scrimColor = recipe.scrimColor(colors.background);
-  // `pin` keeps `default`'s photo, bottom scrim and wash; only the top
-  // scrim gets a stronger recipe so logo/title/PIN dots read over the photo.
-  const scrimTopStops = variant === 'pin' ? recipe.pinScrimTopStops : recipe.scrimTopStops;
+  // `content` (the default) gets the calmer veil so intro text and headings
+  // stay readable. `pin` keeps its own stronger recipe. `hero` and `pay`
+  // both keep the old full-stage recipe unchanged.
+  const scrimTopStops =
+    variant === 'pin'
+      ? recipe.pinScrimTopStops
+      : variant === 'content'
+        ? recipe.contentScrimTopStops
+        : recipe.heroScrimTopStops;
 
   return (
     <View
