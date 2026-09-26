@@ -1,32 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  ImageBackground,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import * as Haptics from 'expo-haptics';
-import { DarkBackdrop, Icon } from '@/components';
+import { Icon, ScreenBackdrop } from '@/components';
 import { isBiometricAvailable } from '@/features/biometric/biometric';
 import { dfxUserService } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
-import {
-  Typography,
-  useColors,
-  useResolvedScheme,
-  useThemeStore,
-  type ThemeColors,
-  type ThemeMode,
-} from '@/theme';
+import { Typography, useColors, useThemeStore, type ThemeColors, type ThemeMode } from '@/theme';
 
 type IconName = 'user' | 'wallet' | 'shield' | 'globe' | 'document' | 'support';
 
@@ -62,7 +46,6 @@ export default function SettingsScreen() {
   const themeMode = useThemeStore((s) => s.mode);
   const setThemeMode = useThemeStore((s) => s.setMode);
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [biometricSupported, setBiometricSupported] = useState<boolean | null>(null);
 
@@ -338,15 +321,7 @@ export default function SettingsScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
       <View style={styles.container}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>

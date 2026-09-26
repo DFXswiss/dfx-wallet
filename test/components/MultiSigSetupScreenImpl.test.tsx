@@ -55,7 +55,7 @@ jest.mock('@/components', () => {
   return {
     ...actual,
     Icon: ({ name }: { name: string }) => ReactActual.createElement(Text, null, name),
-    DarkBackdrop: () => ReactActual.createElement(View, { testID: 'dark-backdrop' }),
+    ScreenBackdrop: () => ReactActual.createElement(View, { testID: 'screen-backdrop' }),
     PrimaryButton: ({
       title,
       onPress,
@@ -216,10 +216,10 @@ describe('MultiSigSetupScreenImpl', () => {
     expect(getByTestId('quorum-custom-required-value').props.children).toBe(8);
   });
 
-  it('renders the dark backdrop when the theme is dark', () => {
+  it('renders the screen backdrop', () => {
     useThemeStore.setState({ mode: 'dark' });
     const { getByTestId } = renderScreen();
-    expect(getByTestId('dark-backdrop')).toBeTruthy();
+    expect(getByTestId('screen-backdrop')).toBeTruthy();
   });
 
   it('grows the cosigner input array when a later index is filled first', () => {

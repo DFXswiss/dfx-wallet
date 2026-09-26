@@ -1,18 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ImageBackground,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader, DarkBackdrop, EmptyState, GlassSurface, Icon, Skeleton } from '@/components';
+import { AppHeader, EmptyState, GlassSurface, Icon, ScreenBackdrop, Skeleton } from '@/components';
 import { getAssetMeta, getAssets, type TokenCategory } from '@/config/tokens';
 import { getRawBalance, useBalances } from '@/services/balances';
 import {
@@ -384,15 +376,7 @@ export default function PortfolioScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>

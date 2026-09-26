@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { Card, Radius, useColors, useResolvedScheme } from '@/theme';
+import { Card, Radius, useResolvedScheme } from '@/theme';
 
 type GlassVariant = 'quiet' | 'default' | 'lead';
 
@@ -51,7 +51,38 @@ const BLUR_INTENSITY = 100;
 const RECIPE_BLUR_PX = 30;
 const ANDROID_BLUR_REDUCTION = BLUR_INTENSITY / RECIPE_BLUR_PX;
 
-function overlayFor(variant: GlassVariant): string {
+type GradientStop = { offset: string; stopColor: string; stopOpacity: string };
+
+type ShadowRecipe = {
+  shadowColor: string;
+  shadowOpacity: number;
+  shadowRadius: number;
+  shadowOffset: { width: number; height: number };
+  elevation: number;
+};
+
+/**
+ * Per-scheme glass recipe: same layer structure (blur tint, tone overlay,
+ * inner glow, gradient edge stroke, inset hairline, shadow), different
+ * values. One render path below consumes whichever recipe is active.
+ */
+type GlassRecipe = {
+  tint: 'light' | 'dark';
+  overlay: (variant: GlassVariant) => string;
+  glowStops: readonly GradientStop[];
+  edgeStops: readonly GradientStop[];
+  /** Bottom hairline. */
+  insetColor: string;
+  /**
+   * Top hairline — a value in the recipe, not a conditional element: dark
+   * sets it fully transparent so the tree stays identical between themes
+   * while only light actually shows the highlight.
+   */
+  insetTopColor: string;
+  shadow: ShadowRecipe;
+};
+
+function darkOverlay(variant: GlassVariant): string {
   switch (variant) {
     case 'quiet':
       return 'rgba(11,30,54,0.26)';
@@ -62,11 +93,76 @@ function overlayFor(variant: GlassVariant): string {
   }
 }
 
+function lightOverlay(variant: GlassVariant): string {
+  switch (variant) {
+    case 'quiet':
+      return 'rgba(255,255,255,0.18)';
+    case 'lead':
+      return 'rgba(255,255,255,0.32)';
+    case 'default':
+      return 'rgba(255,255,255,0.24)';
+  }
+}
+
+const DARK_RECIPE: GlassRecipe = {
+  tint: 'dark',
+  overlay: darkOverlay,
+  glowStops: [
+    { offset: '0%', stopColor: '#FFFFFF', stopOpacity: '0.11' },
+    { offset: '46%', stopColor: '#FFFFFF', stopOpacity: '0.02' },
+  ],
+  edgeStops: [
+    { offset: '0%', stopColor: '#FFFFFF', stopOpacity: '0.40' },
+    { offset: '34%', stopColor: '#FFFFFF', stopOpacity: '0.07' },
+    { offset: '66%', stopColor: '#FFFFFF', stopOpacity: '0.02' },
+    { offset: '100%', stopColor: '#FFFFFF', stopOpacity: '0.17' },
+  ],
+  insetColor: 'rgba(0,0,0,0.30)',
+  // Dark has no top highlight — transparent keeps the layer in the tree
+  // (see `insetTopColor` above) without changing dark's appearance.
+  insetTopColor: 'transparent',
+  shadow: {
+    shadowColor: 'rgb(2, 10, 22)',
+    shadowOpacity: 0.46,
+    shadowRadius: 40,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 16,
+  },
+};
+
+// Light glass, "Stufe 2" — measured against JK's browser mock, mirroring
+// the dark recipe's layer structure (blur tint, tone overlay, inner glow,
+// gradient edge stroke, top + bottom hairline, shadow) with light-tuned
+// values.
+const LIGHT_RECIPE: GlassRecipe = {
+  tint: 'light',
+  overlay: lightOverlay,
+  glowStops: [
+    { offset: '0%', stopColor: '#FFFFFF', stopOpacity: '0.60' },
+    { offset: '52%', stopColor: '#FFFFFF', stopOpacity: '0.04' },
+  ],
+  edgeStops: [
+    { offset: '0%', stopColor: '#FFFFFF', stopOpacity: '1.0' },
+    { offset: '30%', stopColor: '#FFFFFF', stopOpacity: '0.55' },
+    { offset: '66%', stopColor: '#FFFFFF', stopOpacity: '0.18' },
+    { offset: '100%', stopColor: '#072440', stopOpacity: '0.16' },
+  ],
+  insetColor: 'rgba(7,36,64,0.10)',
+  insetTopColor: 'rgba(255,255,255,0.85)',
+  shadow: {
+    shadowColor: '#072440',
+    shadowOpacity: 0.14,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 8,
+  },
+};
+
 export function GlassSurface({ variant = 'default', radius = Radius.lg, style, children }: Props) {
-  const colors = useColors();
   const scheme = useResolvedScheme();
   const isDark = scheme === 'dark';
-  const overlay = overlayFor(variant);
+  const recipe = isDark ? DARK_RECIPE : LIGHT_RECIPE;
+  const overlay = recipe.overlay(variant);
   const rawId = useId();
   const uid = rawId.replace(/[^A-Za-z0-9]/g, '') || 'gs';
   const [box, setBox] = useState({ width: 0, height: 0 });
@@ -80,79 +176,68 @@ export function GlassSurface({ variant = 'default', radius = Radius.lg, style, c
   const strokeRx = Math.max(0, radius - strokeInset);
 
   return (
-    <View
-      style={[
-        isDark
-          ? styles.darkShadow
-          : {
-              shadowColor: colors.shadow,
-              shadowOpacity: 0.07,
-              shadowRadius: 12,
-              shadowOffset: { width: 0, height: 5 },
-              elevation: 2,
-            },
-        { borderRadius: radius },
-        !isDark && {
-          backgroundColor: colors.cardOverlay,
-          borderWidth: Card.borderWidth,
-          borderColor: colors.cardOverlayBorder,
-        },
-        style,
-      ]}
-      onLayout={onLayout}
-    >
-      {isDark ? (
-        <View pointerEvents="none" style={[styles.clip, { borderRadius: radius }]}>
-          <BlurView
-            intensity={BLUR_INTENSITY}
-            tint="dark"
-            experimentalBlurMethod="dimezisBlurView"
-            blurReductionFactor={ANDROID_BLUR_REDUCTION}
+    <View style={[recipe.shadow, { borderRadius: radius }, style]} onLayout={onLayout}>
+      <View pointerEvents="none" style={[styles.clip, { borderRadius: radius }]}>
+        <BlurView
+          intensity={BLUR_INTENSITY}
+          tint={recipe.tint}
+          experimentalBlurMethod="dimezisBlurView"
+          blurReductionFactor={ANDROID_BLUR_REDUCTION}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: overlay }]} />
+        {box.width > 0 && box.height > 0 ? (
+          <Svg
+            width={box.width}
+            height={box.height}
             style={StyleSheet.absoluteFill}
-          />
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: overlay }]} />
-          {box.width > 0 && box.height > 0 ? (
-            <Svg
+            pointerEvents="none"
+          >
+            <Defs>
+              <LinearGradient id={`gs-glow-${uid}`} {...GLOW_GRADIENT}>
+                {recipe.glowStops.map((stop) => (
+                  <Stop
+                    key={stop.offset}
+                    offset={stop.offset}
+                    stopColor={stop.stopColor}
+                    stopOpacity={stop.stopOpacity}
+                  />
+                ))}
+              </LinearGradient>
+              <LinearGradient id={`gs-edge-${uid}`} {...EDGE_GRADIENT}>
+                {recipe.edgeStops.map((stop) => (
+                  <Stop
+                    key={stop.offset}
+                    offset={stop.offset}
+                    stopColor={stop.stopColor}
+                    stopOpacity={stop.stopOpacity}
+                  />
+                ))}
+              </LinearGradient>
+            </Defs>
+            <Rect
+              x={0}
+              y={0}
               width={box.width}
               height={box.height}
-              style={StyleSheet.absoluteFill}
-              pointerEvents="none"
-            >
-              <Defs>
-                <LinearGradient id={`gs-glow-${uid}`} {...GLOW_GRADIENT}>
-                  <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.11" />
-                  <Stop offset="46%" stopColor="#FFFFFF" stopOpacity="0.02" />
-                </LinearGradient>
-                <LinearGradient id={`gs-edge-${uid}`} {...EDGE_GRADIENT}>
-                  <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.40" />
-                  <Stop offset="34%" stopColor="#FFFFFF" stopOpacity="0.07" />
-                  <Stop offset="66%" stopColor="#FFFFFF" stopOpacity="0.02" />
-                  <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.17" />
-                </LinearGradient>
-              </Defs>
-              <Rect
-                x={0}
-                y={0}
-                width={box.width}
-                height={box.height}
-                rx={radius}
-                fill={`url(#gs-glow-${uid})`}
-              />
-              <Rect
-                x={strokeInset}
-                y={strokeInset}
-                width={box.width - Card.borderWidth}
-                height={box.height - Card.borderWidth}
-                rx={strokeRx}
-                fill="none"
-                stroke={`url(#gs-edge-${uid})`}
-                strokeWidth={Card.borderWidth}
-              />
-            </Svg>
-          ) : null}
-          <View style={styles.insetEdge} />
-        </View>
-      ) : null}
+              rx={radius}
+              fill={`url(#gs-glow-${uid})`}
+            />
+            <Rect
+              x={strokeInset}
+              y={strokeInset}
+              width={box.width - Card.borderWidth}
+              height={box.height - Card.borderWidth}
+              rx={strokeRx}
+              fill="none"
+              stroke={`url(#gs-edge-${uid})`}
+              strokeWidth={Card.borderWidth}
+            />
+          </Svg>
+        ) : null}
+        <View style={[styles.insetEdgeTop, { backgroundColor: recipe.insetTopColor }]} />
+        <View style={[styles.insetEdge, { backgroundColor: recipe.insetColor }]} />
+      </View>
       {children}
     </View>
   );
@@ -163,19 +248,18 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     overflow: 'hidden',
   },
+  insetEdgeTop: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: Card.borderWidth,
+  },
   insetEdge: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
     height: Card.borderWidth,
-    backgroundColor: 'rgba(0,0,0,0.30)',
-  },
-  darkShadow: {
-    shadowColor: 'rgb(2, 10, 22)',
-    shadowOpacity: 0.46,
-    shadowRadius: 40,
-    shadowOffset: { width: 0, height: 16 },
-    elevation: 16,
   },
 });
