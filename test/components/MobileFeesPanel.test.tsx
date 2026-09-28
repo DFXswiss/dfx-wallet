@@ -2,6 +2,7 @@ import { fireEvent, render, within } from '@testing-library/react-native';
 import { StyleSheet, Text } from 'react-native';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GlassIconButton } from '../../src/components/GlassIconButton';
+import { GlassPill } from '../../src/components/GlassPill';
 import { MobileFeesPanel } from '../../src/features/buy-sell/MobileFeesPanel';
 import {
   makeTradeQuoteKey,
@@ -103,6 +104,28 @@ describe('MobileFeesPanel', () => {
     // flattened style, which only carries the centering/overlap offsets.
     expect(getByTestId('shared-flip')).toBeTruthy();
     expect(UNSAFE_getByType(GlassIconButton).props.size).toBe(TRADE_PANEL_GEOMETRY.flipSize);
+  });
+
+  it('renders TradeSelectorPill as shape="rounded" — no oval pills', () => {
+    const { UNSAFE_getAllByType } = render(
+      <TradeAmountPanels
+        testID="shape-panels"
+        flipTestID="shape-flip"
+        flipAccessibilityLabel="flip"
+        payLabel={<Text>pay</Text>}
+        payAmount={<Text>0</Text>}
+        paySelector={<TradeSelectorPill testID="shape-pay">—</TradeSelectorPill>}
+        receiveLabel={<Text>receive</Text>}
+        receiveAmount={<Text>0</Text>}
+        receiveSelector={<TradeSelectorPill testID="shape-receive">—</TradeSelectorPill>}
+      />,
+    );
+
+    const pills = UNSAFE_getAllByType(GlassPill);
+    const payPill = pills.find((pill) => pill.props.testID === 'shape-pay');
+    const receivePill = pills.find((pill) => pill.props.testID === 'shape-receive');
+    expect(payPill?.props.shape).toBe('rounded');
+    expect(receivePill?.props.shape).toBe('rounded');
   });
 
   it('renders the amount panels as a GlassCard', () => {

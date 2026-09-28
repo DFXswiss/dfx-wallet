@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { GlassPill } from '@/components/GlassPill';
 import { GlassSurface } from '@/components/GlassSurface';
+import { Radius, Spacing } from '@/theme';
 
 export type TradeMode = 'buy' | 'sell' | 'swap';
 
@@ -22,7 +23,7 @@ export default function TradeModeTabs({ active, onChange }: TradeModeTabsProps) 
 
   return (
     <View accessibilityRole="tablist" testID="trade-mode-tabs">
-      <GlassSurface variant="quiet" radius={15} style={styles.container}>
+      <GlassSurface variant="quiet" radius={Radius.md} style={styles.container}>
         {tradeModes.map((mode) => {
           const selected = mode.key === active;
 
@@ -30,6 +31,7 @@ export default function TradeModeTabs({ active, onChange }: TradeModeTabsProps) 
             <GlassPill
               key={mode.key}
               selected={selected}
+              shape="rounded"
               onPress={() => {
                 if (!selected) {
                   onChange(mode.key);
@@ -51,7 +53,7 @@ export default function TradeModeTabs({ active, onChange }: TradeModeTabsProps) 
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    padding: 4,
+    padding: Spacing.xs,
     marginBottom: 14,
   },
   tab: {
