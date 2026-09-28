@@ -23,6 +23,7 @@ type IconName =
   | 'arrow-down'
   | 'arrow-up'
   | 'storefront'
+  | 'bank'
   | 'check'
   | 'copy'
   | 'edit';
@@ -385,6 +386,65 @@ export function Icon({ name, size = 24, color, strokeWidth = 2 }: Props) {
             strokeWidth={sw}
             strokeLinecap="round"
             strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    // Classic bank building: triangular gable, an entablature line marking
+    // the top of the columns, three pillars, and a baseline plinth.
+    case 'bank':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M3 9L12 3l9 6"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Line
+            x1={3}
+            y1={9}
+            x2={21}
+            y2={9}
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+          <Line
+            x1={6}
+            y1={11}
+            x2={6}
+            y2={18}
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+          <Line
+            x1={12}
+            y1={11}
+            x2={12}
+            y2={18}
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+          <Line
+            x1={18}
+            y1={11}
+            x2={18}
+            y2={18}
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+          <Line
+            x1={3}
+            y1={20}
+            x2={21}
+            y2={20}
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
           />
         </Svg>
       );

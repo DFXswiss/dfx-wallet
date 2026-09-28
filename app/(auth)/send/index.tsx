@@ -15,31 +15,29 @@ import {
   ShortcutAction,
 } from '@/components';
 import { QrScanner } from '@/components/QrScanner';
+import { AssetPickerStep } from '@/features/transfer/AssetPickerStep';
 import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
 import { getPaymasterTokenInfo } from '@/config/chains';
 import { FEATURES } from '@/config/features';
 import { formatBalance } from '@/config/portfolio-presentation';
 import { getSendAssetForCanonical } from '@/config/tokens';
-import { Layout, Typography, useColors, type ThemeColors } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type SendStep = 'asset' | 'input' | 'confirm' | 'success';
 
 type AssetOption = {
   symbol: string;
-  label: string;
   chains: { chain: ChainId; label: string }[];
 };
 
 const SEND_ASSETS: AssetOption[] = [
   {
     symbol: 'BTC',
-    label: 'Bitcoin',
     chains: [{ chain: 'spark', label: 'Bitcoin' }],
   },
   {
     symbol: 'CHF',
-    label: 'CHF',
     chains: [
       { chain: 'ethereum', label: 'Ethereum' },
       { chain: 'arbitrum', label: 'Arbitrum' },
@@ -49,7 +47,6 @@ const SEND_ASSETS: AssetOption[] = [
   },
   {
     symbol: 'EUR',
-    label: 'Euro',
     chains: [
       { chain: 'ethereum', label: 'Ethereum' },
       { chain: 'arbitrum', label: 'Arbitrum' },
@@ -59,7 +56,6 @@ const SEND_ASSETS: AssetOption[] = [
   },
   {
     symbol: 'USD',
-    label: 'Dollar',
     chains: [
       { chain: 'ethereum', label: 'Ethereum' },
       { chain: 'arbitrum', label: 'Arbitrum' },
@@ -101,7 +97,9 @@ export default function SendScreen() {
   const paymasterToken = useMemo(() => getPaymasterTokenInfo(selectedChain), [selectedChain]);
   const isValidAddress = recipient.length >= 26;
 
-  const handleAssetSelect = (asset: AssetOption) => {
+  const handleAssetSelect = (symbol: string) => {
+    const asset = SEND_ASSETS.find((a) => a.symbol === symbol);
+    if (!asset) return;
     setSelectedAsset(asset);
     setSelectedChain(asset.chains[0]!.chain);
     setStep('input');
@@ -132,51 +130,23 @@ export default function SendScreen() {
   };
 
   const renderAssetStep = () => (
-    <View style={styles.stepContent}>
-      <Text style={styles.stepSubtitle}>{t('send.sendToCrypto')}</Text>
-      <View style={styles.assetList} testID="send-asset-list">
-        {SEND_ASSETS.map((asset) => {
-          const active = selectedAsset?.symbol === asset.symbol;
-          return (
-            <GlassCard
-              key={asset.symbol}
-              testID={`send-asset-${asset.symbol.toLowerCase()}`}
-              variant={active ? 'lead' : 'default'}
-              tone={active ? 'accent' : 'default'}
-              padding={18}
-              contentStyle={styles.assetCard}
-              onPress={() => handleAssetSelect(asset)}
-            >
-              <Text style={[styles.assetSymbol, active && styles.assetSymbolActive]}>
-                {asset.symbol}
-              </Text>
-              <Text style={styles.assetLabel}>{asset.label}</Text>
-            </GlassCard>
-          );
-        })}
-      </View>
-
-      {FEATURES.BUY_SELL && (
-        <GlassCard
-          padding={16}
-          tone="accent"
-          contentStyle={styles.destinationCard}
-          onPress={() => router.push('/(auth)/sell')}
-          testID="send-destination-bank"
-          accessibilityRole="button"
-          accessibilityLabel={t('send.sendToBank')}
-        >
-          <View style={styles.destinationIcon}>
-            <Icon name="document" size={20} color={colors.primary} strokeWidth={2.2} />
-          </View>
-          <View style={styles.destinationText}>
-            <Text style={styles.destinationTitle}>{t('send.sendToBank')}</Text>
-            <Text style={styles.destinationSubtitle}>{t('send.sendToBankSubtitle')}</Text>
-          </View>
-          <Icon name="chevron-right" size={18} color={colors.textTertiary} />
-        </GlassCard>
-      )}
-    </View>
+    <AssetPickerStep
+      heading={t('send.sendToCrypto')}
+      assets={SEND_ASSETS}
+      onSelect={handleAssetSelect}
+      testIDPrefix="send"
+      {...(selectedAsset ? { selectedSymbol: selectedAsset.symbol } : {})}
+      {...(FEATURES.BUY_SELL
+        ? {
+            bankAction: {
+              title: t('send.sendToBank'),
+              subtitle: t('send.sendToBankSubtitle'),
+              onPress: () => router.push('/(auth)/sell'),
+              testID: 'send-destination-bank',
+            },
+          }
+        : {})}
+    />
   );
 
   const renderInputStep = (asset: AssetOption) => {
@@ -434,59 +404,6 @@ const makeStyles = (colors: ThemeColors) =>
     stepTitle: {
       ...Typography.headlineSmall,
       color: colors.text,
-    },
-    stepSubtitle: {
-      ...Typography.bodyLarge,
-      color: colors.textSecondary,
-      fontWeight: '500',
-      marginBottom: 4,
-    },
-    destinationCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 14,
-    },
-    destinationIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: colors.primaryLight,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    destinationText: {
-      flex: 1,
-      gap: 2,
-    },
-    destinationTitle: {
-      ...Typography.bodyLarge,
-      color: colors.text,
-      fontWeight: '600',
-    },
-    destinationSubtitle: {
-      ...Typography.bodySmall,
-      color: colors.textSecondary,
-    },
-    assetList: {
-      gap: Layout.listGap,
-    },
-    assetCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 14,
-    },
-    assetSymbol: {
-      ...Typography.headlineSmall,
-      color: colors.text,
-      fontWeight: '700',
-      width: 56,
-    },
-    assetSymbolActive: {
-      color: colors.primary,
-    },
-    assetLabel: {
-      ...Typography.bodyLarge,
-      color: colors.textSecondary,
     },
     selectedAssetPill: {
       marginBottom: 4,
