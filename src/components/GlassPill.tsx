@@ -20,7 +20,7 @@ import {
   type GlassTone,
 } from '@/theme';
 
-type Shape = 'pill' | 'tile';
+type Shape = 'pill' | 'tile' | 'rounded';
 
 type Props = {
   selected?: boolean;
@@ -29,7 +29,9 @@ type Props = {
   /** Semantic edge tint layered on top of the pill's own variant. */
   tone?: GlassTone;
   /** `tile` widens the pill into a `Radius.lg` block for multi-line,
-   *  full-width selection tiles (e.g. quorum options). @default 'pill' */
+   *  full-width selection tiles (e.g. quorum options). `rounded` keeps the
+   *  compact, single-line `pill` padding and outer `Pressable` but swaps the
+   *  oval `Radius.pill` corner for a squarer `Radius.sm` one. @default 'pill' */
   shape?: Shape;
   /** Reaches the outer `Pressable` (width/flex). */
   style?: StyleProp<ViewStyle>;
@@ -100,7 +102,7 @@ export function GlassPill({
     >
       <GlassSurface
         variant={pressed && !disabled ? 'lead' : selected ? 'lead' : 'default'}
-        radius={shape === 'tile' ? Radius.lg : Radius.pill}
+        radius={shape === 'tile' ? Radius.lg : shape === 'rounded' ? Radius.sm : Radius.pill}
         style={[
           shape === 'tile' ? styles.tile : styles.pill,
           toneEdge,
