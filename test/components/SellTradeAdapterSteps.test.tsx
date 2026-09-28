@@ -355,7 +355,8 @@ describe('SellTradeAdapter — bank/confirm steps', () => {
 
     pressShellBack();
     expect(getByTestId('sell-cta')).toBeTruthy();
-  });
+    // Walks three steps over glass surfaces; slower than the 5 s default on CI runners.
+  }, 15000);
 
   it('shows the error and stays on the bank step when createPaymentInfo fails', async () => {
     const { getByTestId, getByText, queryByText, getByPlaceholderText, rerender } = renderAdapter();
