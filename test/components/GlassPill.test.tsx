@@ -209,6 +209,33 @@ describe('GlassPill', () => {
     expect(getByTestId('pill').findByType(GlassSurface).props.radius).toBe(Radius.pill);
   });
 
+  it('shape="rounded" renders at Radius.sm with the same padding as "pill"', () => {
+    const rounded = render(
+      <ThemeProvider>
+        <GlassPill onPress={() => undefined} shape="rounded" testID="pill">
+          Kauf
+        </GlassPill>
+      </ThemeProvider>,
+    );
+    const roundedSurface = rounded.getByTestId('pill').findByType(GlassSurface);
+    expect(roundedSurface.props.radius).toBe(Radius.sm);
+    const roundedStyle = flatten(roundedSurface.props.style);
+    rounded.unmount();
+
+    const pill = render(
+      <ThemeProvider>
+        <GlassPill onPress={() => undefined} testID="pill">
+          Kauf
+        </GlassPill>
+      </ThemeProvider>,
+    );
+    const pillStyle = flatten(pill.getByTestId('pill').findByType(GlassSurface).props.style);
+    expect(roundedStyle.paddingHorizontal).toBe(pillStyle.paddingHorizontal);
+    expect(roundedStyle.paddingVertical).toBe(pillStyle.paddingVertical);
+    expect(roundedStyle.flexDirection).toBe(pillStyle.flexDirection);
+    expect(roundedStyle.alignItems).toBe(pillStyle.alignItems);
+  });
+
   it.each([
     ['accent', lightColors.primary],
     ['warning', lightColors.warning],
