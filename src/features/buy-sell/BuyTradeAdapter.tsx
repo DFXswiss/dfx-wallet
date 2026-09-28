@@ -352,6 +352,7 @@ export function BuyTradeAdapter({
           <GlassPill
             key={val}
             testID={`buy-preset-${val}`}
+            shape="rounded"
             style={styles.quickAmountOuter}
             contentStyle={styles.quickAmountContent}
             onPress={() => setAmount(val)}

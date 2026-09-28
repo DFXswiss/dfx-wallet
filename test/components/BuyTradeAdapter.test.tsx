@@ -40,6 +40,7 @@ jest.mock('react-i18next', () => {
 });
 import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import { GlassCard } from '../../src/components/GlassCard';
+import { GlassPill } from '../../src/components/GlassPill';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -2445,6 +2446,18 @@ describe('SellScreenImpl', () => {
         .getAllByText(/SEPA bank transfer|0–1 business day/)
         .map((node) => node.props.children),
     ).toEqual(['SEPA bank transfer', '0–1 business day']);
+  });
+
+  it('renders the amount-preset pills as shape="rounded" — no oval pills', () => {
+    const { UNSAFE_getAllByType } = renderAdapter();
+
+    const presetPills = UNSAFE_getAllByType(GlassPill).filter((pill) =>
+      String(pill.props.testID ?? '').startsWith('buy-preset-'),
+    );
+    expect(presetPills).toHaveLength(4);
+    for (const pill of presetPills) {
+      expect(pill.props.shape).toBe('rounded');
+    }
   });
 
   it('reports the amount-step shell chrome on mount', () => {
