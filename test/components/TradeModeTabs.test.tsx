@@ -45,6 +45,16 @@ describe('TradeModeTabs', () => {
     expect(selectedPills[0]?.props.testID).toBe('trade-tab-sell');
   });
 
+  it('renders all three tabs as shape="rounded" — no oval pills', () => {
+    const { UNSAFE_getAllByType } = render(<TradeModeTabs active="buy" onChange={jest.fn()} />);
+
+    const pills = UNSAFE_getAllByType(GlassPill);
+    expect(pills).toHaveLength(3);
+    for (const pill of pills) {
+      expect(pill.props.shape).toBe('rounded');
+    }
+  });
+
   it.each([
     ['sell', 'trade-tab-buy', 'buy'],
     ['buy', 'trade-tab-sell', 'sell'],

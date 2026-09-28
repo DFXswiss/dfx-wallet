@@ -94,6 +94,7 @@ export function TradeSelectorPill({
     <GlassPill
       {...(onPress ? { onPress } : {})}
       disabled={disabled}
+      shape="rounded"
       style={styles.pillOuter}
       contentStyle={styles.pillContent}
       testID={testID}
