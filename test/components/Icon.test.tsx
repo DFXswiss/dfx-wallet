@@ -27,6 +27,7 @@ const NAMES = [
   'arrow-down',
   'arrow-up',
   'storefront',
+  'bank',
   'check',
   'copy',
   'edit',

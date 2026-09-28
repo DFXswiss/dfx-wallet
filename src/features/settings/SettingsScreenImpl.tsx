@@ -5,7 +5,14 @@ import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import * as Haptics from 'expo-haptics';
-import { AppHeader, GlassCard, GlassListGroup, Icon, ScreenBackdrop } from '@/components';
+import {
+  AppHeader,
+  GlassCard,
+  GlassListGroup,
+  Icon,
+  ScreenBackdrop,
+  SectionTitle,
+} from '@/components';
 import { isBiometricAvailable } from '@/features/biometric/biometric';
 import { dfxUserService } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
@@ -278,7 +285,7 @@ export default function SettingsScreen() {
       >
         {sections.map((section) => (
           <View key={section.title} style={styles.section}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <SectionTitle title={section.title} />
             <GlassListGroup>
               {section.rows.map((row, index) => (
                 <SettingsRowView
@@ -394,15 +401,6 @@ const makeStyles = (colors: ThemeColors) =>
     },
     section: {
       gap: 10,
-    },
-    sectionTitle: {
-      fontSize: 13,
-      lineHeight: 16,
-      color: colors.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 1.5,
-      fontWeight: '700',
-      paddingHorizontal: 4,
     },
     row: {
       flexDirection: 'row',

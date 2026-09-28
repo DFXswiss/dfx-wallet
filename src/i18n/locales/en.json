@@ -526,8 +526,8 @@
   },
   "receive": {
     "buyBtcWithEuro": "Buy BTC with Euro",
-    "buyFromBank": "Buy with your bank account",
-    "buyFromBankSubtitle": "Top up via DFX SEPA transfer",
+    "buyFromBank": "Buy crypto",
+    "buyFromBankSubtitle": "By bank transfer (SEPA)",
     "noAddress": "No address available",
     "onlyCorrectNetwork": "Only send {{asset}} on the {{network}} network to this address.",
     "selectAsset": "What do you want to receive?",
@@ -604,8 +604,8 @@
     "scan": "Scan",
     "selectAsset": "What do you want to send?",
     "sellInstead": "Sell crypto instead",
-    "sendToBank": "Send to your bank account",
-    "sendToBankSubtitle": "Cash out via DFX SEPA / SWIFT payout",
+    "sendToBank": "Cash out",
+    "sendToBankSubtitle": "To your bank account via SEPA / SWIFT",
     "sendToCrypto": "Send to a crypto address",
     "sendToCryptoSubtitle": "On-chain transfer to any wallet",
     "sent": "Transaction Sent",
@@ -701,6 +701,15 @@
     "venue": "Venue",
     "viewOnExplorer": "View on block explorer",
     "walletAddress": "Wallet address"
+  },
+  "transfer": {
+    "assetName": {
+      "BTC": "Bitcoin",
+      "CHF": "Swiss franc",
+      "EUR": "Euro",
+      "USD": "US dollar"
+    },
+    "bankSection": "Bank account"
   },
   "wallets": {
     "activeBadge": "Active",

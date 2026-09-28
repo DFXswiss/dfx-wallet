@@ -29,6 +29,7 @@ export { RenameWalletModal } from './RenameWalletModal';
 export { QrScanner } from './QrScanner';
 export { ScreenBackdrop, type ScreenBackdropVariant } from './ScreenBackdrop';
 export { ScreenContainer } from './ScreenContainer';
+export { SectionTitle } from './SectionTitle';
 export { SeedWordTile } from './SeedWordTile';
 export { ShortcutAction } from './ShortcutAction';
 export { Skeleton } from './Skeleton';
