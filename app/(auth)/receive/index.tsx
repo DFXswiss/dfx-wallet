@@ -17,14 +17,14 @@ import {
 } from '@/components';
 import type { ChainId } from '@/config/chains';
 import { FEATURES } from '@/config/features';
+import { AssetPickerStep } from '@/features/transfer/AssetPickerStep';
 import { useLdsWallet } from '@/hooks';
-import { Layout, Typography, useColors, type ThemeColors } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type ReceiveStep = 'asset' | 'qr';
 
 type AssetOption = {
   symbol: string;
-  label: string;
   chains: { chain: ChainId; label: string }[];
 };
 
@@ -42,7 +42,6 @@ type AssetOption = {
 const buildReceiveAssets = (): AssetOption[] => [
   {
     symbol: 'BTC',
-    label: 'Bitcoin',
     chains: [
       { chain: 'bitcoin', label: 'SegWit' },
       ...(FEATURES.DFX_BACKEND
@@ -54,9 +53,9 @@ const buildReceiveAssets = (): AssetOption[] => [
       { chain: 'ethereum', label: 'EVM' },
     ],
   },
-  { symbol: 'CHF', label: 'CHF', chains: [{ chain: 'ethereum', label: 'Ethereum' }] },
-  { symbol: 'EUR', label: 'Euro', chains: [{ chain: 'ethereum', label: 'Ethereum' }] },
-  { symbol: 'USD', label: 'Dollar', chains: [{ chain: 'ethereum', label: 'Ethereum' }] },
+  { symbol: 'CHF', chains: [{ chain: 'ethereum', label: 'Ethereum' }] },
+  { symbol: 'EUR', chains: [{ chain: 'ethereum', label: 'Ethereum' }] },
+  { symbol: 'USD', chains: [{ chain: 'ethereum', label: 'Ethereum' }] },
 ];
 
 export default function ReceiveScreen() {
@@ -82,7 +81,9 @@ export default function ReceiveScreen() {
       ? (lds.user?.lightning.address ?? '')
       : (derivedAddress ?? '');
 
-  const handleAssetSelect = (asset: AssetOption) => {
+  const handleAssetSelect = (symbol: string) => {
+    const asset = receiveAssets.find((a) => a.symbol === symbol);
+    if (!asset) return;
     setSelectedAsset(asset);
     setSelectedChain(asset.chains[0]!.chain);
     setStep('qr');
@@ -98,51 +99,23 @@ export default function ReceiveScreen() {
   };
 
   const renderAssetStep = () => (
-    <View style={styles.stepContent}>
-      <Text style={styles.stepSubtitle}>{t('receive.selectAsset')}</Text>
-      <View style={styles.assetList} testID="receive-asset-list">
-        {receiveAssets.map((asset) => {
-          const active = selectedAsset?.symbol === asset.symbol;
-          return (
-            <GlassCard
-              key={asset.symbol}
-              testID={`receive-asset-${asset.symbol.toLowerCase()}`}
-              variant={active ? 'lead' : 'default'}
-              tone={active ? 'accent' : 'default'}
-              padding={18}
-              contentStyle={styles.assetCard}
-              onPress={() => handleAssetSelect(asset)}
-            >
-              <Text style={[styles.assetSymbol, active && styles.assetSymbolActive]}>
-                {asset.symbol}
-              </Text>
-              <Text style={styles.assetLabel}>{asset.label}</Text>
-            </GlassCard>
-          );
-        })}
-      </View>
-
-      {FEATURES.BUY_SELL && (
-        <GlassCard
-          padding={16}
-          tone="accent"
-          contentStyle={styles.destinationCard}
-          onPress={() => router.push('/(auth)/buy')}
-          testID="receive-destination-bank"
-          accessibilityRole="button"
-          accessibilityLabel={t('receive.buyFromBank')}
-        >
-          <View style={styles.destinationIcon}>
-            <Icon name="document" size={20} color={colors.primary} strokeWidth={2.2} />
-          </View>
-          <View style={styles.destinationText}>
-            <Text style={styles.destinationTitle}>{t('receive.buyFromBank')}</Text>
-            <Text style={styles.destinationSubtitle}>{t('receive.buyFromBankSubtitle')}</Text>
-          </View>
-          <Icon name="chevron-right" size={18} color={colors.textTertiary} />
-        </GlassCard>
-      )}
-    </View>
+    <AssetPickerStep
+      heading={t('receive.selectAsset')}
+      assets={receiveAssets}
+      onSelect={handleAssetSelect}
+      testIDPrefix="receive"
+      {...(selectedAsset ? { selectedSymbol: selectedAsset.symbol } : {})}
+      {...(FEATURES.BUY_SELL
+        ? {
+            bankAction: {
+              title: t('receive.buyFromBank'),
+              subtitle: t('receive.buyFromBankSubtitle'),
+              onPress: () => router.push('/(auth)/buy'),
+              testID: 'receive-destination-bank',
+            },
+          }
+        : {})}
+    />
   );
 
   const renderQrStep = (asset: AssetOption) => {
@@ -265,33 +238,6 @@ const makeStyles = (colors: ThemeColors) =>
     stepContent: {
       gap: 18,
     },
-    stepSubtitle: {
-      ...Typography.bodyLarge,
-      color: colors.textSecondary,
-      fontWeight: '500',
-      marginBottom: 4,
-    },
-    assetList: {
-      gap: Layout.listGap,
-    },
-    assetCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 14,
-    },
-    assetSymbol: {
-      ...Typography.headlineSmall,
-      color: colors.text,
-      fontWeight: '700',
-      width: 56,
-    },
-    assetSymbolActive: {
-      color: colors.primary,
-    },
-    assetLabel: {
-      ...Typography.bodyLarge,
-      color: colors.textSecondary,
-    },
     selectedAssetContent: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -346,31 +292,5 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.text,
       textAlign: 'center',
       fontFamily: 'monospace',
-    },
-    destinationCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 14,
-    },
-    destinationIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: colors.primaryLight,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    destinationText: {
-      flex: 1,
-      gap: 2,
-    },
-    destinationTitle: {
-      ...Typography.bodyLarge,
-      color: colors.text,
-      fontWeight: '600',
-    },
-    destinationSubtitle: {
-      ...Typography.bodySmall,
-      color: colors.textSecondary,
     },
   });
