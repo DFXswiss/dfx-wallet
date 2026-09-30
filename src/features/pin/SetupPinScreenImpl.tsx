@@ -1,9 +1,15 @@
 import { useMemo, useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { BrandLogo, DfxBackgroundScreen, OnboardingStepIndicator, PinPad } from '@/components';
+import {
+  BrandLogo,
+  DfxBackgroundScreen,
+  OnboardingStepIndicator,
+  PinPad,
+  PinProcessingOverlay,
+} from '@/components';
 import { FEATURES } from '@/config/features';
 import { useAuthStore } from '@/store';
 import { Typography, useColors, type ThemeColors } from '@/theme';
@@ -20,8 +26,10 @@ export default function SetupPinScreen() {
   const [step, setStep] = useState<'create' | 'confirm'>('create');
   const [firstPin, setFirstPin] = useState('');
   const [error, setError] = useState<SetupError | null>(null);
+  const [processing, setProcessing] = useState(false);
 
   const handleDigit = (digit: string) => {
+    if (processing) return;
     setError(null);
     const newPin = pin + digit;
     if (newPin.length > 6) return;
@@ -45,6 +53,8 @@ export default function SetupPinScreen() {
 
   const completeSetup = async (pinValue: string) => {
     try {
+      setProcessing(true);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       await setPin(pinValue);
       setAuthenticated(true);
       // With `EXPO_PUBLIC_ENABLE_LEGAL` off, the disclaimer step is
@@ -54,6 +64,7 @@ export default function SetupPinScreen() {
         FEATURES.LEGAL ? '/(onboarding)/legal-disclaimer' : '/(auth)/(tabs)/dashboard',
       );
     } catch (err) {
+      setProcessing(false);
       console.warn('setup-pin: failed to persist PIN', err);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError('save');
@@ -69,36 +80,42 @@ export default function SetupPinScreen() {
   };
 
   return (
-    <DfxBackgroundScreen
-      backdropVariant="pin"
-      contentStyle={styles.content}
-      testID={step === 'create' ? 'setup-pin-screen' : 'setup-pin-confirm-screen'}
-    >
-      <BrandLogo size="auth" style={styles.logo} />
-      <OnboardingStepIndicator current={2} />
-      <Text style={styles.title}>{step === 'create' ? t('pin.create') : t('pin.confirm')}</Text>
-      <Text style={styles.description}>
-        {step === 'create' ? t('pin.createDescription') : t('pin.confirmDescription')}
-      </Text>
-      {error && (
-        <Text style={styles.error} testID="setup-pin-error">
-          {error === 'save' ? t('pin.saveError') : t('pin.mismatch')}
+    <View style={styles.screen}>
+      <DfxBackgroundScreen
+        backdropVariant="pin"
+        contentStyle={styles.content}
+        testID={step === 'create' ? 'setup-pin-screen' : 'setup-pin-confirm-screen'}
+      >
+        <BrandLogo size="auth" style={styles.logo} />
+        <OnboardingStepIndicator current={2} />
+        <Text style={styles.title}>{step === 'create' ? t('pin.create') : t('pin.confirm')}</Text>
+        <Text style={styles.description}>
+          {step === 'create' ? t('pin.createDescription') : t('pin.confirmDescription')}
         </Text>
-      )}
+        {error && (
+          <Text style={styles.error} testID="setup-pin-error">
+            {error === 'save' ? t('pin.saveError') : t('pin.mismatch')}
+          </Text>
+        )}
 
-      <PinPad
-        value={pin}
-        error={error !== null}
-        onDigit={handleDigit}
-        onDelete={handleDelete}
-        dotsTestID="setup-pin-dots"
-      />
-    </DfxBackgroundScreen>
+        <PinPad
+          value={pin}
+          error={error !== null}
+          onDigit={handleDigit}
+          onDelete={handleDelete}
+          dotsTestID="setup-pin-dots"
+        />
+      </DfxBackgroundScreen>
+      {processing && <PinProcessingOverlay />}
+    </View>
   );
 }
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
+    screen: {
+      flex: 1,
+    },
     content: {
       alignItems: 'center',
       paddingVertical: 48,

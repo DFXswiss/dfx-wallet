@@ -6,6 +6,7 @@ export { ConfirmTargetWalletModal } from './ConfirmTargetWalletModal';
 export { DarkBackdrop } from './DarkBackdrop';
 export { DashboardHeader } from './DashboardHeader';
 export { DfxBackgroundScreen } from './DfxBackgroundScreen';
+export { DfxLogoLoader, PinProcessingOverlay } from './DfxLogoLoader';
 export { EmptyState } from './EmptyState';
 export { ErrorBoundary } from './ErrorBoundary';
 export { GlassCard } from './GlassCard';

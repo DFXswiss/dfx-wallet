@@ -5,7 +5,15 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { BrandLogo, GlassPill, Icon, PinPad, PrimaryButton, ScreenBackdrop } from '@/components';
+import {
+  BrandLogo,
+  GlassPill,
+  Icon,
+  PinPad,
+  PinProcessingOverlay,
+  PrimaryButton,
+  ScreenBackdrop,
+} from '@/components';
 import { needsPinRehash } from '@/services/pin';
 import { useAuthStore } from '@/store';
 import { Typography, useColors, type ThemeColors } from '@/theme';
@@ -33,6 +41,7 @@ export default function VerifyPinScreen() {
   const [unlockFailed, setUnlockFailed] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [biometricInFlight, setBiometricInFlight] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
   const goToDashboard = useCallback(() => {
     router.replace('/(auth)/(tabs)/dashboard');
@@ -75,6 +84,7 @@ export default function VerifyPinScreen() {
   }, [biometricEnabled]);
 
   const handleDigit = (digit: string) => {
+    if (processing) return;
     setError(false);
     setUnlockFailed(false);
     const newPin = pin + digit;
@@ -91,6 +101,11 @@ export default function VerifyPinScreen() {
   };
 
   const checkPin = async (pinValue: string, { showInvalid }: { showInvalid: boolean }) => {
+    if (showInvalid) {
+      setProcessing(true);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+
     let isValid = false;
     try {
       isValid = await verifyPin(pinValue);
@@ -102,6 +117,7 @@ export default function VerifyPinScreen() {
         await unlockWallet();
       } catch (err) {
         console.warn('verify: PIN unlock failed', err);
+        if (showInvalid) setProcessing(false);
         setUnlockFailed(true);
         setPinValue('');
         return;
@@ -112,6 +128,7 @@ export default function VerifyPinScreen() {
       return;
     }
     if (!showInvalid) return;
+    setProcessing(false);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     setError(true);
     setAttempts((a) => a + 1);
@@ -192,6 +209,7 @@ export default function VerifyPinScreen() {
     <View style={styles.bg}>
       <ScreenBackdrop variant="pin" />
       {body}
+      {processing && <PinProcessingOverlay />}
     </View>
   );
 }

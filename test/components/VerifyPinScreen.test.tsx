@@ -17,14 +17,23 @@ jest.mock('@tetherto/wdk-react-native-core', () => ({
 const mockVerifyPin = jest.fn();
 const mockSetAuthenticated = jest.fn();
 const mockAuthenticateBiometric = jest.fn();
-const mockAuthState = { biometricEnabled: false };
+const mockAuthState: { biometricEnabled: boolean; pinHash: string | null } = {
+  biometricEnabled: false,
+  pinHash: null,
+};
 jest.mock('@/store', () => ({
   useAuthStore: () => ({
     verifyPin: mockVerifyPin,
     setAuthenticated: mockSetAuthenticated,
     authenticateBiometric: mockAuthenticateBiometric,
     biometricEnabled: mockAuthState.biometricEnabled,
+    pinHash: mockAuthState.pinHash,
   }),
+}));
+
+const mockNeedsPinRehash = jest.fn();
+jest.mock('@/services/pin', () => ({
+  needsPinRehash: (hash: string) => mockNeedsPinRehash(hash),
 }));
 
 jest.mock('expo-haptics', () => ({
@@ -56,7 +65,17 @@ describe('VerifyPinScreen', () => {
     mockVerifyPin.mockResolvedValue(false);
     mockUnlock.mockResolvedValue(undefined);
     mockAuthenticateBiometric.mockResolvedValue(false);
+    mockNeedsPinRehash.mockReturnValue(false);
     mockAuthState.biometricEnabled = false;
+    mockAuthState.pinHash = null;
+    jest.spyOn(global, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0);
+      return 0;
+    });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('verifies the 6-digit PIN, authenticates and unlocks the wallet on success', async () => {
@@ -104,6 +123,69 @@ describe('VerifyPinScreen', () => {
     expect(mockVerifyPin).not.toHaveBeenCalled();
     await enterPin(getByTestId, '6');
     expect(mockVerifyPin).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the processing overlay while final PIN verification is pending', async () => {
+    mockVerifyPin.mockImplementation(() => new Promise<boolean>(() => undefined));
+    const { getByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+
+    expect(getByTestId('pin-processing-overlay')).toBeTruthy();
+  });
+
+  it('hides the processing overlay again after a wrong PIN', async () => {
+    let resolveVerification: (value: boolean) => void = () => undefined;
+    mockVerifyPin.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveVerification = resolve;
+        }),
+    );
+    const { getByTestId, queryByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+    expect(getByTestId('pin-processing-overlay')).toBeTruthy();
+
+    await act(async () => {
+      resolveVerification(false);
+    });
+
+    await waitFor(() => expect(queryByTestId('pin-processing-overlay')).toBeNull());
+    expect(getByTestId('verify-pin-error')).toBeTruthy();
+  });
+
+  it('does not show the overlay for a silent legacy-hash check at 4 digits', async () => {
+    mockAuthState.pinHash = 'legacy-hash';
+    mockNeedsPinRehash.mockReturnValue(true);
+    mockVerifyPin.mockImplementation(() => new Promise<boolean>(() => undefined));
+    const { getByTestId, queryByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '1234');
+
+    expect(mockVerifyPin).toHaveBeenCalledWith('1234');
+    expect(queryByTestId('pin-processing-overlay')).toBeNull();
+  });
+
+  it('hides the overlay when wallet unlock throws', async () => {
+    let rejectUnlock: (reason?: unknown) => void = () => undefined;
+    mockVerifyPin.mockResolvedValue(true);
+    mockUnlock.mockImplementation(
+      () =>
+        new Promise<void>((_, reject) => {
+          rejectUnlock = reject;
+        }),
+    );
+    const { getByTestId, queryByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+    expect(getByTestId('pin-processing-overlay')).toBeTruthy();
+
+    await act(async () => {
+      rejectUnlock(new Error('wallet unavailable'));
+    });
+
+    await waitFor(() => expect(queryByTestId('pin-processing-overlay')).toBeNull());
   });
 
   it('shows the error feedback and does not authenticate on a wrong PIN', async () => {
