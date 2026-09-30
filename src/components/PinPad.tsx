@@ -7,6 +7,12 @@ const KEY_SIZE = 72;
 const KEY_RADIUS = 36;
 const KEY_MARGIN = 8;
 
+// Grid constants shared with `AmountKeypad` so both keypads sit on the same
+// 280 px raster (three columns of `KEY_SIZE + 2 * KEY_MARGIN`).
+export const PIN_PAD_WIDTH = 280;
+export const PIN_KEY_SIZE = KEY_SIZE;
+export const PIN_KEY_MARGIN = KEY_MARGIN;
+
 // Standard 3x4 keypad: digits 1-9, a blank spacer, then 0 and delete.
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'] as const;
 
@@ -108,7 +114,7 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: 'row',
       flexWrap: 'wrap',
       justifyContent: 'center',
-      width: 280,
+      width: PIN_PAD_WIDTH,
       marginTop: 32,
     },
     // Outer hit target: margin only, the glass recipe supplies the shape.

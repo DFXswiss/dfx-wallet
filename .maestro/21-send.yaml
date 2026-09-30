@@ -6,17 +6,19 @@ tags:
   - mvp
 ---
 # Walks an MVP user from a fresh install through the Send flow:
-# Dashboard -> Send (asset list) -> tap BTC -> input step -> back to
-# asset list. We deliberately stop at the input step:
+# Dashboard -> Send overview ("An wen?", empty address book) -> paste a
+# Bitcoin address into the composer -> amount step (keypad, unit bar) ->
+# back to the overview. We deliberately stop at the amount step:
 #
-# - The Confirm step is tested in the Detox visual-regression suite
-#   (e2e/visual/onboarding.test.ts), where we have programmatic
-#   control over the keyboard. Maestro's `tapOn: "return"` works on
-#   the iOS keyboard but not the Android one, and `hideKeyboard`
-#   fails on iOS with "Couldn't hide the keyboard" on the custom
-#   send recipient input.
+# - The Confirm step is tested in the component suite
+#   (test/components/SendScreen.test.tsx). Maestro's `tapOn: "return"`
+#   works on the iOS keyboard but not the Android one, and
+#   `hideKeyboard` fails on iOS with "Couldn't hide the keyboard" on the
+#   composer, so the flow taps the "continue" row instead of submitting.
 # - The actual Confirm tap is intentionally never exercised — it
 #   calls handleSend() which broadcasts a real transaction.
+# - The address below is the public BIP-173 reference address, not a
+#   wallet of ours.
 - launchApp:
     clearState: true
     clearKeychain: true
@@ -47,7 +49,7 @@ tags:
 - tapOn:
     id: "create-wallet-continue-button"
 
-# Dashboard -> Send (asset step)
+# Dashboard -> Send overview (empty address book on a fresh install)
 - extendedWaitUntil:
     visible:
       id: "dashboard-screen"
@@ -58,26 +60,40 @@ tags:
 - assertVisible:
     id: "send-screen"
 - assertVisible:
-    id: "send-asset-list"
-- assertVisible:
-    id: "send-asset-btc"
-- assertVisible:
-    id: "send-asset-chf"
-
-# Asset -> Input step
-- tapOn:
-    id: "send-asset-btc"
-- assertVisible:
-    id: "send-input-step"
+    id: "send-overview-step"
 - assertVisible:
     id: "send-recipient-input"
 - assertVisible:
-    id: "send-amount-input"
+    id: "send-code-card"
+- assertVisible:
+    id: "send-contacts-empty"
+- assertVisible:
+    id: "send-account-dfx"
+
+# Composer -> amount step
+- tapOn:
+    id: "send-recipient-input"
+- inputText: "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"
+- assertVisible:
+    id: "send-recipient-continue"
+- tapOn:
+    id: "send-recipient-continue"
+
+- assertVisible:
+    id: "send-amount-step"
+- assertVisible:
+    id: "send-unit-BTC"
+- assertVisible:
+    id: "amount-key-1"
 - assertVisible:
     id: "send-continue-button"
-
-# Back to asset step via the selected-asset pill
 - tapOn:
-    id: "send-selected-asset-pill"
+    id: "amount-key-1"
 - assertVisible:
-    id: "send-asset-list"
+    id: "send-amount-value"
+
+# Back to the overview via the header back button
+- tapOn:
+    id: "send-screen-back"
+- assertVisible:
+    id: "send-overview-step"

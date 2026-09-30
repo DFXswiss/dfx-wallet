@@ -4,18 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, GlassListGroup, GlassPill, Icon, ScreenBackdrop } from '@/components';
+import { getExplorerTxUrl } from '@/config/explorer';
 import { CHAIN_LABELS } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/features/dfx-backend/services';
 import { Typography, useColors, type ThemeColors } from '@/theme';
-
-const EXPLORER_BASE = new Map<string, string>([
-  ['ethereum', 'https://etherscan.io/tx/'],
-  ['arbitrum', 'https://arbiscan.io/tx/'],
-  ['polygon', 'https://polygonscan.com/tx/'],
-  ['base', 'https://basescan.org/tx/'],
-  ['plasma', 'https://explorer.plasma.to/tx/'],
-  ['sepolia', 'https://sepolia.etherscan.io/tx/'],
-]);
 
 export default function TransactionDetailScreen() {
   const colors = useColors();
@@ -56,9 +48,10 @@ export default function TransactionDetailScreen() {
     };
   }, [id]);
 
-  const explorerBase =
-    network && typeof network === 'string' ? EXPLORER_BASE.get(network) : undefined;
-  const explorerUrl = explorerBase && tx?.txId ? `${explorerBase}${tx.txId}` : undefined;
+  const explorerUrl =
+    network && typeof network === 'string' && tx?.txId
+      ? getExplorerTxUrl(network, tx.txId)
+      : undefined;
 
   const body = (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>

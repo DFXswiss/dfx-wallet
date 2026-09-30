@@ -1,3 +1,4 @@
+export { AmountKeypad, type AmountKey } from './AmountKeypad';
 export { AppHeader } from './AppHeader';
 export { AssetActions } from './AssetActions';
 export { BrandLogo } from './BrandLogo';

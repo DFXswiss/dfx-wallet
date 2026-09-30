@@ -38,4 +38,6 @@ export const StorageKeys = {
   WALLET_ORIGIN: 'walletOrigin',
   PASSKEY_CREDENTIAL_ID: 'passkeyCredentialId',
   PASSKEY_DERIVATION_VERSION: 'passkeyDerivationVersion',
+  /** JSON-encoded `Contact[]` of the local send address book (MMKV, device-local). */
+  ADDRESS_BOOK: 'addressBook',
 } as const;

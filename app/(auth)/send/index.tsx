@@ -1,117 +1,301 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import {
-  AppHeader,
-  GlassCard,
-  GlassInputField,
-  GlassPill,
-  Icon,
-  PrimaryButton,
-  ScreenBackdrop,
-  ShortcutAction,
-} from '@/components';
+import { useAccount, type IAsset } from '@tetherto/wdk-react-native-core';
+import { AppHeader, GlassSheet, Icon, ScreenBackdrop, type AmountKey } from '@/components';
 import { QrScanner } from '@/components/QrScanner';
-import { AssetPickerStep } from '@/features/transfer/AssetPickerStep';
-import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
 import { getPaymasterTokenInfo } from '@/config/chains';
-import { FEATURES } from '@/config/features';
+import { getExplorerTxUrl } from '@/config/explorer';
 import { formatBalance } from '@/config/portfolio-presentation';
 import { getSendAssetForCanonical } from '@/config/tokens';
-import { Typography, useColors, type ThemeColors } from '@/theme';
+import { AssetPickerStep } from '@/features/transfer/AssetPickerStep';
+import { ContactActionSheet, ContactFormSheet } from '@/features/transfer/ContactSheets';
+import { SendAmountStep } from '@/features/transfer/SendAmountStep';
+import { SendConfirmStep } from '@/features/transfer/SendConfirmStep';
+import { SendOverview } from '@/features/transfer/SendOverview';
+import { SendSuccessStep } from '@/features/transfer/SendSuccessStep';
+import {
+  getAddressKind,
+  isPlausibleAddress,
+  normalizeAddressInput,
+  shortenAddress,
+} from '@/features/transfer/address';
+import {
+  applyKey,
+  exceedsBalance,
+  formatAmountLabel,
+  formatBalanceLabel,
+  formatEnteredAmount,
+  formatEquivalents,
+  getAvailableUnits,
+  getUnitRates,
+  hasPositiveBalance,
+  maxDecimalsFor,
+  toAssetAmount,
+} from '@/features/transfer/amount';
+import {
+  SEND_ASSETS,
+  assetsForAddressKind,
+  findSendAsset,
+  pickDefaultAsset,
+  resolveChain,
+} from '@/features/transfer/assets';
+import { describeLastUsed } from '@/features/transfer/contacts';
+import { useBankAccounts } from '@/features/transfer/useBankAccounts';
+import { useSendFlow } from '@/hooks';
+import { getRawBalance, useBalances } from '@/services/balances';
+import { pricingService } from '@/services/pricing-service';
+import {
+  findContactByAddress,
+  sortContacts,
+  useAddressBookStore,
+  type Contact,
+  type ContactError,
+} from '@/store/address-book';
+import { Header, useColors, type ThemeColors } from '@/theme';
 
-type SendStep = 'asset' | 'input' | 'confirm' | 'success';
+type SendStep = 'overview' | 'amount' | 'confirm' | 'success';
 
-type AssetOption = {
-  symbol: string;
-  chains: { chain: ChainId; label: string }[];
-};
+type Sheet =
+  | { kind: 'create' }
+  | { kind: 'actions'; contact: Contact }
+  | { kind: 'rename'; contact: Contact }
+  | { kind: 'save' };
 
-const SEND_ASSETS: AssetOption[] = [
-  {
-    symbol: 'BTC',
-    chains: [{ chain: 'spark', label: 'Bitcoin' }],
-  },
-  {
-    symbol: 'CHF',
-    chains: [
-      { chain: 'ethereum', label: 'Ethereum' },
-      { chain: 'arbitrum', label: 'Arbitrum' },
-      { chain: 'polygon', label: 'Polygon' },
-      { chain: 'base', label: 'Base' },
-    ],
-  },
-  {
-    symbol: 'EUR',
-    chains: [
-      { chain: 'ethereum', label: 'Ethereum' },
-      { chain: 'arbitrum', label: 'Arbitrum' },
-      { chain: 'polygon', label: 'Polygon' },
-      { chain: 'base', label: 'Base' },
-    ],
-  },
-  {
-    symbol: 'USD',
-    chains: [
-      { chain: 'ethereum', label: 'Ethereum' },
-      { chain: 'arbitrum', label: 'Arbitrum' },
-      { chain: 'polygon', label: 'Polygon' },
-      { chain: 'base', label: 'Base' },
-    ],
-  },
-];
+type FeeState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'ok'; fee: string }
+  | { status: 'error'; message: string };
+
+const FEE_PREVIEW_DELAY_MS = 400;
+const COPIED_RESET_MS = 2000;
+const EMPTY_RATES: ReadonlyMap<string, number> = new Map();
 
 export default function SendScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [step, setStep] = useState<SendStep>('asset');
-  // Start unselected so no card has a border on first render — the active
-  // border appears only after the user explicitly picks an asset.
-  const [selectedAsset, setSelectedAsset] = useState<AssetOption | null>(null);
-  const [selectedChain, setSelectedChain] = useState<ChainId>('spark');
+
+  const [step, setStep] = useState<SendStep>('overview');
+  const [query, setQuery] = useState('');
   const [recipient, setRecipient] = useState('');
-  const [amount, setAmount] = useState('');
+  const [assetSymbol, setAssetSymbol] = useState('BTC');
+  const [selectedChain, setSelectedChain] = useState<ChainId>('spark');
+  const [unit, setUnit] = useState('BTC');
+  const [input, setInput] = useState('');
   const [scannerVisible, setScannerVisible] = useState(false);
-  const { send, estimate, isLoading, txHash, error, reset } = useSendFlow(selectedChain);
-
-  type FeeState =
-    | { status: 'idle' }
-    | { status: 'loading' }
-    | { status: 'ok'; fee: string }
-    | { status: 'error'; message: string };
+  const [assetSheetVisible, setAssetSheetVisible] = useState(false);
+  const [sheet, setSheet] = useState<Sheet | null>(null);
+  const [copiedHash, setCopiedHash] = useState(false);
+  const [pricingReady, setPricingReady] = useState(pricingService.isReady());
   const [feeState, setFeeState] = useState<FeeState>({ status: 'idle' });
+  const [previewFee, setPreviewFee] = useState<FeeState>({ status: 'idle' });
   const estimateReqRef = useRef(0);
+  const previewReqRef = useRef(0);
 
-  const symbol = selectedAsset?.symbol ?? '';
-  const sendAsset = useMemo(
-    () =>
-      selectedAsset ? getSendAssetForCanonical(selectedAsset.symbol, selectedChain) : undefined,
-    [selectedAsset, selectedChain],
+  const { send, estimate, isLoading, txHash, error, reset } = useSendFlow(selectedChain);
+  const estimateRef = useRef(estimate);
+  useEffect(() => {
+    estimateRef.current = estimate;
+  }, [estimate]);
+
+  // Local address book. Hydration is explicit so importing the store never
+  // touches native storage.
+  const storedContacts = useAddressBookStore((s) => s.contacts);
+  const hydrateContacts = useAddressBookStore((s) => s.hydrate);
+  const addContact = useAddressBookStore((s) => s.addContact);
+  const renameContact = useAddressBookStore((s) => s.renameContact);
+  const removeContact = useAddressBookStore((s) => s.removeContact);
+  const markUsed = useAddressBookStore((s) => s.markUsed);
+  // Layout effect: the persisted contacts are in place before the first paint.
+  useLayoutEffect(() => {
+    hydrateContacts();
+  }, [hydrateContacts]);
+  const contacts = useMemo(() => sortContacts(storedContacts), [storedContacts]);
+  const recipientContact = useMemo(
+    () => findContactByAddress(contacts, recipient),
+    [contacts, recipient],
   );
+
+  // Prices: start the cache if the dashboard has not done it yet.
+  useEffect(() => {
+    if (pricingService.isReady()) {
+      setPricingReady(true);
+      return;
+    }
+    let cancelled = false;
+    const init = async () => {
+      try {
+        await pricingService.initialize();
+        if (!cancelled) setPricingReady(true);
+      } catch {
+        // No prices: the fiat units stay hidden, the asset unit keeps working.
+      }
+    };
+    void init();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const { address: derivedAddress } = useAccount({ network: 'bitcoin', accountIndex: 0 });
+  const ownAddress = derivedAddress ?? '';
+  const bankAccounts = useBankAccounts();
+
+  // One asset per send-list symbol on its default chain (balances, default pick).
+  const defaultAssets = useMemo(() => {
+    const bySymbol = new Map<string, IAsset>();
+    for (const option of SEND_ASSETS) {
+      const asset = getSendAssetForCanonical(option.symbol, resolveChain(option));
+      if (asset) bySymbol.set(option.symbol, asset);
+    }
+    return bySymbol;
+  }, []);
+  const sendAsset = useMemo(
+    () => getSendAssetForCanonical(assetSymbol, selectedChain),
+    [assetSymbol, selectedChain],
+  );
+  const balanceAssets = useMemo(() => {
+    const assets = Array.from(defaultAssets.values());
+    if (sendAsset && !assets.some((a) => a.getId() === sendAsset.getId())) assets.push(sendAsset);
+    return assets;
+  }, [defaultAssets, sendAsset]);
+  const { data: balances } = useBalances(balanceAssets);
+
+  const hasBalanceFor = (symbol: string): boolean => {
+    const asset = defaultAssets.get(symbol);
+    return asset ? hasPositiveBalance(getRawBalance(balances, asset.getId())) : false;
+  };
+  const overviewAsset = pickDefaultAsset(SEND_ASSETS, hasBalanceFor);
+  const overviewAssetInstance = defaultAssets.get(overviewAsset.symbol);
+  const overviewBalance = overviewAssetInstance
+    ? balances.get(overviewAssetInstance.getId())
+    : undefined;
+  const balanceLabel =
+    overviewAssetInstance && overviewBalance?.status === 'ok'
+      ? formatBalanceLabel(overviewBalance.rawBalance, {
+          symbol: overviewAsset.symbol,
+          decimals: overviewAssetInstance.getDecimals(),
+        })
+      : null;
+
+  // Amount step: what the user typed, in which unit, and what it means in asset units.
+  const assetOptions = assetsForAddressKind(getAddressKind(recipient));
+  const currentAsset = findSendAsset(assetSymbol) ?? SEND_ASSETS[0]!;
+  const assetDecimals = sendAsset ? sendAsset.getDecimals() : 8;
+  const amountAsset = { symbol: assetSymbol, decimals: assetDecimals };
+  const rates = pricingReady ? getUnitRates(assetSymbol) : EMPTY_RATES;
+  const units = getAvailableUnits(assetSymbol, rates);
+  const rate = rates.get(unit);
+  const rateMissing = unit !== assetSymbol && rate === undefined;
+  const assetAmount = toAssetAmount(input, unit, amountAsset, rate);
   const paymasterToken = useMemo(() => getPaymasterTokenInfo(selectedChain), [selectedChain]);
-  const isValidAddress = recipient.length >= 26;
+  const balanceEntry = sendAsset ? balances.get(sendAsset.getId()) : undefined;
+  const insufficient =
+    assetAmount !== undefined &&
+    balanceEntry?.status === 'ok' &&
+    exceedsBalance(assetAmount, balanceEntry.rawBalance, assetDecimals);
+  const recipientName = recipientContact ? recipientContact.name : shortenAddress(recipient, 6, 4);
+
+  // Fee preview under the amount: debounced, and a stale answer is dropped.
+  useEffect(() => {
+    if (step !== 'amount' || !sendAsset || !assetAmount) {
+      setPreviewFee((prev) => (prev.status === 'idle' ? prev : { status: 'idle' }));
+      return;
+    }
+    const reqId = ++previewReqRef.current;
+    setPreviewFee({ status: 'loading' });
+    const timer = setTimeout(() => {
+      const run = async () => {
+        const result = await estimateRef.current({
+          asset: sendAsset,
+          to: recipient,
+          amount: assetAmount,
+        });
+        if (reqId !== previewReqRef.current) return;
+        setPreviewFee(
+          result.success
+            ? { status: 'ok', fee: result.fee }
+            : { status: 'error', message: result.error },
+        );
+      };
+      void run();
+    }, FEE_PREVIEW_DELAY_MS);
+    return () => {
+      clearTimeout(timer);
+      previewReqRef.current += 1;
+    };
+  }, [step, sendAsset, recipient, assetAmount]);
+
+  const formatFee = (state: FeeState): string | undefined => {
+    if (state.status !== 'ok' || !paymasterToken) return undefined;
+    return `${formatBalance(state.fee, paymasterToken.decimals)} ${paymasterToken.symbol}`;
+  };
+
+  const goToAmount = (address: string, contact?: Contact) => {
+    const options = assetsForAddressKind(getAddressKind(address));
+    const preferred = contact?.assetSymbol
+      ? options.find((option) => option.symbol === contact.assetSymbol)
+      : undefined;
+    const asset = preferred ?? pickDefaultAsset(options, hasBalanceFor);
+    setRecipient(address);
+    setAssetSymbol(asset.symbol);
+    setSelectedChain(resolveChain(asset, contact?.chain));
+    setUnit(asset.symbol);
+    setInput('');
+    reset();
+    setStep('amount');
+  };
+
+  const handleScan = (data: string) => {
+    const address = normalizeAddressInput(data);
+    if (isPlausibleAddress(address)) goToAmount(address, findContactByAddress(contacts, address));
+    else setQuery(address);
+  };
+
+  const handlePaste = async () => {
+    const text = await Clipboard.getStringAsync();
+    if (text) setQuery(normalizeAddressInput(text));
+  };
+
+  const handleUnitSelect = (next: string) => {
+    if (next !== unit) {
+      setUnit(next);
+      setInput('');
+      return;
+    }
+    // A second tap on the active asset segment opens the asset picker.
+    if (next === assetSymbol && assetOptions.length > 1) setAssetSheetVisible(true);
+  };
 
   const handleAssetSelect = (symbol: string) => {
-    const asset = SEND_ASSETS.find((a) => a.symbol === symbol);
+    const asset = findSendAsset(symbol);
     if (!asset) return;
-    setSelectedAsset(asset);
-    setSelectedChain(asset.chains[0]!.chain);
-    setStep('input');
+    setAssetSymbol(asset.symbol);
+    setSelectedChain(resolveChain(asset));
+    setUnit(asset.symbol);
+    setInput('');
+    setAssetSheetVisible(false);
+  };
+
+  const handleKey = (key: AmountKey) => {
+    setInput((prev) => applyKey(prev, key, maxDecimalsFor(unit, amountAsset)));
   };
 
   const goToConfirm = useCallback(async () => {
-    // Continue + Confirm buttons are gated on `sendAsset` via their
-    // `disabled` props, so it is non-null by the time these handlers run.
+    // The continue button is gated on `sendAsset` and `assetAmount` via its
+    // `disabled` prop, so both are set by the time this handler runs.
     setStep('confirm');
     setFeeState({ status: 'loading' });
     const reqId = ++estimateReqRef.current;
-    const result = await estimate({ asset: sendAsset!, to: recipient, amount });
+    const result = await estimate({ asset: sendAsset!, to: recipient, amount: assetAmount! });
     // Drop stale results from earlier estimate calls (e.g. user went back, edited, returned).
     if (reqId !== estimateReqRef.current) return;
     if (result.success) {
@@ -119,254 +303,278 @@ export default function SendScreen() {
     } else {
       setFeeState({ status: 'error', message: result.error });
     }
-  }, [sendAsset, estimate, recipient, amount]);
+  }, [sendAsset, estimate, recipient, assetAmount]);
+
+  const backToAmount = () => {
+    reset();
+    // Drop any in-flight estimate so a late-arriving result doesn't render after cancel.
+    estimateReqRef.current += 1;
+    setFeeState({ status: 'idle' });
+    setStep('amount');
+  };
 
   const handleSend = async () => {
-    const hash = await send({ asset: sendAsset!, to: recipient, amount });
+    const hash = await send({ asset: sendAsset!, to: recipient, amount: assetAmount! });
     if (hash) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (recipientContact) markUsed(recipientContact.id);
       setStep('success');
     }
   };
 
-  const renderAssetStep = () => (
-    <AssetPickerStep
-      heading={t('send.sendToCrypto')}
-      assets={SEND_ASSETS}
-      onSelect={handleAssetSelect}
-      testIDPrefix="send"
-      {...(selectedAsset ? { selectedSymbol: selectedAsset.symbol } : {})}
-      {...(FEATURES.BUY_SELL
-        ? {
-            bankAction: {
-              title: t('send.sendToBank'),
-              subtitle: t('send.sendToBankSubtitle'),
-              onPress: () => router.push('/(auth)/sell'),
-              testID: 'send-destination-bank',
-            },
-          }
-        : {})}
-    />
-  );
-
-  const renderInputStep = (asset: AssetOption) => {
-    return (
-      <View style={styles.stepContent} testID="send-input-step">
-        <GlassPill
-          selected
-          testID="send-selected-asset-pill"
-          style={styles.selectedAssetPill}
-          onPress={() => setStep('asset')}
-        >
-          <View style={styles.selectedAssetContent}>
-            <Text style={styles.selectedAssetText}>{asset.symbol}</Text>
-            <Icon name="chevron-right" size={14} color={colors.textTertiary} />
-          </View>
-        </GlassPill>
-
-        {asset.chains.length > 1 && (
-          <View style={styles.inputGroup} testID="send-chain-bar">
-            <Text style={styles.inputLabel}>{t('send.network')}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
-              {asset.chains.map((c) => (
-                <GlassPill
-                  key={c.chain}
-                  testID={`send-chain-${c.chain}`}
-                  selected={selectedChain === c.chain}
-                  style={styles.chainChip}
-                  onPress={() => setSelectedChain(c.chain)}
-                >
-                  <Text
-                    style={[
-                      styles.chainChipText,
-                      selectedChain === c.chain && styles.chainChipTextActive,
-                    ]}
-                  >
-                    {c.label}
-                  </Text>
-                </GlassPill>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>{t('send.recipient')}</Text>
-          <View style={styles.recipientRow}>
-            <View style={styles.recipientInputWrap}>
-              <GlassInputField
-                testID="send-recipient-input"
-                value={recipient}
-                onChangeText={setRecipient}
-                placeholder={t('send.addressPlaceholder')}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-            <GlassPill testID="send-recipient-scan-button" onPress={() => setScannerVisible(true)}>
-              <Text style={styles.scanText}>{t('send.scan')}</Text>
-            </GlassPill>
-          </View>
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>
-            {t('send.amount')} ({symbol})
-          </Text>
-          <GlassInputField
-            testID="send-amount-input"
-            value={amount}
-            onChangeText={setAmount}
-            placeholder="0.00"
-            keyboardType="decimal-pad"
-          />
-        </View>
-
-        {error && (
-          <Text testID="send-input-error" style={styles.errorText}>
-            {error}
-          </Text>
-        )}
-
-        <View style={styles.spacer} />
-
-        <PrimaryButton
-          testID="send-continue-button"
-          title={t('common.continue')}
-          onPress={goToConfirm}
-          disabled={!sendAsset || !isValidAddress || !amount || parseFloat(amount) <= 0}
-        />
-
-        {FEATURES.BUY_SELL && (
-          <ShortcutAction
-            icon={<Icon name="swap" size={18} color={colors.white} strokeWidth={2.2} />}
-            label={t('send.sellInstead')}
-            onPress={() => router.push('/(auth)/sell')}
-            testID="send-action-sell"
-          />
-        )}
-      </View>
-    );
+  const handleBack = () => {
+    if (step === 'confirm') {
+      backToAmount();
+    } else if (step === 'amount') {
+      reset();
+      setStep('overview');
+    } else {
+      router.back();
+    }
   };
 
-  const renderConfirmStep = () => (
-    <View style={styles.stepContent} testID="send-confirm-step">
-      <Text style={styles.stepTitle}>{t('send.confirmTransaction')}</Text>
+  const handleCopyHash = async () => {
+    if (!txHash) return;
+    await Clipboard.setStringAsync(txHash);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setCopiedHash(true);
+    setTimeout(() => setCopiedHash(false), COPIED_RESET_MS);
+  };
 
-      <GlassCard padding={20} style={styles.summary}>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>{t('send.network')}</Text>
-          <Text style={styles.summaryValue}>{selectedChain}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>{t('send.recipient')}</Text>
-          <Text style={styles.summaryValue} numberOfLines={1}>
-            {recipient.slice(0, 10)}...{recipient.slice(-6)}
-          </Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>{t('send.amount')}</Text>
-          <Text style={styles.summaryValue}>
-            {amount} {symbol}
-          </Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>{t('send.networkFee')}</Text>
-          <Text style={styles.summaryValue}>
-            {feeState.status === 'loading' && t('send.feeEstimating')}
-            {feeState.status === 'error' && t('send.feeUnavailable')}
-            {feeState.status === 'ok' &&
-              paymasterToken &&
-              `${formatBalance(feeState.fee, paymasterToken.decimals)} ${paymasterToken.symbol}`}
-          </Text>
-        </View>
-      </GlassCard>
+  const submitNewContact = (name: string, address: string): ContactError | null => {
+    const isEvm = getAddressKind(address) === 'evm';
+    const result = addContact(
+      isEvm
+        ? { name, address, chain: 'ethereum' }
+        : { name, address, chain: 'spark', assetSymbol: 'BTC' },
+    );
+    if (!result.ok) return result.error;
+    setSheet(null);
+    return null;
+  };
 
-      <Text style={styles.warning}>{t('send.irreversible')}</Text>
+  const submitSavedAddress = (name: string): ContactError | null => {
+    const result = addContact({
+      name,
+      address: recipient,
+      chain: selectedChain,
+      assetSymbol,
+    });
+    if (!result.ok) return result.error;
+    markUsed(result.contact.id);
+    setSheet(null);
+    return null;
+  };
 
-      {error && <Text style={styles.errorText}>{error}</Text>}
+  const submitRename = (contact: Contact, name: string): ContactError | null => {
+    const result = renameContact(contact.id, name);
+    if (!result.ok) return result.error;
+    setSheet(null);
+    return null;
+  };
 
-      <View style={styles.spacer} />
+  // Send button: one state at a time, in the order the user has to fix them.
+  const ctaTitle = (): string => {
+    if (rateMissing) return t('send.rateUnavailable');
+    if (!assetAmount) return t('send.enterAmount');
+    if (insufficient) return t('send.insufficientBalance');
+    return t('send.ctaSend', { amount: formatAmountLabel(input, unit), name: recipientName });
+  };
+  const ctaDisabled = rateMissing || !assetAmount || insufficient || !sendAsset;
 
-      <PrimaryButton
-        testID="send-confirm-button"
-        title={t('common.confirm')}
-        onPress={handleSend}
-        loading={isLoading}
-      />
-      <PrimaryButton
-        testID="send-cancel-button"
-        title={t('common.cancel')}
-        variant="outlined"
-        onPress={() => {
-          reset();
-          // Drop any in-flight estimate so a late-arriving result doesn't render after cancel.
-          estimateReqRef.current += 1;
-          setFeeState({ status: 'idle' });
-          setStep('input');
-        }}
-      />
-    </View>
-  );
+  const previewFeeLine = (): string => {
+    if (previewFee.status === 'loading') return t('send.feeEstimating');
+    if (previewFee.status === 'error') return t('send.feeUnavailable');
+    const formatted = formatFee(previewFee);
+    return formatted ? t('send.feeLine', { fee: formatted }) : t('send.feeLineIdle');
+  };
 
-  const renderSuccessStep = () => (
-    <View style={styles.stepContent}>
-      <View style={styles.successContainer}>
-        <Text style={styles.successIcon}>{'\u2713'}</Text>
-        <Text style={styles.successTitle}>{t('send.sent')}</Text>
-        <Text style={styles.successDescription}>
-          {t('send.sentDescription', {
-            amount,
-            symbol,
-            recipient: `${recipient.slice(0, 10)}...${recipient.slice(-6)}`,
-          })}
-        </Text>
-        {txHash && (
-          <Text style={styles.txHash} selectable>
-            {t('send.txHash', { hash: `${txHash.slice(0, 12)}...${txHash.slice(-8)}` })}
-          </Text>
-        )}
-      </View>
+  const lastUsed =
+    recipientContact?.lastUsedAt !== undefined
+      ? describeLastUsed(recipientContact.lastUsedAt, Date.now())
+      : undefined;
+  const lastUsedLabel = lastUsed
+    ? t(`send.lastUsed.${lastUsed.key}`, { count: lastUsed.count })
+    : undefined;
 
-      <View style={styles.spacer} />
+  const confirmFee = (): string => {
+    if (feeState.status === 'loading') return t('send.feeEstimating');
+    if (feeState.status === 'error') return t('send.feeUnavailable');
+    return formatFee(feeState) ?? '–';
+  };
+  const chainLabel = currentAsset.chains.find((c) => c.chain === selectedChain)?.label;
+  const confirmRows: { key: string; label: string; value: string }[] = [
+    { key: 'network', label: t('send.network'), value: chainLabel ?? selectedChain },
+    { key: 'recipient', label: t('send.recipient'), value: recipientName },
+  ];
+  if (recipientContact) {
+    const address = shortenAddress(recipient, 10, 6);
+    confirmRows.push({ key: 'address', label: t('send.address'), value: address });
+  }
+  confirmRows.push({
+    key: 'amount',
+    label: t('send.amount'),
+    value: `${assetAmount ?? ''} ${assetSymbol}`,
+  });
+  if (unit !== assetSymbol) {
+    const entered = formatEnteredAmount(input, unit, amountAsset);
+    confirmRows.push({ key: 'entered', label: t('send.entered'), value: entered });
+  }
+  confirmRows.push({ key: 'fee', label: t('send.networkFee'), value: confirmFee() });
 
-      <PrimaryButton title={t('common.done')} onPress={() => router.back()} />
-    </View>
+  const explorerUrl = txHash ? getExplorerTxUrl(selectedChain, txHash) : undefined;
+
+  const scanAction = (
+    <Pressable
+      style={styles.headerAction}
+      onPress={() => setScannerVisible(true)}
+      testID="send-recipient-scan-button"
+      accessibilityRole="button"
+      accessibilityLabel={t('send.scan')}
+    >
+      <Icon name="scan" size={20} color={colors.text} />
+    </Pressable>
   );
 
   const body = (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
       <AppHeader
-        title={t('send.title')}
-        onBack={() => {
-          if (step === 'confirm') setStep('input');
-          else if (step === 'input') setStep('asset');
-          else router.back();
-        }}
+        title=""
+        onBack={handleBack}
+        hideBack={step === 'success'}
         testID="send-screen"
+        {...(step === 'overview' ? { rightAction: scanAction } : {})}
       />
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {step === 'asset' && renderAssetStep()}
-        {step === 'input' && selectedAsset && renderInputStep(selectedAsset)}
-        {step === 'confirm' && renderConfirmStep()}
-        {step === 'success' && renderSuccessStep()}
-      </ScrollView>
+      {step === 'overview' && (
+        <SendOverview
+          contacts={contacts}
+          query={query}
+          onQueryChange={setQuery}
+          ownAddress={ownAddress}
+          balanceLabel={balanceLabel}
+          bankAccounts={bankAccounts}
+          onSubmitAddress={(address) =>
+            goToAmount(address, findContactByAddress(contacts, address))
+          }
+          onSelectContact={(contact) => goToAmount(contact.address, contact)}
+          onContactActions={(contact) => setSheet({ kind: 'actions', contact })}
+          onNewContact={() => setSheet({ kind: 'create' })}
+          onShowOwnCode={() => router.push('/(auth)/receive')}
+          onOpenBuy={() => router.push('/(auth)/buy')}
+          onOpenSell={() => router.push('/(auth)/sell')}
+          onPaste={handlePaste}
+        />
+      )}
+
+      {step === 'amount' && (
+        <SendAmountStep
+          address={recipient}
+          asset={currentAsset}
+          selectedChain={selectedChain}
+          units={units}
+          unit={unit}
+          input={input}
+          equivalents={formatEquivalents(input, unit, amountAsset, rates)}
+          feeLine={previewFeeLine()}
+          error={error}
+          ctaTitle={ctaTitle()}
+          ctaDisabled={ctaDisabled}
+          assetSelectable={assetOptions.length > 1}
+          onKey={handleKey}
+          onUnitSelect={handleUnitSelect}
+          onChainSelect={setSelectedChain}
+          onContinue={goToConfirm}
+          {...(recipientContact ? { contactName: recipientContact.name } : {})}
+          {...(lastUsedLabel ? { lastUsedLabel } : {})}
+        />
+      )}
+
+      {step === 'confirm' && (
+        <SendConfirmStep
+          rows={confirmRows}
+          error={error}
+          isLoading={isLoading}
+          onConfirm={handleSend}
+          onCancel={backToAmount}
+        />
+      )}
+
+      {step === 'success' && (
+        <SendSuccessStep
+          recipientLabel={recipientName}
+          amountLabel={formatAmountLabel(input, unit)}
+          equivalentLabel={formatEquivalents(input, unit, amountAsset, rates)}
+          txHash={txHash}
+          copiedHash={copiedHash}
+          canSaveAddress={!recipientContact}
+          onSaveAddress={() => setSheet({ kind: 'save' })}
+          onCopyHash={handleCopyHash}
+          onDone={() => router.back()}
+          {...(explorerUrl ? { explorerUrl } : {})}
+        />
+      )}
 
       <QrScanner
         visible={scannerVisible}
-        onScan={(data) => {
-          // Handle various QR formats: plain address, ethereum:0x..., bitcoin:bc1...
-          // String.prototype.split always yields at least one element, so [0] is defined.
-          const address = data.replace(/^(ethereum|bitcoin):/, '').split('?')[0]!;
-          setRecipient(address);
-        }}
+        onScan={handleScan}
         onClose={() => setScannerVisible(false)}
       />
+
+      <GlassSheet
+        visible={assetSheetVisible}
+        position="bottom"
+        onRequestClose={() => setAssetSheetVisible(false)}
+        testID="send-asset-sheet"
+      >
+        <AssetPickerStep
+          heading={t('send.selectAsset')}
+          assets={assetOptions}
+          selectedSymbol={assetSymbol}
+          onSelect={handleAssetSelect}
+          testIDPrefix="send"
+        />
+      </GlassSheet>
+
+      {sheet?.kind === 'create' && (
+        <ContactFormSheet
+          title={t('send.contactNewTitle')}
+          submitLabel={t('common.save')}
+          showAddress
+          onSubmit={submitNewContact}
+          onClose={() => setSheet(null)}
+        />
+      )}
+      {sheet?.kind === 'save' && (
+        <ContactFormSheet
+          title={t('send.saveAddressTitle')}
+          submitLabel={t('common.save')}
+          showAddress={false}
+          onSubmit={submitSavedAddress}
+          onClose={() => setSheet(null)}
+        />
+      )}
+      {sheet?.kind === 'rename' && (
+        <ContactFormSheet
+          title={t('send.contactRename')}
+          submitLabel={t('common.save')}
+          showAddress={false}
+          initialName={sheet.contact.name}
+          onSubmit={(name) => submitRename(sheet.contact, name)}
+          onClose={() => setSheet(null)}
+        />
+      )}
+      {sheet?.kind === 'actions' && (
+        <ContactActionSheet
+          name={sheet.contact.name}
+          onRename={() => setSheet({ kind: 'rename', contact: sheet.contact })}
+          onDelete={() => {
+            removeContact(sheet.contact.id);
+            setSheet(null);
+          }}
+          onClose={() => setSheet(null)}
+        />
+      )}
     </SafeAreaView>
   );
 
@@ -390,130 +598,10 @@ const makeStyles = (colors: ThemeColors) =>
     safeArea: {
       flex: 1,
     },
-    scroll: {
-      flex: 1,
-    },
-    scrollContent: {
-      paddingHorizontal: 20,
-      paddingBottom: 32,
-    },
-    stepContent: {
-      flex: 1,
-      gap: 20,
-    },
-    stepTitle: {
-      ...Typography.headlineSmall,
-      color: colors.text,
-    },
-    selectedAssetPill: {
-      marginBottom: 4,
-    },
-    selectedAssetContent: {
-      flexDirection: 'row',
+    headerAction: {
+      width: Header.slotSize,
+      height: Header.slotSize,
       alignItems: 'center',
-      gap: 6,
-    },
-    selectedAssetText: {
-      ...Typography.bodyMedium,
-      color: colors.primary,
-      fontWeight: '700',
-    },
-    chainBar: {
-      flexGrow: 0,
-    },
-    chainChip: {
-      marginRight: 8,
-    },
-    chainChipText: {
-      ...Typography.bodyMedium,
-      color: colors.textSecondary,
-      fontWeight: '500',
-    },
-    chainChipTextActive: {
-      color: colors.primary,
-      fontWeight: '600',
-    },
-    inputGroup: {
-      gap: 8,
-    },
-    inputLabel: {
-      ...Typography.bodySmall,
-      fontWeight: '600',
-      color: colors.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-    },
-    recipientRow: {
-      flexDirection: 'row',
-      gap: 8,
-    },
-    recipientInputWrap: {
-      flex: 1,
-    },
-    scanText: {
-      ...Typography.bodyMedium,
-      fontWeight: '600',
-      color: colors.primary,
-    },
-    summary: {
-      gap: 16,
-    },
-    summaryRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-    },
-    summaryLabel: {
-      ...Typography.bodyMedium,
-      color: colors.textTertiary,
-    },
-    summaryValue: {
-      ...Typography.bodyMedium,
-      fontWeight: '600',
-      color: colors.text,
-      maxWidth: '60%',
-    },
-    warning: {
-      ...Typography.bodySmall,
-      color: colors.warning,
-      textAlign: 'center',
-    },
-    errorText: {
-      ...Typography.bodySmall,
-      color: colors.error,
-      textAlign: 'center',
-    },
-    successContainer: {
-      alignItems: 'center',
-      paddingVertical: 48,
-      gap: 12,
-    },
-    successIcon: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      backgroundColor: colors.success,
-      color: colors.white,
-      fontSize: 42,
-      lineHeight: 72,
-      textAlign: 'center',
-      overflow: 'hidden',
-    },
-    successTitle: {
-      ...Typography.headlineMedium,
-      color: colors.text,
-    },
-    successDescription: {
-      ...Typography.bodyLarge,
-      color: colors.textSecondary,
-      textAlign: 'center',
-    },
-    txHash: {
-      ...Typography.bodySmall,
-      color: colors.textTertiary,
-      fontFamily: 'monospace',
-      marginTop: 8,
-    },
-    spacer: {
-      flex: 1,
+      justifyContent: 'center',
     },
   });

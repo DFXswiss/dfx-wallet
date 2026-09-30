@@ -5,9 +5,12 @@ import { useColors } from '@/theme';
 type Props = {
   value: string;
   size?: number;
+  /** White margin around the code in px. The scan-size default (16) leaves
+   *  no room for a code below ~100 px, so compact previews pass a small one. */
+  quietZone?: number;
 };
 
-export function QrCode({ value, size = 200 }: Props) {
+export function QrCode({ value, size = 200, quietZone = 16 }: Props) {
   const colors = useColors();
   return (
     <View style={styles.container}>
@@ -16,7 +19,7 @@ export function QrCode({ value, size = 200 }: Props) {
         size={size}
         backgroundColor={colors.white}
         color={colors.black}
-        quietZone={16}
+        quietZone={quietZone}
       />
     </View>
   );

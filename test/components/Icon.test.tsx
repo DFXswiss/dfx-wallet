@@ -31,6 +31,11 @@ const NAMES = [
   'check',
   'copy',
   'edit',
+  'scan',
+  'paste',
+  'plus',
+  'backspace',
+  'share',
 ] as const;
 
 describe('Icon', () => {
