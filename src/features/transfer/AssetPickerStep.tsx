@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { UnitGlyph } from './UnitGlyph';
 import { GlassCard, GlassListGroup, Icon, SectionTitle } from '@/components';
-import { AssetGlyph } from '@/features/buy-sell/AssetGlyph';
-import { CurrencyGlyph } from '@/features/buy-sell/CurrencyGlyph';
 import { IconTile, Spacing, Typography, useColors, type ThemeColors } from '@/theme';
 
 // The only new literal this module introduces (see the task's "Verbote") —
@@ -29,22 +28,6 @@ type Props = {
   testIDPrefix: 'send' | 'receive';
   bankAction?: BankAction;
 };
-
-/**
- * `AssetGlyph` draws the Bitcoin mark; every fiat currency renders through
- * `CurrencyGlyph` instead. A switch keeps the mapping exhaustive without
- * indexing into a lookup object by a dynamic symbol.
- */
-function AssetRowGlyph({ symbol }: { symbol: string }) {
-  switch (symbol) {
-    case 'CHF':
-    case 'EUR':
-    case 'USD':
-      return <CurrencyGlyph code={symbol} size={GLYPH_SIZE} />;
-    default:
-      return <AssetGlyph symbol={symbol} size={GLYPH_SIZE} />;
-  }
-}
 
 /**
  * Shared "pick an asset" step for the Send and Receive wizards. Replaces the
@@ -81,7 +64,7 @@ export function AssetPickerStep({
               accessibilityState={{ selected: isSelected }}
               style={styles.row}
             >
-              <AssetRowGlyph symbol={asset.symbol} />
+              <UnitGlyph symbol={asset.symbol} size={GLYPH_SIZE} />
               <View style={styles.rowText}>
                 <Text style={styles.rowTitle}>{asset.symbol}</Text>
                 <Text style={styles.rowSubtitle}>{t(`transfer.assetName.${asset.symbol}`)}</Text>

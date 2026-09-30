@@ -14,6 +14,8 @@ export type ThemeColors = {
   textTertiary: string;
 
   success: string;
+  /** Soft halo around a success mark (the check circle of the send flow). */
+  successGlow: string;
   warning: string;
   error: string;
   info: string;
@@ -97,6 +99,7 @@ export const lightColors: ThemeColors = {
   textTertiary: '#8D98AA',
 
   success: '#16A34A',
+  successGlow: 'rgba(22,163,74,0.38)',
   warning: '#EAB308',
   error: '#DC2626',
   info: '#2F7CF7',
@@ -174,6 +177,7 @@ export const darkColors: ThemeColors = {
   textTertiary: '#8A99B7',
 
   success: '#34D399',
+  successGlow: 'rgba(52,211,153,0.42)',
   warning: '#FBBF24',
   error: '#F87171',
   info: '#5FA8FF',

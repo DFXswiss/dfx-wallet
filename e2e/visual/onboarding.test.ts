@@ -147,32 +147,35 @@ describe('Visual Regression', () => {
       await pause();
     });
 
-    it('shows send screen (asset list)', async () => {
+    it('shows send screen (overview)', async () => {
       await element(by.id('dashboard-action-send')).tap();
-      // Asset cards are the top content on the Send screen — they're
-      // a more reliable visibility anchor than the header View, which
+      // The composer is the top content of the "An wen?" overview — a
+      // more reliable visibility anchor than the header View, which
       // sits behind the safe-area inset on tall iPhones.
-      await waitFor(element(by.id('send-asset-btc')))
+      await waitFor(element(by.id('send-recipient-input')))
         .toBeVisible()
         .withTimeout(30_000);
       await pause();
       await expectScreenToMatchBaseline('send');
     });
 
-    it('shows send input step after picking BTC', async () => {
-      await element(by.id('send-asset-btc')).tap();
-      // Same trick as receive-qr-step: the selected-asset pill is the
-      // anchor near the top of the screen, the inputs are below.
-      await waitFor(element(by.id('send-selected-asset-pill')))
+    it('shows send amount step after entering an address', async () => {
+      // Public BIP-173 reference address, not a wallet of ours.
+      await element(by.id('send-recipient-input')).typeText(
+        'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
+      );
+      await element(by.id('send-recipient-continue')).tap();
+      // The keypad is the anchor: it sits below the amount column.
+      await waitFor(element(by.id('amount-key-1')))
         .toBeVisible()
         .withTimeout(30_000);
       await pause(2_000);
       await expectScreenToMatchBaseline('send-input-step');
     });
 
-    it('returns to the send asset list', async () => {
-      await element(by.id('send-selected-asset-pill')).tap();
-      await waitFor(element(by.id('send-asset-btc')))
+    it('returns to the send overview', async () => {
+      await element(by.id('send-screen-back')).tap();
+      await waitFor(element(by.id('send-recipient-input')))
         .toBeVisible()
         .withTimeout(30_000);
     });
