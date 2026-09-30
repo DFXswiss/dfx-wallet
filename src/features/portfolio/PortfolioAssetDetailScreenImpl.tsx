@@ -294,7 +294,7 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
     iconText: {
       color: colors.white,
       fontWeight: '700',
-      fontSize: 30,
+      fontSize: Typography.headlineLarge.fontSize,
       lineHeight: 34,
     },
     totalCrypto: {

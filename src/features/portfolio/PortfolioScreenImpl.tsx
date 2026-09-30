@@ -536,7 +536,7 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
       gap: Spacing.xs,
     },
     totalCurrency: {
-      fontSize: 20,
+      fontSize: Typography.headlineSmall.fontSize,
       color: colors.textTertiary,
       fontWeight: '500',
       ...onBackdrop,
