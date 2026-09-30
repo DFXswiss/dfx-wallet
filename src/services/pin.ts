@@ -1,5 +1,4 @@
 import * as Crypto from 'expo-crypto';
-import { argon2idAsync } from '@noble/hashes/argon2';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 
 const LEGACY_SALT = 'dfx-wallet-pin-v1';
@@ -13,6 +12,52 @@ const ARGON2_PARAMS = {
   dkLen: 32,
 } as const;
 const SALT_BYTES = 16;
+// Argon2 v1.3 — matches VERSION = 19 in the stored format string.
+const ARGON2_NATIVE_VERSION = 0x13;
+
+/**
+ * Run Argon2id on the native (Nitro/C++) implementation from
+ * react-native-quick-crypto, wrapping its callback API in a Promise.
+ *
+ * The module is required lazily inside the try block: it resolves native
+ * modules at import time, and `argon2()` can also throw synchronously before
+ * reaching its callback. Both cases then fail closed as a rejection instead
+ * of crashing every importer of this file.
+ */
+function argon2id(
+  pin: string,
+  salt: Uint8Array,
+  params: { m: number; t: number; p: number; dkLen: number },
+): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { argon2 } =
+        require('react-native-quick-crypto') as typeof import('react-native-quick-crypto');
+      argon2(
+        'argon2id',
+        {
+          message: new TextEncoder().encode(pin),
+          nonce: salt,
+          parallelism: params.p,
+          tagLength: params.dkLen,
+          memory: params.m,
+          passes: params.t,
+          version: ARGON2_NATIVE_VERSION,
+        },
+        (err, result) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve(new Uint8Array(result));
+        },
+      );
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
 
 /**
  * Hash a PIN using Argon2id with a per-record random salt.
@@ -22,7 +67,7 @@ const SALT_BYTES = 16;
  */
 export async function hashPin(pin: string): Promise<string> {
   const salt = Crypto.getRandomBytes(SALT_BYTES);
-  const hash = await argon2idAsync(pin, salt, ARGON2_PARAMS);
+  const hash = await argon2id(pin, salt, ARGON2_PARAMS);
   return `${FORMAT}$v=${VERSION}$m=${ARGON2_PARAMS.m},t=${ARGON2_PARAMS.t},p=${ARGON2_PARAMS.p}$${bytesToHex(salt)}$${bytesToHex(hash)}`;
 }
 
@@ -70,7 +115,7 @@ async function verifyArgon2Pin(pin: string, storedHash: string): Promise<boolean
     const expected = hexToBytes(hashHex);
     if (salt.length !== SALT_BYTES || expected.length !== ARGON2_PARAMS.dkLen) return false;
 
-    const actual = await argon2idAsync(pin, salt, {
+    const actual = await argon2id(pin, salt, {
       ...params,
       dkLen: expected.length,
     });
