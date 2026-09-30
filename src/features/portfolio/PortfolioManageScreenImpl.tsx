@@ -15,7 +15,7 @@ import { DarkBackdrop, Icon } from '@/components';
 import type { ChainId } from '@/config/chains';
 import { ALWAYS_ON_CHAINS, SELECTABLE_CHAINS } from '@/config/tokens';
 import { useEnabledChains } from './useEnabledChains';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
 const CHAIN_LABEL = new Map<ChainId, string>([
   ['ethereum', 'Ethereum'],
@@ -154,7 +154,7 @@ const makeStyles = (colors: ThemeColors) =>
     scrollContent: {
       paddingHorizontal: 20,
       paddingBottom: 48,
-      gap: 8,
+      gap: Layout.listGap,
     },
     sectionLabel: {
       ...Typography.bodySmall,

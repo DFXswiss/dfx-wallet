@@ -30,6 +30,13 @@ export type ThemeColors = {
   cardOverlay: string;
   cardOverlayBorder: string;
   /**
+   * Opaque fill for pill controls that sit on the photo backdrop
+   * (Kauf/Verkauf). `primaryLight` stays the tint *inside* cards.
+   */
+  pillSurface: string;
+  /** Hairline around `pillSurface` pills. */
+  pillBorder: string;
+  /**
    * Visible hairline used for in-card dividers (e.g. between two pills
    * inside a single rounded container). Tuned to read on either theme —
    * use this instead of `border` when the divider sits inside a card
@@ -70,8 +77,10 @@ export const lightColors: ThemeColors = {
   black: '#000000',
   transparent: 'transparent',
 
-  cardOverlay: 'rgba(255,255,255,0.94)',
+  cardOverlay: '#FFFFFF',
   cardOverlayBorder: 'rgba(221,229,240,0.9)',
+  pillSurface: '#E6F0FF',
+  pillBorder: 'rgba(30,110,247,0.12)',
   divider: '#DDE5F0',
   shadow: '#0B1426',
   statusBar: 'dark',
@@ -128,8 +137,10 @@ export const darkColors: ThemeColors = {
   black: '#000000',
   transparent: 'transparent',
 
-  cardOverlay: 'rgba(17,57,98,0.92)',
-  cardOverlayBorder: 'rgba(255,255,255,0.06)',
+  cardOverlay: '#113962',
+  cardOverlayBorder: 'rgba(255,255,255,0.10)',
+  pillSurface: '#154573',
+  pillBorder: 'rgba(255,255,255,0.10)',
   divider: 'rgba(255,255,255,0.10)',
   shadow: '#000000',
   statusBar: 'light',
