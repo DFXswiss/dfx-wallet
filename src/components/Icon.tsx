@@ -26,7 +26,12 @@ type IconName =
   | 'bank'
   | 'check'
   | 'copy'
-  | 'edit';
+  | 'edit'
+  | 'scan'
+  | 'paste'
+  | 'plus'
+  | 'backspace'
+  | 'share';
 
 type Props = {
   name: IconName;
@@ -445,6 +450,75 @@ export function Icon({ name, size = 24, color, strokeWidth = 2 }: Props) {
             stroke={stroke}
             strokeWidth={sw}
             strokeLinecap="round"
+          />
+        </Svg>
+      );
+    case 'scan':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M4 8.5V6a2 2 0 012-2h2.5M4 15.5V18a2 2 0 002 2h2.5M20 8.5V6a2 2 0 00-2-2h-2.5M20 15.5V18a2 2 0 01-2 2h-2.5"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Path d="M4 12h16" stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+        </Svg>
+      );
+    case 'paste':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Rect x={6} y={4.2} width={12} height={17} rx={2.2} stroke={stroke} strokeWidth={sw} />
+          <Path
+            d="M9.3 4.2v-1a1 1 0 011-1h3.4a1 1 0 011 1v1"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Path d="M9 12.3h6M9 16.1h6" stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+        </Svg>
+      );
+    case 'plus':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path d="M12 5v14M5 12h14" stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+        </Svg>
+      );
+    case 'backspace':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M8.5 4H19a2 2 0 012 2v12a2 2 0 01-2 2H8.5L2 12l6.5-8z"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinejoin="round"
+          />
+          <Path
+            d="M12.3 9.3l5 5M17.3 9.3l-5 5"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+        </Svg>
+      );
+    case 'share':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M12 14.5V3.2M8.2 7L12 3.2 15.8 7"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Path
+            d="M5.2 11.8v7a2 2 0 002 2h9.6a2 2 0 002-2v-7"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
         </Svg>
       );

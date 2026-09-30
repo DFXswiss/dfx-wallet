@@ -1,3 +1,5 @@
+export { useAddressBookStore } from './address-book';
+export type { Contact, ContactInput, ContactResult } from './address-book';
 export { useAuthStore } from './auth';
 export { useWalletStore } from './wallet';
 export type { WalletType } from './wallet';

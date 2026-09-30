@@ -25,6 +25,7 @@ const NEW_TOKEN_KEYS: readonly (keyof ThemeColors)[] = [
   'payChipFg',
   'sendChipBg',
   'receiveChipBg',
+  'successGlow',
 ];
 
 describe('G1 theme tokens exist in both schemes', () => {

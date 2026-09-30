@@ -17,6 +17,7 @@ describe('StorageKeys', () => {
     expect(StorageKeys.PASSKEY_DERIVATION_VERSION).toBe('passkeyDerivationVersion');
     expect(StorageKeys.PIN_FAILED_ATTEMPTS).toBe('pinFailedAttempts');
     expect(StorageKeys.PIN_LOCKED_UNTIL).toBe('pinLockedUntil');
+    expect(StorageKeys.ADDRESS_BOOK).toBe('addressBook');
   });
 
   it('has unique values', () => {

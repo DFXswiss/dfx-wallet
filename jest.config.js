@@ -75,6 +75,7 @@ module.exports = {
       transformIgnorePatterns: ['/node_modules/(?!decode-uri-component/)'],
       setupFiles: ['<rootDir>/test/setup-globals.ts'],
       testMatch: [
+        '<rootDir>/test/features/**/*.test.ts',
         '<rootDir>/test/services/**/*.test.ts',
         '<rootDir>/test/store/**/*.test.ts',
         '<rootDir>/test/theme/**/*.test.ts',
