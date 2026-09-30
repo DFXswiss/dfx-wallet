@@ -489,9 +489,11 @@
     "incorrectAttemptsLeft_one": "Falsche PIN. Noch {{count}} Versuch übrig.",
     "incorrectAttemptsLeft_other": "Falsche PIN. Noch {{count}} Versuche übrig.",
     "mismatch": "PINs stimmen nicht überein.",
+    "recoveryCta": "Wallet wiederherstellen",
     "remainingAttempts": "{{count}} Versuche übrig.",
     "saveError": "PIN konnte nicht gespeichert werden. Bitte erneut versuchen.",
-    "tooMany": "Zu viele Fehlversuche. Bitte starte die App neu."
+    "tooMany": "Zu viele Fehlversuche. Bitte starte die App neu.",
+    "unlockFailed": "Deine Wallet konnte nicht entsperrt werden. Bitte erneut versuchen oder deine Wallet wiederherstellen."
   },
   "portfolio": {
     "alwaysOn": "Immer aktiv",
