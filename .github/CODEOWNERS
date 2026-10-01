@@ -1,8 +1,7 @@
 # Code owners for security-critical paths.
 #
-# Effective only once the develop/main rulesets enable
-# "require review from Code Owners" — see docs/security/roadmap.md (P0.6).
-# Until then this file still routes review requests automatically.
+# Code-owner review is enabled in both the develop and main rulesets.
+# This file also routes review requests automatically.
 #
 # Rationale (docs/security/roadmap.md, "Reviews"): any PR touching key
 # handling, signing, secure storage, the DFX backend client, dependency
@@ -15,18 +14,27 @@
 /src/services/evm/           @Danswar @davidleomay @TaprootFreak
 /src/services/storage.ts     @Danswar @davidleomay @TaprootFreak
 /src/services/pin.ts         @Danswar @davidleomay @TaprootFreak
+/src/store/auth.ts            @Danswar @davidleomay @TaprootFreak
 /src/features/hardware-wallet/ @Danswar @davidleomay @TaprootFreak
 /src/features/passkey/       @Danswar @davidleomay @TaprootFreak
 /src/features/biometric/     @Danswar @davidleomay @TaprootFreak
 /src/features/pin/           @Danswar @davidleomay @TaprootFreak
+/src/features/settings/SeedExportScreenImpl.tsx  @Danswar @davidleomay @TaprootFreak
+/src/features/restore/       @Danswar @davidleomay @TaprootFreak
+/src/features/deep-link/     @Danswar @davidleomay @TaprootFreak
+/src/features/webview/       @Danswar @davidleomay @TaprootFreak
 
 # Feature flags decide which security features are live
 /src/config/features.ts      @Danswar @davidleomay @TaprootFreak
+/src/config/chains.ts        @Danswar @davidleomay @TaprootFreak
+/src/config/tokens.ts        @Danswar @davidleomay @TaprootFreak
 
 # Security-critical screens (seed export, PIN entry, onboarding/key creation)
 /app/(auth)/seed-export.tsx  @Danswar @davidleomay @TaprootFreak
+/app/(auth)/send/            @Danswar @davidleomay @TaprootFreak
 /app/(pin)/                  @Danswar @davidleomay @TaprootFreak
 /app/(onboarding)/           @Danswar @davidleomay @TaprootFreak
+/app/+native-intent.tsx      @Danswar @davidleomay @TaprootFreak
 
 # Backend trust boundary
 /src/features/dfx-backend/   @Danswar @davidleomay @TaprootFreak
@@ -35,6 +43,11 @@
 /package.json                @Danswar @davidleomay @TaprootFreak
 /package-lock.json           @Danswar @davidleomay @TaprootFreak
 /plugins/                    @Danswar @davidleomay @TaprootFreak
+/patches/                    @Danswar @davidleomay @TaprootFreak
+/modules/bitbox-hid/         @Danswar @davidleomay @TaprootFreak
+/app.json                    @Danswar @davidleomay @TaprootFreak
+/eas.json                    @Danswar @davidleomay @TaprootFreak
+/wdk.config.js               @Danswar @davidleomay @TaprootFreak
 
 # CI and the gates themselves (a gate nobody guards is not a gate)
 /.github/                    @Danswar @davidleomay @TaprootFreak

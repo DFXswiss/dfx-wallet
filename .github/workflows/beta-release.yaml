@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: beta-release
@@ -17,6 +17,8 @@ jobs:
     name: Create Release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     steps:
       - name: Ensure GitHub Release exists
         env:
@@ -31,12 +33,14 @@ jobs:
     needs: [create-release]
     if: ${{ always() && !cancelled() && (needs.create-release.result == 'success' || needs.create-release.result == 'skipped') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
@@ -45,7 +49,7 @@ jobs:
         run: npm ci
 
       - name: Setup EAS
-        uses: expo/expo-github-action@v9
+        uses: expo/expo-github-action@eab7a230208c952974db8c3245cfd78402c7b385 # v9
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
@@ -83,12 +87,14 @@ jobs:
     needs: [create-release]
     if: ${{ always() && !cancelled() && (needs.create-release.result == 'success' || needs.create-release.result == 'skipped') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
@@ -97,7 +103,7 @@ jobs:
         run: npm ci
 
       - name: Setup EAS
-        uses: expo/expo-github-action@v9
+        uses: expo/expo-github-action@eab7a230208c952974db8c3245cfd78402c7b385 # v9
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
@@ -135,15 +141,17 @@ jobs:
     needs: [build-android, build-ios]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
 
       - name: Generate Changelog
         id: changelog
-        uses: mikepenz/release-changelog-builder-action@v6.2.3
+        uses: mikepenz/release-changelog-builder-action@c9bcd8238b6f41e05561348339429d360b1c0247 # v6.2.3
         with:
           configurationJson: |
             {
