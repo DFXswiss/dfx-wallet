@@ -9,6 +9,23 @@ updates:
       timezone: Europe/Zurich
     target-branch: develop
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: expo
+        update-types: ['version-update:semver-major']
+      - dependency-name: expo-*
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@expo/*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: react-native
+        update-types: ['version-update:semver-major']
+      - dependency-name: react-native-*
+        update-types: ['version-update:semver-major']
+      - dependency-name: eslint-config-expo
+        update-types: ['version-update:semver-major']
+      - dependency-name: react
+        update-types: ['version-update:semver-major']
+      - dependency-name: react-dom
+        update-types: ['version-update:semver-major']
     labels:
       - dependencies
     # `prefix` already carries the conventional-commit scope, so `include: scope`
