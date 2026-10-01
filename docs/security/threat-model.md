@@ -72,12 +72,13 @@ from `~`/`✗` to `✓`.
 | Strict TypeScript (incl. `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`) | ✓          |
 | Lint guardrails (`no-floating-promises`, `security`, `no-secrets`, `no-console`)                         | ✓ (PR #12) |
 | Seed/PIN in `expo-secure-store` only, never MMKV                                                         | ✓          |
-| PIN bruteforce backoff + wipe-after-N                                                                    | ✗          |
+| Persistent PIN brute-force backoff (no wallet wipe)                                                      | ~          |
 | Biometric re-auth before signing operations                                                              | ✗          |
-| Screen-capture / FLAG_SECURE on seed, PIN, balance                                                       | ✗          |
-| App-backgrounding blur on sensitive screens                                                              | ✗          |
-| Clipboard auto-clear after copy of address / mnemonic                                                    | ✗          |
-| Deep-link strict allowlist + signed Universal Links for KYC                                              | ✗          |
+| Screen-capture / FLAG_SECURE on seed creation and export (PIN and balance pending)                       | ~          |
+| Global app-backgrounding blur (device task-switcher verification pending)                                | ~          |
+| Auto-lock after more than 60 seconds in the background (PIN builds only)                                 | ~          |
+| Clipboard auto-clear after mnemonic copy (address copy and confirmation UI pending)                      | ~          |
+| Deep-link route allowlist (signed Universal Links for KYC pending)                                       | ~          |
 | WebView hardening (originWhitelist, no file access, no injectedJS leakage)                               | ✗          |
 | BitBox Noise pubkey pinning after first pairing                                                          | ✗          |
 | Hardware-display ↔ UI parity check before signing                                                        | ~          |
