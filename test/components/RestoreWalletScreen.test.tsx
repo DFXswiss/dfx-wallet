@@ -1,3 +1,4 @@
+import { Alert } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 
 jest.mock('react-i18next', () => ({
@@ -19,11 +20,22 @@ jest.mock('expo-router', () => ({
 
 const mockRestoreWallet = jest.fn();
 const mockDeleteWallet = jest.fn();
+const mockWalletManager = {
+  activeWalletId: null as string | null,
+  deleteWallet: mockDeleteWallet,
+  restoreWallet: mockRestoreWallet,
+};
 jest.mock('@tetherto/wdk-react-native-core', () => ({
-  useWalletManager: () => ({
-    restoreWallet: mockRestoreWallet,
-    deleteWallet: mockDeleteWallet,
-  }),
+  useWalletManager: () => mockWalletManager,
+}));
+
+const mockResetAuth = jest.fn();
+const mockAuthState = { isOnboarded: false };
+jest.mock('@/store', () => ({
+  useAuthStore: Object.assign(
+    (selector: (state: typeof mockAuthState) => unknown) => selector(mockAuthState),
+    { getState: () => ({ reset: mockResetAuth }) },
+  ),
 }));
 
 jest.mock('expo-haptics', () => ({
@@ -48,8 +60,16 @@ describe('RestoreWalletScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockCanGoBack.mockReturnValue(true);
-    mockRestoreWallet.mockResolvedValue(undefined);
+    mockWalletManager.activeWalletId = null;
+    mockAuthState.isOnboarded = false;
+    mockResetAuth.mockResolvedValue(undefined);
+    mockRestoreWallet.mockResolvedValue('default');
     mockDeleteWallet.mockResolvedValue(undefined);
+    jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('keeps the continue CTA inert until a valid seed phrase is entered', async () => {
@@ -79,13 +99,17 @@ describe('RestoreWalletScreen', () => {
 
     expect(mockRestoreWallet).toHaveBeenCalledTimes(1);
     expect(mockRestoreWallet).toHaveBeenCalledWith(expect.anything(), 'default');
+    expect(mockResetAuth).toHaveBeenCalledTimes(1);
+    expect(mockDeleteWallet).not.toHaveBeenCalled();
+    expect(Alert.alert).not.toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith('/(onboarding)/setup-pin');
   });
 
-  it('recovers from an "already exists" error by deleting and re-restoring', async () => {
-    mockRestoreWallet
-      .mockRejectedValueOnce(new Error('Wallet already exists for this identifier'))
-      .mockResolvedValueOnce(undefined);
+  it('confirms before replacing an existing wallet', async () => {
+    mockWalletManager.activeWalletId = 'default';
+    (Alert.alert as jest.Mock).mockImplementationOnce((_title, _message, buttons) => {
+      (buttons as { onPress?: () => void }[])[1]?.onPress?.();
+    });
     const { getByTestId } = render(<RestoreWalletScreen />);
     typeSeed(getByTestId, VALID_SEED);
 
@@ -93,9 +117,40 @@ describe('RestoreWalletScreen', () => {
       fireEvent.press(getByTestId('restore-wallet-continue-button'));
     });
 
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'onboarding.restoreConfirmTitle',
+      'onboarding.restoreConfirmMessage',
+      [
+        expect.objectContaining({ text: 'common.cancel', style: 'cancel' }),
+        expect.objectContaining({
+          text: 'onboarding.restoreConfirmAction',
+          style: 'destructive',
+        }),
+      ],
+      expect.objectContaining({ cancelable: true }),
+    );
+    expect(mockResetAuth).toHaveBeenCalledTimes(1);
     expect(mockDeleteWallet).toHaveBeenCalledWith('default');
-    expect(mockRestoreWallet).toHaveBeenCalledTimes(2);
+    expect(mockRestoreWallet).toHaveBeenCalledTimes(1);
     expect(mockPush).toHaveBeenCalledWith('/(onboarding)/setup-pin');
+  });
+
+  it('does not change either wallet when replacement is cancelled', async () => {
+    mockAuthState.isOnboarded = true;
+    (Alert.alert as jest.Mock).mockImplementationOnce((_title, _message, buttons) => {
+      (buttons as { onPress?: () => void }[])[0]?.onPress?.();
+    });
+    const { getByTestId } = render(<RestoreWalletScreen />);
+    typeSeed(getByTestId, VALID_SEED);
+
+    await act(async () => {
+      fireEvent.press(getByTestId('restore-wallet-continue-button'));
+    });
+
+    expect(mockResetAuth).not.toHaveBeenCalled();
+    expect(mockDeleteWallet).not.toHaveBeenCalled();
+    expect(mockRestoreWallet).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it('surfaces an error and stays on the screen when restore fails for an unrelated reason', async () => {
@@ -109,6 +164,7 @@ describe('RestoreWalletScreen', () => {
     });
 
     expect(getByTestId('restore-wallet-error')).toBeTruthy();
+    expect(mockResetAuth).not.toHaveBeenCalled();
     expect(mockPush).not.toHaveBeenCalled();
     warn.mockRestore();
   });

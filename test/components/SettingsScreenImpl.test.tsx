@@ -1,12 +1,15 @@
 import React from 'react';
 import { Alert, Switch } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import { ThemeProvider, useThemeStore } from '@/theme';
-import { useAuthStore, useWalletStore } from '@/store';
-import { isBiometricAvailable } from '@/features/biometric/biometric';
+import { useWalletManager } from '@tetherto/wdk-react-native-core';
+import {
+  authenticateWithBiometric,
+  isBiometricAvailable,
+} from '@/features/biometric/biometric';
 import { dfxUserService } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
-import { useWalletManager } from '@tetherto/wdk-react-native-core';
+import { useAuthStore, useWalletStore } from '@/store';
+import { ThemeProvider, useThemeStore } from '@/theme';
 
 jest.mock('react-i18next', () => {
   const i18n = { language: 'en', changeLanguage: jest.fn(async () => undefined) };
@@ -26,6 +29,7 @@ const mockPush = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
 const mockCanGoBack = jest.fn(() => true);
+const mockRequestReauth = jest.fn(async () => true);
 jest.mock('expo-router', () => ({
   useRouter: () => ({
     push: mockPush,
@@ -34,6 +38,20 @@ jest.mock('expo-router', () => ({
     canGoBack: () => mockCanGoBack(),
   }),
   Stack: { Screen: () => null },
+}));
+
+jest.mock('@/hooks/useReauthenticate', () => ({
+  useReauthenticate: () => ({
+    requestReauth: mockRequestReauth,
+    modalProps: {
+      visible: false,
+      error: null,
+      locked: false,
+      verifying: false,
+      onCancel: jest.fn(),
+      onSubmit: jest.fn(),
+    },
+  }),
 }));
 
 jest.mock('expo-haptics', () => ({
@@ -55,10 +73,17 @@ jest.mock('react-native-safe-area-context', () => {
 });
 
 jest.mock('@/features/biometric/biometric', () => ({
+  authenticateWithBiometric: jest.fn(),
   isBiometricAvailable: jest.fn(),
 }));
 
 jest.mock('@/features/dfx-backend/services', () => ({
+  dfxApi: {
+    clearAuthToken: jest.fn(),
+  },
+  dfxAuthService: {
+    adoptStoredToken: jest.fn(),
+  },
   dfxUserService: {
     updateUser: jest.fn(),
   },
@@ -107,6 +132,7 @@ function pressConfirm(alertSpy: jest.SpyInstance) {
 
 describe('SettingsScreenImpl', () => {
   const deleteWallet = jest.fn();
+  const getEncryptedSeed = jest.fn();
 
   beforeEach(() => {
     mockPush.mockReset();
@@ -114,11 +140,15 @@ describe('SettingsScreenImpl', () => {
     mockReplace.mockReset();
     mockCanGoBack.mockReset();
     mockCanGoBack.mockReturnValue(true);
+    mockRequestReauth.mockReset();
+    mockRequestReauth.mockResolvedValue(true);
     __i18n.language = 'en';
     __i18n.changeLanguage.mockReset();
     __i18n.changeLanguage.mockResolvedValue(undefined);
     (isBiometricAvailable as jest.Mock).mockReset();
     (isBiometricAvailable as jest.Mock).mockResolvedValue(true);
+    (authenticateWithBiometric as jest.Mock).mockReset();
+    (authenticateWithBiometric as jest.Mock).mockResolvedValue(true);
     (dfxUserService.updateUser as jest.Mock).mockReset();
     (dfxUserService.updateUser as jest.Mock).mockResolvedValue(undefined);
     (secureStorage.get as jest.Mock).mockReset();
@@ -126,7 +156,9 @@ describe('SettingsScreenImpl', () => {
     (secureStorage.set as jest.Mock).mockResolvedValue(undefined);
     deleteWallet.mockReset();
     deleteWallet.mockResolvedValue(undefined);
-    (useWalletManager as jest.Mock).mockReturnValue({ deleteWallet });
+    getEncryptedSeed.mockReset();
+    getEncryptedSeed.mockResolvedValue(null);
+    (useWalletManager as jest.Mock).mockReturnValue({ deleteWallet, getEncryptedSeed });
     useAuthStore.setState({
       isDfxAuthenticated: false,
       biometricEnabled: false,
@@ -217,7 +249,7 @@ describe('SettingsScreenImpl', () => {
     expect(__i18n.changeLanguage).toHaveBeenCalledWith('en');
   });
 
-  it('alerts and still persists when enabling biometrics without hardware', async () => {
+  it('refuses to enable biometrics without available hardware', async () => {
     (isBiometricAvailable as jest.Mock).mockResolvedValue(false);
     const alertSpy = jest.spyOn(Alert, 'alert');
     const { UNSAFE_getByType } = renderScreen();
@@ -226,10 +258,11 @@ describe('SettingsScreenImpl', () => {
       fireEvent(UNSAFE_getByType(Switch), 'valueChange', true);
     });
     expect(alertSpy).toHaveBeenCalled();
-    await waitFor(() => expect(useAuthStore.getState().biometricEnabled).toBe(true));
+    expect(authenticateWithBiometric).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().biometricEnabled).toBe(false);
   });
 
-  it('toggles biometrics on without an alert when hardware is available', async () => {
+  it('enables biometrics only after a successful localized authentication prompt', async () => {
     (isBiometricAvailable as jest.Mock).mockResolvedValue(true);
     const alertSpy = jest.spyOn(Alert, 'alert');
     const { UNSAFE_getByType } = renderScreen();
@@ -238,7 +271,37 @@ describe('SettingsScreenImpl', () => {
       fireEvent(UNSAFE_getByType(Switch), 'valueChange', true);
     });
     expect(alertSpy).not.toHaveBeenCalled();
+    expect(authenticateWithBiometric).toHaveBeenCalledWith({
+      promptMessage: 'biometric.enable',
+      cancelLabel: 'biometric.usePin',
+    });
     await waitFor(() => expect(useAuthStore.getState().biometricEnabled).toBe(true));
+  });
+
+  it('keeps biometrics disabled when the enrollment authentication is cancelled', async () => {
+    (authenticateWithBiometric as jest.Mock).mockResolvedValue(false);
+    const { UNSAFE_getByType } = renderScreen();
+    await waitFor(() => expect(isBiometricAvailable).toHaveBeenCalled());
+
+    await act(async () => {
+      fireEvent(UNSAFE_getByType(Switch), 'valueChange', true);
+    });
+
+    expect(authenticateWithBiometric).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().biometricEnabled).toBe(false);
+  });
+
+  it('disables biometrics without prompting for authentication', async () => {
+    useAuthStore.setState({ biometricEnabled: true });
+    const { UNSAFE_getByType } = renderScreen();
+    await waitFor(() => expect(isBiometricAvailable).toHaveBeenCalled());
+
+    await act(async () => {
+      fireEvent(UNSAFE_getByType(Switch), 'valueChange', false);
+    });
+
+    expect(authenticateWithBiometric).not.toHaveBeenCalled();
+    await waitFor(() => expect(useAuthStore.getState().biometricEnabled).toBe(false));
   });
 
   it('treats a biometric-availability rejection as unsupported', async () => {
@@ -286,11 +349,12 @@ describe('SettingsScreenImpl', () => {
     await act(async () => {
       await pressConfirm(alertSpy);
     });
+    expect(mockRequestReauth).toHaveBeenCalledTimes(1);
     expect(deleteWallet).toHaveBeenCalledWith('default');
     expect(mockReplace).toHaveBeenCalledWith('/');
   });
 
-  it('uses the passkey confirm copy and still resets when deleteWallet throws', async () => {
+  it('uses the passkey confirm copy and resets when a throwing delete removed the wallet', async () => {
     (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
       key === StorageKeys.WALLET_ORIGIN ? 'passkey' : null,
     );
@@ -303,7 +367,37 @@ describe('SettingsScreenImpl', () => {
     await act(async () => {
       await pressConfirm(alertSpy);
     });
+    expect(getEncryptedSeed).toHaveBeenCalledWith('default');
     expect(mockReplace).toHaveBeenCalledWith('/');
+  });
+
+  it('does not delete when wallet reauthentication is declined', async () => {
+    mockRequestReauth.mockResolvedValueOnce(false);
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-delete-wallet')).toBeTruthy());
+    fireEvent.press(getByTestId('settings-delete-wallet'));
+    await act(async () => {
+      await pressConfirm(alertSpy);
+    });
+
+    expect(deleteWallet).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalledWith('/');
+  });
+
+  it('shows an error and keeps auth state when deletion fails and the wallet remains', async () => {
+    deleteWallet.mockRejectedValueOnce(new Error('delete failed'));
+    getEncryptedSeed.mockResolvedValueOnce('encrypted-seed');
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-delete-wallet')).toBeTruthy());
+    fireEvent.press(getByTestId('settings-delete-wallet'));
+    await act(async () => {
+      await pressConfirm(alertSpy);
+    });
+
+    expect(mockReplace).not.toHaveBeenCalledWith('/');
+    expect(alertSpy).toHaveBeenLastCalledWith('common.error', 'settings.deleteWalletFailed');
   });
 
   it('goes back when history exists and replaces the dashboard otherwise', async () => {

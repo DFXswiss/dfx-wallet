@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
+import { FEATURES } from '@/config/features';
 import { useAuthStore } from '@/store';
 
 /**
  * Stand-in for the PIN-setup step when `EXPO_PUBLIC_ENABLE_PIN` is
- * off. Marks the user as onboarded + in-memory authenticated and
- * routes straight to the dashboard.
+ * off. Authenticates the in-memory wallet and either opens the legal
+ * consent gate or completes onboarding and routes to the dashboard.
  *
  * Without this, the onboarding flow would hand off to a `<Redirect>`
  * back to the welcome screen and the user would loop. The MVP build
@@ -22,10 +23,12 @@ export default function SetupPinDisabled() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      await setOnboarded(true);
+      if (!FEATURES.LEGAL) await setOnboarded(true);
       if (cancelled) return;
       setAuthenticated(true);
-      router.replace('/(auth)/(tabs)/dashboard');
+      router.replace(
+        FEATURES.LEGAL ? '/(onboarding)/legal-disclaimer' : '/(auth)/(tabs)/dashboard',
+      );
     })();
     return () => {
       cancelled = true;

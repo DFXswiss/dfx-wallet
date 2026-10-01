@@ -1,6 +1,15 @@
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
-import * as Clipboard from 'expo-clipboard';
+import { copySensitive } from '@/services/clipboard';
+
+jest.mock('@/services/clipboard', () => ({ copySensitive: jest.fn() }));
+
+const mockPreventScreenCapture = jest.fn(async (_key?: string) => undefined);
+const mockAllowScreenCapture = jest.fn(async (_key?: string) => undefined);
+jest.mock('expo-screen-capture', () => ({
+  preventScreenCaptureAsync: (key?: string) => mockPreventScreenCapture(key),
+  allowScreenCaptureAsync: (key?: string) => mockAllowScreenCapture(key),
+}));
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -41,7 +50,10 @@ describe('CreateWalletScreen', () => {
     mockRestoreWallet.mockResolvedValue(undefined);
     mockDeleteWallet.mockReset();
     mockDeleteWallet.mockResolvedValue(undefined);
-    jest.spyOn(Clipboard, 'setStringAsync').mockResolvedValue(true);
+    mockPreventScreenCapture.mockClear();
+    mockAllowScreenCapture.mockClear();
+    (copySensitive as jest.Mock).mockReset();
+    (copySensitive as jest.Mock).mockResolvedValue(undefined);
   });
 
   it('renders the seed card with the reveal CTA hidden until tapped', () => {
@@ -57,6 +69,14 @@ describe('CreateWalletScreen', () => {
     expect(getByTestId('create-wallet-seed-container')).toBeTruthy();
     expect(getByTestId('create-wallet-word-1')).toBeTruthy();
     expect(getByTestId('create-wallet-word-12')).toBeTruthy();
+    expect(mockPreventScreenCapture).toHaveBeenCalledWith('create-wallet-seed');
+  });
+
+  it('releases seed capture protection on unmount', () => {
+    const view = render(<CreateWalletScreen />);
+    fireEvent.press(view.getByTestId('create-wallet-reveal-button'));
+    view.unmount();
+    expect(mockAllowScreenCapture).toHaveBeenCalledWith('create-wallet-seed');
   });
 
   it('disables the continue CTA before the seed is revealed', () => {
@@ -84,8 +104,8 @@ describe('CreateWalletScreen', () => {
       await act(async () => {
         fireEvent.press(getByTestId('create-wallet-copy-button'));
       });
-      expect(Clipboard.setStringAsync).toHaveBeenCalledTimes(1);
-      const arg = (Clipboard.setStringAsync as jest.Mock).mock.calls[0]![0];
+      expect(copySensitive).toHaveBeenCalledTimes(1);
+      const arg = (copySensitive as jest.Mock).mock.calls[0]![0];
       expect(typeof arg).toBe('string');
       // 12-word BIP-39 mnemonic — 11 spaces separating the words.
       expect(arg.split(' ')).toHaveLength(12);

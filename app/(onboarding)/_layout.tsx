@@ -6,19 +6,26 @@ import { useColors } from '@/theme';
 export default function OnboardingLayout() {
   const colors = useColors();
   const segments = useSegments();
-  const { isOnboarded, isAuthenticated } = useAuthStore();
+  const { isOnboarded, isAuthenticated, pinHash } = useAuthStore();
   const { activeWalletId } = useWalletManager();
   const currentScreen = segments.at(-1);
   const isOnboardingRoute = segments[0] === '(onboarding)';
   const isUnauthenticatedRecovery = currentScreen === 'restore-wallet' && !isAuthenticated;
 
-  if (
-    isOnboardingRoute &&
-    isOnboarded &&
-    currentScreen !== 'legal-disclaimer' &&
-    !isUnauthenticatedRecovery
-  ) {
+  if (isOnboardingRoute && isOnboarded && !isUnauthenticatedRecovery) {
     return <Redirect href={isAuthenticated ? '/(auth)/(tabs)/dashboard' : '/(pin)/verify'} />;
+  }
+
+  if (currentScreen === 'legal-disclaimer') {
+    const canAcceptLegal = !isOnboarded && isAuthenticated && !!activeWalletId;
+    if (!canAcceptLegal) {
+      if (!activeWalletId) return <Redirect href="/(onboarding)/welcome" />;
+      return <Redirect href={pinHash ? '/(pin)/verify' : '/(onboarding)/setup-pin'} />;
+    }
+  }
+
+  if (activeWalletId && pinHash && !isAuthenticated && !isUnauthenticatedRecovery) {
+    return <Redirect href="/(pin)/verify" />;
   }
 
   if (
