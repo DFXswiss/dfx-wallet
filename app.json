@@ -30,6 +30,7 @@
       }
     },
     "android": {
+      "allowBackup": false,
       "package": "swiss.dfx.wallet",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -40,11 +41,8 @@
       "permissions": [
         "android.permission.BLUETOOTH_SCAN",
         "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.CAMERA"
       ]
     },
     "plugins": [
@@ -59,7 +57,7 @@
             "minSdkVersion": 34,
             "compileSdkVersion": 36,
             "buildToolsVersion": "36.0.0",
-            "targetSdkVersion": 35
+            "targetSdkVersion": 36
           },
           "ios": {
             "deploymentTarget": "18.0"
@@ -69,7 +67,9 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Camera access is needed to scan QR codes."
+          "cameraPermission": "Camera access is needed to scan QR codes.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ],
       "expo-local-authentication",
