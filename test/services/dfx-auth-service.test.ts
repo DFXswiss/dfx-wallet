@@ -1,5 +1,30 @@
 import { dfxApi, DfxApiError } from '../../src/features/dfx-backend/services/api';
-import { dfxAuthService } from '../../src/features/dfx-backend/services/auth-service';
+import {
+  assertBackendSignMessage,
+  DfxSignMessageMismatchError,
+  dfxAuthService,
+} from '../../src/features/dfx-backend/services/auth-service';
+
+const backendSignMessage = (address: string) =>
+  `By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_Blockchain_address._Your_ID:_${address}`;
+
+describe('assertBackendSignMessage', () => {
+  it('accepts the exact backend message for the requested address', () => {
+    expect(() => assertBackendSignMessage(backendSignMessage('0xAbC'), '0xAbC')).not.toThrow();
+  });
+
+  it.each([
+    ['wrong address', backendSignMessage('0xdef')],
+    ['prefix plus suffix', `${backendSignMessage('0xabc')}attacker`],
+    ['additional whitespace', `${backendSignMessage('0xabc')} `],
+    ['empty message', ''],
+    ['changed casing', backendSignMessage('0xABC')],
+  ])('rejects %s', (_case, message) => {
+    expect(() => assertBackendSignMessage(message, '0xabc')).toThrow(
+      DfxSignMessageMismatchError,
+    );
+  });
+});
 
 /**
  * Leave `dfxAuthService` holding `sessionToken` while `dfxApi` has no Bearer,
@@ -91,7 +116,7 @@ describe('dfxAuthService.login', () => {
 
   it('drops any existing Bearer before doing a fresh signature login', async () => {
     dfxAuthService.adoptStoredToken('STALE_TOKEN');
-    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
     postSpy.mockResolvedValueOnce({ accessToken: 'OWNER_TOKEN' });
 
     const token = await dfxAuthService.login('0xabc', async () => 'SIG', {
@@ -114,7 +139,7 @@ describe('dfxAuthService.login', () => {
 
   it('restores the previous token if a fresh signature login fails', async () => {
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
-    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
     postSpy.mockRejectedValueOnce(new DfxApiError(400, 'AUTH_FAILED', 'Invalid signature'));
 
     await expect(dfxAuthService.login('0xabc', async () => 'BAD')).rejects.toThrow(
@@ -258,6 +283,18 @@ describe('dfxAuthService login posts carry no bearer', () => {
     ).rejects.toThrow('Authentication changed while token refresh was pending.');
 
     expectLoginPostWithoutAuthorization(fetchSpy);
+  it('rejects a mismatched backend message without signing it', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    getSpy.mockResolvedValueOnce({ message: `${backendSignMessage('0xabc')}extra` });
+    const signFn = jest.fn().mockResolvedValue('SIG');
+
+    await expect(dfxAuthService.login('0xabc', signFn)).rejects.toBeInstanceOf(
+      DfxSignMessageMismatchError,
+    );
+
+    expect(signFn).not.toHaveBeenCalled();
+    expect(postSpy).not.toHaveBeenCalled();
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('OLD_TOKEN');
   });
 });
 
@@ -288,7 +325,7 @@ describe('dfxAuthService.linkAddress', () => {
 
   it('rotates the JWT to the freshly-issued token on success', async () => {
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
-    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('bc1qabc') });
     postSpy.mockResolvedValueOnce({ accessToken: 'NEW_TOKEN' });
 
     const signFn = jest.fn().mockResolvedValue('SIGNATURE');
@@ -308,6 +345,13 @@ describe('dfxAuthService.linkAddress', () => {
       },
       { requireAuth: true },
     );
+    expect(signFn).toHaveBeenCalledWith(backendSignMessage('bc1qabc'));
+    expect(postSpy).toHaveBeenCalledWith('/v1/auth', {
+      address: 'bc1qabc',
+      signature: 'SIGNATURE',
+      wallet: 'DFX Wallet',
+      blockchain: 'Bitcoin',
+    });
     expect(newToken).toBe('NEW_TOKEN');
     // The fresh JWT must replace the old one so /buy/quote stops returning
     // "Asset blockchain mismatch" — this was the regression we fixed.
@@ -323,6 +367,7 @@ describe('dfxAuthService.linkAddress', () => {
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
     const generation = await captureAuthGeneration();
     jest.spyOn(dfxApi, 'get').mockResolvedValueOnce({ message: 'sign me' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('bc1qabc') });
     postSpy.mockRejectedValueOnce(
       new DfxApiError(409, 'CONFLICT', 'Address belongs to another user'),
     );
@@ -346,7 +391,7 @@ describe('dfxAuthService.linkAddress', () => {
 
   it('omits the blockchain hint when none is provided', async () => {
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
-    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('addr') });
     postSpy.mockResolvedValueOnce({ accessToken: 'NEW' });
 
     await dfxAuthService.linkAddress('addr', async () => 'SIG');
@@ -451,6 +496,19 @@ describe('dfxAuthService.linkAddress', () => {
     expect(postSpy).not.toHaveBeenCalled();
     expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('other');
+  });
+
+  it('rejects a mismatched link challenge without signing it', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('different-address') });
+    const signFn = jest.fn().mockResolvedValue('SIG');
+
+    await expect(dfxAuthService.linkAddress('addr', signFn)).rejects.toBeInstanceOf(
+      DfxSignMessageMismatchError,
+    );
+
+    expect(signFn).not.toHaveBeenCalled();
+    expect(postSpy).not.toHaveBeenCalled();
   });
 });
 
@@ -658,7 +716,7 @@ describe('dfxAuthService signature cache', () => {
   });
 
   it('reuses a cached signature for the same address+challenge within TTL', async () => {
-    getSpy.mockResolvedValue({ message: 'same-challenge' });
+    getSpy.mockResolvedValue({ message: backendSignMessage('0xabc') });
     postSpy.mockResolvedValue({ accessToken: 'T' });
     const signFn = jest.fn().mockResolvedValue('SIG');
 
@@ -673,7 +731,7 @@ describe('dfxAuthService signature cache', () => {
   it('re-signs once the cached signature is past the 5-minute TTL', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
-    getSpy.mockResolvedValue({ message: 'same-challenge' });
+    getSpy.mockResolvedValue({ message: backendSignMessage('0xabc') });
     postSpy.mockResolvedValue({ accessToken: 'T' });
     const signFn = jest.fn().mockResolvedValue('SIG');
 
@@ -684,20 +742,22 @@ describe('dfxAuthService signature cache', () => {
     expect(signFn).toHaveBeenCalledTimes(2);
   });
 
-  it('re-signs when the challenge string changes for the same address', async () => {
-    getSpy.mockResolvedValueOnce({ message: 'challenge-1' });
-    getSpy.mockResolvedValueOnce({ message: 'challenge-2' });
+  it('rejects a changed challenge for the same address without re-signing', async () => {
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
+    getSpy.mockResolvedValueOnce({ message: `${backendSignMessage('0xabc')}changed` });
     postSpy.mockResolvedValue({ accessToken: 'T' });
     const signFn = jest.fn().mockResolvedValue('SIG');
 
     await dfxAuthService.login('0xabc', signFn);
-    await dfxAuthService.login('0xabc', signFn);
+    await expect(dfxAuthService.login('0xabc', signFn)).rejects.toBeInstanceOf(
+      DfxSignMessageMismatchError,
+    );
 
-    expect(signFn).toHaveBeenCalledTimes(2);
+    expect(signFn).toHaveBeenCalledTimes(1);
   });
 
   it('forgets cached signatures on logout', async () => {
-    getSpy.mockResolvedValue({ message: 'same-challenge' });
+    getSpy.mockResolvedValue({ message: backendSignMessage('0xabc') });
     postSpy.mockResolvedValue({ accessToken: 'T' });
     const signFn = jest.fn().mockResolvedValue('SIG');
 
@@ -711,7 +771,7 @@ describe('dfxAuthService signature cache', () => {
 
   it('does not restore a Bearer when a login without prior session fails', async () => {
     dfxAuthService.logout(); // no previous token
-    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
     postSpy.mockRejectedValueOnce(new DfxApiError(400, 'AUTH_FAILED', 'Invalid signature'));
     const setAuthTokenSpy = jest.spyOn(dfxApi, 'setAuthToken');
 
@@ -997,7 +1057,7 @@ describe('dfxAuthService delegating helpers', () => {
   });
 
   it('forwards the usedRef hint to /v1/auth when provided', async () => {
-    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
     postSpy.mockResolvedValueOnce({ accessToken: 'T' });
 
     await dfxAuthService.login('0xabc', async () => 'SIG', { usedRef: 'PARTNER_REF' });
@@ -1015,13 +1075,13 @@ describe('dfxAuthService delegating helpers', () => {
   });
 
   it('refresh runs a fresh signature login', async () => {
-    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
     postSpy.mockResolvedValueOnce({ accessToken: 'REFRESHED' });
     const signFn = jest.fn().mockResolvedValue('SIG');
 
     const token = await dfxAuthService.refresh('0xabc', signFn);
 
-    expect(signFn).toHaveBeenCalledWith('sign me');
+    expect(signFn).toHaveBeenCalledWith(backendSignMessage('0xabc'));
     expect(token).toBe('REFRESHED');
   });
 
@@ -1063,7 +1123,7 @@ describe('dfxAuthService delegating helpers', () => {
   });
 
   it('loginAsAddressOwner re-auths with the given options', async () => {
-    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
     postSpy.mockResolvedValueOnce({ accessToken: 'OWNER' });
 
     const token = await dfxAuthService.loginAsAddressOwner('0xabc', async () => 'SIG', {

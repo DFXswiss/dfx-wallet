@@ -37,6 +37,8 @@ const DFX_OWNED_HOSTS = new Set([
   'lightning.dfx.swiss',
 ]);
 
+const DFX_TOKEN_HOSTS = new Set(['app.dfx.swiss', 'services.dfx.swiss', 'api.dfx.swiss']);
+
 function parseUrl(raw: string): URL | null {
   try {
     return new URL(raw);
@@ -77,4 +79,15 @@ export function isDfxOwnedHost(raw: string): boolean {
     if (host === allowed || host.endsWith(`.${allowed}`)) return true;
   }
   return false;
+}
+
+/**
+ * Hosts that may receive the DFX bearer token. Unlike the broader navigation
+ * allow-list, this is an exact-host check so subdomains cannot inherit auth.
+ */
+export function isDfxTokenHost(raw: string): boolean {
+  const parsed = parseUrl(raw);
+  return (
+    !!parsed && parsed.protocol === 'https:' && DFX_TOKEN_HOSTS.has(parsed.hostname.toLowerCase())
+  );
 }

@@ -1,6 +1,7 @@
 import {
   isAllowedDfxHost,
   isDfxOwnedHost,
+  isDfxTokenHost,
   isSafeHttpsUrl,
 } from '../../src/services/security/safe-url';
 
@@ -89,5 +90,25 @@ describe('isDfxOwnedHost', () => {
   it('rejects malformed input', () => {
     expect(isDfxOwnedHost('not-a-url')).toBe(false);
     expect(isDfxOwnedHost('')).toBe(false);
+  });
+});
+
+describe('isDfxTokenHost', () => {
+  it.each([
+    'https://app.dfx.swiss',
+    'https://services.dfx.swiss/path',
+    'https://api.dfx.swiss/v1/user',
+  ])('accepts exact HTTPS token host %s', (input) => {
+    expect(isDfxTokenHost(input)).toBe(true);
+  });
+
+  it.each([
+    'https://x.app.dfx.swiss',
+    'https://app.dfx.swiss.evil.com',
+    'http://app.dfx.swiss',
+    'https://docs.dfx.swiss',
+    'not-a-url',
+  ])('rejects non-exact token host %s', (input) => {
+    expect(isDfxTokenHost(input)).toBe(false);
   });
 });
