@@ -1,7 +1,6 @@
 import React from 'react';
 import { Alert, Platform } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import { secureStorage, StorageKeys } from '@/services/storage';
@@ -10,12 +9,28 @@ import {
   deriveMnemonicFromPrf,
   PasskeyPrfUnsupportedError,
 } from '@/features/passkey/services';
+import { copySensitive } from '@/services/clipboard';
 
 const mockPrevent = jest.fn(async (_key?: string) => undefined);
 const mockAllow = jest.fn(async (_key?: string) => undefined);
+const mockRequestReauth = jest.fn(async () => true);
 jest.mock('expo-screen-capture', () => ({
   preventScreenCaptureAsync: (key?: string) => mockPrevent(key),
   allowScreenCaptureAsync: (key?: string) => mockAllow(key),
+}));
+
+jest.mock('@/hooks/useReauthenticate', () => ({
+  useReauthenticate: () => ({
+    requestReauth: mockRequestReauth,
+    modalProps: {
+      visible: false,
+      error: null,
+      locked: false,
+      verifying: false,
+      onCancel: jest.fn(),
+      onSubmit: jest.fn(),
+    },
+  }),
 }));
 
 jest.mock('react-i18next', () => ({
@@ -42,6 +57,8 @@ jest.mock('expo-haptics', () => ({
 jest.mock('expo-clipboard', () => ({
   setStringAsync: jest.fn(),
 }));
+
+jest.mock('@/services/clipboard', () => ({ copySensitive: jest.fn() }));
 
 jest.mock('@/services/storage', () => {
   const actual = jest.requireActual('@/services/storage');
@@ -84,6 +101,8 @@ describe('SeedExportScreenImpl', () => {
     mockAllow.mockReset();
     mockPrevent.mockResolvedValue(undefined);
     mockAllow.mockResolvedValue(undefined);
+    mockRequestReauth.mockReset();
+    mockRequestReauth.mockResolvedValue(true);
     getMnemonic.mockReset();
     getMnemonic.mockResolvedValue(TWELVE);
     (useWalletManager as jest.Mock).mockReturnValue({ getMnemonic });
@@ -92,7 +111,8 @@ describe('SeedExportScreenImpl', () => {
     (authenticatePasskey as jest.Mock).mockReset();
     (deriveMnemonicFromPrf as jest.Mock).mockReset();
     (deriveMnemonicFromPrf as jest.Mock).mockReturnValue(TWELVE);
-    jest.spyOn(Clipboard, 'setStringAsync').mockResolvedValue(true);
+    (copySensitive as jest.Mock).mockReset();
+    (copySensitive as jest.Mock).mockResolvedValue(undefined);
     jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   });
 
@@ -127,6 +147,7 @@ describe('SeedExportScreenImpl', () => {
       await act(async () => {
         fireEvent.press(getByText('seedExport.revealSeed'));
       });
+      expect(mockRequestReauth).toHaveBeenCalledTimes(1);
       await waitFor(() => expect(getAllByText('abandon').length).toBeGreaterThan(0));
       expect(mockPrevent).toHaveBeenCalledWith('seed-export');
       expect(Haptics.impactAsync).toHaveBeenCalled();
@@ -134,7 +155,7 @@ describe('SeedExportScreenImpl', () => {
       await act(async () => {
         fireEvent.press(getByText('common.copy'));
       });
-      expect(Clipboard.setStringAsync).toHaveBeenCalledWith(TWELVE);
+      expect(copySensitive).toHaveBeenCalledWith(TWELVE);
       expect(scheduled).toBeDefined();
       await act(async () => {
         scheduled!();
@@ -142,6 +163,19 @@ describe('SeedExportScreenImpl', () => {
     } finally {
       setTimeoutSpy.mockRestore();
     }
+  });
+
+  it('does not read or reveal the seed when reauthentication is declined', async () => {
+    mockRequestReauth.mockResolvedValueOnce(false);
+    const { getByText, queryAllByText } = render(<SeedExportScreenImpl />);
+    await waitFor(() => expect(getByText('seedExport.revealSeed')).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.press(getByText('seedExport.revealSeed'));
+    });
+
+    expect(getMnemonic).not.toHaveBeenCalled();
+    expect(queryAllByText('abandon')).toHaveLength(0);
   });
 
   it('falls back to the encrypted-seed store when getMnemonic is missing', async () => {
@@ -195,6 +229,7 @@ describe('SeedExportScreenImpl', () => {
   it('reveals a passkey-derived mnemonic using the stored derivation version', async () => {
     (secureStorage.get as jest.Mock).mockImplementation(async (key: string) => {
       if (key === StorageKeys.WALLET_ORIGIN) return 'passkey';
+      if (key === StorageKeys.PASSKEY_CREDENTIAL_ID) return 'stored-credential';
       if (key === StorageKeys.PASSKEY_DERIVATION_VERSION) return '2';
       return null;
     });
@@ -205,7 +240,9 @@ describe('SeedExportScreenImpl', () => {
       fireEvent.press(getByText('seedExport.revealPasskey'));
     });
     await waitFor(() => expect(getAllByText('abandon').length).toBeGreaterThan(0));
+    expect(authenticatePasskey).toHaveBeenCalledWith({ credentialId: 'stored-credential' });
     expect(deriveMnemonicFromPrf).toHaveBeenCalledWith(expect.any(Uint8Array), 2);
+    expect(getMnemonic).toHaveBeenCalledWith('default');
   });
 
   it('defaults the passkey derivation version to 1 when none is stored', async () => {
@@ -219,6 +256,60 @@ describe('SeedExportScreenImpl', () => {
       fireEvent.press(getByText('seedExport.revealPasskey'));
     });
     await waitFor(() => expect(deriveMnemonicFromPrf).toHaveBeenCalledWith(expect.any(Uint8Array), 1));
+    expect(authenticatePasskey).toHaveBeenCalledWith({});
+  });
+
+  it('does not reveal a passkey-derived mnemonic that differs from the WDK wallet', async () => {
+    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
+      key === StorageKeys.WALLET_ORIGIN ? 'passkey' : null,
+    );
+    (authenticatePasskey as jest.Mock).mockResolvedValue({ prfOutput: new Uint8Array([1]) });
+    (deriveMnemonicFromPrf as jest.Mock).mockReturnValue('different derived mnemonic');
+    const { getByText, queryAllByText } = render(<SeedExportScreenImpl />);
+    await waitFor(() => expect(getByText('seedExport.revealPasskey')).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.press(getByText('seedExport.revealPasskey'));
+    });
+
+    expect(Alert.alert).toHaveBeenCalledWith('common.error', 'seedExport.seedMismatch');
+    expect(queryAllByText('abandon')).toHaveLength(0);
+    expect(Haptics.notificationAsync).toHaveBeenCalledWith(
+      Haptics.NotificationFeedbackType.Error,
+    );
+  });
+
+  it('reveals the derived mnemonic when WDK getMnemonic is unavailable', async () => {
+    (useWalletManager as jest.Mock).mockReturnValue({});
+    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
+      key === StorageKeys.WALLET_ORIGIN ? 'passkey' : null,
+    );
+    (authenticatePasskey as jest.Mock).mockResolvedValue({ prfOutput: new Uint8Array([1]) });
+    const { getByText, getAllByText } = render(<SeedExportScreenImpl />);
+    await waitFor(() => expect(getByText('seedExport.revealPasskey')).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.press(getByText('seedExport.revealPasskey'));
+    });
+
+    await waitFor(() => expect(getAllByText('abandon').length).toBeGreaterThan(0));
+  });
+
+  it('reveals the derived mnemonic when WDK has no mnemonic to compare', async () => {
+    getMnemonic.mockResolvedValue(null);
+    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
+      key === StorageKeys.WALLET_ORIGIN ? 'passkey' : null,
+    );
+    (authenticatePasskey as jest.Mock).mockResolvedValue({ prfOutput: new Uint8Array([1]) });
+    const { getByText, getAllByText } = render(<SeedExportScreenImpl />);
+    await waitFor(() => expect(getByText('seedExport.revealPasskey')).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.press(getByText('seedExport.revealPasskey'));
+    });
+
+    await waitFor(() => expect(getAllByText('abandon').length).toBeGreaterThan(0));
+    expect(getMnemonic).toHaveBeenCalledWith('default');
   });
 
   it('shows the iOS PRF-unsupported copy', async () => {

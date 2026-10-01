@@ -1,8 +1,18 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
 jest.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, params?: Record<string, unknown>) =>
+      params ? `${key}:${JSON.stringify(params)}` : key,
+  }),
 }));
+
+jest.mock('@/config/features', () => ({
+  FEATURES: { BIOMETRIC: true, DFX_BACKEND: false, LEGAL: true },
+}));
+const { FEATURES: mockFeatures } = jest.requireMock('@/config/features') as {
+  FEATURES: { BIOMETRIC: boolean; DFX_BACKEND: boolean; LEGAL: boolean };
+};
 
 const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({
@@ -16,10 +26,18 @@ jest.mock('@tetherto/wdk-react-native-core', () => ({
 
 const mockVerifyPin = jest.fn();
 const mockSetAuthenticated = jest.fn();
+const mockSetOnboarded = jest.fn();
 const mockAuthenticateBiometric = jest.fn();
-const mockAuthState: { biometricEnabled: boolean; pinHash: string | null } = {
+const mockAuthState: {
+  biometricEnabled: boolean;
+  failedAttempts: number;
+  isOnboarded: boolean;
+  lockedUntil: number | null;
+} = {
   biometricEnabled: false,
-  pinHash: null,
+  failedAttempts: 0,
+  isOnboarded: true,
+  lockedUntil: null,
 };
 jest.mock('@/store', () => ({
   useAuthStore: () => ({
@@ -27,13 +45,11 @@ jest.mock('@/store', () => ({
     setAuthenticated: mockSetAuthenticated,
     authenticateBiometric: mockAuthenticateBiometric,
     biometricEnabled: mockAuthState.biometricEnabled,
-    pinHash: mockAuthState.pinHash,
+    failedAttempts: mockAuthState.failedAttempts,
+    isOnboarded: mockAuthState.isOnboarded,
+    lockedUntil: mockAuthState.lockedUntil,
+    setOnboarded: mockSetOnboarded,
   }),
-}));
-
-const mockNeedsPinRehash = jest.fn();
-jest.mock('@/services/pin', () => ({
-  needsPinRehash: (hash: string) => mockNeedsPinRehash(hash),
 }));
 
 jest.mock('expo-haptics', () => ({
@@ -56,15 +72,19 @@ describe('VerifyPinScreen', () => {
     jest.clearAllMocks();
     mockReplace.mockReset();
     mockSetAuthenticated.mockReset();
+    mockSetOnboarded.mockReset();
+    mockSetOnboarded.mockResolvedValue(undefined);
     mockVerifyPin.mockReset();
     mockUnlock.mockReset();
     mockAuthenticateBiometric.mockReset();
     mockVerifyPin.mockResolvedValue(false);
     mockUnlock.mockResolvedValue(undefined);
     mockAuthenticateBiometric.mockResolvedValue(false);
-    mockNeedsPinRehash.mockReturnValue(false);
+    mockFeatures.LEGAL = true;
     mockAuthState.biometricEnabled = false;
-    mockAuthState.pinHash = null;
+    mockAuthState.failedAttempts = 0;
+    mockAuthState.isOnboarded = true;
+    mockAuthState.lockedUntil = null;
     jest.spyOn(global, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0);
       return 0;
@@ -72,6 +92,7 @@ describe('VerifyPinScreen', () => {
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     jest.restoreAllMocks();
   });
 
@@ -84,6 +105,31 @@ describe('VerifyPinScreen', () => {
     expect(mockVerifyPin).toHaveBeenCalledWith('123456');
     expect(mockSetAuthenticated).toHaveBeenCalledWith(true);
     expect(mockUnlock).toHaveBeenCalledWith('default');
+    expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard');
+  });
+
+  it('routes successful PIN verification to legal when onboarding is incomplete', async () => {
+    mockAuthState.isOnboarded = false;
+    mockVerifyPin.mockResolvedValue(true);
+    const { getByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+
+    expect(mockSetOnboarded).not.toHaveBeenCalled();
+    expect(mockSetAuthenticated).toHaveBeenCalledWith(true);
+    expect(mockReplace).toHaveBeenCalledWith('/(onboarding)/legal-disclaimer');
+  });
+
+  it('completes onboarding before the dashboard when legal is disabled', async () => {
+    mockFeatures.LEGAL = false;
+    mockAuthState.isOnboarded = false;
+    mockVerifyPin.mockResolvedValue(true);
+    const { getByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+
+    expect(mockSetOnboarded).toHaveBeenCalledWith(true);
+    expect(mockSetAuthenticated).toHaveBeenCalledWith(true);
     expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard');
   });
 
@@ -152,15 +198,13 @@ describe('VerifyPinScreen', () => {
     expect(getByTestId('verify-pin-error')).toBeTruthy();
   });
 
-  it('does not show the overlay for a silent legacy-hash check at 4 digits', async () => {
-    mockAuthState.pinHash = 'legacy-hash';
-    mockNeedsPinRehash.mockReturnValue(true);
+  it('does not submit or show the overlay for a partial PIN', async () => {
     mockVerifyPin.mockImplementation(() => new Promise<boolean>(() => undefined));
     const { getByTestId, queryByTestId } = render(<VerifyPinScreen />);
 
     await enterPin(getByTestId, '1234');
 
-    expect(mockVerifyPin).toHaveBeenCalledWith('1234');
+    expect(mockVerifyPin).not.toHaveBeenCalled();
     expect(queryByTestId('pin-processing-overlay')).toBeNull();
   });
 
@@ -270,20 +314,49 @@ describe('VerifyPinScreen', () => {
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard'));
 
     expect(mockSetAuthenticated).toHaveBeenCalledWith(true);
+    expect(mockAuthenticateBiometric).toHaveBeenCalledWith({
+      promptMessage: 'biometric.prompt',
+      cancelLabel: 'biometric.usePin',
+    });
     expect(getByTestId('verify-pin-screen')).toBeTruthy();
   });
 
-  it('locks the screen after the maximum number of failed attempts', async () => {
-    mockVerifyPin.mockResolvedValue(false);
-    const { getByTestId, queryByTestId } = render(<VerifyPinScreen />);
+  it('shows remaining attempts from persistent state after an incorrect PIN', async () => {
+    mockAuthState.failedAttempts = 3;
+    const { getByTestId } = render(<VerifyPinScreen />);
 
-    for (let i = 0; i < 5; i++) {
-      await enterPin(getByTestId, '999999');
-    }
+    await enterPin(getByTestId, '999999');
 
-    expect(getByTestId('verify-pin-locked')).toBeTruthy();
-    // The numpad must be gone so no further attempts are possible.
-    expect(queryByTestId('pin-key-1')).toBeNull();
+    expect(getByTestId('verify-pin-error').children.join('')).toBe(
+      'pin.incorrectAttemptsLeft:{"count":2}',
+    );
+  });
+
+  it('shows a ticking persistent lockout, blocks PIN input and clears its timer', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-10-01T00:00:00Z'));
+    mockAuthState.failedAttempts = 5;
+    mockAuthState.lockedUntil = Date.now() + 30_000;
+    const clearIntervalSpy = jest.spyOn(global, 'clearInterval');
+    const { getByTestId, unmount } = render(<VerifyPinScreen />);
+
+    expect(getByTestId('verify-pin-locked').children.join('')).toBe(
+      'pin.lockedFor:{"count":30}',
+    );
+    expect(getByTestId('pin-key-1').props.accessibilityState?.disabled).toBe(true);
+    expect(getByTestId('pin-key-delete').props.accessibilityState?.disabled).toBe(true);
+    fireEvent.press(getByTestId('pin-key-1'));
+    expect(mockVerifyPin).not.toHaveBeenCalled();
+
+    act(() => {
+      jest.advanceTimersByTime(1_000);
+    });
+    expect(getByTestId('verify-pin-locked').children.join('')).toBe(
+      'pin.lockedFor:{"count":29}',
+    );
+
+    unmount();
+    expect(clearIntervalSpy).toHaveBeenCalled();
   });
 
   it('auto-prompts biometric unlock on mount when enabled', async () => {

@@ -28,18 +28,22 @@ export const useThemeStore = create<ThemeState>((set) => ({
   mode: DEFAULT_THEME_MODE,
   isHydrated: false,
   hydrate: async () => {
-    const stored = await secureStorage.get(THEME_KEY);
-    // We dropped the "system" appearance option (it was redundant on
-    // devices that mirror the app's dark mode anyway). Migrate any
-    // previously-persisted "system" value to "dark" so the Appearance
-    // cycle in Settings reads as a clean Light ↔ Dark toggle.
-    let mode: ThemeMode;
-    if (stored === 'light' || stored === 'dark') mode = stored;
-    else if (stored === 'system') {
-      mode = 'dark';
-      await secureStorage.set(THEME_KEY, mode);
-    } else mode = DEFAULT_THEME_MODE;
-    set({ mode, isHydrated: true });
+    try {
+      const stored = await secureStorage.get(THEME_KEY);
+      // We dropped the "system" appearance option (it was redundant on
+      // devices that mirror the app's dark mode anyway). Migrate any
+      // previously-persisted "system" value to "dark" so the Appearance
+      // cycle in Settings reads as a clean Light ↔ Dark toggle.
+      let mode: ThemeMode;
+      if (stored === 'light' || stored === 'dark') mode = stored;
+      else if (stored === 'system') {
+        mode = 'dark';
+        await secureStorage.set(THEME_KEY, mode);
+      } else mode = DEFAULT_THEME_MODE;
+      set({ mode, isHydrated: true });
+    } catch {
+      set({ mode: DEFAULT_THEME_MODE, isHydrated: true });
+    }
   },
   setMode: async (mode) => {
     await secureStorage.set(THEME_KEY, mode);
