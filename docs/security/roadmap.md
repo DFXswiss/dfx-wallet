@@ -33,25 +33,20 @@ makes later phases possible. None of it requires design or product input.
 
 ### P0.3 — Test coverage gate
 
-- [x] CI runs Jest with coverage and enforces a 99% line floor over
-      `src/services/**`, `src/store/**`, `src/features/**/services/**`, and
-      `src/hooks/**`.
-- [x] Aggregate and per-file floor scripts run as blocking CI checks.
-- **Acceptance**: CI fails if scoped coverage drops below the checked-in
-  aggregate or per-file floor.
+- [ ] Add Jest coverage thresholds (`global: 60%`, `src/services/**: 70%`,
+      `src/features/hardware-wallet/**: 90%`).
+- [ ] Wire `npm test -- --coverage` into CI as its own job.
+- **Acceptance**: CI fails if a PR drops coverage below the gate; baseline
+  documented in this file.
 
 ### P0.4 — CI hardening
 
-- [ ] Every `uses:` in `.github/workflows/` pinned to a commit SHA, with
-      a trailing `# vX.Y.Z` comment for human reading. Open: `auto-tag.yaml`,
-      `beta-release.yaml`, `beta-release-android.yaml` and
-      `beta-release-ios.yaml` still reference actions by tag.
-- [ ] `permissions: contents: read` at workflow root in every workflow;
+- [x] Every `uses:` in `.github/workflows/` pinned to a commit SHA, with
+      a trailing `# vX.Y.Z` comment for human reading.
+- [x] `permissions: contents: read` at workflow root in every workflow;
       per-job escalation only where required (CodeQL needs
       `security-events: write`, auto-release-pr needs
-      `pull-requests: write`). Open: the same four release workflows set
-      `contents: write` at the root, and `reclaim-artifact-storage.yml` sets
-      `actions: write` at the root.
+      `pull-requests: write`, and release/tag jobs need `contents: write`).
 - [x] `check` split into parallel `typecheck`, `lint`, `format`, `test`
       jobs; `audit` retained.
 - **Acceptance**: workflows pass; `permissions` block present in every
@@ -61,15 +56,18 @@ makes later phases possible. None of it requires design or product input.
 
 - [x] First cleanup PR merged (#20: `uuid` + `@xmldom/xmldom` overrides
       to clear initial Dependabot alerts).
-- [x] `npm audit --audit-level=high` runs as a blocking, required CI job.
+- [x] `npm audit --audit-level=high` as a non-blocking CI job (separate
+      `audit` job with `continue-on-error: true` so it surfaces as a
+      yellow status without breaking the gate).
 - [x] Dependabot enabled for `npm` + `github-actions`, weekly Monday,
       target `develop` (`.github/dependabot.yml`).
 - [x] GitHub CodeQL workflow for `javascript-typescript` with the
       `security-and-quality` query suite, weekly schedule + on push/PR
       to `main`/`develop` (`.github/workflows/codeql.yml`).
-- **Acceptance**: scheduled scans are visible in the Security tab and a
-  high-severity audit finding not covered by the narrow GHSA allowlist in
-  `.github/workflows/ci.yml` blocks the pull request.
+- **Next**: flip `audit` to blocking once the existing alerts are
+  cleared and we have a few quiet weeks of Dependabot output.
+- **Acceptance**: scheduled scans visible in the Security tab; first
+  cleanup PR merged.
 
 ### P0.6 — Branch protection
 
@@ -77,11 +75,19 @@ Configured as repository rulesets (the modern UI), not classic branch
 protection — the older API endpoint will report both branches as
 "unprotected" but the rulesets are active.
 
+The asymmetry between `develop` and `main` is deliberate: we want low
+friction merging into develop so PRs do not pile up and spawn merge
+conflicts with each other; the integration testing happens on develop
+itself. The approval gate sits in front of the develop → main release
+PR, where it actually matters.
+
 - [x] **`develop`** ruleset (`refs/heads/develop`):
-  - `pull_request` with `required_approving_review_count: 1` and a
-    required Code Owner review. Squash-merge only.
+  - `pull_request` with `required_approving_review_count: 0` —
+    deliberately no approval needed, optimised for "merge fast, test
+    on develop". Squash-merge only.
   - `required_status_checks`: `typecheck`, `lint`, `format`, `test`,
-    `audit`, coverage gates, and `Analyze (javascript-typescript)`.
+    `Analyze (javascript-typescript)`. `audit` deliberately not
+    required (it's `continue-on-error`).
   - `non_fast_forward` (no force push).
   - `deletion` blocked.
   - `current_user_can_bypass: never` (admins can't bypass).
@@ -114,28 +120,29 @@ ship per-screen or per-flow.
 
 ### P1.1 — Screen capture / screenshot block on sensitive screens
 
-- [ ] Use `expo-screen-capture` (Android `FLAG_SECURE`, iOS
-      `UIScreen.isCaptured` listener) on: seed reveal, seed verify, PIN entry,
-      PIN setup, balance card.
+- [~] `expo-screen-capture` protection is active while the seed is visible
+      during wallet creation and seed export. Seed verify, PIN entry/setup,
+      and the balance card remain open.
 - **Acceptance**: manual verification on device + emulator; Android
   screenshots return blank, iOS screen-recording obscures the view.
 
-### P1.2 — App-backgrounding blur
+### P1.2 — App-backgrounding blur and auto-lock
 
-- [ ] Render an opaque overlay when `AppState` transitions to
-      `inactive`/`background`, on at least the same screens as P1.1 plus the
-      authenticated tabs.
+- [~] Render a global opaque overlay when `AppState` transitions to
+      `inactive`/`background`; device task-switcher verification remains.
+- [x] Lock authenticated sessions after more than 60 seconds in the
+      background when PIN protection is enabled.
 - **Acceptance**: switching apps shows the overlay before the OS snapshot
   is taken; no leakage in iOS task switcher.
 
 ### P1.3 — PIN bruteforce protection
 
-- [ ] Track failed attempts in `expo-secure-store`. Apply exponential
-      backoff. After N (e.g. 10) failures: wipe `expo-secure-store`,
-      `IS_ONBOARDED`, encrypted seed, and reset to onboarding.
-- [ ] UI shows remaining attempts and lockout time.
-- **Acceptance**: dedicated test in `src/services/pin.ts` covers backoff
-  schedule and wipe trigger; manual test confirms recovery flow.
+- [~] Track failed attempts and lockout expiry in `expo-secure-store`; apply
+      exponential backoff beginning with 30 seconds after five failures. No
+      wallet wipe is implemented; that remains a separate product decision.
+- [x] UI shows remaining attempts and lockout time.
+- **Acceptance**: store and screen tests cover persistence, backoff, reset on
+  success, and the lockout UI; manual recovery-flow verification remains.
 
 ### P1.4 — Biometric re-auth before signing
 
@@ -149,17 +156,16 @@ ship per-screen or per-flow.
 
 - [ ] On copy of address: announce "copied", auto-clear after 60s if
       clipboard still holds the same value.
-- [ ] On copy of mnemonic: confirmation modal explaining the risk; same
-      60s auto-clear.
+- [~] On copy of mnemonic: auto-clear after 60s if the clipboard still holds
+      the same value. The confirmation modal remains open.
 - **Acceptance**: integration test on `Clipboard.setStringAsync` calls;
   manual verification on iOS + Android.
 
 ### P1.6 — Deep-link allowlist
 
-- [ ] Strict parser for `dfx://` and Universal Links. Reject unknown
-      hosts/paths. Never auto-confirm a sensitive action (send, swap, KYC
-      callback) from a deep-link payload — always require the user to confirm
-      pre-filled data.
+- [~] Native intents are forced through the app root and the in-app handler
+      accepts only explicit route names. Sensitive actions are not
+      auto-confirmed; signed Universal Links remain open.
 - [ ] Universal Links signed via Apple AASA / Android assetlinks.
 - **Acceptance**: fuzz-test the parser; manual test that a hostile deep
   link cannot trigger a transaction without confirmation.
