@@ -408,17 +408,17 @@ export default function SellScreen() {
     setTimeout(() => setCopiedField(null), 1800);
   };
 
-  const fees = paymentInfo?.fees;
+  const feesTarget = paymentInfo?.feesTarget;
   // /sell/quote returns SellQuoteDto without asset/currency objects — those
   // only land on /sell/paymentInfos. We render the breakdown from local
   // selection state instead, so a valid quote shows up immediately.
   const hasQuote =
-    !!paymentInfo && paymentInfo.isValid && !!paymentInfo.fees && parseFloat(amount) > 0;
+    !!paymentInfo && paymentInfo.isValid && !!paymentInfo.feesTarget && parseFloat(amount) > 0;
   const quoteError =
     !hasQuote && paymentInfo && paymentInfo.error ? String(paymentInfo.error) : null;
   // Empty quote without an explicit error code → the chain still has to
-  // be linked. Tapping Weiter triggers the linkChain modal and auto-
-  // retries the quote. See buy/index.tsx for full rationale.
+  // be linked. The sell CTA opens the bank step; submitting the IBAN with
+  // Continue triggers the linkChain modal and auto-retries the quote.
   const needsContinue = !hasQuote && !quoteError && !!paymentInfo && !isLoading;
   // See buy/index.tsx — open the Angebot card the moment a positive amount
   // is set so the user always sees something refreshing instead of an empty
@@ -429,16 +429,17 @@ export default function SellScreen() {
   const numAmount = parseFloat(amount);
   const belowMin = minVolume != null && numAmount > 0 && numAmount < minVolume;
   const aboveMax = maxVolume != null && numAmount > maxVolume;
+  const sellAction = t('sell.cta', { asset: sellAsset });
   const quoteHeader = quoteError
     ? t([`sell.quoteError.${quoteError}`, 'sell.quoteError.generic'], { code: quoteError })
     : needsContinue
-      ? t('sell.continueHint')
+      ? t('sell.continueHint', { action: sellAction, next: t('common.continue') })
       : isLoading
         ? t('sell.fetchingQuote')
-        : hasQuote && paymentInfo
+        : hasQuote && paymentInfo && Number.isFinite(paymentInfo.rate) && paymentInfo.rate > 0
           ? t('sell.rateInclFees', {
               asset: sellAsset,
-              amount: fmtFiat(paymentInfo.exchangeRate),
+              amount: fmtFiat(1 / paymentInfo.rate),
               currency: payoutCurrency,
             })
           : t('sell.summary');
@@ -579,9 +580,9 @@ export default function SellScreen() {
                 <Text style={styles.quoteToggleText} numberOfLines={2}>
                   {quoteHeader}
                 </Text>
-                {hasQuote && fees ? (
+                {hasQuote && feesTarget ? (
                   <View style={styles.quoteFeeBadge}>
-                    <Text style={styles.quoteFeeBadgeText}>{fmtFiat(fees.total)}</Text>
+                    <Text style={styles.quoteFeeBadgeText}>{fmtFiat(feesTarget.total)}</Text>
                   </View>
                 ) : null}
                 {isLoading ? <ActivityIndicator size="small" color={colors.primary} /> : null}
@@ -589,38 +590,44 @@ export default function SellScreen() {
                   <Icon name="chevron-right" size={16} color={colors.textTertiary} />
                 </View>
               </Pressable>
-              {collapsed ? null : hasQuote && fees ? (
+              {collapsed ? null : hasQuote && feesTarget ? (
                 <>
-                  <QuoteRow
-                    label={t('sell.exchangeRate')}
-                    value={`1 ${sellAsset} = ${fmtFiat(paymentInfo!.exchangeRate)} ${payoutCurrency}`}
-                  />
+                  {Number.isFinite(paymentInfo!.exchangeRate) && paymentInfo!.exchangeRate > 0 ? (
+                    <QuoteRow
+                      label={t('sell.exchangeRate')}
+                      value={`1 ${sellAsset} = ${fmtFiat(
+                        1 / paymentInfo!.exchangeRate,
+                      )} ${payoutCurrency}`}
+                    />
+                  ) : null}
                   <QuoteRow
                     label={t('sell.feeDfx')}
-                    value={`${(fees.rate * 100).toFixed(2)}%`}
-                    {...(fees.dfx > 0 ? { sub: `${fmtFiat(fees.dfx)} ${payoutCurrency}` } : {})}
+                    value={`${(feesTarget.rate * 100).toFixed(2)}%`}
+                    {...(feesTarget.dfx > 0
+                      ? { sub: `${fmtFiat(feesTarget.dfx)} ${payoutCurrency}` }
+                      : {})}
                   />
-                  {fees.network > 0 ? (
+                  {feesTarget.network > 0 ? (
                     <QuoteRow
                       label={t('sell.feeNetwork')}
-                      value={`${fmtFiat(fees.network)} ${payoutCurrency}`}
+                      value={`${fmtFiat(feesTarget.network)} ${payoutCurrency}`}
                     />
                   ) : null}
-                  {fees.fixed > 0 ? (
+                  {feesTarget.fixed > 0 ? (
                     <QuoteRow
                       label={t('sell.feeFixed')}
-                      value={`${fmtFiat(fees.fixed)} ${payoutCurrency}`}
+                      value={`${fmtFiat(feesTarget.fixed)} ${payoutCurrency}`}
                     />
                   ) : null}
-                  {fees.bank > 0 ? (
+                  {feesTarget.bank > 0 ? (
                     <QuoteRow
                       label={t('sell.feeBank')}
-                      value={`${fmtFiat(fees.bank)} ${payoutCurrency}`}
+                      value={`${fmtFiat(feesTarget.bank)} ${payoutCurrency}`}
                     />
                   ) : null}
                   <QuoteRow
                     label={t('sell.feeTotal')}
-                    value={`${fmtFiat(fees.total)} ${payoutCurrency}`}
+                    value={`${fmtFiat(feesTarget.total)} ${payoutCurrency}`}
                     emphasis
                   />
                   <View style={styles.quoteDivider} />
@@ -638,7 +645,12 @@ export default function SellScreen() {
                   })}
                 </Text>
               ) : needsContinue ? (
-                <Text style={styles.quoteHint}>{t('sell.continueHint')}</Text>
+                <Text style={styles.quoteHint}>
+                  {t('sell.continueHint', {
+                    action: sellAction,
+                    next: t('common.continue'),
+                  })}
+                </Text>
               ) : (
                 <Text style={styles.quotePlaceholder}>{t('sell.fetchingQuote')}</Text>
               )}
@@ -665,7 +677,7 @@ export default function SellScreen() {
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <PrimaryButton
-            title={`${t('sell.title')} ${sellAsset}`}
+            title={sellAction}
             icon={<Icon name="arrow-right" size={18} color={colors.white} />}
             onPress={() => {
               if (hasTargetWallet) {
@@ -743,32 +755,54 @@ export default function SellScreen() {
             label={t('sell.youSell')}
             value={`${fmtCrypto(paymentInfo.amount)} ${paymentInfo.asset.name}`}
           />
-          <QuoteRow
-            label={t('sell.exchangeRate')}
-            value={`1 ${paymentInfo.asset.name} = ${fmtFiat(paymentInfo.exchangeRate)} ${paymentInfo.currency.name}`}
-          />
-          {paymentInfo.fees.dfx > 0 ? (
+          {Number.isFinite(paymentInfo.exchangeRate) && paymentInfo.exchangeRate > 0 ? (
             <QuoteRow
-              label={t('sell.feeDfx')}
-              value={`${(paymentInfo.fees.rate * 100).toFixed(2)}% · ${fmtFiat(paymentInfo.fees.dfx)} ${paymentInfo.currency.name}`}
-            />
-          ) : (
-            <QuoteRow
-              label={t('sell.feeDfx')}
-              value={`${(paymentInfo.fees.rate * 100).toFixed(2)}%`}
-            />
-          )}
-          {paymentInfo.fees.network > 0 ? (
-            <QuoteRow
-              label={t('sell.feeNetwork')}
-              value={`${fmtFiat(paymentInfo.fees.network)} ${paymentInfo.currency.name}`}
+              label={t('sell.exchangeRate')}
+              value={`1 ${paymentInfo.asset.name} = ${fmtFiat(
+                1 / paymentInfo.exchangeRate,
+              )} ${paymentInfo.currency.name}`}
             />
           ) : null}
-          <QuoteRow
-            label={t('sell.feeTotal')}
-            value={`${fmtFiat(paymentInfo.fees.total)} ${paymentInfo.currency.name}`}
-            emphasis
-          />
+          {feesTarget ? (
+            <>
+              {feesTarget.dfx > 0 ? (
+                <QuoteRow
+                  label={t('sell.feeDfx')}
+                  value={`${(paymentInfo.fees.rate * 100).toFixed(2)}% · ${fmtFiat(
+                    feesTarget.dfx,
+                  )} ${paymentInfo.currency.name}`}
+                />
+              ) : (
+                <QuoteRow
+                  label={t('sell.feeDfx')}
+                  value={`${(paymentInfo.fees.rate * 100).toFixed(2)}%`}
+                />
+              )}
+              {feesTarget.network > 0 ? (
+                <QuoteRow
+                  label={t('sell.feeNetwork')}
+                  value={`${fmtFiat(feesTarget.network)} ${paymentInfo.currency.name}`}
+                />
+              ) : null}
+              {feesTarget.fixed > 0 ? (
+                <QuoteRow
+                  label={t('sell.feeFixed')}
+                  value={`${fmtFiat(feesTarget.fixed)} ${paymentInfo.currency.name}`}
+                />
+              ) : null}
+              {feesTarget.bank > 0 ? (
+                <QuoteRow
+                  label={t('sell.feeBank')}
+                  value={`${fmtFiat(feesTarget.bank)} ${paymentInfo.currency.name}`}
+                />
+              ) : null}
+              <QuoteRow
+                label={t('sell.feeTotal')}
+                value={`${fmtFiat(feesTarget.total)} ${paymentInfo.currency.name}`}
+                emphasis
+              />
+            </>
+          ) : null}
           <View style={styles.quoteDivider} />
           <QuoteRow
             label={t('sell.youReceive')}

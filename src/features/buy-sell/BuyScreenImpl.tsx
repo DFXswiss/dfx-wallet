@@ -437,7 +437,7 @@ export default function BuyScreen() {
     !hasQuote && paymentInfo && paymentInfo.error ? String(paymentInfo.error) : null;
   // DFX sometimes returns 200 with `isValid: false` and no error code —
   // typically when the chain isn't yet attached to the user's account.
-  // Tapping Weiter triggers /buy/paymentInfos which fires the linkChain
+  // Tapping the buy CTA triggers /buy/paymentInfos which fires the linkChain
   // gate, runs the modal sign flow, and auto-refreshes the quote. Tell
   // the user to do exactly that instead of bouncing off a generic error.
   const needsContinue = !hasQuote && !quoteError && !!paymentInfo && !isLoading;
@@ -452,18 +452,19 @@ export default function BuyScreen() {
   const numAmount = parseFloat(amount);
   const belowMin = minVolume != null && numAmount > 0 && numAmount < minVolume;
   const aboveMax = maxVolume != null && numAmount > maxVolume;
+  const buyAction = t('buy.cta', { asset: targetAsset });
   const quoteHeader = unsupportedChain
     ? t('buy.chainUnsupported')
     : quoteError
       ? t([`buy.quoteError.${quoteError}`, 'buy.quoteError.generic'], { code: quoteError })
       : needsContinue
-        ? t('buy.continueHint')
+        ? t('buy.continueHint', { action: buyAction })
         : isLoading
           ? t('buy.fetchingQuote')
-          : hasQuote && paymentInfo
+          : hasQuote && paymentInfo && Number.isFinite(paymentInfo.rate) && paymentInfo.rate > 0
             ? t('buy.rateInclFees', {
                 asset: targetAsset,
-                amount: fmtFiat(paymentInfo.exchangeRate),
+                amount: fmtFiat(paymentInfo.rate),
                 currency: selectedCurrency,
               })
             : t('buy.summary');
@@ -683,7 +684,7 @@ export default function BuyScreen() {
                   })}
                 </Text>
               ) : needsContinue ? (
-                <Text style={styles.quoteHint}>{t('buy.continueHint')}</Text>
+                <Text style={styles.quoteHint}>{t('buy.continueHint', { action: buyAction })}</Text>
               ) : (
                 // First quote still in flight — show a subtle placeholder so
                 // the card visibly "opens" the moment the user types instead
@@ -717,15 +718,17 @@ export default function BuyScreen() {
               <Icon name="wallet" size={18} color={colors.primary} />
             </View>
             <View style={styles.paymentMethodBody}>
-              <Text style={styles.paymentMethodTitle}>{t('buy.paymentMethodSepa')}</Text>
-              <Text style={styles.paymentMethodHint}>{t('buy.paymentMethodSepaHint')}</Text>
+              <Text style={styles.paymentMethodTitle}>
+                {t(selectedCurrency === 'EUR' ? 'buy.paymentMethodSepa' : 'buy.paymentMethodBank')}
+              </Text>
+              <Text style={styles.paymentMethodHint}>{t('buy.paymentMethodHint')}</Text>
             </View>
           </View>
 
           <View style={styles.spacer} />
 
           <PrimaryButton
-            title={`${t('buy.title')} ${targetAsset}`}
+            title={buyAction}
             icon={<Icon name="arrow-right" size={18} color={colors.white} />}
             onPress={async () => {
               if (!selectedChainSpec) return;
