@@ -27,7 +27,7 @@ export type DiscoverableToken = {
   chain: ChainId;
   symbol: string;
   name: string;
-  /** ERC-20 contract address (checksummed or lowercase — both accepted). */
+  /** EIP-55-checksummed ERC-20 contract address. */
   contract: string;
   decimals: number;
   /** Matches a coin in /coins/list — required for the price lookup. */
@@ -144,7 +144,7 @@ export const DISCOVERABLE_TOKENS: DiscoverableToken[] = [
     chain: 'ethereum',
     symbol: 'dEURO',
     name: 'Decentralized Euro',
-    contract: '0x1aB4973a48dc892Cd9971ECE8e01DcC7688f8F23',
+    contract: '0xbA3f535bbCcCcA2A154b573Ca6c5A49BAAE0a3ea',
     decimals: 18,
     coingeckoId: 'decentralized-euro',
   },
@@ -344,9 +344,17 @@ export const DISCOVERABLE_TOKENS: DiscoverableToken[] = [
   },
   {
     chain: 'arbitrum',
+    symbol: 'ZCHF',
+    name: 'Frankencoin',
+    contract: '0xD4dD9e2F021BB459D5A5f6c24C12fE09c5D45553',
+    decimals: 18,
+    coingeckoId: 'frankencoin',
+  },
+  {
+    chain: 'arbitrum',
     symbol: 'dEURO',
     name: 'Decentralized Euro',
-    contract: '0x65FD03ec212c7506E37D27D5b13fF0B5b6e3F5cd',
+    contract: '0x5e85fAf503621830CA857a5f38B982E0cc57D537',
     decimals: 18,
     coingeckoId: 'decentralized-euro',
   },
@@ -442,9 +450,17 @@ export const DISCOVERABLE_TOKENS: DiscoverableToken[] = [
   },
   {
     chain: 'polygon',
+    symbol: 'ZCHF',
+    name: 'Frankencoin',
+    contract: '0xD4dD9e2F021BB459D5A5f6c24C12fE09c5D45553',
+    decimals: 18,
+    coingeckoId: 'frankencoin',
+  },
+  {
+    chain: 'polygon',
     symbol: 'dEURO',
     name: 'Decentralized Euro',
-    contract: '0xAEF3d4c41995ee65d24d7e1deF31E25c14a5b9D6',
+    contract: '0xC2ff25dD99e467d2589b2c26EDd270F220F14E47',
     decimals: 18,
     coingeckoId: 'decentralized-euro',
   },
@@ -502,7 +518,7 @@ export const DISCOVERABLE_TOKENS: DiscoverableToken[] = [
     chain: 'base',
     symbol: 'ZCHF',
     name: 'Frankencoin',
-    contract: '0xB58E61C3098d85632Df34EecfB899A1Ed80921cB',
+    contract: '0xD4dD9e2F021BB459D5A5f6c24C12fE09c5D45553',
     decimals: 18,
     coingeckoId: 'frankencoin',
   },
@@ -510,7 +526,7 @@ export const DISCOVERABLE_TOKENS: DiscoverableToken[] = [
     chain: 'base',
     symbol: 'dEURO',
     name: 'Decentralized Euro',
-    contract: '0x4F8730E0b32B04beaa5757e5aea3aeF970E5B613',
+    contract: '0x1B5F7fA46ED0F487F049C42f374cA4827d65A264',
     decimals: 18,
     coingeckoId: 'decentralized-euro',
   },
@@ -582,7 +598,7 @@ export const DISCOVERABLE_TOKENS: DiscoverableToken[] = [
     chain: 'base',
     symbol: 'MOG',
     name: 'Mog Coin',
-    contract: '0x2Da56AcB9Ea78330F947bD57C54119Debda7AF71',
+    contract: '0x2Da56AcB9Ea78330f947bD57C54119Debda7AF71',
     decimals: 18,
     coingeckoId: 'mog-coin',
   },
@@ -606,7 +622,7 @@ export const DISCOVERABLE_TOKENS: DiscoverableToken[] = [
     chain: 'base',
     symbol: 'WELL',
     name: 'Moonwell',
-    contract: '0xA88594D404727625A9437C3F886C7643872296AE',
+    contract: '0xA88594D404727625A9437C3f886C7643872296AE',
     decimals: 18,
     coingeckoId: 'moonwell-artemis',
   },
@@ -614,7 +630,7 @@ export const DISCOVERABLE_TOKENS: DiscoverableToken[] = [
     chain: 'base',
     symbol: 'AIXBT',
     name: 'aixbt by Virtuals',
-    contract: '0x4F9Fd6Be4a90f2620860d680c0d4d5fb53d1A825',
+    contract: '0x4F9Fd6Be4a90f2620860d680c0d4d5Fb53d1A825',
     decimals: 18,
     coingeckoId: 'aixbt',
   },
