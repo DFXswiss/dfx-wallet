@@ -67,7 +67,9 @@ import SendScreen from '../../app/(auth)/send/index';
 
 const RECIPIENT = '0x1234567890123456789012345678901234567890';
 
-function fillRecipientAndAmount(getByPlaceholderText: ReturnType<typeof render>['getByPlaceholderText']) {
+function fillRecipientAndAmount(
+  getByPlaceholderText: ReturnType<typeof render>['getByPlaceholderText'],
+) {
   fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), RECIPIENT);
   fireEvent.changeText(getByPlaceholderText('0.00'), '1');
 }
@@ -153,7 +155,6 @@ describe('SendScreen', () => {
       fireEvent.press(getByTestId('send-action-sell'));
       expect(mockPush).toHaveBeenCalledWith('/(auth)/sell');
     });
-
   });
 
   describe('confirm step', () => {
@@ -275,7 +276,7 @@ describe('SendScreen', () => {
       });
       expect(await findByText('send.confirmTransaction')).toBeTruthy();
 
-      fireEvent.press(getByLabelText('Back'));
+      fireEvent.press(getByLabelText('common.back'));
       expect(queryByText('send.confirmTransaction')).toBeNull();
       expect(getByText('common.continue')).toBeTruthy();
     });
@@ -285,7 +286,7 @@ describe('SendScreen', () => {
       fireEvent.press(getByText('BTC'));
       expect(queryByText('send.sendToCrypto')).toBeNull();
 
-      fireEvent.press(getByLabelText('Back'));
+      fireEvent.press(getByLabelText('common.back'));
       expect(getByText('send.sendToCrypto')).toBeTruthy();
     });
   });
@@ -332,9 +333,10 @@ describe('SendScreen', () => {
       act(() => {
         qrScannerProps.onScan!('ethereum:0xCAFEBABE?amount=1');
       });
-      expect((getByPlaceholderText('send.addressPlaceholder') as unknown as { props: { value: string } }).props.value).toBe(
-        '0xCAFEBABE',
-      );
+      expect(
+        (getByPlaceholderText('send.addressPlaceholder') as unknown as { props: { value: string } })
+          .props.value,
+      ).toBe('0xCAFEBABE');
     });
 
     it('the scanner onClose handler closes the scanner', () => {
@@ -362,7 +364,7 @@ describe('SendScreen', () => {
 
     it('back from asset step calls router.back()', () => {
       const { getByLabelText } = render(<SendScreen />);
-      fireEvent.press(getByLabelText('Back'));
+      fireEvent.press(getByLabelText('common.back'));
       expect(mockBack).toHaveBeenCalledTimes(1);
     });
   });

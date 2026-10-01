@@ -24,10 +24,14 @@ jest.mock('@/hooks', () => ({
     isAuthenticating: false,
     error: null,
   }),
-  useTotalPortfolioFiat: () => mockPortfolioFiat.current,
+  useTotalPortfolioFiat: () => ({
+    totalFiat: mockPortfolioFiat.current,
+    isIncomplete: mockPortfolioIncomplete.current,
+  }),
 }));
 
 const mockPortfolioFiat = { current: 1234.56 };
+const mockPortfolioIncomplete = { current: false };
 
 jest.mock('react-native-safe-area-context', () => {
   const { View } = jest.requireActual('react-native');
@@ -46,6 +50,7 @@ describe('DashboardScreen', () => {
   beforeEach(() => {
     mockPush.mockReset();
     mockAuthenticate.mockClear();
+    mockPortfolioIncomplete.current = false;
     useWalletStore.setState({ selectedCurrency: 'USD' });
     useAuthStore.setState({ isDfxAuthenticated: false });
   });
@@ -65,6 +70,12 @@ describe('DashboardScreen', () => {
     // separator is locale-dependent (see portfolio-presentation test).
     expect(getByText('$')).toBeTruthy();
     expect(getByText('.56')).toBeTruthy();
+  });
+
+  it('shows a translated hint when the portfolio total is incomplete', () => {
+    mockPortfolioIncomplete.current = true;
+    const { getByText } = render(<DashboardScreen />);
+    expect(getByText('dashboard.incompleteBalance')).toBeTruthy();
   });
 
   it('toggles the balance visibility when the eye is pressed', () => {

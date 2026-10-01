@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
 import Svg, { ClipPath, Defs, G, LinearGradient, Path, Stop, Circle } from 'react-native-svg';
+import { useTranslation } from 'react-i18next';
 import { useResolvedScheme } from '@/theme';
 
 /**
@@ -35,6 +36,7 @@ type Props = {
  * signature and is recognisable on either surface.
  */
 export function BrandLogo({ size = 'header', height, style }: Props) {
+  const { t } = useTranslation();
   const scheme = useResolvedScheme();
   const wordmarkFill = scheme === 'dark' ? '#F1F4F9' : '#072440';
   // Resolve final height: explicit prop wins; otherwise look up the size token.
@@ -50,7 +52,7 @@ export function BrandLogo({ size = 'header', height, style }: Props) {
       viewBox="0 0 544 170"
       fill="none"
       style={style}
-      accessibilityLabel="DFX"
+      accessibilityLabel={t('common.dfxLogo')}
     >
       <Defs>
         <LinearGradient

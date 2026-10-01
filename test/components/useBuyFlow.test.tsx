@@ -240,12 +240,20 @@ describe('useBuyFlow', () => {
     });
     expect(result.current.status).toBe('authGate');
 
+    let retryResult: {
+      kind: 'quote' | 'paymentInfo';
+      info: BuyPaymentInfoDto | null;
+    } | null = null;
     await act(async () => {
-      await result.current.retryLast();
+      retryResult = await result.current.retryLast();
     });
 
     expect(mockGetBuyQuote).toHaveBeenCalledTimes(2);
     expect(mockGetBuyQuote.mock.calls[1]![0]).toEqual(QUOTE);
+    expect(retryResult).toMatchObject({
+      kind: 'quote',
+      info: { id: 1, isValid: true },
+    });
     expect(result.current.status).toBe('success');
   });
 
@@ -259,12 +267,20 @@ describe('useBuyFlow', () => {
     await act(async () => {
       await result.current.createPaymentInfo(QUOTE);
     });
+    let retryResult: {
+      kind: 'quote' | 'paymentInfo';
+      info: BuyPaymentInfoDto | null;
+    } | null = null;
     await act(async () => {
-      await result.current.retryLast();
+      retryResult = await result.current.retryLast();
     });
 
     expect(mockCreateBuyPaymentInfo).toHaveBeenCalledTimes(2);
     expect(mockGetBuyQuote).not.toHaveBeenCalled();
+    expect(retryResult).toMatchObject({
+      kind: 'paymentInfo',
+      info: { id: 1, isValid: true },
+    });
   });
 
   it('confirmPayment returns true and clears loading on success', async () => {

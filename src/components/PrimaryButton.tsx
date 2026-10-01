@@ -87,7 +87,7 @@ const makeStyles = (colors: ThemeColors) =>
     text: {
       ...Typography.bodyLarge,
       fontWeight: '600',
-      color: colors.white,
+      color: colors.onPrimary,
     },
     outlinedText: {
       color: colors.primary,

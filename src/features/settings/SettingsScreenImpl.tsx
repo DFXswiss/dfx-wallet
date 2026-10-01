@@ -17,6 +17,7 @@ import * as Haptics from 'expo-haptics';
 import { DarkBackdrop, Icon } from '@/components';
 import { isBiometricAvailable } from '@/features/biometric/biometric';
 import { dfxUserService } from '@/features/dfx-backend/services';
+import { setLanguage } from '@/i18n/language';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
 import {
@@ -208,7 +209,7 @@ export default function SettingsScreen() {
           testID: 'settings-language',
           onPress: () => {
             const next = currentLang === 'DE' ? 'en' : 'de';
-            void i18n.changeLanguage(next);
+            void setLanguage(next, i18n);
             syncLanguageToDfx(next);
           },
         },

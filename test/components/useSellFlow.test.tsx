@@ -122,6 +122,33 @@ describe('useSellFlow', () => {
     expect(result.current.error).toBeNull();
   });
 
+  it('retries the last sell quote and identifies the result as a quote', async () => {
+    mockGetSellQuote.mockRejectedValueOnce(new Error('login required'));
+    mockInterpretDfxAuthError.mockReturnValueOnce({ kind: 'login', message: 'sign in' });
+    mockGetSellQuote.mockResolvedValueOnce(validInfo({ id: 12 }));
+    const { result } = renderHook(() => useSellFlow());
+
+    await act(async () => {
+      await result.current.getQuote(QUOTE);
+    });
+
+    let retryResult: {
+      kind: 'quote' | 'paymentInfo';
+      info: SellPaymentInfoDto | null;
+    } | null = null;
+    await act(async () => {
+      retryResult = await result.current.retryLast();
+    });
+
+    expect(mockGetSellQuote).toHaveBeenCalledTimes(2);
+    expect(mockGetSellQuote.mock.calls[1]![0]).toEqual(QUOTE);
+    expect(mockCreateSellPaymentInfo).not.toHaveBeenCalled();
+    expect(retryResult).toMatchObject({
+      kind: 'quote',
+      info: { id: 12, isValid: true },
+    });
+  });
+
   it('retries sell payment info with the original IBAN-bearing params', async () => {
     mockCreateSellPaymentInfo.mockRejectedValueOnce(new Error('login required'));
     mockInterpretDfxAuthError.mockReturnValueOnce({ kind: 'login', message: 'sign in' });
@@ -133,13 +160,21 @@ describe('useSellFlow', () => {
     });
     expect(result.current.status).toBe('authGate');
 
+    let retryResult: {
+      kind: 'quote' | 'paymentInfo';
+      info: SellPaymentInfoDto | null;
+    } | null = null;
     await act(async () => {
-      await result.current.retryLast();
+      retryResult = await result.current.retryLast();
     });
 
     expect(mockCreateSellPaymentInfo).toHaveBeenCalledTimes(2);
     expect(mockCreateSellPaymentInfo.mock.calls[1]![0]).toEqual(PAYMENT_PARAMS);
     expect(mockGetSellQuote).not.toHaveBeenCalled();
+    expect(retryResult).toMatchObject({
+      kind: 'paymentInfo',
+      info: { id: 12, isValid: true },
+    });
     expect(result.current.status).toBe('success');
     expect(result.current.paymentInfo).toMatchObject({ id: 12 });
   });

@@ -335,13 +335,13 @@ describe('dfxAuthService.changeActiveAddress', () => {
     expect(postSpy).not.toHaveBeenCalled();
   });
 
-  it('switches to a linked address via /v2/user/change without a signature', async () => {
+  it('switches to a linked address via /v1/user/change without a signature', async () => {
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
     postSpy.mockResolvedValueOnce({ accessToken: 'SWITCHED_TOKEN' });
 
     const token = await dfxAuthService.changeActiveAddress('0xother');
 
-    expect(postSpy).toHaveBeenCalledWith('/v2/user/change', { address: '0xother' });
+    expect(postSpy).toHaveBeenCalledWith('/v1/user/change', { address: '0xother' });
     expect(token).toBe('SWITCHED_TOKEN');
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('SWITCHED_TOKEN');
     expect(dfxAuthService.getAccessToken()).toBe('SWITCHED_TOKEN');

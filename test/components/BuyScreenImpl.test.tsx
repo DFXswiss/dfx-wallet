@@ -75,7 +75,23 @@ jest.mock('@/features/linked-wallets/useLinkedWalletReauth', () => ({
 }));
 
 jest.mock('@/features/dfx-backend/DfxAuthGate', () => ({
-  DfxAuthGate: () => null,
+  DfxAuthGate: ({
+    gate,
+    onLinkChain,
+  }: {
+    gate: { chain?: 'bitcoin' } | null;
+    onLinkChain?: (chain: 'bitcoin') => Promise<void>;
+  }) => {
+    const chain = gate?.chain;
+    if (!chain || !onLinkChain) return null;
+    const ReactActual = jest.requireActual('react');
+    const { Pressable, Text } = jest.requireActual('react-native');
+    return ReactActual.createElement(
+      Pressable,
+      { onPress: () => onLinkChain(chain), testID: 'mock-link-chain' },
+      ReactActual.createElement(Text, null, 'link-chain'),
+    );
+  },
 }));
 
 jest.mock('@/features/dfx-backend/useDfxAutoLinkImpl', () => ({
@@ -166,7 +182,7 @@ const mockSellRetryLast = jest.fn();
 const flowState = {
   isLoading: false,
   error: null as string | null,
-  authGate: null,
+  authGate: null as { kind: 'linkChain'; chain: 'bitcoin'; message: string } | null,
   paymentInfo: null as Record<string, unknown> | null,
 };
 
@@ -330,8 +346,122 @@ beforeEach(() => {
 });
 
 describe('BuyScreenImpl', () => {
+  it('advances after a linked-chain retry only for payment info, not for a quote', async () => {
+    flowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'link Bitcoin' };
+    mockRetryLast
+      .mockResolvedValueOnce({ kind: 'quote', info: PAYMENT_INFO })
+      .mockResolvedValueOnce({ kind: 'paymentInfo', info: PAYMENT_INFO });
+
+    const { getByTestId, getByText, queryByText } = render(<BuyScreenImpl />);
+
+    await act(async () => {
+      fireEvent.press(getByTestId('mock-link-chain'));
+    });
+
+    await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
+    expect(queryByText('buy.paymentInfo')).toBeNull();
+
+    await act(async () => {
+      fireEvent.press(getByTestId('mock-link-chain'));
+    });
+
+    await waitFor(() => expect(getByText('buy.paymentInfo')).toBeTruthy());
+    expect(mockRetryLast).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps an invalid quote without an error code eligible for the link flow', async () => {
+    flowState.paymentInfo = { isValid: false };
+    mockCreatePaymentInfo.mockImplementationOnce(async () => {
+      flowState.paymentInfo = PAYMENT_INFO;
+      return PAYMENT_INFO;
+    });
+
+    const { getByPlaceholderText, getByText, queryByText } = render(<BuyScreenImpl />);
+
+    fireEvent.press(getByText('BTC'));
+    fireEvent.changeText(getByPlaceholderText('0.00'), '100');
+
+    expect(getByText('buy.continueHint')).toBeTruthy();
+    expect(queryByText(/^buy\.quoteError\.generic/)).toBeNull();
+
+    await act(async () => {
+      fireEvent.press(getByText('common.continue'));
+    });
+
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(getByText('buy.paymentInfo')).toBeTruthy());
+  });
+
+  it.each([
+    {
+      error: 'KycRequired',
+      expectedMessage: 'buy.quoteError.KycRequired:{"code":"KycRequired"}',
+    },
+    { error: undefined, expectedMessage: 'buy.quoteError.generic:{"code":"generic"}' },
+  ])(
+    'blocks payment instructions for final invalid payment info with error $error',
+    async ({ error, expectedMessage }) => {
+      mockCreatePaymentInfo.mockResolvedValueOnce({ isValid: false, error });
+
+      const { getByPlaceholderText, getByText, queryByText } = render(<BuyScreenImpl />);
+
+      fireEvent.press(getByText('BTC'));
+      fireEvent.changeText(getByPlaceholderText('0.00'), '100');
+      await act(async () => {
+        fireEvent.press(getByText('common.continue'));
+      });
+
+      expect(queryByText('buy.paymentInfo')).toBeNull();
+      expect(getByText(expectedMessage)).toBeTruthy();
+    },
+  );
+
+  it('clears a final payment info error when the amount changes', async () => {
+    mockCreatePaymentInfo.mockResolvedValueOnce({ isValid: false, error: 'KycRequired' });
+
+    const { getByPlaceholderText, getByText, queryByText } = render(<BuyScreenImpl />);
+
+    fireEvent.press(getByText('BTC'));
+    fireEvent.changeText(getByPlaceholderText('0.00'), '100');
+    await act(async () => {
+      fireEvent.press(getByText('common.continue'));
+    });
+
+    const errorMessage = 'buy.quoteError.KycRequired:{"code":"KycRequired"}';
+    expect(getByText(errorMessage)).toBeTruthy();
+
+    fireEvent.changeText(getByPlaceholderText('0.00'), '200');
+
+    await waitFor(() => expect(queryByText(errorMessage)).toBeNull());
+  });
+
+  it('clears a final payment info error when the currency changes', async () => {
+    mockCreatePaymentInfo.mockResolvedValueOnce({ isValid: false, error: 'KycRequired' });
+
+    const { getAllByText, getByPlaceholderText, getByText, queryByText } = render(
+      <BuyScreenImpl />,
+    );
+
+    fireEvent.press(getByText('BTC'));
+    fireEvent.changeText(getByPlaceholderText('0.00'), '100');
+    await act(async () => {
+      fireEvent.press(getByText('common.continue'));
+    });
+
+    const errorMessage = 'buy.quoteError.KycRequired:{"code":"KycRequired"}';
+    expect(getByText(errorMessage)).toBeTruthy();
+
+    const [, eurCurrencyLabel] = getAllByText('EUR');
+    fireEvent.press(eurCurrencyLabel!);
+
+    await waitFor(() => expect(queryByText(errorMessage)).toBeNull());
+  });
+
   it('keeps the payment instructions visible when transfer confirmation fails', async () => {
-    mockCreatePaymentInfo.mockResolvedValueOnce(PAYMENT_INFO);
+    mockCreatePaymentInfo.mockImplementationOnce(async () => {
+      flowState.paymentInfo = PAYMENT_INFO;
+      return PAYMENT_INFO;
+    });
     mockConfirmPayment.mockResolvedValueOnce(false);
 
     const { getByPlaceholderText, getByText, queryByText } = render(<BuyScreenImpl />);

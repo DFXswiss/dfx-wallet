@@ -3,6 +3,11 @@ import { Text } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { ErrorBoundary } from '../../src/components/ErrorBoundary';
 
+jest.mock('i18next', () => ({
+  __esModule: true,
+  default: { t: (key: string) => key },
+}));
+
 function Boom({ message }: { message: string }): React.ReactElement {
   throw new Error(message);
 }
@@ -29,15 +34,16 @@ describe('ErrorBoundary', () => {
     expect(getByText('healthy child')).toBeTruthy();
   });
 
-  it('catches a thrown error and renders the fallback with the error message', () => {
-    const { getByText } = render(
+  it('catches a thrown error without exposing the raw error message', () => {
+    const { getByText, queryByText } = render(
       <ErrorBoundary>
         <Boom message="kaboom" />
       </ErrorBoundary>,
     );
-    expect(getByText('Something went wrong')).toBeTruthy();
-    expect(getByText('kaboom')).toBeTruthy();
-    expect(getByText('Try Again')).toBeTruthy();
+    expect(getByText('errorBoundary.title')).toBeTruthy();
+    expect(getByText('errorBoundary.message')).toBeTruthy();
+    expect(queryByText('kaboom')).toBeNull();
+    expect(getByText('common.retry')).toBeTruthy();
   });
 
   it('renders the fallback even when the thrown error has no message', () => {
@@ -49,14 +55,12 @@ describe('ErrorBoundary', () => {
         <ThrowsEmpty />
       </ErrorBoundary>,
     );
-    // Title + reset CTA are always present; the message body collapses to
-    // an empty string when the Error has no `message` (the boundary uses
-    // `??` which only swaps for null / undefined, not `""`).
-    expect(getByText('Something went wrong')).toBeTruthy();
-    expect(getByText('Try Again')).toBeTruthy();
+    // The localized fallback is independent of the raw Error message.
+    expect(getByText('errorBoundary.title')).toBeTruthy();
+    expect(getByText('common.retry')).toBeTruthy();
   });
 
-  it('clears the error and re-renders the children when "Try Again" is pressed', () => {
+  it('clears the error and re-renders the children when Retry is pressed', () => {
     // First render the boundary with a child that will throw the first time
     // and succeed on the second pass.
     let shouldThrow = true;
@@ -69,12 +73,12 @@ describe('ErrorBoundary', () => {
         <FlakyChild />
       </ErrorBoundary>,
     );
-    expect(getByText('Something went wrong')).toBeTruthy();
+    expect(getByText('errorBoundary.title')).toBeTruthy();
 
     // Flip the flag, press the reset button, and re-render — the boundary
     // resets state and the freshly-rendered child no longer throws.
     shouldThrow = false;
-    fireEvent.press(getByText('Try Again'));
+    fireEvent.press(getByText('common.retry'));
     rerender(
       <ErrorBoundary>
         <FlakyChild />

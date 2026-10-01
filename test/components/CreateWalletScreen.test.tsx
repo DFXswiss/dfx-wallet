@@ -69,15 +69,16 @@ describe('CreateWalletScreen', () => {
   it('copies the seed phrase as a space-joined string when "copy" is pressed', async () => {
     let scheduled: (() => void) | undefined;
     const realSetTimeout = globalThis.setTimeout;
-    const setTimeoutSpy = jest
-      .spyOn(globalThis, 'setTimeout')
-      .mockImplementation(((cb: () => void, ms?: number) => {
-        if (ms === 2000) {
-          scheduled = cb;
-          return 0 as unknown as ReturnType<typeof setTimeout>;
-        }
-        return realSetTimeout.call(globalThis, cb, ms);
-      }) as unknown as typeof setTimeout);
+    const setTimeoutSpy = jest.spyOn(globalThis, 'setTimeout').mockImplementation(((
+      cb: () => void,
+      ms?: number,
+    ) => {
+      if (ms === 2000) {
+        scheduled = cb;
+        return 0 as unknown as ReturnType<typeof setTimeout>;
+      }
+      return realSetTimeout.call(globalThis, cb, ms);
+    }) as unknown as typeof setTimeout);
     try {
       const { getByTestId } = render(<CreateWalletScreen />);
       fireEvent.press(getByTestId('create-wallet-reveal-button'));
@@ -141,7 +142,7 @@ describe('CreateWalletScreen', () => {
   it('back-button falls back to router.replace(welcome) when no history exists', () => {
     mockCanGoBack.mockReturnValue(false);
     const { getByLabelText } = render(<CreateWalletScreen />);
-    fireEvent.press(getByLabelText('Back'));
+    fireEvent.press(getByLabelText('common.back'));
     expect(mockReplace).toHaveBeenCalledWith('/(onboarding)/welcome');
     expect(mockBack).not.toHaveBeenCalled();
   });
@@ -149,7 +150,7 @@ describe('CreateWalletScreen', () => {
   it('back-button uses router.back() when history is available', () => {
     mockCanGoBack.mockReturnValue(true);
     const { getByLabelText } = render(<CreateWalletScreen />);
-    fireEvent.press(getByLabelText('Back'));
+    fireEvent.press(getByLabelText('common.back'));
     expect(mockBack).toHaveBeenCalled();
   });
 });

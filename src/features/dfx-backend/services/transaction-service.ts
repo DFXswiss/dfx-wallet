@@ -56,9 +56,11 @@ export class DfxTransactionService {
     // userAddress should not be empty"`. The query string carries the
     // actual filters; the body just supplies the active linked-wallet
     // address (the JWT's `address` claim — caller resolves it).
-    const fileKey = await dfxApi.put<string>(`/v1/transaction/csv${query}`, {
-      userAddress: params.userAddress,
-    });
+    const fileKey = await dfxApi.put<string>(
+      `/v1/transaction/csv${query}`,
+      { userAddress: params.userAddress },
+      { responseType: 'text' },
+    );
     return {
       fileKey,
       downloadUrl: `${dfxApi.baseUrlPublic()}/v1/transaction/csv?key=${encodeURIComponent(fileKey)}`,
