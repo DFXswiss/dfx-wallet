@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import { ScreenContainer } from '@/components';
 import { dfxAuthService } from '@/features/dfx-backend/services';
-import { isAllowedDfxHost, isDfxOwnedHost } from '@/services/security/safe-url';
+import { isAllowedDfxHost, isDfxTokenHost } from '@/services/security/safe-url';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 
 /**
@@ -26,7 +26,7 @@ export default function WebViewScreen() {
   const { url, title } = useLocalSearchParams<{ url: string; title?: string }>();
   const safe = typeof url === 'string' && isAllowedDfxHost(url);
   const token =
-    typeof url === 'string' && isDfxOwnedHost(url) ? dfxAuthService.getAccessToken() : null;
+    typeof url === 'string' && isDfxTokenHost(url) ? dfxAuthService.getAccessToken() : null;
   const source =
     typeof url === 'string'
       ? {
