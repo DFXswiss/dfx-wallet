@@ -15,6 +15,11 @@ jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
 }));
 
+jest.mock('@/config/features', () => ({ FEATURES: { LEGAL: true } }));
+const { FEATURES: mockFeatures } = jest.requireMock('@/config/features') as {
+  FEATURES: { LEGAL: boolean };
+};
+
 // The verify-pin disabled stub calls WDK's `useWalletManager.unlock` so
 // the seed is read into the worklet before redirecting. Mock that
 // surface — the test verifies that the redirect only happens once the
@@ -29,12 +34,24 @@ import VerifyPinDisabled from '../../src/features/pin/VerifyPinDisabled';
 import { useAuthStore } from '@/store';
 
 describe('SetupPinDisabled', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockReplace.mockReset();
-    void useAuthStore.getState().reset();
+    mockFeatures.LEGAL = true;
+    await useAuthStore.getState().reset();
   });
 
-  it('marks the user as onboarded + authenticated and replaces to the dashboard', async () => {
+  it('keeps onboarding incomplete and opens legal when legal is enabled', async () => {
+    render(<SetupPinDisabled />);
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith('/(onboarding)/legal-disclaimer'),
+    );
+    const { isOnboarded, isAuthenticated } = useAuthStore.getState();
+    expect(isOnboarded).toBe(false);
+    expect(isAuthenticated).toBe(true);
+  });
+
+  it('marks onboarding complete and opens the dashboard when legal is disabled', async () => {
+    mockFeatures.LEGAL = false;
     render(<SetupPinDisabled />);
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard'));
     const { isOnboarded, isAuthenticated } = useAuthStore.getState();
@@ -44,11 +61,11 @@ describe('SetupPinDisabled', () => {
 });
 
 describe('VerifyPinDisabled', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockReplace.mockReset();
     mockUnlock.mockReset();
     mockUnlock.mockResolvedValue(undefined);
-    void useAuthStore.getState().reset();
+    await useAuthStore.getState().reset();
   });
 
   it('unlocks the WDK wallet, flips isAuthenticated, and replaces to the dashboard', async () => {

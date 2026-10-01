@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import { BrandLogo, DarkBackdrop, Icon, PinProcessingOverlay, PrimaryButton } from '@/components';
-import { needsPinRehash } from '@/services/pin';
+import { FEATURES } from '@/config/features';
 import { useAuthStore } from '@/store';
+import { getPostPinDestination } from '@/store/auth';
 import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
-const MAX_ATTEMPTS = 5;
+const FIRST_LOCKOUT_ATTEMPT = 5;
 
 /**
  * PIN-unlock screen for the cold-start path.
@@ -23,8 +24,16 @@ const MAX_ATTEMPTS = 5;
 export default function VerifyPinScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { verifyPin, setAuthenticated, authenticateBiometric, biometricEnabled, pinHash } =
-    useAuthStore();
+  const {
+    verifyPin,
+    setAuthenticated,
+    authenticateBiometric,
+    biometricEnabled,
+    failedAttempts,
+    lockedUntil,
+    isOnboarded,
+    setOnboarded,
+  } = useAuthStore();
   const { unlock } = useWalletManager();
   const colors = useColors();
   const scheme = useResolvedScheme();
@@ -32,13 +41,18 @@ export default function VerifyPinScreen() {
   const [pin, setPinValue] = useState('');
   const [error, setError] = useState(false);
   const [unlockFailed, setUnlockFailed] = useState(false);
-  const [attempts, setAttempts] = useState(0);
+  const [now, setNow] = useState(Date.now());
   const [biometricInFlight, setBiometricInFlight] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const isLocked = lockedUntil !== null && lockedUntil > now;
+  const remainingSeconds = isLocked ? Math.max(1, Math.ceil((lockedUntil - now) / 1000)) : 0;
 
-  const goToDashboard = useCallback(() => {
-    router.replace('/(auth)/(tabs)/dashboard');
-  }, [router]);
+  const finishAuthentication = useCallback(async () => {
+    const destination = getPostPinDestination(isOnboarded, FEATURES.LEGAL);
+    if (destination.shouldSetOnboarded) await setOnboarded(true);
+    setAuthenticated(true);
+    router.replace(destination.route);
+  }, [isOnboarded, router, setAuthenticated, setOnboarded]);
 
   const goToRecovery = useCallback(() => {
     router.replace('/(onboarding)/restore-wallet');
@@ -50,7 +64,10 @@ export default function VerifyPinScreen() {
     if (biometricInFlight) return;
     setBiometricInFlight(true);
     try {
-      const success = await authenticateBiometric();
+      const success = await authenticateBiometric({
+        promptMessage: t('biometric.prompt'),
+        cancelLabel: t('biometric.usePin'),
+      });
       if (!success) return;
       try {
         await unlockWallet();
@@ -60,14 +77,13 @@ export default function VerifyPinScreen() {
         return;
       }
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setAuthenticated(true);
-      goToDashboard();
+      await finishAuthentication();
     } catch (err) {
       console.warn('verify: biometric authentication failed', err);
     } finally {
       setBiometricInFlight(false);
     }
-  }, [authenticateBiometric, biometricInFlight, goToDashboard, setAuthenticated, unlockWallet]);
+  }, [authenticateBiometric, biometricInFlight, finishAuthentication, t, unlockWallet]);
 
   useEffect(() => {
     if (biometricEnabled) {
@@ -77,27 +93,21 @@ export default function VerifyPinScreen() {
   }, [biometricEnabled]);
 
   const handleDigit = (digit: string) => {
-    if (processing) return;
+    if (processing || isLocked) return;
     setError(false);
     setUnlockFailed(false);
     const newPin = pin + digit;
     if (newPin.length > 6) return;
     setPinValue(newPin);
 
-    if (pinHash && needsPinRehash(pinHash) && newPin.length >= 4 && newPin.length < 6) {
-      void checkPin(newPin, { showInvalid: false });
-    }
-
     if (newPin.length === 6) {
-      void checkPin(newPin, { showInvalid: true });
+      void checkPin(newPin);
     }
   };
 
-  const checkPin = async (pinValue: string, { showInvalid }: { showInvalid: boolean }) => {
-    if (showInvalid) {
-      setProcessing(true);
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    }
+  const checkPin = async (pinValue: string) => {
+    setProcessing(true);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
     let isValid = false;
     try {
@@ -110,30 +120,32 @@ export default function VerifyPinScreen() {
         await unlockWallet();
       } catch (err) {
         console.warn('verify: PIN unlock failed', err);
-        if (showInvalid) setProcessing(false);
+        setProcessing(false);
         setUnlockFailed(true);
         setPinValue('');
         return;
       }
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setAuthenticated(true);
-      goToDashboard();
+      await finishAuthentication();
       return;
     }
-    if (!showInvalid) return;
     setProcessing(false);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     setError(true);
-    setAttempts((a) => a + 1);
     setPinValue('');
   };
 
   const handleDelete = () => {
+    if (isLocked) return;
     setError(false);
     setPinValue(pin.slice(0, -1));
   };
 
-  const isLocked = attempts >= MAX_ATTEMPTS;
+  useEffect(() => {
+    if (!isLocked) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [isLocked]);
 
   const body = (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
@@ -141,78 +153,81 @@ export default function VerifyPinScreen() {
         <BrandLogo size="auth" style={styles.logoWrap} />
         <Text style={styles.title}>{t('pin.enterTitle')}</Text>
 
-        {isLocked ? (
+        {isLocked && (
           <Text style={styles.locked} testID="verify-pin-locked">
-            {t('pin.tooMany')}
+            {t('pin.lockedFor', { count: remainingSeconds })}
           </Text>
-        ) : (
+        )}
+
+        {!isLocked && biometricEnabled && (
+          <Pressable
+            testID="verify-pin-biometric-button"
+            style={({ pressed }) => [styles.biometricPill, pressed && styles.pressed]}
+            onPress={tryBiometric}
+            disabled={biometricInFlight}
+            accessibilityRole="button"
+            accessibilityLabel={t('pin.biometricCta')}
+          >
+            <Icon name="user" size={18} color={colors.primary} />
+            <Text style={styles.biometricText}>{t('pin.biometricCta')}</Text>
+          </Pressable>
+        )}
+
+        {!isLocked && unlockFailed && (
           <>
-            {biometricEnabled && (
-              <Pressable
-                testID="verify-pin-biometric-button"
-                style={({ pressed }) => [styles.biometricPill, pressed && styles.pressed]}
-                onPress={tryBiometric}
-                disabled={biometricInFlight}
-                accessibilityRole="button"
-                accessibilityLabel={t('pin.biometricCta')}
-              >
-                <Icon name="user" size={18} color={colors.primary} />
-                <Text style={styles.biometricText}>{t('pin.biometricCta')}</Text>
-              </Pressable>
-            )}
-
-            {unlockFailed && (
-              <>
-                <Text style={styles.error} testID="verify-pin-unlock-error">
-                  {t('pin.unlockFailed')}
-                </Text>
-                <PrimaryButton
-                  testID="verify-pin-recovery-button"
-                  variant="outlined"
-                  title={t('pin.recoveryCta')}
-                  onPress={goToRecovery}
-                />
-              </>
-            )}
-
-            {error && !unlockFailed && (
-              <Text style={styles.error} testID="verify-pin-error">
-                {t('pin.incorrectAttemptsLeft', { count: MAX_ATTEMPTS - attempts })}
-              </Text>
-            )}
-
-            <View style={styles.dots} testID="verify-pin-dots">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <View
-                  key={i}
-                  style={[styles.dot, i < pin.length && styles.dotFilled, error && styles.dotError]}
-                />
-              ))}
-            </View>
-
-            <View style={styles.numpad}>
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((key) => {
-                if (key === '') {
-                  return <View key={key} style={styles.numpadKey} />;
-                }
-                return (
-                  <Pressable
-                    key={key}
-                    testID={key === 'del' ? 'pin-key-delete' : `pin-key-${key}`}
-                    style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
-                    disabled={isLocked}
-                    onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
-                    android_ripple={{ color: colors.surfaceLight, borderless: false, radius: 36 }}
-                    accessibilityRole="button"
-                    accessibilityLabel={key === 'del' ? 'Delete' : key}
-                  >
-                    <Text style={styles.numpadText}>{key === 'del' ? '⌫' : key}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <Text style={styles.error} testID="verify-pin-unlock-error">
+              {t('pin.unlockFailed')}
+            </Text>
+            <PrimaryButton
+              testID="verify-pin-recovery-button"
+              variant="outlined"
+              title={t('pin.recoveryCta')}
+              onPress={goToRecovery}
+            />
           </>
         )}
+
+        {!isLocked && error && !unlockFailed && (
+          <Text style={styles.error} testID="verify-pin-error">
+            {failedAttempts < FIRST_LOCKOUT_ATTEMPT
+              ? t('pin.incorrectAttemptsLeft', {
+                  count: FIRST_LOCKOUT_ATTEMPT - failedAttempts,
+                })
+              : t('pin.tooMany')}
+          </Text>
+        )}
+
+        <View style={styles.dots} testID="verify-pin-dots">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <View
+              key={i}
+              style={[styles.dot, i < pin.length && styles.dotFilled, error && styles.dotError]}
+            />
+          ))}
+        </View>
+
+        <View style={styles.numpad}>
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((key) => {
+            if (key === '') {
+              return <View key={key} style={styles.numpadKey} />;
+            }
+            return (
+              <Pressable
+                key={key}
+                testID={key === 'del' ? 'pin-key-delete' : `pin-key-${key}`}
+                style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
+                disabled={isLocked}
+                accessibilityState={{ disabled: isLocked }}
+                onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
+                android_ripple={{ color: colors.surfaceLight, borderless: false, radius: 36 }}
+                accessibilityRole="button"
+                accessibilityLabel={key === 'del' ? 'Delete' : key}
+              >
+                <Text style={styles.numpadText}>{key === 'del' ? '⌫' : key}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
     </SafeAreaView>
   );
