@@ -7,8 +7,8 @@ import { FEATURES } from '@/config/features';
  * shape so callers (notably the dashboard auto-auth `useEffect`)
  * compile without changes.
  *
- * With `EXPO_PUBLIC_ENABLE_DFX_BACKEND` off, Metro's dead-code
- * elimination drops the real module from the bundle: no `dfxApi`, no
+ * With `EXPO_PUBLIC_ENABLE_DFX_BACKEND` off, the real module remains in
+ * the JavaScript bundle but is not executed: no `dfxApi`, no
  * `dfxAuthService`, no JWT round-trip, no signing prompt.
  */
 const useDfxAuth = FEATURES.DFX_BACKEND

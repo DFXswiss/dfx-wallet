@@ -1,5 +1,5 @@
 import React from 'react';
-import { renderHook, waitFor } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Stub the network-side EvmBalanceFetcher so we can drive every branch
@@ -7,7 +7,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 // the test without depending on the module-load timing of the shared
 // fetcher's `fetchImpl = fetch` default.
 const mockFetcherResult: {
-  current: Map<string, { assetId: string; rawBalance: string } | { assetId: string; error: string }>;
+  current: Map<
+    string,
+    { assetId: string; rawBalance: string } | { assetId: string; error: string }
+  >;
 } = { current: new Map() };
 
 jest.mock('../../src/services/balances/evm-fetcher', () => {
@@ -23,20 +26,26 @@ jest.mock('../../src/services/balances/evm-fetcher', () => {
 
 import { useAccount } from '@tetherto/wdk-react-native-core';
 
-import { useEvmBalances, EVM_BALANCES_QUERY_KEY_PREFIX } from '../../src/services/balances/useEvmBalances';
+import {
+  useEvmBalances,
+  EVM_BALANCES_QUERY_KEY_PREFIX,
+} from '../../src/services/balances/useEvmBalances';
 import { getAssets } from '../../src/config/tokens';
 
+let queryClient: QueryClient | undefined;
+
 function wrap({ children }: { children: React.ReactNode }) {
-  const client = new QueryClient({
+  queryClient ??= new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: 0, staleTime: 0 },
     },
   });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
 
 describe('useEvmBalances', () => {
   beforeEach(() => {
+    queryClient = undefined;
     mockFetcherResult.current = new Map();
     (useAccount as jest.Mock).mockImplementation(({ network }: { network: string }) =>
       network === 'ethereum' ? { address: '0xfeedface' } : { address: null },
@@ -97,6 +106,34 @@ describe('useEvmBalances', () => {
     expect(entry?.rawBalance).toBe('0');
   });
 
+  it('retains the last successful value as stale when a later fetch fails', async () => {
+    mockFetcherResult.current.set('ethereum-native', {
+      assetId: 'ethereum-native',
+      rawBalance: '500',
+    });
+    const ethNative = getAssets(['ethereum']).find((a) => a.getId() === 'ethereum-native');
+    const { result } = renderHook(() => useEvmBalances([ethNative!]), { wrapper: wrap });
+    await waitFor(() => expect(result.current.data.get('ethereum-native')?.status).toBe('ok'));
+
+    mockFetcherResult.current.set('ethereum-native', {
+      assetId: 'ethereum-native',
+      error: 'rpc-down',
+    });
+    await act(async () => {
+      const client = queryClient;
+      if (!client) throw new Error('Query client was not mounted');
+      await client.invalidateQueries({ queryKey: EVM_BALANCES_QUERY_KEY_PREFIX });
+    });
+
+    await waitFor(() =>
+      expect(result.current.data.get('ethereum-native')).toMatchObject({
+        rawBalance: '500',
+        status: 'stale',
+        error: 'rpc-down',
+      }),
+    );
+  });
+
   it('falls back to "idle" status when the fetcher omits a result for an asset', async () => {
     // fetcher returns nothing → queryFn synthesises an idle entry per spec.
     mockFetcherResult.current = new Map();
@@ -111,15 +148,16 @@ describe('useEvmBalances', () => {
   it('sorts the query-key chain entries deterministically (multiple addresses)', async () => {
     // With every EVM chain resolving an address, both the sort comparator
     // *and* every per-chain `if (account.address) map.set(…)` branch fire.
-    (useAccount as jest.Mock).mockImplementation(({ network }: { network: string }) =>
-      ({
-        ethereum: { address: '0xeth' },
-        arbitrum: { address: '0xarb' },
-        polygon: { address: '0xpoly' },
-        base: { address: '0xbase' },
-        plasma: { address: '0xplasma' },
-        sepolia: { address: '0xsep' },
-      }[network] ?? { address: null }),
+    (useAccount as jest.Mock).mockImplementation(
+      ({ network }: { network: string }) =>
+        ({
+          ethereum: { address: '0xeth' },
+          arbitrum: { address: '0xarb' },
+          polygon: { address: '0xpoly' },
+          base: { address: '0xbase' },
+          plasma: { address: '0xplasma' },
+          sepolia: { address: '0xsep' },
+        })[network] ?? { address: null },
     );
     mockFetcherResult.current.set('ethereum-native', {
       assetId: 'ethereum-native',

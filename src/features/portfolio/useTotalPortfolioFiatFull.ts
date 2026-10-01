@@ -4,6 +4,7 @@ import {
   formatBalance,
   resolveFiatCurrency,
   toNumeric,
+  SYMBOL_TO_TICKER,
 } from '@/config/portfolio-presentation';
 import { getAssetMeta, getAssets } from '@/config/tokens';
 import { getRawBalance, useBalances } from '@/services/balances';
@@ -37,6 +38,7 @@ export function useTotalPortfolioFiat() {
   const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
   const { data: balances } = useBalances(assetConfigs);
   const [pricingReady, setPricingReady] = useState(pricingService.isReady());
+  const [pricingRevision, setPricingRevision] = useState(0);
 
   const [linkedAddresses, setLinkedAddresses] = useState<UserAddressDto[]>([]);
   const [activeAddress, setActiveAddress] = useState<string | null>(null);
@@ -51,6 +53,15 @@ export function useTotalPortfolioFiat() {
       .then(() => setPricingReady(true))
       .catch(() => setPricingReady(false));
   }, []);
+
+  useEffect(
+    () =>
+      pricingService.subscribe(() => {
+        setPricingReady(pricingService.isReady());
+        setPricingRevision((revision) => revision + 1);
+      }),
+    [],
+  );
 
   // Pull the DFX user once on dashboard mount (and on auth state changes)
   // so the linked-wallets balance hook can fan out without each consumer
@@ -96,26 +107,51 @@ export function useTotalPortfolioFiat() {
     pricingReady,
   );
 
-  const totalFiat = useMemo(() => {
+  const result = useMemo(() => {
+    void pricingRevision;
     let sum = 0;
+    let isIncomplete = false;
     for (const asset of assetConfigs) {
       const meta = getAssetMeta(asset.getId());
       if (!meta || meta.category === 'native') continue;
+      const balanceEntry = balances.get(asset.getId());
+      if (balanceEntry?.status === 'error' || balanceEntry?.status === 'stale') isIncomplete = true;
       const rawBalance = getRawBalance(balances, asset.getId());
       const balanceNum = toNumeric(formatBalance(rawBalance, asset.getDecimals()));
+      const isOwnCurrency = meta.canonicalSymbol === fiatCurrency;
+      const ticker = SYMBOL_TO_TICKER.get(meta.canonicalSymbol);
+      if (
+        balanceNum > 0 &&
+        !isOwnCurrency &&
+        (!pricingReady || !ticker || pricingService.getExchangeRate(ticker, fiatCurrency) == null)
+      ) {
+        isIncomplete = true;
+      }
       sum += computeFiatValue(balanceNum, meta.canonicalSymbol, fiatCurrency, pricingReady);
     }
     for (const wallet of linkedWallets) {
       const entry = linkedDiscovery.get(wallet.address.toLowerCase());
       if (entry?.known) sum += entry.totalFiat;
+      if (!entry?.known || entry.assets.some((asset) => asset.fiatValue == null))
+        isIncomplete = true;
     }
-    return sum;
-  }, [assetConfigs, balances, fiatCurrency, pricingReady, linkedWallets, linkedDiscovery]);
+    return { totalFiat: sum, isIncomplete };
+  }, [
+    assetConfigs,
+    balances,
+    fiatCurrency,
+    pricingReady,
+    pricingRevision,
+    linkedWallets,
+    linkedDiscovery,
+  ]);
 
   useEffect(() => {
-    const formatted = Number.isFinite(totalFiat) ? Math.round(totalFiat * 100) / 100 : 0;
+    const formatted = Number.isFinite(result.totalFiat)
+      ? Math.round(result.totalFiat * 100) / 100
+      : 0;
     setTotalBalanceFiat(String(formatted));
-  }, [totalFiat, setTotalBalanceFiat]);
+  }, [result.totalFiat, setTotalBalanceFiat]);
 
-  return totalFiat;
+  return result;
 }

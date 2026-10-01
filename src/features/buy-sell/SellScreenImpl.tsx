@@ -23,6 +23,11 @@ import {
   PrimaryButton,
 } from '@/components';
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
+import {
+  canAdvanceToPayment,
+  getPaymentInfoErrorCode,
+  getQuoteErrorCode,
+} from '@/features/buy-sell/services/quote-display';
 import type { ChainId } from '@/config/chains';
 import {
   formatBalance,
@@ -217,6 +222,7 @@ export default function SellScreen() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [paymentInfoError, setPaymentInfoError] = useState<string | null>(null);
   const { enabledChains } = useEnabledChains();
   const {
     paymentInfo,
@@ -250,6 +256,34 @@ export default function SellScreen() {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(true);
 
+  useEffect(() => {
+    setPaymentInfoError(null);
+  }, [amount, selectedAsset, selectedChainIndex, selectedTokenIndex, payoutCurrency]);
+
+  const handlePaymentInfoResult = useCallback(
+    (info: Awaited<ReturnType<typeof createPaymentInfo>>) => {
+      if (canAdvanceToPayment(info)) {
+        setPaymentInfoError(null);
+        setStep('confirm');
+        return;
+      }
+
+      const errorCode = getPaymentInfoErrorCode(info);
+      if (!errorCode) return;
+      setPaymentInfoError(
+        t([`sell.quoteError.${errorCode}`, 'sell.quoteError.generic'], { code: errorCode }),
+      );
+    },
+    [t],
+  );
+
+  const retryPaymentInfoAfterLink = useCallback(async () => {
+    const result = await retryLast();
+    if (result?.kind === 'paymentInfo') {
+      handlePaymentInfoResult(result.info);
+    }
+  }, [handlePaymentInfoResult, retryLast]);
+
   // Replay the last failed call after the user finishes the DFX login flow.
   const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
   useFocusEffect(
@@ -280,7 +314,7 @@ export default function SellScreen() {
           );
           await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ldsToken);
           await markChainLinkedInAutoLinkCache('lightning');
-          void retryLast();
+          await retryPaymentInfoAfterLink();
         } catch (err) {
           if (err instanceof DfxApiError && err.statusCode === 409) {
             const ownerToken = await dfxAuthService.loginAsLnurlAddressOwner(
@@ -290,7 +324,7 @@ export default function SellScreen() {
             );
             await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
             await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
-            void retryLast();
+            await retryPaymentInfoAfterLink();
             return;
           }
           throw err;
@@ -330,7 +364,7 @@ export default function SellScreen() {
         await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, newToken);
         if (chain === 'bitcoin' || chain === 'arbitrum' || chain === 'polygon' || chain === 'base')
           await markChainLinkedInAutoLinkCache(chain);
-        void retryLast();
+        await retryPaymentInfoAfterLink();
       } catch (err) {
         // 409 → address belongs to another DFX user. Re-auth as that user
         // (drop the prior session) so the rest of the flow runs against the
@@ -343,13 +377,13 @@ export default function SellScreen() {
           });
           await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
           await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
-          void retryLast();
+          await retryPaymentInfoAfterLink();
           return;
         }
         throw err;
       }
     },
-    [btcAccount, sparkAccount, ethAccount, lds, retryLast],
+    [btcAccount, sparkAccount, ethAccount, lds, retryPaymentInfoAfterLink],
   );
 
   // Wallet balances — drive the chain/token chip filter so users only see
@@ -421,8 +455,7 @@ export default function SellScreen() {
   // selection state instead, so a valid quote shows up immediately.
   const hasQuote =
     !!paymentInfo && paymentInfo.isValid && !!paymentInfo.feesTarget && parseFloat(amount) > 0;
-  const quoteError =
-    !hasQuote && paymentInfo && paymentInfo.error ? String(paymentInfo.error) : null;
+  const quoteError = !hasQuote ? getQuoteErrorCode(paymentInfo) : null;
   // Empty quote without an explicit error code → the chain still has to
   // be linked. The sell CTA opens the bank step; submitting the IBAN with
   // Continue triggers the linkChain modal and auto-retries the quote.
@@ -717,6 +750,7 @@ export default function SellScreen() {
       />
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {paymentInfoError ? <Text style={styles.errorText}>{paymentInfoError}</Text> : null}
 
       <View style={styles.spacer} />
 
@@ -724,6 +758,7 @@ export default function SellScreen() {
         title={t('common.continue')}
         onPress={async () => {
           if (!selectedChainSpec) return;
+          setPaymentInfoError(null);
           const info = await createPaymentInfo({
             amount: numAmount,
             asset: sellAsset,
@@ -732,7 +767,7 @@ export default function SellScreen() {
             iban: iban.replace(/\s/g, ''),
             chain: selectedChainSpec.chain,
           });
-          if (info) setStep('confirm');
+          handlePaymentInfoResult(info);
         }}
         disabled={iban.replace(/\s/g, '').length < 15}
         loading={isLoading}

@@ -4,6 +4,7 @@ import {
   formatBalance,
   resolveFiatCurrency,
   toNumeric,
+  SYMBOL_TO_TICKER,
 } from '@/config/portfolio-presentation';
 import { getAssetMeta, getAssets } from '@/config/tokens';
 import { getRawBalance, useBalances } from '@/services/balances';
@@ -22,7 +23,9 @@ import { useWalletStore } from '@/store';
  * Pricing initialization is identical to the full version so the same
  * `useEffect` lifecycle drives the "ready → set total" transition.
  */
-export function useTotalPortfolioFiat(): number {
+export type PortfolioFiatResult = { totalFiat: number; isIncomplete: boolean };
+
+export function useTotalPortfolioFiat(): PortfolioFiatResult {
   const { selectedCurrency } = useWalletStore();
   const setTotalBalanceFiat = useWalletStore((s) => s.setTotalBalanceFiat);
 
@@ -33,6 +36,7 @@ export function useTotalPortfolioFiat(): number {
   const assetConfigs = useMemo(() => getAssets(), []);
   const { data: balances } = useBalances(assetConfigs);
   const [pricingReady, setPricingReady] = useState(pricingService.isReady());
+  const [pricingRevision, setPricingRevision] = useState(0);
 
   useEffect(() => {
     if (pricingService.isReady()) {
@@ -45,24 +49,48 @@ export function useTotalPortfolioFiat(): number {
       .catch(() => setPricingReady(false));
   }, []);
 
+  useEffect(
+    () =>
+      pricingService.subscribe(() => {
+        setPricingReady(pricingService.isReady());
+        setPricingRevision((revision) => revision + 1);
+      }),
+    [],
+  );
+
   const fiatCurrency = resolveFiatCurrency(selectedCurrency);
 
-  const totalFiat = useMemo(() => {
+  const result = useMemo<PortfolioFiatResult>(() => {
+    void pricingRevision;
     let sum = 0;
+    let isIncomplete = false;
     for (const asset of assetConfigs) {
       const meta = getAssetMeta(asset.getId());
       if (!meta || meta.category === 'native') continue;
+      const balanceEntry = balances.get(asset.getId());
+      if (balanceEntry?.status === 'error' || balanceEntry?.status === 'stale') isIncomplete = true;
       const rawBalance = getRawBalance(balances, asset.getId());
       const balanceNum = toNumeric(formatBalance(rawBalance, asset.getDecimals()));
+      const isOwnCurrency = meta.canonicalSymbol === fiatCurrency;
+      const ticker = SYMBOL_TO_TICKER.get(meta.canonicalSymbol);
+      if (
+        balanceNum > 0 &&
+        !isOwnCurrency &&
+        (!pricingReady || !ticker || pricingService.getExchangeRate(ticker, fiatCurrency) == null)
+      ) {
+        isIncomplete = true;
+      }
       sum += computeFiatValue(balanceNum, meta.canonicalSymbol, fiatCurrency, pricingReady);
     }
-    return sum;
-  }, [assetConfigs, balances, fiatCurrency, pricingReady]);
+    return { totalFiat: sum, isIncomplete };
+  }, [assetConfigs, balances, fiatCurrency, pricingReady, pricingRevision]);
 
   useEffect(() => {
-    const formatted = Number.isFinite(totalFiat) ? Math.round(totalFiat * 100) / 100 : 0;
+    const formatted = Number.isFinite(result.totalFiat)
+      ? Math.round(result.totalFiat * 100) / 100
+      : 0;
     setTotalBalanceFiat(String(formatted));
-  }, [totalFiat, setTotalBalanceFiat]);
+  }, [result.totalFiat, setTotalBalanceFiat]);
 
-  return totalFiat;
+  return result;
 }

@@ -23,13 +23,14 @@ jest.mock('@/services/balances', () => {
 // USDT-in-USD = 1, BTC-in-USD = 50_000. The real singleton would hit
 // CoinGecko on `initialize`, which is exactly what we want to avoid in a
 // unit test.
+let mockBtcRate = 50_000;
 beforeAll(() => {
   jest.spyOn(pricingService, 'isReady').mockReturnValue(true);
   jest.spyOn(pricingService, 'initialize').mockResolvedValue(undefined);
   jest.spyOn(pricingService, 'getExchangeRate').mockImplementation((ticker, currency) => {
     if (currency !== FiatCurrency.USD) return undefined;
     if (ticker === 'usdt') return 1;
-    if (ticker === 'btc') return 50_000;
+    if (ticker === 'btc') return mockBtcRate;
     return undefined;
   });
 });
@@ -59,6 +60,7 @@ function setBalances(entries: Record<string, string>) {
 
 describe('useTotalPortfolioFiat (local / MVP variant)', () => {
   beforeEach(() => {
+    mockBtcRate = 50_000;
     setBalances({});
     useWalletStore.getState().reset();
     useWalletStore.setState({ selectedCurrency: 'USD' });
@@ -66,35 +68,35 @@ describe('useTotalPortfolioFiat (local / MVP variant)', () => {
 
   it('returns 0 when the user holds nothing', async () => {
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(0));
+    await waitFor(() => expect(result.current.totalFiat).toBe(0));
     expect(useWalletStore.getState().totalBalanceFiat).toBe('0');
   });
 
   it('sums a 1-USDT holding to 1 USD (stablecoin short-circuit, no rate lookup)', async () => {
     setBalances({ [USDT_ETH_ID]: '1000000' }); // 1 USDT (6 decimals).
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(1));
+    await waitFor(() => expect(result.current.totalFiat).toBe(1));
     expect(useWalletStore.getState().totalBalanceFiat).toBe('1');
   });
 
   it('rounds the persisted total to two decimals (raw 0.12345 → "0.12")', async () => {
     setBalances({ [USDT_ETH_ID]: '123450' }); // 0.12345 USDT
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBeCloseTo(0.12345, 5));
+    await waitFor(() => expect(result.current.totalFiat).toBeCloseTo(0.12345, 5));
     expect(useWalletStore.getState().totalBalanceFiat).toBe('0.12');
   });
 
   it('multiplies a WBTC holding through the pricing-service rate', async () => {
     setBalances({ [WBTC_ETH_ID]: '100000000' }); // 1 WBTC (8 decimals)
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(50_000));
+    await waitFor(() => expect(result.current.totalFiat).toBe(50_000));
   });
 
   it('reacts when the selectedCurrency changes', async () => {
     setBalances({ [USDT_ETH_ID]: '1000000' });
     const { result, rerender } = renderHook(() => useTotalPortfolioFiat());
 
-    await waitFor(() => expect(result.current).toBe(1));
+    await waitFor(() => expect(result.current.totalFiat).toBe(1));
 
     act(() => {
       useWalletStore.setState({ selectedCurrency: 'CHF' });
@@ -105,6 +107,27 @@ describe('useTotalPortfolioFiat (local / MVP variant)', () => {
     // The mock returns undefined for non-USD rates, so computeFiatValue
     // falls through to 0 — the assertion is that the hook re-evaluates
     // when the currency changes (rather than holding the old USD result).
-    await waitFor(() => expect(result.current).toBe(0));
+    await waitFor(() => expect(result.current.totalFiat).toBe(0));
+    expect(result.current.isIncomplete).toBe(true);
+  });
+
+  it('marks a retained stale balance as incomplete without discarding its value', async () => {
+    mockBalanceMap = new Map([
+      [USDT_ETH_ID, { ...makeEntry(USDT_ETH_ID, '1000000'), status: 'stale' }],
+    ]);
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+    await waitFor(() => expect(result.current.totalFiat).toBe(1));
+    expect(result.current.isIncomplete).toBe(true);
+  });
+
+  it('recomputes the total when the pricing service publishes an update', async () => {
+    setBalances({ [WBTC_ETH_ID]: '100000000' });
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+    await waitFor(() => expect(result.current.totalFiat).toBe(50_000));
+
+    mockBtcRate = 60_000;
+    act(() => pricingService.reset());
+
+    await waitFor(() => expect(result.current.totalFiat).toBe(60_000));
   });
 });
