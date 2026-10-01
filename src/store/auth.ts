@@ -11,7 +11,7 @@ import { secureStorage, StorageKeys } from '@/services/storage';
  * checks the same flag and short-circuits when the module is absent.
  */
 const biometricModule: {
-  authenticateWithBiometric: () => Promise<boolean>;
+  authenticateWithBiometric: (options: BiometricPromptOptions) => Promise<boolean>;
   isBiometricAvailable: () => Promise<boolean>;
 } | null = FEATURES.BIOMETRIC
   ? // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -43,7 +43,10 @@ type AuthState = {
   isDfxAuthenticated: boolean;
   biometricEnabled: boolean;
   pinHash: string | null;
+  failedAttempts: number;
+  lockedUntil: number | null;
   isHydrated: boolean;
+  hydrateError: string | null;
 
   hydrate: () => Promise<void>;
   setOnboarded: (value: boolean) => Promise<void>;
@@ -51,10 +54,52 @@ type AuthState = {
   setDfxAuthenticated: (value: boolean) => void;
   setPin: (pin: string) => Promise<void>;
   verifyPin: (pin: string) => Promise<boolean>;
-  authenticateBiometric: () => Promise<boolean>;
+  authenticateBiometric: (options: BiometricPromptOptions) => Promise<boolean>;
   setBiometricEnabled: (enabled: boolean) => Promise<void>;
   reset: () => Promise<void>;
 };
+
+export type BiometricPromptOptions = {
+  promptMessage: string;
+  cancelLabel: string;
+};
+
+export class PinOverwriteNotAllowedError extends Error {
+  constructor() {
+    super('An existing PIN cannot be replaced while the wallet is locked');
+    this.name = 'PinOverwriteNotAllowedError';
+  }
+}
+
+const FIRST_LOCKOUT_ATTEMPT = 5;
+const INITIAL_LOCKOUT_MS = 30_000;
+const MAX_LOCKOUT_MS = 60 * 60 * 1000;
+
+export function pinLockoutMs(failedAttempts: number): number {
+  if (failedAttempts < FIRST_LOCKOUT_ATTEMPT) return 0;
+  return Math.min(
+    INITIAL_LOCKOUT_MS * 2 ** (failedAttempts - FIRST_LOCKOUT_ATTEMPT),
+    MAX_LOCKOUT_MS,
+  );
+}
+
+export type PostPinDestination = {
+  route: '/(auth)/(tabs)/dashboard' | '/(onboarding)/legal-disclaimer';
+  shouldSetOnboarded: boolean;
+};
+
+export function getPostPinDestination(
+  isOnboarded: boolean,
+  legalEnabled: boolean,
+): PostPinDestination {
+  if (isOnboarded) {
+    return { route: '/(auth)/(tabs)/dashboard', shouldSetOnboarded: false };
+  }
+  if (legalEnabled) {
+    return { route: '/(onboarding)/legal-disclaimer', shouldSetOnboarded: false };
+  }
+  return { route: '/(auth)/(tabs)/dashboard', shouldSetOnboarded: true };
+}
 
 const BIOMETRIC_KEY = 'biometricEnabled';
 
@@ -64,39 +109,56 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isDfxAuthenticated: false,
   biometricEnabled: false,
   pinHash: null,
+  failedAttempts: 0,
+  lockedUntil: null,
   isHydrated: false,
+  hydrateError: null,
 
   hydrate: async () => {
-    const [pinHash, isOnboarded, dfxToken, biometric] = await Promise.all([
-      secureStorage.get(StorageKeys.PIN_HASH),
-      secureStorage.get(StorageKeys.IS_ONBOARDED),
-      secureStorage.get(StorageKeys.DFX_AUTH_TOKEN),
-      secureStorage.get(BIOMETRIC_KEY),
-    ]);
+    set({ hydrateError: null });
+    try {
+      const [pinHash, isOnboarded, dfxToken, biometric, failedAttempts, lockedUntil] =
+        await Promise.all([
+          secureStorage.get(StorageKeys.PIN_HASH),
+          secureStorage.get(StorageKeys.IS_ONBOARDED),
+          secureStorage.get(StorageKeys.DFX_AUTH_TOKEN),
+          secureStorage.get(BIOMETRIC_KEY),
+          secureStorage.get(StorageKeys.PIN_FAILED_ATTEMPTS),
+          secureStorage.get(StorageKeys.PIN_LOCKED_UNTIL),
+        ]);
 
-    // Re-arm both the API client and the auth service with the persisted
-    // token so authenticated requests work after a cold start, and so the
-    // service's `linkAddress` / `isAuthenticated` checks see the same token
-    // the API client is sending out. With the DFX backend deferred there is
-    // no client to arm — the persisted token can stay where it is in secure
-    // storage until a build with the flag on picks it up.
-    if (dfxModule) {
-      if (dfxToken) {
-        dfxModule.dfxApi.setAuthToken(dfxToken);
-        dfxModule.dfxAuthService.adoptStoredToken(dfxToken);
-      } else {
-        dfxModule.dfxApi.clearAuthToken();
-        dfxModule.dfxAuthService.adoptStoredToken(null);
+      // Re-arm both the API client and the auth service with the persisted
+      // token so authenticated requests work after a cold start, and so the
+      // service's `linkAddress` / `isAuthenticated` checks see the same token
+      // the API client is sending out. With the DFX backend deferred there is
+      // no client to arm — the persisted token can stay where it is in secure
+      // storage until a build with the flag on picks it up.
+      if (dfxModule) {
+        if (dfxToken) {
+          dfxModule.dfxApi.setAuthToken(dfxToken);
+          dfxModule.dfxAuthService.adoptStoredToken(dfxToken);
+        } else {
+          dfxModule.dfxApi.clearAuthToken();
+          dfxModule.dfxAuthService.adoptStoredToken(null);
+        }
       }
-    }
 
-    set({
-      pinHash,
-      isOnboarded: isOnboarded === 'true',
-      isDfxAuthenticated: dfxToken !== null,
-      biometricEnabled: biometric === 'true',
-      isHydrated: true,
-    });
+      set({
+        pinHash,
+        isOnboarded: isOnboarded === 'true',
+        isDfxAuthenticated: dfxToken !== null,
+        biometricEnabled: biometric === 'true',
+        failedAttempts: failedAttempts ? Number(failedAttempts) : 0,
+        lockedUntil: lockedUntil ? Number(lockedUntil) : null,
+        isHydrated: true,
+        hydrateError: null,
+      });
+    } catch (error) {
+      set({
+        hydrateError: error instanceof Error ? error.message : 'Authentication storage unavailable',
+        isHydrated: false,
+      });
+    }
   },
 
   setOnboarded: async (value) => {
@@ -108,15 +170,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setDfxAuthenticated: (value) => set({ isDfxAuthenticated: value }),
 
   setPin: async (pin) => {
+    const { pinHash, isAuthenticated } = get();
+    if (pinHash && !isAuthenticated) throw new PinOverwriteNotAllowedError();
     const hash = await hashPin(pin);
     await secureStorage.set(StorageKeys.PIN_HASH, hash);
     set({ pinHash: hash });
   },
 
   verifyPin: async (pin) => {
-    const { pinHash } = get();
+    const { pinHash, failedAttempts, lockedUntil } = get();
     if (!pinHash) return false;
+    if (lockedUntil && lockedUntil > Date.now()) return false;
     const ok = await verifyPinHash(pin, pinHash);
+    if (!ok) {
+      const nextAttempts = failedAttempts + 1;
+      const lockoutMs = pinLockoutMs(nextAttempts);
+      const nextLockedUntil = lockoutMs > 0 ? Date.now() + lockoutMs : null;
+      await Promise.all([
+        secureStorage.set(StorageKeys.PIN_FAILED_ATTEMPTS, String(nextAttempts)),
+        nextLockedUntil
+          ? secureStorage.set(StorageKeys.PIN_LOCKED_UNTIL, String(nextLockedUntil))
+          : secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL),
+      ]);
+      set({ failedAttempts: nextAttempts, lockedUntil: nextLockedUntil });
+      return false;
+    }
+    await Promise.all([
+      secureStorage.remove(StorageKeys.PIN_FAILED_ATTEMPTS),
+      secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL),
+    ]);
+    set({ failedAttempts: 0, lockedUntil: null });
     if (ok && needsPinRehash(pinHash)) {
       void (async () => {
         try {
@@ -132,13 +215,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return ok;
   },
 
-  authenticateBiometric: async () => {
+  authenticateBiometric: async (options) => {
     if (!biometricModule) return false;
     const { biometricEnabled } = get();
     if (!biometricEnabled) return false;
     const available = await biometricModule.isBiometricAvailable();
     if (!available) return false;
-    return biometricModule.authenticateWithBiometric();
+    return biometricModule.authenticateWithBiometric(options);
   },
 
   setBiometricEnabled: async (enabled) => {
@@ -152,7 +235,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   reset: async () => {
+    if (dfxModule) {
+      dfxModule.dfxApi.clearAuthToken();
+      dfxModule.dfxAuthService.adoptStoredToken(null);
+    }
     await Promise.all([
+      secureStorage.remove(StorageKeys.ACCOUNTS),
+      secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS),
       secureStorage.remove(StorageKeys.PIN_HASH),
       secureStorage.remove(StorageKeys.IS_ONBOARDED),
       secureStorage.remove(StorageKeys.ENCRYPTED_SEED),
@@ -160,6 +249,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       secureStorage.remove(StorageKeys.WALLET_ORIGIN),
       secureStorage.remove(StorageKeys.PASSKEY_CREDENTIAL_ID),
       secureStorage.remove(StorageKeys.PASSKEY_DERIVATION_VERSION),
+      secureStorage.remove(StorageKeys.PIN_FAILED_ATTEMPTS),
+      secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL),
+      secureStorage.remove(StorageKeys.WALLET_TYPE),
       secureStorage.remove(BIOMETRIC_KEY),
     ]);
     set({
@@ -168,6 +260,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isDfxAuthenticated: false,
       biometricEnabled: false,
       pinHash: null,
+      failedAttempts: 0,
+      lockedUntil: null,
+      hydrateError: null,
     });
   },
 }));
