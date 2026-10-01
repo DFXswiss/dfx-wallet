@@ -3,9 +3,11 @@ import { fireEvent, render } from '@testing-library/react-native';
 import TradeModeTabs from '../../src/features/buy-sell/TradeModeTabs';
 
 const mockReplace = jest.fn();
+let mockSearchParams: Record<string, string | string[] | undefined> = {};
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: mockReplace }),
+  useLocalSearchParams: () => mockSearchParams,
 }));
 
 jest.mock('react-i18next', () => ({
@@ -13,6 +15,9 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@/theme', () => ({
+  Typography: {
+    bodyMedium: { fontSize: 14, lineHeight: 20, fontWeight: '400' },
+  },
   useColors: () => ({
     border: '#dddddd',
     card: '#ffffff',
@@ -25,6 +30,7 @@ jest.mock('@/theme', () => ({
 describe('TradeModeTabs', () => {
   beforeEach(() => {
     mockReplace.mockClear();
+    mockSearchParams = {};
   });
 
   it.each([
@@ -55,6 +61,52 @@ describe('TradeModeTabs', () => {
     const { getByTestId } = render(<TradeModeTabs active={active} />);
 
     fireEvent.press(getByTestId(testId));
-      expect(mockReplace).toHaveBeenCalledWith(route);
+    expect(mockReplace).toHaveBeenCalledWith({ pathname: route, params: {} });
+  });
+
+  it('preserves all supported route parameters when navigating', () => {
+    mockSearchParams = {
+      asset: 'BTC',
+      chain: 'bitcoin',
+      targetAddress: 'bc1qexample',
+      targetBlockchain: 'Bitcoin',
+    };
+    const { getByTestId } = render(<TradeModeTabs active="buy" />);
+
+    fireEvent.press(getByTestId('trade-tab-swap'));
+
+    expect(mockReplace).toHaveBeenCalledWith({
+      pathname: '/(auth)/swap',
+      params: {
+        asset: 'BTC',
+        chain: 'bitcoin',
+        targetAddress: 'bc1qexample',
+        targetBlockchain: 'Bitcoin',
+      },
+    });
+  });
+
+  it('does not preserve unknown or empty route parameters', () => {
+    mockSearchParams = {
+      asset: '',
+      chain: 'ethereum',
+      foo: 'x',
+    };
+    const { getByTestId } = render(<TradeModeTabs active="buy" />);
+
+    fireEvent.press(getByTestId('trade-tab-sell'));
+
+    expect(mockReplace).toHaveBeenCalledWith({
+      pathname: '/(auth)/sell',
+      params: { chain: 'ethereum' },
+    });
+  });
+
+  it('does not navigate when the active tab is pressed', () => {
+    const { getByTestId } = render(<TradeModeTabs active="swap" />);
+
+    fireEvent.press(getByTestId('trade-tab-swap'));
+
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 });

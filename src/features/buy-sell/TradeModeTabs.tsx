@@ -1,8 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { useColors } from '@/theme';
+import { Typography, useColors } from '@/theme';
 
 export type TradeMode = 'buy' | 'sell' | 'swap';
 
@@ -16,10 +16,25 @@ const tradeModes = [
   { key: 'swap', label: 'swap.title', route: '/(auth)/swap' },
 ] as const;
 
+const keepNonEmptyString = (value: unknown) =>
+  typeof value === 'string' && value.length > 0 ? value : undefined;
+
 export default function TradeModeTabs({ active }: TradeModeTabsProps) {
   const router = useRouter();
+  const { asset, chain, targetAddress, targetBlockchain } = useLocalSearchParams();
   const { t } = useTranslation();
   const colors = useColors();
+
+  const assetParam = keepNonEmptyString(asset);
+  const chainParam = keepNonEmptyString(chain);
+  const targetAddressParam = keepNonEmptyString(targetAddress);
+  const targetBlockchainParam = keepNonEmptyString(targetBlockchain);
+  const params = {
+    ...(assetParam === undefined ? {} : { asset: assetParam }),
+    ...(chainParam === undefined ? {} : { chain: chainParam }),
+    ...(targetAddressParam === undefined ? {} : { targetAddress: targetAddressParam }),
+    ...(targetBlockchainParam === undefined ? {} : { targetBlockchain: targetBlockchainParam }),
+  };
 
   return (
     <View
@@ -43,7 +58,7 @@ export default function TradeModeTabs({ active }: TradeModeTabsProps) {
             key={mode.key}
             onPress={() => {
               if (!selected) {
-                router.replace(mode.route);
+                router.replace({ pathname: mode.route, params });
               }
             }}
             style={[
@@ -83,7 +98,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   label: {
+    ...Typography.bodyMedium,
     fontWeight: '600',
-    fontSize: 14,
   },
 });

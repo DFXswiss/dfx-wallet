@@ -2,8 +2,7 @@ import { ImageBackground, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { DarkBackdrop } from '@/components/DarkBackdrop';
-import { Icon } from '@/components/Icon';
+import { AppHeader, DarkBackdrop, Icon } from '@/components';
 import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 import TradeModeTabs from './TradeModeTabs';
 
@@ -25,11 +24,15 @@ export default function SwapScreenImpl() {
         />
       )}
       <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']} testID="swap-screen">
-        <TradeModeTabs active="swap" />
-        <View style={styles.placeholder}>
-          <Icon name="wallet" />
-          <Text style={styles.title}>{t('swap.title')}</Text>
-          <Text style={styles.description}>{t('swap.comingSoon')}</Text>
+        <AppHeader title={t('swap.title')} testID="swap-screen-header" />
+        <View style={styles.progressSpacer} />
+        <View style={styles.content}>
+          <TradeModeTabs active="swap" />
+          <View style={styles.placeholder}>
+            <Icon name="wallet" />
+            <Text style={styles.title}>{t('swap.title')}</Text>
+            <Text style={styles.description}>{t('swap.comingSoon')}</Text>
+          </View>
         </View>
       </SafeAreaView>
     </View>
@@ -44,8 +47,13 @@ const makeStyles = (colors: ThemeColors) =>
     },
     screen: {
       flex: 1,
-      paddingHorizontal: 16,
-      paddingTop: 16,
+    },
+    progressSpacer: {
+      height: 20,
+    },
+    content: {
+      flex: 1,
+      paddingHorizontal: 20,
     },
     placeholder: {
       flex: 1,
