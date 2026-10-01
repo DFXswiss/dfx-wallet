@@ -713,8 +713,8 @@
           <div class="callout warn">
             <p>
               <b>WDK-Init nach Continue:</b> der Tether-WDK initialisiert beim ersten Wallet-Setup
-              jede Chain (Bitcoin SegWit, Taproot, Plasma, Ethereum &amp; L2s, Solana, TON, TRON,
-              Spark). Auf einem frischen CI-Simulator kann das bis zu 120s dauern — der Maestro-Flow
+              jede konfigurierte Chain (Bitcoin, Spark, Ethereum, Arbitrum, Polygon, Base, Plasma
+              und Sepolia). Auf einem frischen CI-Simulator kann das bis zu 120s dauern — der Maestro-Flow
               und der Detox-Test gewähren explizit <code>--withTimeout(120_000)</code>.
             </p>
           </div>
@@ -812,9 +812,9 @@
           </div>
           <p class="spec-intro">
             Zwei Schritte: Asset wählen → QR-Code anzeigen. BTC ist der einzige MVP-Asset mit
-            mehreren Chains (SegWit und EVM/Wrapped); die Stablecoins (CHF, EUR, USD) shippen nur
-            auf Ethereum, der Chain-Selector ist dort versteckt. Taproot- und Lightning-Layer sind
-            hinter <code>EXPO_PUBLIC_ENABLE_DFX_BACKEND</code> gegated.
+            mehreren Empfangswegen (SegWit und EVM/Wrapped); die Stablecoins (CHF, EUR, USD)
+            werden nur auf Ethereum angeboten, der Chain-Selector ist dort versteckt. Taproot und
+            Lightning sind hinter <code>EXPO_PUBLIC_ENABLE_DFX_BACKEND</code> gegated.
           </p>
 
           <div class="tests cols-2">
@@ -895,9 +895,9 @@
                 <img src="../../../e2e/__baselines__/send.png" alt="Send — Asset-Auswahl" />
               </div>
               <div class="desc">
-                Asset-Liste wie bei Receive (BTC, CHF, EUR, USD). BTC im Send-Flow läuft
-                ausschließlich über Spark/Lightning — andere Bitcoin-Layer sind hinter
-                Feature-Flags gegated. Die Stablecoin-Sends bieten vier Chains.
+                Asset-Liste wie bei Receive (BTC, CHF, EUR, USD). Spark-Adressen werden über das
+                Spark-Konto gesendet; Bitcoin-On-Chain-Adressen über das Bitcoin-Konto. Die
+                Stablecoin-Sends bieten vier Chains.
               </div>
             </div>
             <div class="test">
@@ -913,8 +913,8 @@
               </div>
               <div class="desc">
                 Selected-Asset-Pill, Adress-Input mit Scan-Button, Amount-Input, disabled
-                Continue-CTA bis Input gültig ist. BTC hat nur einen Chain (Spark), daher kein
-                Chain-Selector.
+                Continue-CTA bis Input gültig ist. Der sichtbare BTC-Pfad hat keinen
+                Chain-Selector; der Kontotyp wird anhand der Empfängeradresse gewählt.
               </div>
             </div>
           </div>

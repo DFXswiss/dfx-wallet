@@ -1,6 +1,6 @@
 # DFX Wallet
 
-Self-custodial mobile wallet for the DFX ecosystem. Multi-chain, hardware-wallet ready, built with React Native and the Tether Wallet Development Kit (WDK).
+Self-custodial mobile wallet for the DFX ecosystem. Multi-chain, with hardware-wallet integration in progress, built with React Native and the Tether Wallet Development Kit (WDK).
 
 > **Status:** Early development (`v0.1.0`). APIs, flows and UI are still moving.
 
@@ -67,8 +67,8 @@ until they are. `always` rows must reach `full` for the MVP to ship.
 | Function                                 | Technical components                                                                                                   | Status                                                          | Tests                                                                                                                        |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | Welcome / entry screen                   | `app/(onboarding)/welcome.tsx`, `isPasskeySupported()` gate                                                            | always                                                          | partial (Detox visual baseline, Maestro `01-welcome.yaml`)                                                                   |
-| Create wallet from generated seed        | `(onboarding)/create-wallet.tsx`, `services/wallet/seed.ts`, WDK `useWalletManager.initializeFromMnemonic`             | always                                                          | full (`test/services/seed.test.ts`, Detox `onboarding.test.ts`, Maestro `10-onboarding-create.yaml`)                         |
-| Restore wallet from 12 / 24-word seed    | `(onboarding)/restore-wallet.tsx`, `validateSeedPhrase`, WDK                                                           | deferred (`EXPO_PUBLIC_ENABLE_RESTORE`)                         | partial (seed unit tests + Detox + Maestro `11-onboarding-restore.yaml`, no screen unit test)                                |
+| Create wallet from generated seed        | `(onboarding)/create-wallet.tsx`, `services/wallet/seed.ts`, WDK `useWalletManager.restoreWallet`                       | always                                                          | full (`test/services/seed.test.ts`, Detox `onboarding.test.ts`, Maestro `10-onboarding-create.yaml`)                         |
+| Restore wallet from 12 / 24-word seed    | `(onboarding)/restore-wallet.tsx`, `validateSeedPhrase`, WDK                                                           | deferred (`EXPO_PUBLIC_ENABLE_RESTORE`)                         | partial (seed unit tests + Detox + Maestro `12-onboarding-restore.yaml`, no screen unit test)                                |
 | Verify seed phrase (post-create quiz)    | `(onboarding)/verify-seed.tsx`                                                                                         | deferred (`EXPO_PUBLIC_ENABLE_RESTORE`)                         | none                                                                                                                         |
 | Create wallet via Passkey (WebAuthn PRF) | `(onboarding)/create-passkey.tsx`, `features/passkey/services/passkey-service.ts`, `key-derivation.ts` (HKDF → BIP-39) | deferred (`EXPO_PUBLIC_ENABLE_PASSKEY`) — iOS 18+ / Android 14+ | partial (`passkey-service.test.ts`, `passkey-key-derivation.test.ts` cover the PRF → HKDF → BIP-39 services; no screen test) |
 | Restore wallet via Passkey               | `(onboarding)/restore-passkey.tsx`, `features/passkey/services/setup-wallet.ts`                                        | deferred (`EXPO_PUBLIC_ENABLE_PASSKEY`)                         | partial (`passkey-setup-wallet.test.ts` covers `setup-wallet.ts`; no screen test)                                            |
@@ -79,7 +79,7 @@ until they are. `always` rows must reach `full` for the MVP to ship.
 
 | Function                                            | Technical components                                                                                                          | Status                                    | Tests                                                                                 |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------- |
-| PIN unlock (cold start, deep link, JS reload)       | `app/(pin)/verify.tsx`, `useAuthStore.verifyPin`, WDK `useWalletManager.unlock`, `MAX_ATTEMPTS = 5`                           | deferred (`EXPO_PUBLIC_ENABLE_PIN`)       | full (`test/store/auth.test.ts` + Detox `verify-pin*` + Maestro `12-pin-unlock.yaml`) |
+| PIN unlock (cold start, deep link, JS reload)       | `app/(pin)/verify.tsx`, `useAuthStore.verifyPin`, WDK `useWalletManager.unlock`, `MAX_ATTEMPTS = 5`                           | deferred (`EXPO_PUBLIC_ENABLE_PIN`)       | full (`test/store/auth.test.ts` + Detox `verify-pin*` + Maestro `13-pin-unlock.yaml`) |
 | Biometric unlock (Face ID / Touch ID / fingerprint) | `features/biometric/biometric.ts`, `expo-local-authentication`, `useAuthStore.authenticateBiometric`, `biometricEnabled` flag | deferred (`EXPO_PUBLIC_ENABLE_BIOMETRIC`) | full (`test/services/biometric.test.ts`, `test/store/auth.test.ts`)                   |
 | Auth gate around every `(auth)/*` route             | `app/(auth)/_layout.tsx`, hard redirect to `/(pin)/verify` when `isAuthenticated` is false                                    | deferred (`EXPO_PUBLIC_ENABLE_PIN`)       | partial (covered indirectly via PIN-unlock E2E)                                       |
 
@@ -90,7 +90,7 @@ until they are. `always` rows must reach `full` for the MVP to ship.
 | Dashboard total balance                                  | `app/(auth)/(tabs)/dashboard.tsx`, `useTotalPortfolioFiat`, `services/balances/`, `pricing-service.ts`                                                                                                     | always                                                                                                                                               | partial (`pricing-service.test.ts`, `test/store/wallet.test.ts`; no hook/screen test)                                                                                            |
 | Hide balance (eye toggle)                                | `dashboard.tsx` local state                                                                                                                                                                                | deferred (`EXPO_PUBLIC_ENABLE_PORTFOLIO`)                                                                                                            | none                                                                                                                                                                             |
 | Receive (BTC native / Lightning / EVM stables)           | `(auth)/receive/index.tsx`, `components/QrCode`, WDK `useAccount`, `useLdsWallet` (LN address)                                                                                                             | always                                                                                                                                               | none                                                                                                                                                                             |
-| Send native + ERC-20                                     | `(auth)/send/index.tsx`, `useSendFlow`, WDK `sendFromAccount` / `estimateFee`, `components/QrScanner`                                                                                                      | always                                                                                                                                               | full (`use-send-flow.test.tsx` happy+failure paths, `evm-address`/`evm-signature` + property suites, Maestro `21-send.yaml`)                                                     |
+| Send native + ERC-20                                     | `(auth)/send/index.tsx`, `useSendFlow`, WDK `useAccount().send()` / `estimateFee()`, `components/QrScanner`                                                                                               | always                                                                                                                                               | full (`use-send-flow.test.tsx` happy+failure paths, `evm-address`/`evm-signature` + property suites, Maestro `21-send.yaml`)                                                     |
 | Buy (DFX fiat on-ramp, SEPA)                             | `(auth)/buy/index.tsx`, `useBuyFlow`, `features/dfx-backend/services/payment-service.ts`, `features/dfx-backend/services/asset-service.ts`, `features/dfx-backend/services/fiat-service.ts`, `DfxAuthGate` | deferred (`EXPO_PUBLIC_ENABLE_BUY_SELL`)                                                                                                             | partial (`dfx-api.test.ts`, `dfx-auth-gate.test.ts`, `dfx-auth-service.test.ts`; no flow test)                                                                                   |
 | Sell (DFX off-ramp to IBAN)                              | `(auth)/sell/index.tsx`, `useSellFlow`, `features/dfx-backend/services/payment-service.ts`, `DfxAuthGate`                                                                                                  | deferred (`EXPO_PUBLIC_ENABLE_BUY_SELL`)                                                                                                             | partial (same DFX-API/auth tests; no flow test)                                                                                                                                  |
 | Portfolio (local + DFX-linked wallets)                   | `(auth)/portfolio/index.tsx`, `services/balances/useBalances.ts`, `useEvmBalances`, `useWdkBalances`, `useLinkedWalletDiscovery`, `useLinkedWalletFiat`                                                    | deferred (`EXPO_PUBLIC_ENABLE_PORTFOLIO`)                                                                                                            | partial (`btc-fetcher.test.ts`, `blockscout.test.ts`, `etherscan.test.ts`, `coingecko-*.test.ts`, `discoverable-tokens.test.ts`, `pricing-service.test.ts`; no screen/hook test) |
@@ -123,7 +123,7 @@ until they are. `always` rows must reach `full` for the MVP to ship.
 | Display currency (CHF / EUR / USD)          | `settings.tsx`, `useWalletStore.setSelectedCurrency`, persisted in secure store, `dfxUserService.updateUser` sync                                                                                          | deferred (`EXPO_PUBLIC_ENABLE_SETTINGS`)                                               | full (`test/store/wallet.test.ts`)                                                                                                                                            |
 | Biometric unlock toggle                     | `settings.tsx`, `useAuthStore.setBiometricEnabled`                                                                                                                                                         | deferred (`EXPO_PUBLIC_ENABLE_BIOMETRIC`)                                              | full (covered under "Biometric unlock" above)                                                                                                                                 |
 | Seed phrase export                          | `(auth)/seed-export.tsx`, WDK `useWalletManager`, passkey re-auth for passkey-origin wallets, `expo-screen-capture` (soft import)                                                                          | deferred (`EXPO_PUBLIC_ENABLE_SETTINGS`)                                               | partial (`seed.test.ts` covers the lib; screen untested)                                                                                                                      |
-| Hardware wallet pairing (BitBox02)          | `(auth)/hardware-connect/index.tsx`, `features/hardware-wallet/services/bitbox.ts`, `transport-usb.ts` (Android only), `transport-ble.ts`, `BitboxWasmWebView.tsx`, `wasm-bridge.ts`, `bitbox-protocol.ts` | deferred (`EXPO_PUBLIC_ENABLE_HARDWARE_WALLET`)                                        | full (`wasm-bridge`, `bitbox-provider` cross-layer vs. behavioral fake, `transport-usb`/`transport-ble`, `bitbox-wasm-html` suites; firmware side via `bitbox-simulator.yml`) |
+| Hardware wallet pairing (BitBox02, work in progress; signing not implemented) | `(auth)/hardware-connect/index.tsx`, `features/hardware-wallet/services/bitbox.ts`, `transport-usb.ts` (Android only), `transport-ble.ts`, `BitboxWasmWebView.tsx`, `wasm-bridge.ts`, `bitbox-protocol.ts` | deferred (`EXPO_PUBLIC_ENABLE_HARDWARE_WALLET`) | partial (transport and bridge unit tests; pairing is incomplete and no transaction signing path is wired) |
 | Multi-sig vault setup (local cosigner list) | `(auth)/multi-sig/index.tsx`, `(auth)/multi-sig/setup.tsx`, `useMultiSigStore`                                                                                                                             | deferred (`EXPO_PUBLIC_ENABLE_MULTISIG`) — Zustand store only, no on-chain signing yet | none                                                                                                                                                                          |
 | Delete wallet                               | `settings.tsx`, WDK `deleteWallet`, `useAuthStore.reset`, secure-store wipe                                                                                                                                | deferred (`EXPO_PUBLIC_ENABLE_SETTINGS`)                                               | partial (`auth.test.ts` covers `reset`; flow itself untested)                                                                                                                 |
 
@@ -145,10 +145,9 @@ Every `deferred` row in the matrix above is gated by one of these
 build-time flags. They are **off by default**. A flag flips to "on by
 default" only once every function it gates is `full` in the test
 matrix. Each flag isolates the code path so that a build with the flag
-off can never load, parse, or execute the deferred module — the goal
-is both crash-safety (broken WIP code can't take the MVP down) and
-defense-in-depth (a compromised dependency in a non-MVP path can't
-reach the MVP runtime).
+off does not execute the deferred module. Its source remains in the
+JavaScript bundle as an unevaluated factory, as described above; the
+runtime gate provides crash-safety, not source removal.
 
 | Flag                                 | Gated functions                                                                                                                                                     | Default |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
@@ -206,7 +205,7 @@ is regenerated by `npm run bundle:wdk` (also runs in `postinstall`).
 | Framework       | React Native (Expo `~54`, New Architecture)                                                                |
 | Routing         | Expo Router (file-based)                                                                                   |
 | Language        | TypeScript (strict)                                                                                        |
-| Wallet SDK      | [`@tetherto/wdk-react-native-provider`](https://www.npmjs.com/package/@tetherto/wdk-react-native-provider) |
+| Wallet SDK      | [`@tetherto/wdk-react-native-core`](https://www.npmjs.com/package/@tetherto/wdk-react-native-core)         |
 | Hardware wallet | [`bitbox-api`](https://www.npmjs.com/package/bitbox-api) (WASM) + `react-native-ble-plx`                   |
 | State           | Zustand                                                                                                    |
 | Storage         | `react-native-mmkv` (fast KV), `expo-secure-store` (secrets)                                               |
@@ -214,17 +213,17 @@ is regenerated by `npm run bundle:wdk` (also runs in `postinstall`).
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 22
 - npm 10+
-- Xcode 16+ with iOS 15.1 SDK (for iOS builds)
-- Android Studio with SDK 35 / min SDK 29 (for Android builds)
+- Xcode 16 with the iOS 18 SDK (for iOS builds; deployment target iOS 18)
+- Android Studio with Android API 36 installed (minimum SDK 34)
 - CocoaPods (installed automatically by Expo prebuild)
 
 ## Quick Start
 
 ```bash
 # install dependencies (patches and WDK worklet bundling run automatically)
-npm install
+npm ci --legacy-peer-deps
 
 # run on iOS simulator
 npm run ios
@@ -292,8 +291,9 @@ src/
   config/                          # Chain configs, environment
   hooks/                           # Custom React hooks
   i18n/                            # Localization (de, en)
-  services/
-    dfx/                           # DFX backend client + DTOs
+  services/                        # Shared wallet, pricing, balance, and utility services
+  features/
+    dfx-backend/                   # DFX backend client + DTOs
     hardware-wallet/               # BitBox02 transport + provider
     passkey/                       # WebAuthn PRF wallet creation
   store/                           # Zustand stores
@@ -305,17 +305,12 @@ patches/                           # patch-package patches
 
 ## Hardware Wallet (BitBox02)
 
-The wallet uses [`bitbox-api`](https://github.com/BitBoxSwiss/bitbox-api-rs) (WASM) for the protocol stack — Noise XX handshake, Protobuf framing and signing are transport-agnostic. Only the byte-level read/write transport is platform-specific:
+The in-progress integration uses [`bitbox-api`](https://github.com/BitBoxSwiss/bitbox-api-rs) (WASM) for the protocol stack. Pairing and transport work is not complete, and transaction signing is not implemented in the app.
 
 - **USB HID** — Android only (Apple does not allow third-party apps to talk to USB-HID devices).
 - **BLE** — Android + iOS, for the BitBox02 Nova.
 
-The wallet operates in a view-only model when paired: no seed is stored on device, signing is delegated to the hardware.
-
-Signing is supported for:
-
-- BTC: SegWit, Taproot, PSBT
-- ETH: EIP-1559, ERC-20, EIP-712
+The intended model is view-only after pairing, with no hardware-wallet seed stored on the phone. Until pairing and signing are wired end to end, the feature remains disabled by default and must not be treated as transaction protection.
 
 ## Branch Workflow
 

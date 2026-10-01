@@ -11,10 +11,10 @@ End-to-end UI tests for DFX Wallet using [Maestro](https://maestro.mobile.dev/).
 
 ## Prerequisites
 
-The wallet ships native modules that are not Expo Go compatible (`react-native-ble-plx`, `react-native-mmkv`, `react-native-nitro-modules`, `bitbox-api`, `@tetherto/wdk-react-native-provider`). Maestro therefore requires an installed dev-client or release build, never Expo Go.
+The wallet ships native modules that are not Expo Go compatible (`react-native-ble-plx`, `react-native-mmkv`, `react-native-nitro-modules`, `bitbox-api`, `@tetherto/wdk-react-native-core`). Maestro therefore requires an installed dev-client or release build, never Expo Go.
 
 - Maestro CLI: `brew tap mobile-dev-inc/tap && brew install maestro` (or `curl -Ls https://get.maestro.mobile.dev | bash`)
-- iOS: Xcode 16+, an iOS Simulator (run `xcrun simctl list devices`), and Facebook IDB (`brew tap facebook/fb && brew install idb-companion`) — required by Maestro to drive the simulator
+- iOS: Xcode 16, an iOS 18 Simulator (run `xcrun simctl list devices`), and Facebook IDB (`brew tap facebook/fb && brew install idb-companion`) — required by Maestro to drive the simulator
 - Android: Android SDK with an emulator image (API 34+, x86_64)
 - Built and installed app:
   - iOS: `npx expo run:ios --configuration Release`
