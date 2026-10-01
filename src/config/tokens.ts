@@ -165,7 +165,7 @@ const ASSET_SPECS: AssetSpec[] = [
     decimals: 6,
     isNative: false,
     category: 'stablecoin',
-    address: '0xA0b86991c6218a36c1d19D4a2e9Eb0cE3606eB48',
+    address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
     defaultEnabled: true,
   },
   {
@@ -212,7 +212,7 @@ const ASSET_SPECS: AssetSpec[] = [
     decimals: 6,
     isNative: false,
     category: 'stablecoin',
-    address: '0x3c499c542cEF5E3811e1192cE70d8cC03d5c3359',
+    address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
   },
   {
     network: 'base',
@@ -260,7 +260,7 @@ const ASSET_SPECS: AssetSpec[] = [
     decimals: 18,
     isNative: false,
     category: 'stablecoin',
-    address: '0xd4DD9e2F021bB459d5A5F6C24c12FE09c5d45553',
+    address: '0xD4dD9e2F021BB459D5A5f6c24C12fE09c5D45553',
   },
   {
     network: 'polygon',
@@ -271,7 +271,7 @@ const ASSET_SPECS: AssetSpec[] = [
     decimals: 18,
     isNative: false,
     category: 'stablecoin',
-    address: '0xd4DD9e2F021bB459d5A5F6C24c12FE09c5d45553',
+    address: '0xD4dD9e2F021BB459D5A5f6c24C12fE09c5D45553',
   },
   {
     network: 'base',
@@ -282,7 +282,7 @@ const ASSET_SPECS: AssetSpec[] = [
     decimals: 18,
     isNative: false,
     category: 'stablecoin',
-    address: '0xd4DD9e2F021bB459d5A5F6C24c12FE09c5d45553',
+    address: '0xD4dD9e2F021BB459D5A5f6c24C12fE09c5D45553',
   },
 
   // dEURO (EUR)
@@ -394,7 +394,7 @@ const ASSET_SPECS: AssetSpec[] = [
     decimals: 6,
     isNative: false,
     category: 'stablecoin',
-    address: '0xd077a400968890eacc75cdc901f0356c943e4fdb',
+    address: '0xd077A400968890Eacc75cdc901F0356c943e4fDb',
   },
 ];
 
