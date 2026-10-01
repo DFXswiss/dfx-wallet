@@ -46,7 +46,7 @@ const ASSETS = [
 ];
 
 /** Serve the public catalogs and delegate everything else to `main`. */
-function routeFetch(main: (url: string, init?: RequestInit) => Response) {
+function routeFetch(main: (url: string, init?: RequestInit) => Response | Promise<Response>) {
   fetchMock.mockImplementation(async (url, init) => {
     if (url === `${BASE}/v1/fiat`) return jsonOk(FIATS);
     if (url === `${BASE}/v1/asset`) return jsonOk(ASSETS);
@@ -215,16 +215,53 @@ describe('dfxPaymentService buy flow', () => {
     expect(init.body).toBe('{}');
   });
 
-  it('forwards the AbortSignal to the quote request', async () => {
-    routeFetch(() => jsonOk({ isValid: true }));
+  it('aborts the quote request when the caller aborts', async () => {
+    let revealSignal!: (signal: AbortSignal) => void;
+    const signalCaptured = new Promise<AbortSignal>((resolve) => {
+      revealSignal = resolve;
+    });
+    routeFetch(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          if (!signal) {
+            reject(new Error('missing signal'));
+            return;
+          }
+          revealSignal(signal);
+          signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        }),
+    );
     const controller = new AbortController();
 
-    await dfxPaymentService.getBuyQuote(
+    const request = dfxPaymentService.getBuyQuote(
       { amount: 1, currency: 'EUR', asset: 'BTC', blockchain: 'Bitcoin' },
       { signal: controller.signal },
     );
+    const fetchSignal = await signalCaptured;
 
-    expect(findCall(`${BASE}/v1/buy/quote`).signal).toBe(controller.signal);
+    expect(fetchSignal).not.toBe(controller.signal);
+    expect(fetchSignal.aborted).toBe(false);
+    controller.abort();
+    expect(fetchSignal.aborted).toBe(true);
+    await expect(request).rejects.toThrow('aborted');
+  });
+
+  it('passes an already-aborted caller signal to fetch as aborted', async () => {
+    routeFetch((_url, init) => {
+      if (!init?.signal?.aborted) return jsonOk({ isValid: true });
+      return Promise.reject(new Error('aborted'));
+    });
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      dfxPaymentService.getBuyQuote(
+        { amount: 1, currency: 'EUR', asset: 'BTC', blockchain: 'Bitcoin' },
+        { signal: controller.signal },
+      ),
+    ).rejects.toThrow('aborted');
+    expect(findCall(`${BASE}/v1/buy/quote`).signal?.aborted).toBe(true);
   });
 });
 

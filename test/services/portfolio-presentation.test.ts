@@ -66,6 +66,12 @@ describe('toNumeric', () => {
 });
 
 describe('parseUnits', () => {
+  it('accepts a comma decimal separator without accepting thousands separators', () => {
+    expect(parseUnits('1,25', 6)).toBe('1250000');
+    expect(parseUnits(',5', 8)).toBe('50000000');
+    expect(parseUnits('1,234,56', 6)).toBe('0');
+    expect(parseUnits('1.234,56', 6)).toBe('0');
+  });
   it('scales a whole-number amount to base units', () => {
     expect(parseUnits('1', 6)).toBe('1000000');
     expect(parseUnits('123', 18)).toBe('123000000000000000000');

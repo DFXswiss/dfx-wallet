@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAccount, type IAsset } from '@tetherto/wdk-react-native-core';
 import { getEvmRpcUrl, type ChainId } from '@/config/chains';
@@ -24,6 +24,7 @@ export const EVM_BALANCES_QUERY_KEY_PREFIX = ['balances', 'evm'] as const;
  * EVM chain) so Rules of Hooks are satisfied.
  */
 export function useEvmBalances(assets: IAsset[], accountIndex = 0): BalanceSourceResult {
+  const lastSuccessfulRef = useRef(new Map<string, BalanceEntry>());
   const ethAccount = useAccount({ network: 'ethereum', accountIndex });
   const arbAccount = useAccount({ network: 'arbitrum', accountIndex });
   const polygonAccount = useAccount({ network: 'polygon', accountIndex });
@@ -97,21 +98,24 @@ export function useEvmBalances(assets: IAsset[], accountIndex = 0): BalanceSourc
             fetchedAt,
           });
         } else if ('rawBalance' in r) {
-          map.set(spec.assetId, {
+          const entry: BalanceEntry = {
             assetId: spec.assetId,
             rawBalance: r.rawBalance,
             status: 'ok',
             source: 'evm',
             fetchedAt,
-          });
+          };
+          map.set(spec.assetId, entry);
+          lastSuccessfulRef.current.set(spec.assetId, entry);
         } else {
+          const previous = lastSuccessfulRef.current.get(spec.assetId);
           map.set(spec.assetId, {
             assetId: spec.assetId,
-            rawBalance: '0',
-            status: 'error',
+            rawBalance: previous?.rawBalance ?? '0',
+            status: previous ? 'stale' : 'error',
             source: 'evm',
             error: r.error,
-            fetchedAt,
+            fetchedAt: previous?.fetchedAt ?? fetchedAt,
           });
         }
       }

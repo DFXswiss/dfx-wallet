@@ -132,6 +132,7 @@ type UserDataRowProps = {
 };
 
 function UserDataRow({ label, value, onEdit, editTestID }: UserDataRowProps) {
+  const { t } = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
@@ -145,7 +146,7 @@ function UserDataRow({ label, value, onEdit, editTestID }: UserDataRowProps) {
           style={({ pressed }) => [styles.editBtn, pressed && styles.pressed]}
           onPress={onEdit}
           testID={editTestID}
-          accessibilityLabel="Edit"
+          accessibilityLabel={t('common.edit')}
         >
           <Icon name="document" size={18} color={colors.primary} />
         </Pressable>

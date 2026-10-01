@@ -8,7 +8,7 @@ import { EvmBalanceFetcher, type EvmAssetSpec } from '@/services/balances/evm-fe
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { getTokenList, isBlockscoutSupported } from '@/services/explorer/blockscout';
 import { lookupCoinIds } from '@/services/pricing/coingecko-coins-list';
-import { fetchSimplePrices } from '@/services/pricing/coingecko-simple-price';
+import { fetchSimplePrices, type SimplePriceMap } from '@/services/pricing/coingecko-simple-price';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 
 const sharedFetcher = new EvmBalanceFetcher(getEvmRpcUrl);
@@ -64,6 +64,34 @@ export type WalletDiscovery = {
    *  errored — drives the `—` placeholder on the Portfolio card. */
   known: boolean;
 };
+
+export function calculateDiscoveredFiatValue(
+  balance: number,
+  price: number | undefined,
+): number | null {
+  if (price == null || price <= 0) return null;
+  const fiatValue = balance * price;
+  return fiatValue > 0 ? fiatValue : null;
+}
+
+export function createDiscoveredAsset(
+  input: Omit<DiscoveredAsset, 'balance' | 'fiatValue'> & {
+    decimals: number;
+    price?: number;
+  },
+): DiscoveredAsset | null {
+  const balance = toNumeric(formatBalance(input.rawBalance, input.decimals));
+  if (balance <= 0) return null;
+  return {
+    chain: input.chain,
+    symbol: input.symbol,
+    name: input.name,
+    contract: input.contract,
+    rawBalance: input.rawBalance,
+    balance,
+    fiatValue: calculateDiscoveredFiatValue(balance, input.price),
+  };
+}
 
 // Wallet holdings + prices must read as "minute-fresh". The 60s
 // staleTime lets a brand-new mount short-circuit on an in-cache result
@@ -145,31 +173,28 @@ export function useLinkedWalletDiscovery(
             const r = await fetchBtcBalance(cleanAddress);
             if ('rawBalance' in r) {
               anyKnown = true;
-              const balanceNum = toNumeric(formatBalance(r.rawBalance, 8));
-              if (balanceNum > 0) {
+              if (toNumeric(formatBalance(r.rawBalance, 8)) > 0) {
                 // Always pull a fresh BTC price for the active fiat
                 // rather than reading the singleton cache — the cache is
                 // primed once at app boot and can be minutes stale.
-                const fresh = await fetchSimplePrices(['bitcoin'], [fiatCurrency]);
+                const fresh = await fetchSimplePrices(['bitcoin'], [fiatCurrency]).catch(
+                  (): SimplePriceMap => new Map(),
+                );
                 // eslint-disable-next-line security/detect-object-injection -- fiatCurrency is a typed FiatCurrency enum
                 const priceFresh = fresh.get('bitcoin')?.[fiatCurrency];
                 const priceCached = pricingService.getPriceById('bitcoin', fiatCurrency);
                 const price =
                   typeof priceFresh === 'number' && priceFresh > 0 ? priceFresh : priceCached;
-                if (price != null && price > 0) {
-                  const fiatValue = balanceNum * price;
-                  if (fiatValue > 0) {
-                    assets.push({
-                      chain: 'bitcoin',
-                      symbol: 'BTC',
-                      name: 'Bitcoin',
-                      contract: null,
-                      rawBalance: r.rawBalance,
-                      balance: balanceNum,
-                      fiatValue,
-                    });
-                  }
-                }
+                const asset = createDiscoveredAsset({
+                  chain: 'bitcoin',
+                  symbol: 'BTC',
+                  name: 'Bitcoin',
+                  contract: null,
+                  rawBalance: r.rawBalance,
+                  decimals: 8,
+                  ...(price !== undefined ? { price } : {}),
+                });
+                if (asset) assets.push(asset);
               }
             }
             continue;
@@ -199,7 +224,7 @@ export function useLinkedWalletDiscovery(
             name: string;
             contract: string;
             decimals: number;
-            coingeckoId: string;
+            coingeckoId?: string;
           };
           const tokenSpecs: ChainToken[] = [];
 
@@ -217,17 +242,16 @@ export function useLinkedWalletDiscovery(
                   const coinIdByContract = await lookupCoinIds(
                     chain,
                     list.value.map((t) => t.contractAddress),
-                  );
+                  ).catch((): Map<string, string> => new Map());
                   for (const t of list.value) {
                     const coingeckoId = coinIdByContract.get(t.contractAddress.toLowerCase());
-                    if (!coingeckoId) continue;
                     tokenSpecs.push({
                       assetId: `discovery:${chain}:${t.contractAddress.toLowerCase()}`,
                       symbol: t.symbol || 'ERC20',
                       name: t.name || t.symbol || 'Unknown',
                       contract: t.contractAddress,
                       decimals: t.decimals,
-                      coingeckoId,
+                      ...(coingeckoId ? { coingeckoId } : {}),
                     });
                   }
                 }
@@ -260,12 +284,15 @@ export function useLinkedWalletDiscovery(
           // arbitrarily stale (5+ minutes between user gestures). React
           // Query's staleTime/refetchInterval gives us at-most-60s
           // freshness for the linked-wallet view this way.
-          const allCoingeckoIds = tokenSpecs.map((t) => t.coingeckoId);
+          const allCoingeckoIds = tokenSpecs.flatMap((t) => (t.coingeckoId ? [t.coingeckoId] : []));
           if (native) allCoingeckoIds.push(native.coingeckoId);
           const dynamicPrices = allCoingeckoIds.length
-            ? await fetchSimplePrices(Array.from(new Set(allCoingeckoIds)), [fiatCurrency])
+            ? await fetchSimplePrices(Array.from(new Set(allCoingeckoIds)), [fiatCurrency]).catch(
+                (): SimplePriceMap => new Map(),
+              )
             : new Map();
-          const priceFor = (coingeckoId: string): number | undefined => {
+          const priceFor = (coingeckoId: string | undefined): number | undefined => {
+            if (!coingeckoId) return undefined;
             const entry = dynamicPrices.get(coingeckoId);
             // eslint-disable-next-line security/detect-object-injection -- fiatCurrency is a typed FiatCurrency enum
             const fresh = entry?.[fiatCurrency];
@@ -314,41 +341,33 @@ export function useLinkedWalletDiscovery(
               anyKnown = true;
 
               if (spec.isNative && native) {
-                const balanceNum = toNumeric(formatBalance(r.rawBalance, native.decimals));
-                if (balanceNum <= 0) continue;
                 const price = priceFor(native.coingeckoId);
-                if (price == null || price <= 0) continue;
-                const fiatValue = balanceNum * price;
-                if (fiatValue <= 0) continue;
-                assets.push({
+                const asset = createDiscoveredAsset({
                   chain,
                   symbol: native.symbol,
                   name: native.symbol,
                   contract: null,
                   rawBalance: r.rawBalance,
-                  balance: balanceNum,
-                  fiatValue,
+                  decimals: native.decimals,
+                  ...(price !== undefined ? { price } : {}),
                 });
+                if (asset) assets.push(asset);
                 continue;
               }
 
               const token = tokenSpecs.find((t) => t.assetId === spec.assetId);
               if (!token) continue;
-              const balanceNum = toNumeric(formatBalance(r.rawBalance, token.decimals));
-              if (balanceNum <= 0) continue;
               const price = priceFor(token.coingeckoId);
-              if (price == null || price <= 0) continue;
-              const fiatValue = balanceNum * price;
-              if (fiatValue <= 0) continue;
-              assets.push({
+              const asset = createDiscoveredAsset({
                 chain,
                 symbol: token.symbol,
                 name: token.name,
                 contract: token.contract,
                 rawBalance: r.rawBalance,
-                balance: balanceNum,
-                fiatValue,
+                decimals: token.decimals,
+                ...(price !== undefined ? { price } : {}),
               });
+              if (asset) assets.push(asset);
             }
           } catch {
             // Per-chain failure is contained — other chains for this
@@ -364,7 +383,7 @@ export function useLinkedWalletDiscovery(
       await Promise.all(tasks);
       return out;
     },
-    enabled: enabled && pricingReady,
+    enabled,
     staleTime: STALE_TIME_MS,
     refetchInterval: REFETCH_INTERVAL_MS,
     // Show the previous (still-valid) result while a refetch — or a

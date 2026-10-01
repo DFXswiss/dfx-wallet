@@ -23,6 +23,11 @@ import {
   PrimaryButton,
 } from '@/components';
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
+import {
+  canAdvanceToPayment,
+  getPaymentInfoErrorCode,
+  getQuoteErrorCode,
+} from '@/features/buy-sell/services/quote-display';
 import type { ChainId } from '@/config/chains';
 import {
   formatFiat as fmtFiat,
@@ -244,6 +249,7 @@ export default function BuyScreen() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [paymentInfoError, setPaymentInfoError] = useState<string | null>(null);
   const initialPreselect = useMemo(() => {
     const wantedSymbol = typeof params.asset === 'string' ? params.asset.toUpperCase() : null;
     const wantedChain = typeof params.chain === 'string' ? params.chain : null;
@@ -263,6 +269,41 @@ export default function BuyScreen() {
   const [selectedCurrency, setSelectedCurrency] = useState<(typeof CURRENCIES)[number]>('CHF');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(true);
+
+  useEffect(() => {
+    setPaymentInfoError(null);
+  }, [amount, selectedAsset, selectedChainIndex, selectedTokenIndex, selectedCurrency]);
+
+  const handlePaymentInfoResult = useCallback(
+    (info: Awaited<ReturnType<typeof createPaymentInfo>>) => {
+      if (canAdvanceToPayment(info)) {
+        setPaymentInfoError(null);
+        setConfirmError(null);
+        setConfirmOpen(false);
+        setStep('payment');
+        return;
+      }
+
+      const errorCode = getPaymentInfoErrorCode(info);
+      if (!errorCode) return;
+      const translatedError = t([`buy.quoteError.${errorCode}`, 'buy.quoteError.generic'], {
+        code: errorCode,
+      });
+      if (hasTargetWallet) {
+        setConfirmError(translatedError);
+      } else {
+        setPaymentInfoError(translatedError);
+      }
+    },
+    [hasTargetWallet, t],
+  );
+
+  const retryPaymentInfoAfterLink = useCallback(async () => {
+    const result = await retryLast();
+    if (result?.kind === 'paymentInfo') {
+      handlePaymentInfoResult(result.info);
+    }
+  }, [handlePaymentInfoResult, retryLast]);
 
   // After the user goes through the DFX login flow we land back on this
   // screen; replay the failed call so they don't have to retap "Continue".
@@ -302,7 +343,7 @@ export default function BuyScreen() {
           );
           await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ldsToken);
           await markChainLinkedInAutoLinkCache('lightning');
-          void retryLast();
+          await retryPaymentInfoAfterLink();
         } catch (err) {
           // 409 → the LDS LNURL is on another DFX user. Mirror the EVM/BTC
           // recovery: drop the current JWT and re-auth as the LNURL owner
@@ -316,7 +357,7 @@ export default function BuyScreen() {
             );
             await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
             await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
-            void retryLast();
+            await retryPaymentInfoAfterLink();
             return;
           }
           throw err;
@@ -360,7 +401,7 @@ export default function BuyScreen() {
         // entry needed).
         if (chain === 'bitcoin' || chain === 'arbitrum' || chain === 'polygon' || chain === 'base')
           await markChainLinkedInAutoLinkCache(chain);
-        void retryLast();
+        await retryPaymentInfoAfterLink();
       } catch (err) {
         // 409 means the address belongs to a *different* DFX user. The user's
         // mental model is "this is MY wallet" — so re-auth as the owner of
@@ -377,13 +418,13 @@ export default function BuyScreen() {
           // Wipe the per-chain link cache: a different user means different
           // already-linked chains, so auto-link should re-evaluate from scratch.
           await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
-          void retryLast();
+          await retryPaymentInfoAfterLink();
           return;
         }
         throw err;
       }
     },
-    [btcAccount, sparkAccount, ethAccount, lds, retryLast],
+    [btcAccount, sparkAccount, ethAccount, lds, retryPaymentInfoAfterLink],
   );
 
   // eslint-disable-next-line security/detect-object-injection -- selectedChainIndex is bounded by chains.length
@@ -433,8 +474,7 @@ export default function BuyScreen() {
   // DFX returns 200 with `error` set for soft validation failures (e.g.
   // KycRequired, AssetUnsupported). We need to surface that to the user
   // instead of getting stuck on "Angebot wird berechnet …".
-  const quoteError =
-    !hasQuote && paymentInfo && paymentInfo.error ? String(paymentInfo.error) : null;
+  const quoteError = !paymentInfoError && !hasQuote ? getQuoteErrorCode(paymentInfo) : null;
   // DFX sometimes returns 200 with `isValid: false` and no error code —
   // typically when the chain isn't yet attached to the user's account.
   // Tapping the buy CTA triggers /buy/paymentInfos which fires the linkChain
@@ -712,6 +752,7 @@ export default function BuyScreen() {
           ) : null}
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {paymentInfoError ? <Text style={styles.errorText}>{paymentInfoError}</Text> : null}
 
           <View testID="buy-payment-method-row" style={styles.paymentMethodRow}>
             <View style={styles.paymentMethodIcon}>
@@ -742,6 +783,7 @@ export default function BuyScreen() {
                 setConfirmOpen(true);
                 return;
               }
+              setPaymentInfoError(null);
               const info = await createPaymentInfo({
                 amount: numAmount,
                 currency: selectedCurrency,
@@ -749,7 +791,7 @@ export default function BuyScreen() {
                 blockchain,
                 chain: selectedChainSpec.chain,
               });
-              if (info) setStep('payment');
+              handlePaymentInfoResult(info);
             }}
             disabled={!numAmount || numAmount <= 0 || belowMin || aboveMax || unsupportedChain}
             loading={isLoading}
@@ -943,10 +985,7 @@ export default function BuyScreen() {
               blockchain,
               chain: selectedChainSpec.chain,
             });
-            if (info) {
-              setConfirmOpen(false);
-              setStep('payment');
-            }
+            handlePaymentInfoResult(info);
           } catch (err) {
             setConfirmError(
               err instanceof Error ? err.message : t('linkedWallet.reauthError.generic'),

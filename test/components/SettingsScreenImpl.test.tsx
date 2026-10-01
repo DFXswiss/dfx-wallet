@@ -90,7 +90,9 @@ jest.mock('@/components', () => {
 // eslint-disable-next-line import/first
 import SettingsScreenImpl from '../../src/features/settings/SettingsScreenImpl';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { __i18n } = require('react-i18next') as { __i18n: { language: string; changeLanguage: jest.Mock } };
+const { __i18n } = require('react-i18next') as {
+  __i18n: { language: string; changeLanguage: jest.Mock };
+};
 
 function renderScreen() {
   return render(
@@ -175,7 +177,8 @@ describe('SettingsScreenImpl', () => {
     await waitFor(() => expect(getByTestId('settings-language')).toBeTruthy());
 
     fireEvent.press(getByTestId('settings-language'));
-    expect(__i18n.changeLanguage).toHaveBeenCalledWith('de');
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('de'));
+    expect(secureStorage.set).toHaveBeenCalledWith(StorageKeys.SELECTED_LANGUAGE, 'de');
 
     fireEvent.press(getByTestId('settings-currencies'));
     expect(useWalletStore.getState().selectedCurrency).toBe('EUR');
@@ -214,7 +217,7 @@ describe('SettingsScreenImpl', () => {
     const { getByTestId } = renderScreen();
     await waitFor(() => expect(getByTestId('settings-language')).toBeTruthy());
     fireEvent.press(getByTestId('settings-language'));
-    expect(__i18n.changeLanguage).toHaveBeenCalledWith('en');
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('en'));
   });
 
   it('alerts and still persists when enabling biometrics without hardware', async () => {

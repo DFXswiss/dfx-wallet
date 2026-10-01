@@ -208,12 +208,11 @@ export function useBuyFlow() {
    */
   const retryLast = useCallback(async () => {
     const last = lastAction.current;
-    if (!last) return;
+    if (!last) return null;
     if (last.kind === 'quote') {
-      await getQuote(last.params);
-    } else {
-      await createPaymentInfo(last.params);
+      return { kind: 'quote' as const, info: await getQuote(last.params) };
     }
+    return { kind: 'paymentInfo' as const, info: await createPaymentInfo(last.params) };
   }, [getQuote, createPaymentInfo]);
 
   const reset = useCallback(() => {

@@ -1,11 +1,21 @@
+import { getLocales } from 'expo-localization';
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import { getLocales } from 'expo-localization';
 
 import de from './locales/de.json';
 import en from './locales/en.json';
+import { normalizeLanguage, resolveInitialLanguageSync } from './language';
 
-const deviceLanguage = getLocales()[0]?.languageCode ?? 'en';
+export {
+  normalizeLanguage,
+  resolveInitialLanguage,
+  resolveInitialLanguageSync,
+  setLanguage,
+} from './language';
+export type { AppLanguage } from './language';
+
+const deviceLanguage = normalizeLanguage(getLocales()[0]?.languageCode) ?? 'en';
+const initialLanguage = resolveInitialLanguageSync(deviceLanguage);
 
 // eslint-disable-next-line import/no-named-as-default-member
 void i18n.use(initReactI18next).init({
@@ -13,7 +23,7 @@ void i18n.use(initReactI18next).init({
     de: { translation: de },
     en: { translation: en },
   },
-  lng: deviceLanguage,
+  lng: initialLanguage,
   fallbackLng: 'en',
   interpolation: {
     escapeValue: false,

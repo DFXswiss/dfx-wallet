@@ -37,7 +37,7 @@ export function MenuModal({ visible, onClose }: Props) {
                 onPress={onClose}
                 hitSlop={12}
                 accessibilityRole="button"
-                accessibilityLabel="Close menu"
+                accessibilityLabel={t('common.closeMenu')}
                 testID="menu-close-button"
               >
                 <Icon name="close" size={24} color={colors.text} />

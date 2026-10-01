@@ -48,7 +48,7 @@ export default function DashboardScreen() {
   const { selectedCurrency } = useWalletStore();
   const { isDfxAuthenticated } = useAuthStore();
   const { authenticate, isAuthenticating } = useDfxAuth();
-  const totalPortfolioFiat = useTotalPortfolioFiat();
+  const { totalFiat: totalPortfolioFiat, isIncomplete } = useTotalPortfolioFiat();
   const colors = useColors();
   const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors, scheme), [colors, scheme]);
@@ -107,6 +107,9 @@ export default function DashboardScreen() {
               <Text style={styles.balanceHidden}>••••</Text>
             )}
           </View>
+          {isIncomplete ? (
+            <Text style={styles.incompleteHint}>{t('dashboard.incompleteBalance')}</Text>
+          ) : null}
         </View>
 
         {(FEATURES.PORTFOLIO || FEATURES.PAY) && (
@@ -234,6 +237,12 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
       ...Typography.bodyMedium,
       color: colors.textSecondary,
       fontWeight: '500',
+      ...overImage,
+    },
+    incompleteHint: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      marginTop: 4,
       ...overImage,
     },
     balanceEyeBubble: {

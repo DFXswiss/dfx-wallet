@@ -79,7 +79,7 @@ export const toNumeric = (formatted: string): number => {
 };
 
 /**
- * Parse a user-typed decimal amount ("1", "1.5", "0.000001") into the asset's
+ * Parse a user-typed decimal amount ("1", "1.5", "0,5") into the asset's
  * smallest unit as a decimal string. Uses BigInt — never Number — so it
  * preserves precision past 2^53. Fractional digits beyond `decimals` are
  * truncated rather than rounded (defensive: never send more than the user
@@ -87,10 +87,10 @@ export const toNumeric = (formatted: string): number => {
  */
 export const parseUnits = (displayAmount: string, decimals: number): string => {
   const trimmed = displayAmount.trim();
-  if (!trimmed || trimmed === '.') return '0';
-  if (!/^\d*\.?\d*$/.test(trimmed)) return '0';
-  const [whole, fracRaw = ''] = trimmed.split('.');
-  // `split('.')` always yields at least one element, so `whole` is defined.
+  if (!trimmed || trimmed === '.' || trimmed === ',') return '0';
+  if (!/^\d*[.,]?\d*$/.test(trimmed)) return '0';
+  const [whole, fracRaw = ''] = trimmed.split(/[.,]/);
+  // `split(/[.,]/)` always yields at least one element, so `whole` is defined.
   // It may still be the empty string for inputs like ".5" — fall back to "0".
   const wholePart = whole ? whole : '0';
   const frac = fracRaw.slice(0, decimals).padEnd(decimals, '0');
