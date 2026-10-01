@@ -1,5 +1,7 @@
 const store: Record<string, string> = {};
 
+export const WHEN_UNLOCKED_THIS_DEVICE_ONLY = 6;
+
 export const setItemAsync = jest.fn(async (key: string, value: string) => {
   store[key] = value;
 });

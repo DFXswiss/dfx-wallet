@@ -11,12 +11,19 @@ jest.mock('expo-router', () => ({
 
 const mockSetPin = jest.fn();
 const mockSetAuthenticated = jest.fn();
+const mockSetOnboarded = jest.fn();
 jest.mock('@/store', () => ({
   useAuthStore: () => ({
     setPin: mockSetPin,
     setAuthenticated: mockSetAuthenticated,
+    setOnboarded: mockSetOnboarded,
   }),
 }));
+
+jest.mock('@/config/features', () => ({ FEATURES: { LEGAL: false } }));
+const { FEATURES: mockFeatures } = jest.requireMock('@/config/features') as {
+  FEATURES: { LEGAL: boolean };
+};
 
 jest.mock('expo-haptics', () => ({
   notificationAsync: jest.fn(),
@@ -36,7 +43,9 @@ async function enterPin(getByTestId: (id: string) => unknown, digits: string) {
 describe('SetupPinScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFeatures.LEGAL = false;
     mockSetPin.mockResolvedValue(undefined);
+    mockSetOnboarded.mockResolvedValue(undefined);
     jest.spyOn(global, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0);
       return 0;
@@ -68,6 +77,7 @@ describe('SetupPinScreen', () => {
 
     await waitFor(() => expect(queryByTestId('pin-processing-overlay')).toBeNull());
     expect(getByTestId('setup-pin-error')).toBeTruthy();
+    expect(mockSetAuthenticated.mock.calls).toEqual([[true], [false]]);
     warn.mockRestore();
   });
 
@@ -80,5 +90,59 @@ describe('SetupPinScreen', () => {
     expect(queryByTestId('pin-processing-overlay')).toBeNull();
     expect(getByTestId('setup-pin-error')).toBeTruthy();
     expect(mockSetPin).not.toHaveBeenCalled();
+  });
+
+  it('authenticates before finishing onboarding and opening the dashboard when legal is disabled', async () => {
+    let resolveOnboarded: () => void = () => undefined;
+    mockSetOnboarded.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveOnboarded = resolve;
+        }),
+    );
+    const { getByTestId } = render(<SetupPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+    await enterPin(getByTestId, '123456');
+
+    expect(mockSetOnboarded).toHaveBeenCalledWith(true);
+    expect(mockSetAuthenticated).toHaveBeenCalledWith(true);
+    expect(mockSetAuthenticated.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSetOnboarded.mock.invocationCallOrder[0]!,
+    );
+    expect(mockReplace).not.toHaveBeenCalled();
+    await act(async () => {
+      resolveOnboarded();
+    });
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard'));
+    expect(mockSetAuthenticated).toHaveBeenCalledTimes(1);
+  });
+
+  it('rolls authentication back when finishing onboarding fails', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockSetOnboarded.mockRejectedValue(new Error('keychain unavailable'));
+    const { getByTestId } = render(<SetupPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+    await enterPin(getByTestId, '123456');
+
+    await waitFor(() => expect(getByTestId('setup-pin-error')).toBeTruthy());
+    expect(mockSetAuthenticated.mock.calls).toEqual([[true], [false]]);
+    expect(mockReplace).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('opens the legal disclaimer without marking onboarding complete when legal is enabled', async () => {
+    mockFeatures.LEGAL = true;
+    const { getByTestId } = render(<SetupPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+    await enterPin(getByTestId, '123456');
+
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith('/(onboarding)/legal-disclaimer'),
+    );
+    expect(mockSetOnboarded).not.toHaveBeenCalled();
   });
 });

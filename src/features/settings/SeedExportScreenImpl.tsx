@@ -1,39 +1,21 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
-import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { AppHeader, DfxBackgroundScreen } from '@/components';
+import { AppHeader, DfxBackgroundScreen, ReauthPinModal } from '@/components';
 import {
   authenticatePasskey,
   deriveMnemonicFromPrf,
   PasskeyPrfUnsupportedError,
 } from '@/features/passkey/services';
+import { useReauthenticate } from '@/hooks/useReauthenticate';
+import { useScreenCaptureProtection } from '@/hooks/useScreenCaptureProtection';
+import { copySensitive } from '@/services/clipboard';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { seedToWords } from '@/services/wallet';
 import { Typography, useColors, type ThemeColors } from '@/theme';
-
-/**
- * Soft import for expo-screen-capture — the native module isn't linked yet
- * in dev/sim builds (`expo prebuild` hasn't run since the package was added).
- * Without this guard the static `import * as ScreenCapture` blows up the
- * whole screen bundle with "Cannot find native module 'ExpoScreenCapture'",
- * which manifests as an Unmatched Route. Once iOS is rebuilt the require
- * succeeds and capture protection kicks in automatically.
- */
-type ScreenCaptureApi = {
-  preventScreenCaptureAsync: (key?: string) => Promise<unknown>;
-  allowScreenCaptureAsync: (key?: string) => Promise<unknown>;
-};
-let screenCaptureModule: ScreenCaptureApi | null = null;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  screenCaptureModule = require('expo-screen-capture') as ScreenCaptureApi;
-} catch {
-  screenCaptureModule = null;
-}
 
 export default function SeedExportScreen() {
   const colors = useColors();
@@ -44,39 +26,39 @@ export default function SeedExportScreen() {
   const [seedWords, setSeedWords] = useState<string[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const { requestReauth, modalProps } = useReauthenticate();
   // Defensive — older WDK versions don't always have getMnemonic. Bind via
   // the hook return rather than destructuring at the top so a missing
   // method doesn't take down the entire screen render.
   const wallet = useWalletManager();
+  const getMnemonic = wallet?.getMnemonic?.bind(wallet);
 
   useEffect(() => {
     void secureStorage.get(StorageKeys.WALLET_ORIGIN).then(setWalletOrigin);
   }, []);
 
-  // Block screenshots and the iOS app-switcher snapshot whenever the seed
-  // is on screen. expo-screen-capture wires into FLAG_SECURE on Android
-  // and the iOS UIScreen capture observer; both are no-ops in the
-  // simulator but enforced on real devices. Released on unmount or when
-  // the seed is hidden again. Skipped silently if the native module isn't
-  // linked yet — that's expected in dev until the next iOS rebuild.
-  useEffect(() => {
-    if (!seedWords || !screenCaptureModule) return;
-    void screenCaptureModule.preventScreenCaptureAsync('seed-export');
-    return () => {
-      void screenCaptureModule!.allowScreenCaptureAsync('seed-export');
-    };
-  }, [seedWords]);
+  useScreenCaptureProtection(seedWords !== null, 'seed-export');
 
   const isPasskey = walletOrigin === 'passkey';
 
   const handleReveal = async () => {
+    if (!(await requestReauth())) return;
     if (isPasskey) {
       setIsLoading(true);
       try {
         const versionStr = await secureStorage.get(StorageKeys.PASSKEY_DERIVATION_VERSION);
         const version = versionStr ? parseInt(versionStr, 10) : 1;
-        const { prfOutput } = await authenticatePasskey();
+        const credentialId = await secureStorage.get(StorageKeys.PASSKEY_CREDENTIAL_ID);
+        const { prfOutput } = await authenticatePasskey(
+          credentialId !== null ? { credentialId } : {},
+        );
         const mnemonic = deriveMnemonicFromPrf(prfOutput, version);
+        const wdkMnemonic = getMnemonic ? await getMnemonic('default') : null;
+        if (wdkMnemonic && mnemonic !== wdkMnemonic) {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Alert.alert(t('common.error'), t('seedExport.seedMismatch'));
+          return;
+        }
         setSeedWords(seedToWords(mnemonic));
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       } catch (error) {
@@ -102,7 +84,6 @@ export default function SeedExportScreen() {
       // mnemonic from WDK' authoritative store instead.
       setIsLoading(true);
       try {
-        const getMnemonic = wallet?.getMnemonic;
         const mnemonic = getMnemonic ? await getMnemonic('default') : null;
         if (mnemonic) {
           setSeedWords(seedToWords(mnemonic));
@@ -130,7 +111,7 @@ export default function SeedExportScreen() {
 
   const handleCopy = async () => {
     if (!seedWords) return;
-    await Clipboard.setStringAsync(seedWords.join(' '));
+    await copySensitive(seedWords.join(' '));
     setCopied(true);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTimeout(() => setCopied(false), 2000);
@@ -183,6 +164,7 @@ export default function SeedExportScreen() {
           </>
         )}
       </View>
+      <ReauthPinModal {...modalProps} />
     </DfxBackgroundScreen>
   );
 }

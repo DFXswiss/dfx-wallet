@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
 import {
   BrandLogo,
   DfxBackgroundScreen,
@@ -20,7 +20,7 @@ export default function SetupPinScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
-  const { setPin, setAuthenticated } = useAuthStore();
+  const { setPin, setAuthenticated, setOnboarded } = useAuthStore();
   const [pin, setPinValue] = useState('');
   const [step, setStep] = useState<'create' | 'confirm'>('create');
   const [firstPin, setFirstPin] = useState('');
@@ -54,8 +54,9 @@ export default function SetupPinScreen() {
     try {
       setProcessing(true);
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      await setPin(pinValue);
       setAuthenticated(true);
+      await setPin(pinValue);
+      if (!FEATURES.LEGAL) await setOnboarded(true);
       // With `EXPO_PUBLIC_ENABLE_LEGAL` off, the disclaimer step is
       // not part of the onboarding flow; skip straight to the
       // dashboard so the user does not bounce through a redirect stub.
@@ -63,6 +64,7 @@ export default function SetupPinScreen() {
         FEATURES.LEGAL ? '/(onboarding)/legal-disclaimer' : '/(auth)/(tabs)/dashboard',
       );
     } catch (err) {
+      setAuthenticated(false);
       setProcessing(false);
       console.warn('setup-pin: failed to persist PIN', err);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

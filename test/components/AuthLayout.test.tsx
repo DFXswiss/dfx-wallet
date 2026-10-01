@@ -28,6 +28,11 @@ jest.mock('@/features/dfx-backend/services', () => {
   return { dfxApi: { setOnUnauthorized }, __spies: { setOnUnauthorized } };
 });
 
+const mockUseAutoLock = jest.fn();
+jest.mock('@/hooks/useAutoLock', () => ({
+  useAutoLock: () => mockUseAutoLock(),
+}));
+
 const mockSegments: { current: string[] } = { current: ['(auth)', '(tabs)', 'dashboard'] };
 jest.mock('expo-router', () => {
   const { Text } = jest.requireActual('react-native');
@@ -51,6 +56,7 @@ describe('AuthLayout', () => {
   beforeEach(() => {
     Object.values(hookSpies).forEach((s) => s.mockReset());
     Object.values(dfxSpies).forEach((s) => s.mockReset());
+    mockUseAutoLock.mockReset();
     useAuthStore.setState({ isAuthenticated: false });
     mockSegments.current = ['(auth)', '(tabs)', 'dashboard'];
   });
@@ -74,6 +80,7 @@ describe('AuthLayout', () => {
     render(<AuthLayout />);
     expect(dfxSpies.setOnUnauthorized).toHaveBeenCalledWith(hookSpies.authenticateSilent);
     expect(hookSpies.useDfxAutoLinkSpy).toHaveBeenCalled();
+    expect(mockUseAutoLock).toHaveBeenCalledTimes(1);
   });
 
   it('invokes useDeepLink on every render (unconditional hook call)', () => {

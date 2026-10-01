@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Redirect, Stack, useSegments } from 'expo-router';
 import { useDeepLink, useDfxAuth, useDfxAutoLink } from '@/hooks';
+import { useAutoLock } from '@/hooks/useAutoLock';
 import { dfxApi } from '@/features/dfx-backend/services';
 import { useAuthStore } from '@/store';
 import { useColors } from '@/theme';
@@ -50,6 +51,7 @@ function AuthStack() {
  */
 function AuthenticatedLayout() {
   const { authenticateSilent } = useDfxAuth();
+  useAutoLock();
 
   useEffect(() => {
     dfxApi.setOnUnauthorized(authenticateSilent);

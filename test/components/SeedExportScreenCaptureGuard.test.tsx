@@ -1,6 +1,6 @@
 /**
  * Isolated load of SeedExportScreenImpl with a throwing
- * `expo-screen-capture` mock so the module-level try/catch
+ * `expo-screen-capture` mock so the capture hook's module-level try/catch
  * (unlinked native module) is exercised. Lives in its own file
  * because the main suite mocks the module successfully.
  */

@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
-import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import {
   AppHeader,
@@ -11,6 +10,8 @@ import {
   OnboardingStepIndicator,
   PrimaryButton,
 } from '@/components';
+import { useScreenCaptureProtection } from '@/hooks/useScreenCaptureProtection';
+import { copySensitive } from '@/services/clipboard';
 import { generateSeedPhrase, wordsToSeed } from '@/services/wallet';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 
@@ -28,6 +29,7 @@ export default function CreateWalletScreen() {
   const [copied, setCopied] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useScreenCaptureProtection(revealed, 'create-wallet-seed');
 
   const handleReveal = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -35,7 +37,7 @@ export default function CreateWalletScreen() {
   };
 
   const handleCopy = async () => {
-    await Clipboard.setStringAsync(wordsToSeed(seedWords));
+    await copySensitive(wordsToSeed(seedWords));
     setCopied(true);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTimeout(() => setCopied(false), 2000);
