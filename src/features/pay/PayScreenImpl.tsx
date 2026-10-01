@@ -50,7 +50,7 @@ export default function PayScreen() {
       router.replace({ pathname: '/(auth)/pay/opencryptopay', params: { lnurl: data } });
       return;
     }
-    Alert.alert(t('pay.comingSoonTitle'), t('pay.comingSoonMessage', { data }), [
+    Alert.alert(t('pay.comingSoonTitle'), t('pay.comingSoonMessage'), [
       { text: t('common.ok'), onPress: () => router.back() },
     ]);
   };

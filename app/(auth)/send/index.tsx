@@ -18,7 +18,7 @@ import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
 import { getPaymasterTokenInfo } from '@/config/chains';
 import { FEATURES } from '@/config/features';
-import { formatBalance } from '@/config/portfolio-presentation';
+import { formatBalance, parseUnits } from '@/config/portfolio-presentation';
 import { getSendAssetForCanonical } from '@/config/tokens';
 import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
@@ -267,7 +267,9 @@ export default function SendScreen() {
           testID="send-continue-button"
           title={t('common.continue')}
           onPress={goToConfirm}
-          disabled={!sendAsset || !isValidAddress || !amount || parseFloat(amount) <= 0}
+          disabled={
+            !sendAsset || !isValidAddress || parseUnits(amount, sendAsset.getDecimals()) === '0'
+          }
         />
 
         {FEATURES.BUY_SELL && (
@@ -620,7 +622,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
     warning: {
       ...Typography.bodySmall,
-      color: colors.warning,
+      color: colors.warningText,
       textAlign: 'center',
     },
     errorText: {

@@ -3,8 +3,9 @@ import { FiatCurrency, pricingService } from '../../src/services/pricing-service
 // We need the class itself (not just the singleton instance) for one branch
 // — the `if (!PricingService.instance)` false-side. Re-import the module
 // raw and reach the class through the singleton's prototype.
-const PricingServiceCtor = (pricingService as unknown as { constructor: unknown })
-  .constructor as { getInstance: () => unknown };
+const PricingServiceCtor = (pricingService as unknown as { constructor: unknown }).constructor as {
+  getInstance: () => unknown;
+};
 
 describe('pricingService', () => {
   const originalFetch = globalThis.fetch;
@@ -107,6 +108,20 @@ describe('pricingService', () => {
     expect(pricingService.getPriceById('bitcoin', FiatCurrency.USD)).toBe(120);
   });
 
+  it('notifies subscribers after a successful price update and supports unsubscribe', async () => {
+    const listener = jest.fn();
+    const unsubscribe = pricingService.subscribe(listener);
+    stubFetch({ bitcoin: { usd: 100 } });
+
+    await pricingService.initialize();
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    unsubscribe();
+    stubFetch({ bitcoin: { usd: 120 } });
+    await pricingService.refresh();
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
   it('initialize throws on upstream failure and stays uninitialised', async () => {
     const fetchMock = jest.fn(
       async () => ({ ok: false, status: 500, json: async () => ({}) }) as unknown as Response,
@@ -132,9 +147,7 @@ describe('pricingService', () => {
     globalThis.fetch = jest.fn(async () => {
       throw 'connection lost';
     }) as unknown as typeof fetch;
-    await expect(pricingService.refresh()).rejects.toThrow(
-      'Failed to refresh pricing service',
-    );
+    await expect(pricingService.refresh()).rejects.toThrow('Failed to refresh pricing service');
   });
 
   it('refresh() re-throws Error instances unchanged (preserves the original message)', async () => {
@@ -146,9 +159,7 @@ describe('pricingService', () => {
 
   it('startAutoRefresh / stopAutoRefresh round-trip wires + tears down the interval', () => {
     jest.useFakeTimers();
-    const refreshSpy = jest
-      .spyOn(pricingService, 'refresh')
-      .mockResolvedValue(undefined);
+    const refreshSpy = jest.spyOn(pricingService, 'refresh').mockResolvedValue(undefined);
 
     pricingService.startAutoRefresh(60_000);
     // Calling start twice must not double-schedule.
@@ -215,9 +226,7 @@ describe('pricingService', () => {
 
   it('startAutoRefresh defaults to a 60s cadence when called without an argument', () => {
     jest.useFakeTimers();
-    const refreshSpy = jest
-      .spyOn(pricingService, 'refresh')
-      .mockResolvedValue(undefined);
+    const refreshSpy = jest.spyOn(pricingService, 'refresh').mockResolvedValue(undefined);
 
     pricingService.startAutoRefresh();
     jest.advanceTimersByTime(60_000);

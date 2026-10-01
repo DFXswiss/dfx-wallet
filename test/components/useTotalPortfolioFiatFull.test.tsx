@@ -128,7 +128,7 @@ describe('useTotalPortfolioFiat (full)', () => {
 
   it('returns 0 and persists "0" when the user holds nothing', async () => {
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(0));
+    await waitFor(() => expect(result.current.totalFiat).toBe(0));
     expect(useWalletStore.getState().totalBalanceFiat).toBe('0');
   });
 
@@ -138,21 +138,21 @@ describe('useTotalPortfolioFiat (full)', () => {
       [ETH_NATIVE_ID]: '1000000000000000000',
     });
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(1));
+    await waitFor(() => expect(result.current.totalFiat).toBe(1));
     expect(useWalletStore.getState().totalBalanceFiat).toBe('1');
   });
 
   it('rounds the persisted total to two decimals', async () => {
     setBalances({ [USDT_ETH_ID]: '123450' });
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBeCloseTo(0.12345, 5));
+    await waitFor(() => expect(result.current.totalFiat).toBeCloseTo(0.12345, 5));
     expect(useWalletStore.getState().totalBalanceFiat).toBe('0.12');
   });
 
   it('prices a WBTC holding through the pricing-service rate', async () => {
     setBalances({ [WBTC_ETH_ID]: '100000000' });
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(50_000));
+    await waitFor(() => expect(result.current.totalFiat).toBe(50_000));
   });
 
   it('initializes pricing when the service is not yet ready, then marks ready', async () => {
@@ -160,14 +160,14 @@ describe('useTotalPortfolioFiat (full)', () => {
     const init = jest.spyOn(pricingService, 'initialize').mockResolvedValue(undefined);
     const { result } = renderHook(() => useTotalPortfolioFiat());
     await waitFor(() => expect(init).toHaveBeenCalled());
-    await waitFor(() => expect(result.current).toBe(0));
+    await waitFor(() => expect(result.current.totalFiat).toBe(0));
   });
 
   it('marks pricing not-ready when initialize() rejects', async () => {
     jest.spyOn(pricingService, 'isReady').mockReturnValue(false);
     jest.spyOn(pricingService, 'initialize').mockRejectedValue(new Error('offline'));
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(0));
+    await waitFor(() => expect(result.current.totalFiat).toBe(0));
   });
 
   it('clears linked wallets when the user is not DFX-authenticated', async () => {
@@ -202,7 +202,7 @@ describe('useTotalPortfolioFiat (full)', () => {
     });
 
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(15));
+    await waitFor(() => expect(result.current.totalFiat).toBe(15));
   });
 
   it('ignores linked wallets the user has not selected and unknown discovery', async () => {
@@ -220,21 +220,22 @@ describe('useTotalPortfolioFiat (full)', () => {
     });
 
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(0));
+    await waitFor(() => expect(result.current.isIncomplete).toBe(true));
+    expect(result.current.totalFiat).toBe(0);
   });
 
   it('treats a missing addresses array as empty', async () => {
     useAuthStore.setState({ isDfxAuthenticated: true });
     mockGetUser.mockResolvedValue({ addresses: undefined, activeAddress: undefined });
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(0));
+    await waitFor(() => expect(result.current.totalFiat).toBe(0));
   });
 
   it('clears linked wallets when getUser rejects', async () => {
     useAuthStore.setState({ isDfxAuthenticated: true });
     mockGetUser.mockRejectedValue(new Error('401'));
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(0));
+    await waitFor(() => expect(result.current.totalFiat).toBe(0));
   });
 
   it('does not apply a late getUser result after unmount', async () => {
@@ -268,11 +269,13 @@ describe('useTotalPortfolioFiat (full)', () => {
   });
 
   it('persists 0 when the computed total is not finite', async () => {
-    const presentation = jest.requireActual('@/config/portfolio-presentation') as typeof import('@/config/portfolio-presentation');
+    const presentation = jest.requireActual(
+      '@/config/portfolio-presentation',
+    ) as typeof import('@/config/portfolio-presentation');
     jest.spyOn(presentation, 'computeFiatValue').mockReturnValue(Number.NaN);
     setBalances({ [USDT_ETH_ID]: '1000000' });
     const { result } = renderHook(() => useTotalPortfolioFiat());
     await waitFor(() => expect(useWalletStore.getState().totalBalanceFiat).toBe('0'));
-    expect(Number.isFinite(result.current)).toBe(false);
+    expect(Number.isFinite(result.current.totalFiat)).toBe(false);
   });
 });

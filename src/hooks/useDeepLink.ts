@@ -11,8 +11,8 @@ import { FEATURES } from '@/config/features';
  *
  * The call site in `app/(auth)/_layout.tsx` invokes `useDeepLink()`
  * unconditionally — the conditional resolution happens here so React's
- * rules-of-hooks are not violated, while Metro's dead-code elimination
- * can still drop the unused branch from the bundle.
+ * rules-of-hooks are not violated. The unused branch remains bundled but
+ * is not executed.
  */
 const useDeepLink: () => void = FEATURES.DEEPLINKS
   ? // eslint-disable-next-line @typescript-eslint/no-require-imports

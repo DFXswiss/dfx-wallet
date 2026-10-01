@@ -12,7 +12,7 @@ export type ReauthResult = { ok: true; token: string } | { ok: false; error: str
  * Two paths, tried in that order:
  *
  *   1. **`changeActiveAddress` (no signature required).** Mirrors
- *      app.dfx.swiss: `POST /v2/user/change` with the target address
+ *      app.dfx.swiss: `POST /v1/user/change` with the target address
  *      lets the DFX backend rotate the JWT to the chosen linked wallet
  *      because the standing Bearer already proves account ownership.
  *      This is what unlocks "buy into a wallet linked from another
@@ -36,7 +36,7 @@ export function useLinkedWalletReauth() {
 
   const reauthAs = useCallback(
     async (address: string, blockchain: string): Promise<ReauthResult> => {
-      // Path 1: cheap server-side switch via /v2/user/change. Works for
+      // Path 1: cheap server-side switch via /v1/user/change. Works for
       // any wallet linked to the same DFX account, regardless of where
       // it was originally signed in from. We try this first because the
       // typical case is exactly that — the user linked the wallet

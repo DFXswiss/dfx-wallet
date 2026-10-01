@@ -1,6 +1,7 @@
 import { ReactNode, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { Icon } from './Icon';
 import { Header, Typography, useColors, type ThemeColors } from '@/theme';
 
@@ -39,6 +40,7 @@ export function AppHeader({
   testID,
 }: Props) {
   const router = useRouter();
+  const { t } = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   // When a screen is mounted directly via deep-link (e.g. simctl openurl,
@@ -62,7 +64,7 @@ export function AppHeader({
         hitSlop={12}
         style={[styles.iconSlot, styles.iconButton]}
         accessibilityRole="button"
-        accessibilityLabel="Back"
+        accessibilityLabel={t('common.back')}
         testID={testID ? `${testID}-back` : undefined}
       >
         <Icon name="arrow-left" size={26} color={colors.text} />

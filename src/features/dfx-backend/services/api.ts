@@ -6,15 +6,20 @@ export type ApiError = {
   message: string | string[];
 };
 
-type RequestOptions = {
+export type RequestOptions = {
   signal?: AbortSignal;
   headers?: Record<string, string>;
+  responseType?: 'json' | 'text';
+  timeoutMs?: number;
 };
+
+const DEFAULT_TIMEOUT_MS = 30_000;
 
 class DfxApi {
   private baseUrl = env.dfxApiUrl;
   private authToken: string | null = null;
   private onUnauthorized: (() => Promise<string | null>) | null = null;
+  private refreshPromise: Promise<string | null> | null = null;
 
   setAuthToken(token: string) {
     this.authToken = token;
@@ -46,14 +51,9 @@ class DfxApi {
    * the request is authenticated, returning a smaller subset that may not
    * contain the asset/fiat the buy/sell flow needs.
    */
-  async getPublic<T>(path: string, options?: { signal?: AbortSignal }): Promise<T> {
-    const url = this.buildUrl(path);
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      ...(options?.signal ? { signal: options.signal } : {}),
-    });
-    return this.handleResponse<T>(response);
+  async getPublic<T>(path: string, options?: RequestOptions): Promise<T> {
+    const response = await this.fetch('GET', path, undefined, options, false);
+    return this.handleResponse<T>(response, options?.responseType);
   }
 
   async post<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
@@ -77,16 +77,26 @@ class DfxApi {
     const response = await this.fetch(method, path, body, options);
 
     // Handle 401 — attempt token refresh once
-    if (response.status === 401 && this.onUnauthorized) {
-      const newToken = await this.onUnauthorized();
+    if (response.status === 401 && this.onUnauthorized && !path.startsWith('/v1/auth')) {
+      const newToken = await this.refreshAuthToken();
       if (newToken) {
         this.authToken = newToken;
         const retryResponse = await this.fetch(method, path, body, options);
-        return this.handleResponse<T>(retryResponse);
+        return this.handleResponse<T>(retryResponse, options?.responseType);
       }
     }
 
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, options?.responseType);
+  }
+
+  private refreshAuthToken(): Promise<string | null> {
+    if (!this.onUnauthorized) return Promise.resolve(null);
+    if (!this.refreshPromise) {
+      this.refreshPromise = this.onUnauthorized().finally(() => {
+        this.refreshPromise = null;
+      });
+    }
+    return this.refreshPromise;
   }
 
   private async fetch(
@@ -94,14 +104,35 @@ class DfxApi {
     path: string,
     body?: unknown,
     options?: RequestOptions,
+    authenticated = true,
   ): Promise<Response> {
     const url = this.buildUrl(path);
-    return fetch(url, {
-      method,
-      headers: this.getHeaders(options?.headers),
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-      ...(options?.signal ? { signal: options.signal } : {}),
-    });
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const abortFromCaller = () => controller.abort();
+    if (options?.signal?.aborted) controller.abort();
+    else options?.signal?.addEventListener('abort', abortFromCaller, { once: true });
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+    try {
+      return await fetch(url, {
+        method,
+        headers: authenticated
+          ? this.getHeaders(options?.headers)
+          : { 'Content-Type': 'application/json', ...options?.headers },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (timedOut) throw new DfxApiTimeoutError(timeoutMs);
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+      options?.signal?.removeEventListener('abort', abortFromCaller);
+    }
   }
 
   private buildUrl(path: string): string {
@@ -115,7 +146,10 @@ class DfxApi {
     return `${this.baseUrl}${path}`;
   }
 
-  private async handleResponse<T>(response: Response): Promise<T> {
+  private async handleResponse<T>(
+    response: Response,
+    responseType: 'json' | 'text' = 'json',
+  ): Promise<T> {
     if (!response.ok) {
       let apiError: ApiError;
       try {
@@ -140,6 +174,7 @@ class DfxApi {
     // empty from JSON without crashing JSON.parse.
     const text = await response.text();
     if (!text) return undefined as T;
+    if (responseType === 'text') return text as T;
     return JSON.parse(text) as T;
   }
 
@@ -171,6 +206,13 @@ export class DfxApiError extends Error {
 
   get isRegistrationRequired(): boolean {
     return this.code === 'REGISTRATION_REQUIRED';
+  }
+}
+
+export class DfxApiTimeoutError extends Error {
+  constructor(public readonly timeoutMs: number) {
+    super(`DFX API request timed out after ${timeoutMs} ms`);
+    this.name = 'DfxApiTimeoutError';
   }
 }
 

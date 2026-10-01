@@ -14,11 +14,11 @@ import { FEATURES } from '@/config/features';
  *     above flags is off.
  *
  * The conditional `require()` is intentional: the dashboard imports
- * `useTotalPortfolioFiat` unconditionally, but Metro's dead-code
- * elimination should drop the unused module from the bundle, keeping
- * the deferred linked-wallets / DFX dependencies out of MVP builds.
+ * `useTotalPortfolioFiat` unconditionally, while the feature gate keeps
+ * the unused module from executing. Metro still includes both branches
+ * in the JavaScript bundle.
  */
-const useTotalPortfolioFiat: () => number =
+const useTotalPortfolioFiat: () => { totalFiat: number; isIncomplete: boolean } =
   FEATURES.PORTFOLIO && FEATURES.LINKED_WALLETS && FEATURES.DFX_BACKEND
     ? // eslint-disable-next-line @typescript-eslint/no-require-imports
       require('@/features/portfolio/useTotalPortfolioFiatFull').useTotalPortfolioFiat

@@ -156,7 +156,7 @@ export class DfxAuthService {
       throw new Error('Not authenticated — sign in before switching addresses.');
     }
     try {
-      const response = await dfxApi.post<AuthResponseDto>('/v2/user/change', { address });
+      const response = await dfxApi.post<AuthResponseDto>('/v1/user/change', { address });
       this.accessToken = response.accessToken;
       dfxApi.setAuthToken(response.accessToken);
       return response.accessToken;

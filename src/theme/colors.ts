@@ -2,6 +2,7 @@ export type ThemeColors = {
   primary: string;
   primaryDark: string;
   primaryLight: string;
+  onPrimary: string;
 
   background: string;
   surface: string;
@@ -15,7 +16,10 @@ export type ThemeColors = {
 
   success: string;
   warning: string;
+  warningText: string;
   error: string;
+  offlineBanner: string;
+  offlineBannerText: string;
   info: string;
 
   border: string;
@@ -52,6 +56,7 @@ export const lightColors: ThemeColors = {
   primary: '#1E6EF7',
   primaryDark: '#0B57CF',
   primaryLight: '#E6F0FF',
+  onPrimary: '#FFFFFF',
 
   background: '#F6F8FC',
   surface: '#FFFFFF',
@@ -61,11 +66,14 @@ export const lightColors: ThemeColors = {
 
   text: '#0B1426',
   textSecondary: '#566174',
-  textTertiary: '#8D98AA',
+  textTertiary: '#5F6B7A',
 
   success: '#16A34A',
   warning: '#EAB308',
+  warningText: '#765600',
   error: '#DC2626',
+  offlineBanner: '#DC2626',
+  offlineBannerText: '#FFFFFF',
   info: '#2F7CF7',
 
   border: '#DDE5F0',
@@ -112,6 +120,7 @@ export const darkColors: ThemeColors = {
   primary: '#5FA8FF',
   primaryDark: '#3B82F6',
   primaryLight: 'rgba(95,168,255,0.14)',
+  onPrimary: '#0B1426',
 
   background: '#0A3055',
   surface: '#0E3A63',
@@ -121,11 +130,14 @@ export const darkColors: ThemeColors = {
 
   text: '#F9FAFB',
   textSecondary: '#A8B5C8',
-  textTertiary: '#8A99B7',
+  textTertiary: '#A8B5C8',
 
   success: '#34D399',
   warning: '#FBBF24',
+  warningText: '#FBBF24',
   error: '#F87171',
+  offlineBanner: '#991B1B',
+  offlineBannerText: '#FFFFFF',
   info: '#5FA8FF',
 
   border: 'rgba(255,255,255,0.10)',
