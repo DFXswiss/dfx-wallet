@@ -145,7 +145,8 @@ const buildAllNetworks = (): WdkConfigs['networks'] => ({
         type: 'electrum',
         clientConfig: {
           host: process.env.EXPO_PUBLIC_BTC_ELECTRUM_HOST ?? 'electrum.blockstream.info',
-          port: Number(process.env.EXPO_PUBLIC_BTC_ELECTRUM_PORT ?? 50001),
+          port: Number(process.env.EXPO_PUBLIC_BTC_ELECTRUM_PORT ?? 50002),
+          protocol: 'tls',
         },
       },
     },

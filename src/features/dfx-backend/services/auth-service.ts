@@ -23,7 +23,22 @@ import type { AuthRequestDto, AuthResponseDto, SignMessageDto } from './dto';
  * replayed past its server-side expiry.
  */
 const SIGNATURE_TTL_MS = 5 * 60 * 1000;
+const SIGN_MESSAGE_PREFIX =
+  'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_Blockchain_address._Your_ID:_';
 type SignatureCacheEntry = { message: string; signature: string; ts: number };
+
+export class DfxSignMessageMismatchError extends Error {
+  constructor() {
+    super('DFX sign-message challenge does not match the requested address');
+    this.name = 'DfxSignMessageMismatchError';
+  }
+}
+
+export function assertBackendSignMessage(message: string, address: string): void {
+  if (message !== `${SIGN_MESSAGE_PREFIX}${address}`) {
+    throw new DfxSignMessageMismatchError();
+  }
+}
 
 export class DfxAuthService {
   private accessToken: string | null = null;
@@ -87,6 +102,7 @@ export class DfxAuthService {
 
     try {
       const { message } = await this.getSignMessage(address);
+      assertBackendSignMessage(message, address);
       const signature = await this.signWithCache(address, message, signFn);
 
       return await this.authenticate({
@@ -300,6 +316,7 @@ export class DfxAuthService {
     }
 
     const { message } = await this.getSignMessage(address);
+    assertBackendSignMessage(message, address);
     const signature = await this.signWithCache(address, message, signFn);
 
     try {
