@@ -31,7 +31,6 @@ export { ReauthPinModal } from './ReauthPinModal';
 export { RenameWalletModal } from './RenameWalletModal';
 export { ScreenBackdrop, type ScreenBackdropVariant } from './ScreenBackdrop';
 export { ScreenContainer } from './ScreenContainer';
-export { SegmentedControl } from './SegmentedControl';
 export { SectionTitle } from './SectionTitle';
 export { SeedWordTile } from './SeedWordTile';
 export { ShortcutAction } from './ShortcutAction';

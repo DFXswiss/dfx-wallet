@@ -100,15 +100,18 @@ describe('ReceiveScreen', () => {
     // off-state would require restarting the module with the env unset, which
     // we leave to the bundle-level CI.
   it('starts on BTC and shows the BTC chain selector on the same screen', () => {
+  it('starts on BTC and shows the BTC network tabs on the same screen', () => {
     const { getByTestId, getByText } = render(<ReceiveScreen />);
 
     expect(getByTestId('receive-asset-btc').props.accessibilityState).toEqual(
       expect.objectContaining({ selected: true }),
     );
+    expect(getByTestId('receive-asset-btc').props.accessibilityRole).toBe('tab');
     expect(getByTestId('receive-chain-bar')).toBeTruthy();
     expect(getByTestId('receive-chain-bitcoin').props.accessibilityState).toEqual(
       expect.objectContaining({ selected: true }),
     );
+    expect(getByTestId('receive-chain-bitcoin').props.accessibilityRole).toBe('tab');
     expect(getByText('SegWit')).toBeTruthy();
     expect(getByText('Taproot')).toBeTruthy();
     expect(getByText('Lightning')).toBeTruthy();
@@ -118,7 +121,7 @@ describe('ReceiveScreen', () => {
     expect(getByTestId('receive-address').props.children).toBe('bc1qbitcoinaddress');
   });
 
-  it('switches to CHF, hides the chain selector, and uses the Ethereum address', () => {
+  it('switches to CHF, hides the network tabs, and uses the Ethereum address', () => {
     const { getByTestId, queryByTestId } = render(<ReceiveScreen />);
 
     fireEvent.press(getByTestId('receive-asset-chf'));

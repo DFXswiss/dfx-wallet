@@ -7,16 +7,11 @@ import { useTranslation } from 'react-i18next';
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import {
-  AppHeader,
-  GlassCard,
-  Icon,
-  PrimaryButton,
-  ScreenBackdrop,
-  SegmentedControl,
-} from '@/components';
+import { AppHeader, GlassCard, Icon, PrimaryButton, ScreenBackdrop } from '@/components';
 import type { ChainId } from '@/config/chains';
 import { FEATURES } from '@/config/features';
+import { AssetCoinSelector } from '@/features/transfer/AssetCoinSelector';
+import { NetworkTextTabs } from '@/features/transfer/NetworkTextTabs';
 import { OwnCodeFullscreen } from '@/features/transfer/OwnCodeFullscreen';
 import { buildReceiveAssets } from '@/features/transfer/receiveAssets';
 import { useReceiveAddress } from '@/features/transfer/useReceiveAddress';
@@ -132,10 +127,10 @@ export default function ReceiveScreen() {
               </Pressable>
             )}
 
-            <SegmentedControl
+            <AssetCoinSelector
               options={receiveAssets.map((asset) => ({
                 key: asset.symbol.toLowerCase(),
-                label: asset.symbol,
+                symbol: asset.symbol,
               }))}
               value={selectedAsset.symbol.toLowerCase()}
               onChange={handleAssetChange}
@@ -144,14 +139,13 @@ export default function ReceiveScreen() {
 
             {selectedAsset.chains.length > 1 && (
               <View testID="receive-chain-bar">
-                <SegmentedControl
+                <NetworkTextTabs
                   options={selectedAsset.chains.map((option) => ({
                     key: option.chain,
                     label: option.label,
                   }))}
                   value={selectedChain}
                   onChange={handleChainChange}
-                  size="sm"
                   testIDPrefix="receive-chain"
                 />
               </View>
@@ -251,6 +245,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
     scrollContent: {
       paddingHorizontal: Layout.screenPadding,
+      paddingTop: Spacing.lg,
       paddingBottom: Spacing.xxl,
       gap: Spacing.base,
     },
