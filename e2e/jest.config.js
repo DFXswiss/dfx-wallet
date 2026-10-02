@@ -2,7 +2,9 @@
 module.exports = {
   rootDir: '..',
   testMatch: ['<rootDir>/e2e/**/*.test.ts'],
-  testTimeout: 120_000,
+  // The full-variant onboard (WDK chain init) can take ~3-4 min on a cold
+  // GitHub macOS runner; keep the per-test ceiling well above that.
+  testTimeout: 600_000,
   maxWorkers: 1,
   globalSetup: 'detox/runners/jest/globalSetup',
   globalTeardown: 'detox/runners/jest/globalTeardown',

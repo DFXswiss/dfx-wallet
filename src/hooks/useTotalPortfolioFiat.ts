@@ -1,57 +1,28 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import { computeFiatValue, formatBalance, toNumeric } from '@/config/portfolio-presentation';
-import { getAssetMeta, getAssets, getMockRawBalance } from '@/config/tokens';
-import { FiatCurrency, pricingService } from '@/services/pricing-service';
-import { useEnabledChains } from './useEnabledChains';
-import { useWalletStore } from '@/store';
+import { FEATURES } from '@/config/features';
 
 /**
- * Computes the user's total portfolio value in their selected fiat and
- * mirrors it into the wallet store so the dashboard balance stays in sync
- * without each screen having to re-derive it.
+ * Dashboard balance aggregator. Resolves at build time to one of two
+ * implementations under `src/features/portfolio/`:
+ *
+ *   - `useTotalPortfolioFiatFull`  — includes the user's DFX-linked
+ *     wallets in the sum, pulls in `useLinkedWalletDiscovery`,
+ *     `useEnabledChains`, and the DFX user service. Used when all of
+ *     `FEATURES.PORTFOLIO`, `FEATURES.LINKED_WALLETS`, and
+ *     `FEATURES.DFX_BACKEND` are on.
+ *   - `useTotalPortfolioFiatLocal` — sums only the local WDK balances
+ *     against the pricing service. Used in MVP builds where any of the
+ *     above flags is off.
+ *
+ * The conditional `require()` is intentional: the dashboard imports
+ * `useTotalPortfolioFiat` unconditionally, but Metro's dead-code
+ * elimination should drop the unused module from the bundle, keeping
+ * the deferred linked-wallets / DFX dependencies out of MVP builds.
  */
-export function useTotalPortfolioFiat() {
-  const { enabledChains } = useEnabledChains();
-  const { selectedCurrency } = useWalletStore();
-  const setTotalBalanceFiat = useWalletStore((s) => s.setTotalBalanceFiat);
+const useTotalPortfolioFiat: () => number =
+  FEATURES.PORTFOLIO && FEATURES.LINKED_WALLETS && FEATURES.DFX_BACKEND
+    ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('@/features/portfolio/useTotalPortfolioFiatFull').useTotalPortfolioFiat
+    : // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('@/features/portfolio/useTotalPortfolioFiatLocal').useTotalPortfolioFiat;
 
-  const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const { data: balanceResults } = useBalancesForWallet(0, assetConfigs);
-  const [pricingReady, setPricingReady] = useState(pricingService.isReady());
-
-  useEffect(() => {
-    if (pricingService.isReady()) {
-      setPricingReady(true);
-      return;
-    }
-    void pricingService
-      .initialize()
-      .then(() => setPricingReady(true))
-      .catch(() => setPricingReady(false));
-  }, []);
-
-  const fiatCurrency = selectedCurrency === 'CHF' ? FiatCurrency.CHF : FiatCurrency.USD;
-
-  const totalFiat = useMemo(() => {
-    let sum = 0;
-    for (const asset of assetConfigs) {
-      const meta = getAssetMeta(asset.getId());
-      if (!meta || meta.category === 'native') continue;
-      const result = balanceResults?.find((r) => r.assetId === asset.getId());
-      const liveRaw = result?.success ? (result.balance ?? '0') : '0';
-      const mockRaw = getMockRawBalance(meta.network, meta.symbol, asset.getDecimals());
-      const rawBalance = liveRaw !== '0' ? liveRaw : (mockRaw ?? '0');
-      const balanceNum = toNumeric(formatBalance(rawBalance, asset.getDecimals()));
-      sum += computeFiatValue(balanceNum, meta.canonicalSymbol, fiatCurrency, pricingReady);
-    }
-    return sum;
-  }, [assetConfigs, balanceResults, fiatCurrency, pricingReady]);
-
-  useEffect(() => {
-    const formatted = Number.isFinite(totalFiat) ? Math.round(totalFiat * 100) / 100 : 0;
-    setTotalBalanceFiat(String(formatted));
-  }, [totalFiat, setTotalBalanceFiat]);
-
-  return totalFiat;
-}
+export { useTotalPortfolioFiat };

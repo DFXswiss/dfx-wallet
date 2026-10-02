@@ -41,7 +41,11 @@ module.exports = defineConfig([
         'error',
         {
           tolerance: 4.5,
-          ignoreContent: [],
+          ignoreContent: [
+            // BIP-173 reference address — public test vector used as a
+            // deterministic fixture in test/helpers/fake-bitbox.ts.
+            'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
+          ],
         },
       ],
     },
@@ -71,6 +75,23 @@ module.exports = defineConfig([
     rules: {
       'no-console': 'off',
       'security/detect-object-injection': 'off',
+    },
+  },
+  {
+    // CI gate scripts (ESM). They print status to stdout by design, and their
+    // fs paths are repo-relative constants / CI-provided argv — not user input
+    // reaching the app, which is what detect-non-literal-fs-filename targets.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      sourceType: 'module',
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+      },
+    },
+    rules: {
+      'no-console': 'off',
+      'security/detect-non-literal-fs-filename': 'off',
     },
   },
   {

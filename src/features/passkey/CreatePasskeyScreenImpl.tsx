@@ -1,0 +1,155 @@
+import { useMemo, useState } from 'react';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import * as Haptics from 'expo-haptics';
+import { useWalletManager } from '@tetherto/wdk-react-native-core';
+import {
+  AppHeader,
+  DfxBackgroundScreen,
+  OnboardingStepIndicator,
+  PrimaryButton,
+} from '@/components';
+import { createPasskey, setupPasskeyWallet, PasskeyPrfUnsupportedError } from './services';
+import { Typography, useColors, type ThemeColors } from '@/theme';
+
+export default function CreatePasskeyScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const router = useRouter();
+  const { t } = useTranslation();
+  const { restoreWallet } = useWalletManager();
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleCreate = async () => {
+    setIsCreating(true);
+    try {
+      const { prfOutput, credentialId } = await createPasskey();
+      await setupPasskeyWallet(prfOutput, credentialId, async (mnemonic) => {
+        await restoreWallet(mnemonic, 'default');
+      });
+
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.push('/(onboarding)/setup-pin');
+    } catch (error) {
+      console.warn('create-passkey: setup failed', error);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (error instanceof PasskeyPrfUnsupportedError) {
+        const provider = Platform.select({
+          ios: 'iCloud Keychain',
+          default: 'Google Password Manager',
+        });
+        Alert.alert(t('common.error'), t('passkey.prfUnsupported', { provider }), [
+          { text: t('common.retry'), style: 'cancel' },
+          {
+            text: t('passkey.useSeedInstead'),
+            onPress: () => router.replace('/(onboarding)/create-wallet'),
+          },
+        ]);
+      } else {
+        Alert.alert(t('common.error'), t('passkey.createError'));
+      }
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  return (
+    <DfxBackgroundScreen scrollable contentStyle={styles.content} testID="create-passkey-screen">
+      <AppHeader
+        title={t('passkey.createTitle')}
+        onBack={() =>
+          router.canGoBack() ? router.back() : router.replace('/(onboarding)/welcome')
+        }
+        testID="create-passkey"
+      />
+      <OnboardingStepIndicator current={1} />
+
+      <Text style={styles.description}>{t('passkey.createDescription')}</Text>
+
+      <View style={styles.infoContainer}>
+        <View style={styles.infoItem}>
+          <Text style={styles.infoIcon}>1</Text>
+          <Text style={styles.infoText}>{t('passkey.step1')}</Text>
+        </View>
+        <View style={styles.infoItem}>
+          <Text style={styles.infoIcon}>2</Text>
+          <Text style={styles.infoText}>{t('passkey.step2')}</Text>
+        </View>
+        <View style={styles.infoItem}>
+          <Text style={styles.infoIcon}>3</Text>
+          <Text style={styles.infoText}>{t('passkey.step3')}</Text>
+        </View>
+      </View>
+
+      <View style={styles.warningContainer}>
+        <Text style={styles.warningText}>{t('passkey.backupWarning')}</Text>
+      </View>
+
+      <View style={styles.spacer} />
+
+      <PrimaryButton
+        title={isCreating ? t('common.loading') : t('passkey.createButton')}
+        onPress={handleCreate}
+        disabled={isCreating}
+      />
+    </DfxBackgroundScreen>
+  );
+}
+
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      paddingTop: 4,
+      paddingBottom: 24,
+      gap: 24,
+    },
+    description: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    infoContainer: {
+      gap: 10,
+    },
+    infoItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+    },
+    infoIcon: {
+      ...Typography.headlineSmall,
+      color: colors.primary,
+      width: 32,
+      height: 32,
+      textAlign: 'center',
+      lineHeight: 32,
+      backgroundColor: colors.surfaceLight,
+      borderRadius: 16,
+      overflow: 'hidden',
+    },
+    infoText: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      flex: 1,
+    },
+    warningContainer: {
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.warning,
+      padding: 16,
+    },
+    warningText: {
+      ...Typography.bodyMedium,
+      color: colors.warning,
+    },
+    spacer: {
+      flex: 1,
+    },
+  });

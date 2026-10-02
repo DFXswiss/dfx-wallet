@@ -1,12 +1,13 @@
 import { Stack } from 'expo-router';
-import { DfxColors } from '@/theme';
+import { useColors } from '@/theme';
 
 export default function PinLayout() {
+  const colors = useColors();
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: DfxColors.background },
+        contentStyle: { backgroundColor: colors.background },
         gestureEnabled: false,
       }}
     />

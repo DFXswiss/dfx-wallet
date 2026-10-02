@@ -1,16 +1,27 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { ScreenContainer, PrimaryButton } from '@/components';
+import {
+  AppHeader,
+  DfxBackgroundScreen,
+  OnboardingStepIndicator,
+  PrimaryButton,
+} from '@/components';
 import { generateSeedPhrase, wordsToSeed } from '@/services/wallet';
-import { DfxColors, Typography } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
+
+function isWalletAlreadyExistsError(err: unknown): boolean {
+  return err instanceof Error && err.message.toLowerCase().includes('already exists');
+}
 
 export default function CreateWalletScreen() {
   const router = useRouter();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { t } = useTranslation();
   const [seedWords] = useState(() => generateSeedPhrase(12));
   const [revealed, setRevealed] = useState(false);
@@ -30,14 +41,21 @@ export default function CreateWalletScreen() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const { restoreWallet } = useWalletManager();
+  const { restoreWallet, deleteWallet } = useWalletManager();
 
   const handleContinue = async () => {
     setIsCreating(true);
     setError(null);
     try {
       const seed = wordsToSeed(seedWords);
-      await restoreWallet(seed, 'default');
+      try {
+        await restoreWallet(seed, 'default');
+      } catch (err) {
+        if (!isWalletAlreadyExistsError(err)) throw err;
+
+        await deleteWallet('default');
+        await restoreWallet(seed, 'default');
+      }
       router.push('/(onboarding)/setup-pin');
     } catch (err) {
       console.warn('create-wallet: failed to create wallet', err);
@@ -49,21 +67,30 @@ export default function CreateWalletScreen() {
   };
 
   return (
-    <ScreenContainer scrollable>
-      <View style={styles.content} testID="create-wallet-screen">
-        <Text style={styles.title}>{t('onboarding.createWallet')}</Text>
-        <Text style={styles.description}>
-          Write down your seed phrase and store it in a safe place. This is the only way to recover
-          your wallet.
-        </Text>
+    <DfxBackgroundScreen scrollable contentStyle={styles.content} testID="create-wallet-screen">
+      <AppHeader
+        title={t('onboarding.createWallet')}
+        onBack={() =>
+          router.canGoBack() ? router.back() : router.replace('/(onboarding)/welcome')
+        }
+        testID="create-wallet"
+      />
+      <OnboardingStepIndicator current={1} />
 
+      <View style={styles.intro}>
+        <Text style={styles.description}>{t('onboarding.seedDescription')}</Text>
+        <Text style={styles.warning}>{t('onboarding.seedBackupWarning')}</Text>
+      </View>
+
+      <View style={styles.seedCard}>
         {!revealed ? (
           <Pressable
             testID="create-wallet-reveal-button"
             style={styles.revealButton}
             onPress={handleReveal}
           >
-            <Text style={styles.revealText}>Tap to reveal seed phrase</Text>
+            <Text style={styles.revealText}>{t('onboarding.seedReveal')}</Text>
+            <Text style={styles.revealHint}>{t('onboarding.seedRevealHint')}</Text>
           </Pressable>
         ) : (
           <>
@@ -85,94 +112,116 @@ export default function CreateWalletScreen() {
               style={styles.copyButton}
               onPress={handleCopy}
             >
-              <Text style={styles.copyText}>{copied ? 'Copied!' : 'Copy to clipboard'}</Text>
+              <Text style={styles.copyText}>
+                {copied ? t('onboarding.seedCopied') : t('onboarding.seedCopy')}
+              </Text>
             </Pressable>
           </>
         )}
-
-        {error && <Text style={styles.error}>{error}</Text>}
-
-        <View style={styles.spacer} />
-
-        <PrimaryButton
-          testID="create-wallet-continue-button"
-          title={t('common.continue')}
-          onPress={handleContinue}
-          disabled={!revealed}
-          loading={isCreating}
-        />
       </View>
-    </ScreenContainer>
+
+      {error && <Text style={styles.error}>{error}</Text>}
+
+      <View style={styles.spacer} />
+
+      <PrimaryButton
+        testID="create-wallet-continue-button"
+        title={t('common.continue')}
+        onPress={handleContinue}
+        disabled={!revealed}
+        loading={isCreating}
+      />
+    </DfxBackgroundScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    flex: 1,
-    paddingVertical: 24,
-    gap: 24,
-  },
-  title: {
-    ...Typography.headlineMedium,
-    color: DfxColors.text,
-  },
-  description: {
-    ...Typography.bodyLarge,
-    color: DfxColors.textSecondary,
-  },
-  revealButton: {
-    padding: 48,
-    borderRadius: 16,
-    backgroundColor: DfxColors.surface,
-    borderWidth: 1,
-    borderColor: DfxColors.border,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  revealText: {
-    ...Typography.bodyLarge,
-    color: DfxColors.primary,
-    fontWeight: '600',
-  },
-  seedContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  wordCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DfxColors.surface,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 6,
-    minWidth: '30%',
-  },
-  wordIndex: {
-    ...Typography.bodySmall,
-    color: DfxColors.textTertiary,
-    width: 24,
-  },
-  word: {
-    ...Typography.bodyMedium,
-    color: DfxColors.text,
-  },
-  copyButton: {
-    alignSelf: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  copyText: {
-    ...Typography.bodySmall,
-    color: DfxColors.primary,
-  },
-  error: {
-    ...Typography.bodyMedium,
-    color: DfxColors.error,
-  },
-  spacer: {
-    flex: 1,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      paddingTop: 4,
+      paddingBottom: 24,
+      gap: 24,
+    },
+    intro: {
+      gap: 12,
+    },
+    description: {
+      ...Typography.bodyLarge,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    warning: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    seedCard: {
+      backgroundColor: colors.cardOverlay,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 16,
+    },
+    revealButton: {
+      minHeight: 168,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceLight,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderStyle: 'dashed',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+      gap: 8,
+    },
+    revealText: {
+      ...Typography.bodyLarge,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    revealHint: {
+      ...Typography.bodyMedium,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    seedContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    wordCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceLight,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 6,
+      width: '31%',
+    },
+    wordIndex: {
+      ...Typography.bodySmall,
+      color: colors.textTertiary,
+      width: 24,
+    },
+    word: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+    },
+    copyButton: {
+      alignSelf: 'center',
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+    },
+    copyText: {
+      ...Typography.bodySmall,
+      color: colors.primary,
+    },
+    error: {
+      ...Typography.bodyMedium,
+      color: colors.error,
+    },
+    spacer: {
+      flex: 1,
+    },
+  });

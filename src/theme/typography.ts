@@ -31,4 +31,11 @@ export const Typography = {
     fontWeight: '400',
     lineHeight: 16,
   } as TextStyle,
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  } as TextStyle,
 } as const;

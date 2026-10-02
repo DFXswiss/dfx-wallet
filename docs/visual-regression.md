@@ -1,0 +1,216 @@
+# Visual Regression Tests
+
+Pixel-by-pixel screenshot comparison for DFX Wallet using [Detox](https://wix.github.io/Detox/) and [jest-image-snapshot](https://github.com/americanexpress/jest-image-snapshot). Test sources live in `e2e/visual/*.test.ts`, baselines in `e2e/__baselines__/*.png`.
+
+## Baseline coverage gate
+
+A visual-regression suite is only as honest as the set of screens it actually snapshots — a green run that silently skips half the app reads as "appearance verified" when it is not. `e2e/visual-coverage.json` is the source of truth that closes that gap: **every** route under `app/` must be classified as exactly one of
+
+| Status      | Meaning                                                                                                                                         | Required fields                                                                            |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `baselined` | Has a committed PNG and a matching `expectScreenToMatchBaseline()` call                                                                         | `baselines: []` (optionally `pendingBaselines: []` for feature-variant captures in flight) |
+| `exempt`    | A documented engineering reason it can't be pixel-baselined (redirect, external WebView content, OS-browser launcher, dynamic `[param]` detail) | `category` (from `exemptCategories`) + `reason`                                            |
+| `pending`   | Owes a baseline; not yet captured                                                                                                               | `tracking` (issue/PR) + `reason`                                                           |
+
+`scripts/check-visual-coverage.mjs` (CI job `visual-coverage`, dependency-free `node`) enforces it fail-closed:
+
+- Route table on disk **==** manifest, both directions — a new screen with no entry fails the build, exactly like a missing README matrix row.
+- Every `baselines` name has both a matcher call **and** a committed PNG; every `pendingBaselines` name has a call but no PNG yet (in flight, not silently missing).
+- No orphan matcher calls, no orphan committed PNGs.
+
+The gate also `--self-test`s its own logic against synthetic fixtures so a refactor of the checker can't quietly stop catching regressions.
+
+### Ratchet to 100%
+
+This is the appearance-side sibling of the [coverage floors](../scripts/check-coverage-floor.mjs). Today the manifest reports route accountability at 100% (every screen classified) with baseline pixel-coverage ratcheting up as `pending` entries are captured. Drive a `pending` entry to `baselined` by adding the `expectScreenToMatchBaseline()` call (see [Adding a new screenshot](#adding-a-new-screenshot)) and committing the captured PNG — **never** reclassify a real screen as `exempt` to inflate the number; exemptions are reviewed. Once `pending` is empty, lock it in:
+
+```bash
+node scripts/check-visual-coverage.mjs --strict   # fails if any pending remains
+```
+
+## Why Detox + jest-image-snapshot
+
+- Catches visual regressions the [Maestro flows](maestro.md) cannot — colour drift, layout shifts, missing assets, font rendering, etc.
+- Runs the same iOS Simulator build Maestro does, so a green Maestro pass + a clean visual run together cover both behaviour and appearance.
+- Snapshot diffs are written to local `e2e/__diffs__/` on failure, so reviewing a regression is a one-glance comparison.
+
+iOS only — Detox on macOS-based runners is stable; the Android equivalent is on the roadmap once Maestro's Android coverage stabilises.
+
+## Test layout
+
+```
+e2e/
+├── __baselines__/         # committed PNG ground truth
+│   ├── welcome.png
+│   ├── dashboard.png
+│   └── …
+├── __diffs__/             # written on failure (gitignored)
+├── jest.config.js         # Detox/jest config
+├── utils/
+│   ├── launch.ts          # launchAndWaitForWelcome / launchWithExistingState
+│   ├── pin.ts             # enterPin helper
+│   └── screenshot.ts      # expectScreenToMatchBaseline (the matcher)
+└── visual/
+    └── onboarding.test.ts # the actual `describe` blocks
+```
+
+`expectScreenToMatchBaseline(name)` is the only matcher the test files use:
+
+```ts
+await element(by.id('welcome-create-wallet-button')).tap();
+await waitFor(element(by.id('create-wallet-screen')))
+  .toBeVisible()
+  .withTimeout(30_000);
+await expectScreenToMatchBaseline('create-wallet');
+```
+
+It writes the screenshot to `e2e/__baselines__/create-wallet.png` on first run and compares against it on every subsequent run with a 1% pixel-difference tolerance.
+
+## Running locally
+
+```bash
+# One-time install
+brew install applesimutils
+npx detox build-framework-cache
+
+# Build + run
+npm run e2e:build:ios
+npm run e2e:test:ios
+```
+
+The build uses the `ios.release` Detox configuration in `.detoxrc.js` (which mirrors the Maestro release build). Same `.env.testnet` setup as the Maestro suite — see [docs/maestro.md](maestro.md#test-configuration).
+
+To update a baseline locally after an intentional UI change:
+
+```bash
+# Delete the stale baseline, run again, the matcher writes a new one
+rm e2e/__baselines__/dashboard.png
+npm run e2e:test:ios
+```
+
+Then commit the new PNG.
+
+## Feature-gated `describe` blocks
+
+The visual suite is split into MVP and feature-gated `describe` blocks via the same `EXPO_PUBLIC_ENABLE_*` flags the production build reads:
+
+```ts
+const featureOn = (envVar: string): boolean => process.env[envVar] === 'true';
+const enableRestore = featureOn('EXPO_PUBLIC_ENABLE_RESTORE');
+const enablePin = featureOn('EXPO_PUBLIC_ENABLE_PIN');
+const enableLegal = featureOn('EXPO_PUBLIC_ENABLE_LEGAL');
+
+const describePinLegal = enablePin && enableLegal ? describe : describe.skip;
+
+describePinLegal('Create wallet flow with PIN + legal', () => {
+  // … tests that only make sense when both features are on
+});
+```
+
+A build with the feature off skips the block instead of running it against the `*Disabled` stub. The MVP `describe`s — Welcome, Create-wallet-MVP, Dashboard-navigation-MVP — stay unconditional and end at the dashboard via the `SetupPinDisabled` redirect.
+
+## Adding a new screenshot
+
+1. Add a new `it` block that taps to the screen and calls `expectScreenToMatchBaseline('your-name')`.
+2. Capture the baseline locally (see [Running locally](#running-locally)); CI will not write a missing baseline.
+3. Inspect the PNG under `e2e/__diffs__/` or the local Detox `artifacts/` tree:
+   ```bash
+   ls e2e/__diffs__ e2e/__baselines__
+   ```
+4. Find your screenshot under the local Detox artifacts directory named after the test.
+5. Inspect the PNG — make sure it captures the state you actually want to baseline (not an error screen, not a half-loaded WDK, etc.).
+6. Copy it into `e2e/__baselines__/your-name.png` and commit.
+7. Push and re-trigger the visual workflow (see [Triggering visual regression](#triggering-visual-regression) below).
+
+## Pitfalls
+
+### Missing-baseline behaviour in CI
+
+`jest-image-snapshot` refuses to write new snapshots when `process.env.CI` is set (GitHub Actions sets it automatically). A missing baseline therefore fails the test with:
+
+```
+New snapshot was not written. The update flag must be explicitly passed to write a new snapshot.
+```
+
+This is by design — it prevents merging a green run that only passes because it silently wrote the baseline. Adding a baseline is a local capture (see [Adding a new screenshot](#adding-a-new-screenshot)), not a CI download pass.
+
+### Detox `toBeVisible` is strict (>75% on screen)
+
+Detox treats `toBeVisible` as "more than 75% of the element is on screen". A view that lives below a `ScrollView` or behind a safe-area inset can sit off-screen and time out the matcher even though it is in the view tree:
+
+```ts
+// ❌ receive-qr is inside the scroll view, may be partially clipped
+await waitFor(element(by.id('receive-qr')))
+  .toBeVisible()
+  .withTimeout(30_000);
+
+// ✅ receive-selected-asset-pill is the topmost element on the QR step,
+// always fully visible, sufficient signal that the step transition fired
+await waitFor(element(by.id('receive-selected-asset-pill')))
+  .toBeVisible()
+  .withTimeout(30_000);
+```
+
+Pick top-of-screen anchors (header back buttons, the topmost card in a list, the selected-asset pill) over wrapper Views or content sitting deeper in a scroll view.
+
+### `disableSynchronization` + back navigation
+
+`launchAndWaitForWelcome` disables Detox synchronization (the WDK keeps the main queue permanently busy with background work). With synchronization off, Detox does not wait for animations and React-Navigation transitions to settle. The next `tap` after a back-navigation can fire before the destination screen is laid out:
+
+```ts
+// ✅ Add a pause() after every back-nav before the next test's first interaction
+await element(by.id('receive-screen-back')).tap();
+await waitFor(element(by.id('dashboard-balance-toggle')))
+  .toBeVisible()
+  .withTimeout(30_000);
+await pause();
+```
+
+### State carry-over between `describe` blocks
+
+The Create-wallet onboarding runs the WDK's chain init, which can take 90s+ on a fresh install. Re-onboarding for every `describe` block doubles the wall-clock cost, so the existing suite relies on state carry-over: the dashboard left by `Create wallet flow (MVP)` is the entry point for `Dashboard navigation (MVP)`, the onboarded keychain left by `Create wallet flow with PIN + legal` is the entry point for `PIN unlock`:
+
+```ts
+// Continues from the Create-wallet-MVP block above without a fresh
+// launch — re-onboarding doubles the WDK init cost (~120s).
+describe('Dashboard navigation (MVP)', () => {
+  it('shows receive screen (asset list)', async () => {
+    await element(by.id('dashboard-action-receive')).tap();
+    // …
+  });
+});
+```
+
+This is fragile: a failure in the preceding block leaves the next one starting from an unexpected state. Keep the assertions inside each `it` defensive (always `waitFor` before interacting) and document the carry-over with a comment so the next maintainer doesn't add an accidental `beforeAll(launchAndWaitForWelcome)`.
+
+## CI
+
+`.github/workflows/visual-regression.yml` runs the suite on `macos-latest`.
+
+### Triggering visual regression
+
+Since [#149](https://github.com/DFXswiss/dfx-wallet/pull/149) the workflow no longer fires on every `synchronize` push — visual runs are minutes-expensive on macOS runners and most pushes don't change rendering. Triggers:
+
+- `pull_request` events of type `opened`, `reopened`, `ready_for_review`, `labeled` (not `synchronize`)
+- `workflow_dispatch` — manual run on any branch
+- Nightly schedule (`cron: '0 3 * * *'`) — drift detection on `develop`
+
+To re-trigger after a push:
+
+```bash
+# Toggle the needs-visual label to fire the `labeled` event
+gh pr edit <pr> --remove-label needs-visual && gh pr edit <pr> --add-label needs-visual
+```
+
+### Artifacts
+
+On failure those trees stay on the runner and are not uploaded. A local Detox run writes the actual screenshot for each test under a directory named after the test:
+
+```
+detox-artifacts/ios.release.<ts>Z/
+├── ✓ Visual Regression Welcome screen matches baseline/welcome.png
+├── ✗ Visual Regression Dashboard navigation (MVP) hides the balance via the eye toggle/dashboard-balance-hidden.png
+└── …
+```
+
+The `✗`-prefixed directories are the ones you copy into `e2e/__baselines__/` when [adding a new screenshot](#adding-a-new-screenshot).
