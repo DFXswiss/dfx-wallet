@@ -9,12 +9,14 @@ const OPTIONS = [
 
 describe('AssetCoinSelector', () => {
   it('marks only the active key as selected and shows every symbol', () => {
-    const { getByTestId, getByText } = render(
+    const { getByTestId, getByText, queryByTestId } = render(
       <AssetCoinSelector options={OPTIONS} value="btc" onChange={jest.fn()} testIDPrefix="asset" />,
     );
 
     expect(getByTestId('asset-btc').props.accessibilityState.selected).toBe(true);
     expect(getByTestId('asset-chf').props.accessibilityState.selected).toBe(false);
+    expect(getByTestId('asset-btc-check')).toBeTruthy();
+    expect(queryByTestId('asset-chf-check')).toBeNull();
     expect(getByText('BTC')).toBeTruthy();
     expect(getByText('CHF')).toBeTruthy();
   });
