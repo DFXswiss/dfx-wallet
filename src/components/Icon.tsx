@@ -14,6 +14,7 @@ type IconName =
   | 'close'
   | 'lightning'
   | 'arrow-left'
+  | 'arrow-right'
   | 'user'
   | 'shield'
   | 'globe'
@@ -263,6 +264,18 @@ export function Icon({ name, size = 24, color, strokeWidth = 2 }: Props) {
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
           <Path
             d="M15 5l-7 7 7 7"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    case 'arrow-right':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M4 12h15m0 0l-6-6m6 6l-6 6"
             stroke={stroke}
             strokeWidth={sw}
             strokeLinecap="round"

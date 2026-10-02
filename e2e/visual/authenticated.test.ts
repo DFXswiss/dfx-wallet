@@ -188,5 +188,41 @@ describe('Visual Regression (full variant)', () => {
       await pause();
       await expectScreenToMatchBaseline('hardware-connect');
     });
+
+    // Buy and sell are backend-driven, but their amount entry states are
+    // still deterministic once the route is open. Exercise both routes so a
+    // visual-only refactor cannot land without a real-device smoke test.
+    it('shows the buy amount screen', () =>
+      device
+        .openURL({ url: 'dfxwallet://buy' })
+        .then(() =>
+          waitFor(element(by.id('buy-screen')))
+            .toBeVisible()
+            .withTimeout(60_000),
+        )
+        .then(() => element(by.text('BTC')).tap())
+        .then(() =>
+          waitFor(element(by.id('buy-amount-input')))
+            .toBeVisible()
+            .withTimeout(30_000),
+        )
+        .then(() => pause())
+        .then(() => expectScreenToMatchBaseline('buy-amount')));
+
+    it('shows the sell amount entry state', () =>
+      device
+        .openURL({ url: 'dfxwallet://sell' })
+        .then(() =>
+          waitFor(element(by.id('sell-screen')))
+            .toBeVisible()
+            .withTimeout(60_000),
+        )
+        .then(() =>
+          waitFor(element(by.id('sell-no-balance')))
+            .toBeVisible()
+            .withTimeout(60_000),
+        )
+        .then(() => pause())
+        .then(() => expectScreenToMatchBaseline('sell-no-balance')));
   });
 });

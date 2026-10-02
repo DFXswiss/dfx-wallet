@@ -18,6 +18,7 @@ const NAMES = [
   'close',
   'lightning',
   'arrow-left',
+  'arrow-right',
   'user',
   'shield',
   'globe',

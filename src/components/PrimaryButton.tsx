@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { useMemo, type ReactNode } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type Props = {
@@ -9,6 +9,7 @@ type Props = {
   loading?: boolean;
   variant?: 'filled' | 'outlined';
   testID?: string;
+  icon?: ReactNode;
 };
 
 export function PrimaryButton({
@@ -18,6 +19,7 @@ export function PrimaryButton({
   loading,
   variant = 'filled',
   testID,
+  icon,
 }: Props) {
   const isFilled = variant === 'filled';
   const colors = useColors();
@@ -39,7 +41,10 @@ export function PrimaryButton({
       {loading ? (
         <ActivityIndicator color={isFilled ? colors.white : colors.primary} />
       ) : (
-        <Text style={[styles.text, !isFilled && styles.outlinedText]}>{title}</Text>
+        <View style={styles.content}>
+          <Text style={[styles.text, !isFilled && styles.outlinedText]}>{title}</Text>
+          {icon}
+        </View>
       )}
     </Pressable>
   );
@@ -53,6 +58,11 @@ const makeStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: 24,
+    },
+    content: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
     },
     filled: {
       backgroundColor: colors.primary,

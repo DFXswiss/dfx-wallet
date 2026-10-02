@@ -241,6 +241,7 @@ export default function SellScreen() {
   const [payoutCurrency, setPayoutCurrency] = useState<(typeof FIAT_CURRENCIES)[number]>('CHF');
   const [iban, setIban] = useState('');
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(true);
 
   // Replay the last failed call after the user finishes the DFX login flow.
   const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
@@ -407,17 +408,17 @@ export default function SellScreen() {
     setTimeout(() => setCopiedField(null), 1800);
   };
 
-  const fees = paymentInfo?.fees;
+  const feesTarget = paymentInfo?.feesTarget;
   // /sell/quote returns SellQuoteDto without asset/currency objects — those
   // only land on /sell/paymentInfos. We render the breakdown from local
   // selection state instead, so a valid quote shows up immediately.
   const hasQuote =
-    !!paymentInfo && paymentInfo.isValid && !!paymentInfo.fees && parseFloat(amount) > 0;
+    !!paymentInfo && paymentInfo.isValid && !!paymentInfo.feesTarget && parseFloat(amount) > 0;
   const quoteError =
     !hasQuote && paymentInfo && paymentInfo.error ? String(paymentInfo.error) : null;
   // Empty quote without an explicit error code → the chain still has to
-  // be linked. Tapping Weiter triggers the linkChain modal and auto-
-  // retries the quote. See buy/index.tsx for full rationale.
+  // be linked. The sell CTA opens the bank step; submitting the IBAN with
+  // Continue triggers the linkChain modal and auto-retries the quote.
   const needsContinue = !hasQuote && !quoteError && !!paymentInfo && !isLoading;
   // See buy/index.tsx — open the Angebot card the moment a positive amount
   // is set so the user always sees something refreshing instead of an empty
@@ -428,6 +429,20 @@ export default function SellScreen() {
   const numAmount = parseFloat(amount);
   const belowMin = minVolume != null && numAmount > 0 && numAmount < minVolume;
   const aboveMax = maxVolume != null && numAmount > maxVolume;
+  const sellAction = t('sell.cta', { asset: sellAsset });
+  const quoteHeader = quoteError
+    ? t([`sell.quoteError.${quoteError}`, 'sell.quoteError.generic'], { code: quoteError })
+    : needsContinue
+      ? t('sell.continueHint', { action: sellAction, next: t('common.continue') })
+      : isLoading
+        ? t('sell.fetchingQuote')
+        : hasQuote && paymentInfo && Number.isFinite(paymentInfo.rate) && paymentInfo.rate > 0
+          ? t('sell.rateInclFees', {
+              asset: sellAsset,
+              amount: fmtFiat(1 / paymentInfo.rate),
+              currency: payoutCurrency,
+            })
+          : t('sell.summary');
 
   const renderAmountStep = () => (
     <View style={styles.stepContent}>
@@ -473,7 +488,9 @@ export default function SellScreen() {
       </View>
 
       {selectedAsset && availableChains.length === 0 ? (
-        <Text style={styles.warning}>{t('sell.noBalance')}</Text>
+        <Text style={styles.warning} testID="sell-no-balance">
+          {t('sell.noBalance')}
+        </Text>
       ) : null}
 
       {selectedAsset && availableChains.length > 0 ? (
@@ -523,6 +540,7 @@ export default function SellScreen() {
 
           <View style={styles.amountCard}>
             <TextInput
+              testID="sell-amount-input"
               style={styles.amountInput}
               value={amount}
               onChangeText={setAmount}
@@ -553,36 +571,63 @@ export default function SellScreen() {
 
           {showQuoteCard ? (
             <View style={styles.quoteCard}>
-              <View style={styles.quoteHeader}>
-                <Text style={styles.quoteTitle}>{t('sell.summary')}</Text>
+              <Pressable
+                style={({ pressed }) => [styles.quoteToggle, pressed && styles.pressed]}
+                onPress={() => setCollapsed((value) => !value)}
+                accessibilityRole="button"
+              >
+                <Icon name="shield" size={18} color={colors.primary} />
+                <Text style={styles.quoteToggleText} numberOfLines={2}>
+                  {quoteHeader}
+                </Text>
+                {hasQuote && feesTarget ? (
+                  <View style={styles.quoteFeeBadge}>
+                    <Text style={styles.quoteFeeBadgeText}>{fmtFiat(feesTarget.total)}</Text>
+                  </View>
+                ) : null}
                 {isLoading ? <ActivityIndicator size="small" color={colors.primary} /> : null}
-              </View>
-              {hasQuote && fees ? (
+                <View style={collapsed ? undefined : styles.quoteChevronOpen}>
+                  <Icon name="chevron-right" size={16} color={colors.textTertiary} />
+                </View>
+              </Pressable>
+              {collapsed ? null : hasQuote && feesTarget ? (
                 <>
-                  <QuoteRow
-                    label={t('sell.exchangeRate')}
-                    value={`1 ${sellAsset} = ${fmtFiat(paymentInfo!.exchangeRate)} ${payoutCurrency}`}
-                  />
-                  <QuoteRow
-                    label={t('sell.feeDfx')}
-                    value={`${(fees.rate * 100).toFixed(2)}%`}
-                    {...(fees.dfx > 0 ? { sub: `${fmtFiat(fees.dfx)} ${payoutCurrency}` } : {})}
-                  />
-                  {fees.network > 0 ? (
+                  {Number.isFinite(paymentInfo!.exchangeRate) && paymentInfo!.exchangeRate > 0 ? (
                     <QuoteRow
-                      label={t('sell.feeNetwork')}
-                      value={`${fmtFiat(fees.network)} ${payoutCurrency}`}
+                      label={t('sell.exchangeRate')}
+                      value={`1 ${sellAsset} = ${fmtFiat(
+                        1 / paymentInfo!.exchangeRate,
+                      )} ${payoutCurrency}`}
                     />
                   ) : null}
-                  {fees.fixed > 0 ? (
+                  <QuoteRow
+                    label={t('sell.feeDfx')}
+                    value={`${(feesTarget.rate * 100).toFixed(2)}%`}
+                    {...(feesTarget.dfx > 0
+                      ? { sub: `${fmtFiat(feesTarget.dfx)} ${payoutCurrency}` }
+                      : {})}
+                  />
+                  {feesTarget.network > 0 ? (
+                    <QuoteRow
+                      label={t('sell.feeNetwork')}
+                      value={`${fmtFiat(feesTarget.network)} ${payoutCurrency}`}
+                    />
+                  ) : null}
+                  {feesTarget.fixed > 0 ? (
                     <QuoteRow
                       label={t('sell.feeFixed')}
-                      value={`${fmtFiat(fees.fixed)} ${payoutCurrency}`}
+                      value={`${fmtFiat(feesTarget.fixed)} ${payoutCurrency}`}
+                    />
+                  ) : null}
+                  {feesTarget.bank > 0 ? (
+                    <QuoteRow
+                      label={t('sell.feeBank')}
+                      value={`${fmtFiat(feesTarget.bank)} ${payoutCurrency}`}
                     />
                   ) : null}
                   <QuoteRow
                     label={t('sell.feeTotal')}
-                    value={`${fmtFiat(fees.total)} ${payoutCurrency}`}
+                    value={`${fmtFiat(feesTarget.total)} ${payoutCurrency}`}
                     emphasis
                   />
                   <View style={styles.quoteDivider} />
@@ -590,6 +635,7 @@ export default function SellScreen() {
                     label={t('sell.youReceive')}
                     value={`${fmtFiat(paymentInfo!.estimatedAmount)} ${payoutCurrency}`}
                     emphasis
+                    accent
                   />
                 </>
               ) : quoteError ? (
@@ -599,7 +645,12 @@ export default function SellScreen() {
                   })}
                 </Text>
               ) : needsContinue ? (
-                <Text style={styles.quoteHint}>{t('sell.continueHint')}</Text>
+                <Text style={styles.quoteHint}>
+                  {t('sell.continueHint', {
+                    action: sellAction,
+                    next: t('common.continue'),
+                  })}
+                </Text>
               ) : (
                 <Text style={styles.quotePlaceholder}>{t('sell.fetchingQuote')}</Text>
               )}
@@ -626,7 +677,8 @@ export default function SellScreen() {
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <PrimaryButton
-            title={t('common.continue')}
+            title={sellAction}
+            icon={<Icon name="arrow-right" size={18} color={colors.white} />}
             onPress={() => {
               if (hasTargetWallet) {
                 setConfirmError(null);
@@ -703,32 +755,54 @@ export default function SellScreen() {
             label={t('sell.youSell')}
             value={`${fmtCrypto(paymentInfo.amount)} ${paymentInfo.asset.name}`}
           />
-          <QuoteRow
-            label={t('sell.exchangeRate')}
-            value={`1 ${paymentInfo.asset.name} = ${fmtFiat(paymentInfo.exchangeRate)} ${paymentInfo.currency.name}`}
-          />
-          {paymentInfo.fees.dfx > 0 ? (
+          {Number.isFinite(paymentInfo.exchangeRate) && paymentInfo.exchangeRate > 0 ? (
             <QuoteRow
-              label={t('sell.feeDfx')}
-              value={`${(paymentInfo.fees.rate * 100).toFixed(2)}% · ${fmtFiat(paymentInfo.fees.dfx)} ${paymentInfo.currency.name}`}
-            />
-          ) : (
-            <QuoteRow
-              label={t('sell.feeDfx')}
-              value={`${(paymentInfo.fees.rate * 100).toFixed(2)}%`}
-            />
-          )}
-          {paymentInfo.fees.network > 0 ? (
-            <QuoteRow
-              label={t('sell.feeNetwork')}
-              value={`${fmtFiat(paymentInfo.fees.network)} ${paymentInfo.currency.name}`}
+              label={t('sell.exchangeRate')}
+              value={`1 ${paymentInfo.asset.name} = ${fmtFiat(
+                1 / paymentInfo.exchangeRate,
+              )} ${paymentInfo.currency.name}`}
             />
           ) : null}
-          <QuoteRow
-            label={t('sell.feeTotal')}
-            value={`${fmtFiat(paymentInfo.fees.total)} ${paymentInfo.currency.name}`}
-            emphasis
-          />
+          {feesTarget ? (
+            <>
+              {feesTarget.dfx > 0 ? (
+                <QuoteRow
+                  label={t('sell.feeDfx')}
+                  value={`${(paymentInfo.fees.rate * 100).toFixed(2)}% · ${fmtFiat(
+                    feesTarget.dfx,
+                  )} ${paymentInfo.currency.name}`}
+                />
+              ) : (
+                <QuoteRow
+                  label={t('sell.feeDfx')}
+                  value={`${(paymentInfo.fees.rate * 100).toFixed(2)}%`}
+                />
+              )}
+              {feesTarget.network > 0 ? (
+                <QuoteRow
+                  label={t('sell.feeNetwork')}
+                  value={`${fmtFiat(feesTarget.network)} ${paymentInfo.currency.name}`}
+                />
+              ) : null}
+              {feesTarget.fixed > 0 ? (
+                <QuoteRow
+                  label={t('sell.feeFixed')}
+                  value={`${fmtFiat(feesTarget.fixed)} ${paymentInfo.currency.name}`}
+                />
+              ) : null}
+              {feesTarget.bank > 0 ? (
+                <QuoteRow
+                  label={t('sell.feeBank')}
+                  value={`${fmtFiat(feesTarget.bank)} ${paymentInfo.currency.name}`}
+                />
+              ) : null}
+              <QuoteRow
+                label={t('sell.feeTotal')}
+                value={`${fmtFiat(feesTarget.total)} ${paymentInfo.currency.name}`}
+                emphasis
+              />
+            </>
+          ) : null}
           <View style={styles.quoteDivider} />
           <QuoteRow
             label={t('sell.youReceive')}
@@ -839,11 +913,13 @@ function QuoteRow({
   value,
   sub,
   emphasis,
+  accent,
 }: {
   label: string;
   value: string;
   sub?: string;
   emphasis?: boolean;
+  accent?: boolean;
 }) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -851,7 +927,15 @@ function QuoteRow({
     <View style={styles.quoteRow}>
       <Text style={styles.quoteLabel}>{label}</Text>
       <View style={{ alignItems: 'flex-end' }}>
-        <Text style={[styles.quoteValue, emphasis && styles.quoteValueEmphasis]}>{value}</Text>
+        <Text
+          style={[
+            styles.quoteValue,
+            emphasis && styles.quoteValueEmphasis,
+            accent && styles.quoteValueAccent,
+          ]}
+        >
+          {value}
+        </Text>
         {sub ? <Text style={styles.quoteSub}>{sub}</Text> : null}
       </View>
     </View>
@@ -1061,11 +1145,6 @@ const makeStyles = (colors: ThemeColors) =>
       padding: 18,
       gap: 14,
     },
-    quoteHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
     quoteTitle: {
       ...Typography.bodySmall,
       fontWeight: '600',
@@ -1105,6 +1184,32 @@ const makeStyles = (colors: ThemeColors) =>
       textAlign: 'right',
     },
     quoteValueEmphasis: { fontWeight: '700' },
+    quoteValueAccent: { color: colors.primary },
+    quoteToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    quoteToggleText: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      fontWeight: '500',
+      flex: 1,
+    },
+    quoteFeeBadge: {
+      backgroundColor: colors.primaryLight,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 999,
+    },
+    quoteFeeBadgeText: {
+      ...Typography.bodySmall,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    quoteChevronOpen: {
+      transform: [{ rotate: '90deg' }],
+    },
     quoteSub: {
       ...Typography.bodySmall,
       color: colors.textTertiary,
