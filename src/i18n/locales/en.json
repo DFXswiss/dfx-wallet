@@ -485,8 +485,6 @@
   },
   "pay": {
     "cameraPermission": "Camera access is needed to scan QR codes.",
-    "comingSoonMessage": "Payments are not yet available. Scanned: {{data}}",
-    "comingSoonTitle": "Coming soon",
     "grantPermission": "Grant access",
     "scanToPay": "Scan QR code to pay"
   },
@@ -525,6 +523,7 @@
     "totalValue": "Total value"
   },
   "receive": {
+    "buyAsset": "Buy {{asset}}",
     "buyBtcWithEuro": "Buy BTC with Euro",
     "buyFromBank": "Buy crypto",
     "buyFromBankSubtitle": "By bank transfer (SEPA)",
@@ -534,6 +533,12 @@
     "title": "Receive",
     "walletNotInitialized": "Wallet not initialized",
     "yourAddress": "Your {{chain}} address"
+  },
+  "scan": {
+    "pasteFromClipboard": "Paste from clipboard",
+    "rescan": "Scan again",
+    "unknownBody": "This isn't a payment, address or IBAN DFX can handle.",
+    "unknownTitle": "Code not recognised"
   },
   "seedExport": {
     "deriveFailed": "Failed to derive recovery phrase from passkey. Please try again.",
@@ -593,11 +598,13 @@
   "send": {
     "accountBank": "Bank account",
     "accountBankAdd": "Add bank account",
+    "accountBankAddHint": "Pay out to your bank",
     "accountDfx": "DFX Wallet",
     "accountsLabel": "My accounts · {{count}}",
     "address": "Address",
     "amount": "Amount",
     "buyCrypto": "Buy crypto",
+    "closeHint": "Tap ✕ or outside to close",
     "composerPlaceholder": "Name, address or IBAN",
     "confirmTransaction": "Confirm Transaction",
     "contactAddressPlaceholder": "Address",
@@ -647,6 +654,7 @@
     "sendToAddress": "Send to {{address}}",
     "share": "Share",
     "showCode": "Show your code",
+    "tapToEnlarge": "Tap to enlarge",
     "title": "Send",
     "viewTransaction": "View transaction",
     "yourCode": "Your code"
