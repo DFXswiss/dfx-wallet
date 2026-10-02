@@ -56,7 +56,7 @@ export default function TradeModeTabs({ active, onChange }: TradeModeTabsProps) 
                 onChange(mode.key);
               }
             }}
-            style={[styles.tab, { backgroundColor: selected ? colors.card : colors.transparent }]}
+            style={[styles.tab, { backgroundColor: selected ? colors.card : 'transparent' }]}
             testID={`trade-tab-${mode.key}`}
           >
             <Text style={[styles.label, { color: selected ? colors.text : colors.textTertiary }]}>

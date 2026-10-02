@@ -25,11 +25,7 @@ export function PayCurrencySheet({ visible, onClose, currencies, selected, onSel
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalContent}>
-        <Pressable
-          testID="pay-currency-sheet-backdrop"
-          style={styles.backdrop}
-          onPress={onClose}
-        />
+        <Pressable testID="pay-currency-sheet-backdrop" style={styles.backdrop} onPress={onClose} />
         <SafeAreaView
           style={styles.sheet}
           edges={['bottom', 'left', 'right']}
