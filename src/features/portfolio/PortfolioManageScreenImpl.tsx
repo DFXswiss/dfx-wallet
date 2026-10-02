@@ -50,11 +50,14 @@ export default function ManageChainsScreen() {
       >
         <Text style={styles.sectionLabel}>{t('portfolio.alwaysOn')}</Text>
         {ALWAYS_ON_CHAINS.map((chain) => (
-          <GlassCard key={chain} style={[styles.row, styles.rowDisabled]}>
+          <GlassCard key={chain} style={styles.row} testID={`manage-always-on-${chain}`}>
             <View style={styles.info}>
               <Text style={styles.label}>{CHAIN_LABEL.get(chain) ?? chain}</Text>
             </View>
-            <Switch value disabled />
+            <View style={styles.alwaysOnStatus}>
+              <Text style={styles.alwaysOnText}>{t('portfolio.alwaysOn')}</Text>
+              <Icon name="check" size={18} color={colors.primary} strokeWidth={2.2} />
+            </View>
           </GlassCard>
         ))}
 
@@ -72,7 +75,8 @@ export default function ManageChainsScreen() {
                 value={enabled}
                 onValueChange={() => toggleChain(chain)}
                 trackColor={{ false: colors.border, true: colors.primary }}
-                thumbColor={colors.white}
+                thumbColor={enabled ? colors.white : colors.border}
+                ios_backgroundColor={colors.border}
                 testID={`manage-chain-${chain}`}
               />
             </GlassCard>
@@ -142,9 +146,6 @@ const makeStyles = (colors: ThemeColors) =>
       padding: 14,
       gap: 12,
     },
-    rowDisabled: {
-      opacity: 0.65,
-    },
     info: {
       flex: 1,
       gap: 4,
@@ -158,9 +159,14 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodySmall,
       color: colors.textSecondary,
     },
-    lockedHint: {
+    alwaysOnStatus: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    alwaysOnText: {
       ...Typography.bodySmall,
-      color: colors.textTertiary,
-      fontStyle: 'italic',
+      color: colors.textSecondary,
+      fontWeight: '600',
     },
   });

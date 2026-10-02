@@ -82,8 +82,6 @@ jest.mock('@/components', () => {
   const actual = jest.requireActual('@/components');
   return {
     ...actual,
-    AssetActions: ({ testID }: { testID?: string }) =>
-      ReactActual.createElement(View, { testID }, ReactActual.createElement(Text, null, 'actions')),
     Icon: ({ name }: { name: string }) => ReactActual.createElement(Text, null, name),
     ScreenBackdrop: () => ReactActual.createElement(View, { testID: 'screen-backdrop' }),
   };
@@ -149,6 +147,9 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     jest.spyOn(pricingService, 'getExchangeRate').mockImplementation((ticker, currency) => {
       if (currency !== mockBtcRateCurrency) return undefined;
       if (ticker === 'btc') return mockBtcRate;
+      if (ticker === 'btc' && currency === FiatCurrency.CHF) return 48_000;
+      if (ticker === 'btc' && currency === FiatCurrency.EUR) return 45_000;
+      if (ticker === 'btc' && currency === FiatCurrency.USD) return 50_000;
       if (ticker === 'usdt') return 1;
       return undefined;
     });
@@ -166,8 +167,25 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     expect(mockBack).toHaveBeenCalled();
   });
 
+  it('shows the selected fiat value, asset actions, and the collapsed asset summary', () => {
+    const { getByTestId, getAllByText, getByText, queryByTestId } = renderScreen();
+
+    expect(getAllByText(/\$/).length).toBeGreaterThan(0);
+    expect(getByTestId('wallet-actions')).toBeTruthy();
+    expect(getByTestId('asset-detail-summary')).toBeTruthy();
+    expect(getByText('portfolio.onYourWallet')).toBeTruthy();
+    expect(queryByTestId('holding-bitcoin-BTC')).toBeNull();
+
+    fireEvent.press(getByTestId('wallet-action-buy'));
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/(auth)/buy',
+      params: { asset: 'BTC' },
+    });
+  });
+
   it('opens transaction history when a holding row is pressed', () => {
     const { getByTestId } = renderScreen();
+    fireEvent.press(getByTestId('asset-detail-expand'));
     fireEvent.press(getByTestId('holding-bitcoin-BTC'));
     expect(mockPush).toHaveBeenCalledWith({
       pathname: '/(auth)/transaction-history',
@@ -176,7 +194,8 @@ describe('PortfolioAssetDetailScreenImpl', () => {
   });
 
   it('labels BTC variants (SegWit / Taproot / Lightning) and falls back for unknown networks', () => {
-    const { getByText } = renderScreen();
+    const { getByTestId, getByText } = renderScreen();
+    fireEvent.press(getByTestId('asset-detail-expand'));
     expect(getByText('SegWit')).toBeTruthy();
     expect(getByText('Taproot')).toBeTruthy();
     expect(getByText('Lightning')).toBeTruthy();
@@ -187,7 +206,8 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     const assetId = 'ethereum-0xdac17f958d2ee523a2206206994597c13d831ec7';
     mockBalanceMap = new Map([[assetId, balanceEntry(assetId, '2500000', 'evm')]]);
     const { getByTestId, getAllByText } = renderScreen();
-    expect(getAllByText('Dollar').length).toBeGreaterThan(0);
+    expect(getAllByText('portfolio.assetName.USD').length).toBeGreaterThan(0);
+    fireEvent.press(getByTestId('asset-detail-expand'));
     expect(getByTestId('holding-ethereum-USDT')).toBeTruthy();
     expect(getAllByText('USDT').length).toBeGreaterThan(0);
     expect(getAllByText('2.50 USDT').length).toBeGreaterThan(0);
@@ -199,15 +219,12 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     expect(getByTestId('asset-detail-back')).toBeTruthy();
   });
 
-  it('uses the CHF / EUR currency glyphs', () => {
-    useWalletStore.setState({ selectedCurrency: 'CHF' });
-    const chf = renderScreen();
-    expect(chf.getAllByText(/CHF/).length).toBeGreaterThan(0);
-    chf.unmount();
-
+  it('uses EUR for the header, rate, and summary when EUR is selected', () => {
     useWalletStore.setState({ selectedCurrency: 'EUR' });
-    const eur = renderScreen();
-    expect(eur.getAllByText(/€/).length).toBeGreaterThan(0);
+    const { getAllByText, getByTestId } = renderScreen();
+    expect(getByTestId('asset-detail-total-currency').props.children).toBe('€');
+    expect(getAllByText(/€/).length).toBeGreaterThanOrEqual(3);
+    expect(pricingService.getExchangeRate).toHaveBeenCalledWith('btc', FiatCurrency.EUR);
   });
 
   it('initializes pricing when cold and swallows initialize failure', async () => {
@@ -361,6 +378,16 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     expect(totalFiat.replace(/\D/g, '')).toBe('5000000');
     expect(within(available.getByTestId('holding-bitcoin-BTC')).queryByText('—')).toBeNull();
     expect(available.queryByText('dashboard.incompleteBalance')).toBeNull();
+    fireEvent.press(getByTestId('asset-detail-expand'));
+    expect(getByTestId('holding-bitcoin-BTC')).toBeTruthy();
+  });
+
+  it('collapses the address rows again', () => {
+    const { getByTestId, queryByTestId } = renderScreen();
+    fireEvent.press(getByTestId('asset-detail-expand'));
+    expect(getByTestId('holding-bitcoin-BTC')).toBeTruthy();
+    fireEvent.press(getByTestId('asset-detail-expand'));
+    expect(queryByTestId('holding-bitcoin-BTC')).toBeNull();
   });
 
   it('renders the screen backdrop', () => {

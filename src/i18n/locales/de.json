@@ -517,18 +517,28 @@
     "unlockFailed": "Deine Wallet konnte nicht entsperrt werden. Bitte erneut versuchen oder deine Wallet wiederherstellen."
   },
   "portfolio": {
+    "actionBuy": "Kaufen",
+    "actionPayout": "Auszahlen",
+    "actionReceive": "Empfangen",
+    "actionSend": "Senden",
     "alwaysOn": "Immer aktiv",
-    "alwaysOnHint": "Standardnetzwerk — kann nicht deaktiviert werden",
-    "empty": "Noch keine Assets",
-    "emptyDescription": "Kaufe dein erstes Krypto um zu starten.",
-    "holdings": "Bestände nach Netzwerk",
+    "assetName": {
+      "CHF": "Franken",
+      "EUR": "Euro",
+      "USD": "Dollar"
+    },
+    "assetRate": "1 {{symbol}} = {{currency}} {{price}}",
+    "emptyText": "Kaufe dein erstes Bitcoin oder lass dir etwas schicken.",
+    "emptyTitle": "Noch kein Guthaben",
+    "hideByAddress": "Details nach Adresse ausblenden",
     "linkedWalletA11y": "DFX-Wallet {{address}}",
     "linkedWallets": "Verknüpfte DFX-Wallets",
     "manage": "Verwalten",
     "manageChains": "Netzwerke verwalten",
-    "networkCount_one": "{{count}} Netzwerk",
-    "networkCount_other": "{{count}} Netzwerke",
+    "onYourWallet": "auf deiner Wallet",
     "optional": "Optionale Netzwerke",
+    "showByAddress": "Details nach Adresse anzeigen",
+    "stablecoinHint": "Stablecoin · 1 = 1 {{currency}}",
     "totalValue": "Gesamtwert"
   },
   "receive": {
