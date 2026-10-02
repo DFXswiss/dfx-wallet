@@ -83,35 +83,32 @@ jest.mock('@/config/tokens', () => ({
   getAssets: () => [],
   getAssetMeta: (id: string) => ({ symbol: id }),
 }));
-jest.mock('@/theme', () => ({
-  Typography: {
-    bodySmall: {},
-    bodyMedium: {},
-    bodyLarge: {},
-    headlineSmall: {},
-    headlineMedium: {},
-  },
-  useColors: () => ({
-    background: '#fff',
-    border: '#ddd',
-    borderLight: '#eee',
-    card: '#f8f8f8',
-    cardOverlay: '#fff',
-    divider: '#ddd',
-    primary: '#06f',
-    primaryLight: '#def',
-    surface: '#fff',
-    surfaceLight: '#f2f2f2',
-    success: '#16a34a',
-    text: '#111',
-    textSecondary: '#555',
-    textTertiary: '#888',
-    warning: '#c60',
-    error: '#c00',
-    white: '#fff',
-  }),
-  useResolvedScheme: () => 'light',
-}));
+jest.mock('@/theme', () => {
+  const actual = jest.requireActual('@/theme');
+  return {
+    ...actual,
+    useColors: () => ({
+      background: '#fff',
+      border: '#ddd',
+      borderLight: '#eee',
+      card: '#f8f8f8',
+      cardOverlay: '#fff',
+      divider: '#ddd',
+      primary: '#06f',
+      primaryLight: '#def',
+      surface: '#fff',
+      surfaceLight: '#f2f2f2',
+      success: '#16a34a',
+      text: '#111',
+      textSecondary: '#555',
+      textTertiary: '#888',
+      warning: '#c60',
+      error: '#c00',
+      white: '#fff',
+    }),
+    useResolvedScheme: () => 'light',
+  };
+});
 jest.mock('@/components', () => ({
   ConfirmTargetWalletModal: ({ visible }: { visible: boolean }) => {
     if (!visible) return null;
@@ -172,19 +169,30 @@ const mockBuyCreatePaymentInfo = jest.fn();
 // so a partial fixture (e.g. just `{ isValid, fees }`) crashes there.
 const PAYMENT_INFO = {
   id: 321,
+  uid: 'buy-quote-321',
+  routeId: 1,
+  timestamp: '2026-10-01T10:00:00.000Z',
   isValid: true,
   iban: 'CH9300762011623852957',
   bic: 'DSSWCHZZXXX',
   name: 'DFX AG',
+  street: 'Bahnhofstrasse',
+  number: '1',
+  zip: '8001',
+  city: 'Zurich',
+  country: 'CH',
+  sepaInstant: false,
   remittanceInfo: 'DFX-321',
   amount: 100,
   estimatedAmount: 0.001,
   exchangeRate: 100000,
   minVolume: 10,
   maxVolume: 10000,
-  currency: { name: 'CHF' },
-  asset: { name: 'BTC' },
+  currency: { id: 1, name: 'CHF' },
+  asset: { id: 1, name: 'BTC', uniqueName: 'Bitcoin', blockchain: 'Bitcoin' },
   rate: 101000,
+  exactPrice: false,
+  priceSteps: [],
   fees: {
     rate: 0.01,
     dfx: 1,
@@ -195,6 +203,17 @@ const PAYMENT_INFO = {
     min: 0,
     total: 1,
   },
+  feesTarget: {
+    rate: 0.01,
+    dfx: 0.00001,
+    network: 0,
+    fixed: 0,
+    bank: 0,
+    platform: 0,
+    min: 0,
+    total: 0.00001,
+  },
+  expiryDate: '2026-10-01T10:05:00.000Z',
 };
 const buyFlowState = {
   paymentInfo: null as Record<string, unknown> | null,
@@ -256,11 +275,13 @@ describe('TradeScreen', () => {
 
     expect(getByTestId('buy-screen')).toBeTruthy();
     expect(getByTestId('buy-cta')).toBeTruthy();
+    expect(getByTestId('buy-amount-input')).toBeTruthy();
     const shellBackground = getByTestId('buy-screen-background');
 
     fireEvent.press(getByTestId('trade-tab-sell'));
     expect(getByTestId('sell-screen')).toBeTruthy();
     expect(getByTestId('sell-cta')).toBeTruthy();
+    expect(getByTestId('sell-amount-input')).toBeTruthy();
     expect(queryByTestId('buy-cta')).toBeNull();
     // Same shell element (single call site in TradeScreen) — the background
     // wrapper is the same node, only its testID value changed with the mode.
@@ -309,7 +330,7 @@ describe('TradeScreen', () => {
     fireEvent.press(getByTestId('trade-tab-buy'));
 
     expect(queryByTestId('buy-target-wallet-banner')).toBeNull();
-    fireEvent.changeText(getByTestId('buy-pay-amount'), '100');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '100');
     fireEvent.press(getByTestId('buy-cta'));
     expect(queryByTestId('confirm-target-wallet-modal')).toBeNull();
   });
@@ -334,7 +355,7 @@ describe('TradeScreen', () => {
     fireEvent.press(getByTestId('trade-tab-sell'));
 
     expect(queryByTestId('sell-target-wallet-banner')).toBeNull();
-    fireEvent.changeText(getByTestId('sell-pay-amount'), '1');
+    fireEvent.changeText(getByTestId('sell-amount-input'), '1');
     fireEvent.press(getByTestId('sell-cta'));
     expect(queryByTestId('confirm-target-wallet-modal')).toBeNull();
   });
@@ -365,7 +386,7 @@ describe('TradeScreen', () => {
 
     expect(getByTestId('trade-mode-tabs')).toBeTruthy();
 
-    fireEvent.changeText(getByTestId('buy-pay-amount'), '100');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '100');
     await act(async () => {
       fireEvent.press(getByTestId('buy-cta'));
     });

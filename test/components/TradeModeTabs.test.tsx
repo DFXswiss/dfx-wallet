@@ -6,15 +6,19 @@ jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-jest.mock('@/theme', () => ({
-  useColors: () => ({
-    border: '#dddddd',
-    card: '#ffffff',
-    surfaceLight: '#f5f5f5',
-    text: '#111111',
-    textTertiary: '#777777',
-  }),
-}));
+jest.mock('@/theme', () => {
+  const actual = jest.requireActual('@/theme');
+  return {
+    ...actual,
+    useColors: () => ({
+      border: '#dddddd',
+      card: '#ffffff',
+      surfaceLight: '#f5f5f5',
+      text: '#111111',
+      textTertiary: '#777777',
+    }),
+  };
+});
 
 describe('TradeModeTabs', () => {
   it.each([
