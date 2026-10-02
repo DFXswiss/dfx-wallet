@@ -62,8 +62,9 @@
       "note": "dashboard-with-pin-legal is asserted only in the PIN+legal feature-variant run; its PNG is captured by that variant and not yet committed."
     },
     "(auth)/receive/index.tsx": {
-      "status": "baselined",
-      "baselines": ["receive", "receive-qr-step"]
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#278",
+      "reason": "Receive was redesigned into one screen (asset selector, QR card, buy card); the old receive/receive-qr-step PNGs show the removed two-step flow. The Detox flow still asserts the screen, the replacement baseline must be captured on the CI simulator image."
     },
     "(auth)/send/index.tsx": {
       "status": "baselined",

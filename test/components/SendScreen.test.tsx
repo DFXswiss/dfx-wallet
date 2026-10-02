@@ -1,7 +1,7 @@
 import React from 'react';
 import { Linking, Share } from 'react-native';
-import { act, fireEvent, render } from '@testing-library/react-native';
 import * as Clipboard from 'expo-clipboard';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { useAccount } from '@tetherto/wdk-react-native-core';
 
 jest.mock('react-native-mmkv', () => {
@@ -26,7 +26,11 @@ jest.mock('react-i18next', () => ({
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();
+const mockSearchParams: {
+  current: { address?: string; amount?: string; query?: string };
+} = { current: {} };
 jest.mock('expo-router', () => ({
+  useLocalSearchParams: () => mockSearchParams.current,
   useRouter: () => ({ push: mockPush, back: mockBack, replace: jest.fn(), canGoBack: () => true }),
   Stack: { Screen: () => null },
 }));
@@ -51,6 +55,12 @@ const flowState: {
 } = { isLoading: false, txHash: null, error: null };
 
 jest.mock('@/hooks', () => ({
+  useLdsWallet: () => ({
+    user: null,
+    isLoading: false,
+    error: null,
+    signIn: jest.fn(),
+  }),
   useSendFlow: () => ({
     send: mockSend,
     estimate: mockEstimate,
@@ -88,22 +98,28 @@ jest.mock('@/features/transfer/useBankAccounts', () => ({
   useBankAccounts: () => mockBankAccounts.current,
 }));
 
-// QrScanner pulls in expo-camera at module load — stub it out, and
-// expose the most-recent props on a global ref so tests can fire a fake
-// scan and assert the screen's handlers run.
-const qrScannerProps: {
-  visible: boolean;
-  onScan: ((value: string) => void) | null;
+// ScannerView owns the camera UI; these tests exercise the Send screen's
+// modal and callbacks while ScannerView has its own component suite.
+const mockScannerProps: {
+  onScan: ((value: string) => boolean) | null;
   onClose: (() => void) | null;
-} = { visible: false, onScan: null, onClose: null };
-jest.mock('@/components/QrScanner', () => ({
-  QrScanner: (props: { visible: boolean; onScan: (value: string) => void; onClose: () => void }) => {
-    qrScannerProps.visible = props.visible;
-    qrScannerProps.onScan = props.onScan;
-    qrScannerProps.onClose = props.onClose;
-    return null;
-  },
-}));
+  onOpenSettings: (() => void) | null;
+} = { onScan: null, onClose: null, onOpenSettings: null };
+jest.mock('@/features/scan/ScannerView', () => {
+  const { View } = jest.requireActual('react-native');
+  return {
+    ScannerView: (props: {
+      onScan: (value: string) => boolean;
+      onClose: () => void;
+      onOpenSettings: () => void;
+    }) => {
+      mockScannerProps.onScan = props.onScan;
+      mockScannerProps.onClose = props.onClose;
+      mockScannerProps.onOpenSettings = props.onOpenSettings;
+      return <View testID="scanner-view" />;
+    },
+  };
+});
 
 jest.mock('react-native-safe-area-context', () => {
   const { View } = jest.requireActual('react-native');
@@ -218,9 +234,10 @@ describe('SendScreen', () => {
     flowState.isLoading = false;
     flowState.txHash = null;
     flowState.error = null;
-    qrScannerProps.visible = false;
-    qrScannerProps.onScan = null;
-    qrScannerProps.onClose = null;
+    mockScannerProps.onScan = null;
+    mockScannerProps.onClose = null;
+    mockScannerProps.onOpenSettings = null;
+    mockSearchParams.current = {};
     mockBalances.clear();
     mockRates.clear();
     mockRates.set('btc:CHF', 61000);
@@ -249,6 +266,12 @@ describe('SendScreen', () => {
       expect(screen.getByText('send.accountsLabel:{"count":1}')).toBeTruthy();
       expect(screen.getByTestId('send-account-dfx')).toBeTruthy();
       expect(screen.getByTestId('send-account-bank-add')).toBeTruthy();
+      expect(
+        screen
+          .getAllByTestId(/^send-account-(?:bank|dfx)/)
+          .map((row) => row.props.testID as string),
+      ).toEqual(['send-account-bank-add', 'send-account-dfx']);
+      expect(screen.getByText('send.accountBankAddHint')).toBeTruthy();
       expect(screen.queryByTestId('send-contact-new')).toBeNull();
     });
 
@@ -337,12 +360,21 @@ describe('SendScreen', () => {
       expect(Clipboard.setStringAsync).not.toHaveBeenCalled();
     });
 
-    it('links to buy crypto and to the full receive screen', () => {
+    it('links to buy crypto and opens the own-code fullscreen from QR and hint', () => {
       const screen = render(<SendScreen />);
       fireEvent.press(screen.getByTestId('send-code-buy'));
       expect(mockPush).toHaveBeenCalledWith('/(auth)/buy');
+
       fireEvent.press(screen.getByTestId('send-code-qr'));
-      expect(mockPush).toHaveBeenCalledWith('/(auth)/receive');
+      expect(screen.getByTestId('own-code-qr')).toBeTruthy();
+      fireEvent.press(screen.getByTestId('own-code-close'));
+      expect(screen.queryByTestId('own-code-qr')).toBeNull();
+
+      fireEvent.press(screen.getByTestId('send-code-hint'));
+      expect(screen.getByTestId('own-code-qr')).toBeTruthy();
+      fireEvent.press(screen.getByTestId('own-code-close'));
+      expect(screen.queryByTestId('own-code-qr')).toBeNull();
+      expect(mockPush).not.toHaveBeenCalledWith('/(auth)/receive');
     });
 
     it('shows the balance of the first asset that has one in the DFX Wallet row', () => {
@@ -359,43 +391,116 @@ describe('SendScreen', () => {
       expect(screen.getByText('send.payout')).toBeTruthy();
       expect(screen.getByText('send.accountsLabel:{"count":2}')).toBeTruthy();
       expect(screen.queryByTestId('send-account-bank-add')).toBeNull();
+      expect(
+        screen
+          .getAllByTestId(/^send-account-(?:bank|dfx)/)
+          .map((row) => row.props.testID as string),
+      ).toEqual(['send-account-bank-7', 'send-account-dfx']);
       fireEvent.press(screen.getByTestId('send-account-bank-7'));
       expect(mockPush).toHaveBeenCalledWith('/(auth)/sell');
     });
 
     it('offers "add bank account" when there is none and opens the cash-out flow', () => {
       const screen = render(<SendScreen />);
+      expect(screen.getByText('send.accountBankAddHint')).toBeTruthy();
       fireEvent.press(screen.getByTestId('send-account-bank-add'));
       expect(mockPush).toHaveBeenCalledWith('/(auth)/sell');
     });
 
     it('opens the scanner from the header and closes it again', () => {
       const screen = render(<SendScreen />);
-      expect(qrScannerProps.visible).toBe(false);
+      expect(screen.queryByTestId('scanner-view')).toBeNull();
       fireEvent.press(screen.getByTestId('send-recipient-scan-button'));
-      expect(qrScannerProps.visible).toBe(true);
+      expect(screen.getByTestId('scanner-view')).toBeTruthy();
       act(() => {
-        qrScannerProps.onClose!();
+        mockScannerProps.onClose!();
       });
-      expect(qrScannerProps.visible).toBe(false);
+      expect(screen.queryByTestId('scanner-view')).toBeNull();
     });
 
-    it('goes straight to the amount step for a scanned address (scheme and query stripped)', () => {
+    it('closes the scanner before opening settings', () => {
       const screen = render(<SendScreen />);
+      fireEvent.press(screen.getByTestId('send-recipient-scan-button'));
       act(() => {
-        qrScannerProps.onScan!(`bitcoin:${BTC_ADDR}?amount=1`);
+        mockScannerProps.onOpenSettings!();
+      });
+      expect(screen.queryByTestId('scanner-view')).toBeNull();
+      expect(mockPush).toHaveBeenCalledWith('/settings');
+    });
+
+    it('goes straight to the amount step for a scanned address', () => {
+      const screen = render(<SendScreen />);
+      fireEvent.press(screen.getByTestId('send-recipient-scan-button'));
+      act(() => {
+        mockScannerProps.onScan!(BTC_ADDR);
       });
       expect(screen.getByTestId('send-amount-step')).toBeTruthy();
       expect(screen.getByTestId('send-recipient-meta').props.children).toBe('bc1qar0s…wf5mdq');
+      expect(screen.queryByTestId('scanner-view')).toBeNull();
     });
 
-    it('puts scanned text that is not an address into the composer', () => {
+    it('keeps the scanner open when the scanned code is unknown', () => {
       const screen = render(<SendScreen />);
+      fireEvent.press(screen.getByTestId('send-recipient-scan-button'));
+      let handled = true;
       act(() => {
-        qrScannerProps.onScan!('some-payload');
+        handled = mockScannerProps.onScan!('not a payment code');
       });
-      expect(screen.getByTestId('send-recipient-input').props.value).toBe('some-payload');
-      expect(screen.queryByTestId('send-amount-step')).toBeNull();
+      expect(handled).toBe(false);
+      expect(screen.getByTestId('scanner-view')).toBeTruthy();
+    });
+
+    it('prefills a scanned Bitcoin amount', () => {
+      const screen = render(<SendScreen />);
+      fireEvent.press(screen.getByTestId('send-recipient-scan-button'));
+      act(() => {
+        mockScannerProps.onScan!(`bitcoin:${BTC_ADDR}?amount=0.001`);
+      });
+      expect(screen.getByTestId('send-amount-value').props.children).toBe('0.001');
+    });
+
+    it('returns to the overview with a scanned IBAN', () => {
+      const screen = render(<SendScreen />);
+      fireEvent.press(screen.getByTestId('send-recipient-scan-button'));
+      act(() => {
+        mockScannerProps.onScan!('CH93 0076 2011 6238 5295 7');
+      });
+      expect(screen.getByTestId('send-iban-payout')).toBeTruthy();
+      expect(screen.queryByTestId('scanner-view')).toBeNull();
+    });
+
+    it('closes the scanner and pushes OpenCryptoPay for an LNURL', () => {
+      const screen = render(<SendScreen />);
+      fireEvent.press(screen.getByTestId('send-recipient-scan-button'));
+      act(() => {
+        mockScannerProps.onScan!('lnurl1abc');
+      });
+      expect(mockPush).toHaveBeenCalledWith({
+        pathname: '/(auth)/pay/opencryptopay',
+        params: { lnurl: 'lnurl1abc' },
+      });
+      expect(screen.queryByTestId('scanner-view')).toBeNull();
+    });
+
+    it('applies address route params once after address-book hydration', () => {
+      mockSearchParams.current = { address: BTC_ADDR, amount: '0.001' };
+      const screen = render(<SendScreen />);
+      expect(screen.getByTestId('send-amount-step')).toBeTruthy();
+      expect(screen.getByTestId('send-amount-value').props.children).toBe('0.001');
+      expect(mockReset).toHaveBeenCalledTimes(1);
+
+      screen.rerender(<SendScreen />);
+      expect(mockReset).toHaveBeenCalledTimes(1);
+    });
+
+    it('applies a query route param once', () => {
+      mockSearchParams.current = { query: 'CH9300762011623852957' };
+      const screen = render(<SendScreen />);
+      expect(screen.getByTestId('send-iban-payout')).toBeTruthy();
+
+      fireEvent.changeText(screen.getByTestId('send-recipient-input'), 'changed');
+      screen.rerender(<SendScreen />);
+      expect(screen.getByTestId('send-recipient-input').props.value).toBe('changed');
     });
   });
 

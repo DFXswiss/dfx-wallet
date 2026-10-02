@@ -41,7 +41,7 @@ tags:
 - tapOn:
     id: "create-wallet-continue-button"
 
-# Dashboard -> Receive -> BTC -> QR step with chain selector
+# Dashboard -> Receive; BTC and its chain selector are already active
 - extendedWaitUntil:
     visible:
       id: "dashboard-screen"
@@ -50,11 +50,6 @@ tags:
     id: "dashboard-action-receive"
 - assertVisible:
     id: "receive-screen"
-- tapOn:
-    id: "receive-asset-btc"
-
-- assertVisible:
-    id: "receive-qr"
 - assertVisible:
     id: "receive-chain-bar"
 - assertVisible:
@@ -70,24 +65,16 @@ tags:
     id: "receive-chain-ethereum"
 - assertVisible:
     id: "receive-chain-ethereum"
-- assertVisible:
-    id: "receive-address"
 
 - tapOn:
     id: "receive-chain-bitcoin"
 - assertVisible:
     id: "receive-chain-bitcoin"
-- assertVisible:
-    id: "receive-address"
 
-# Stablecoins (single-chain) - chain bar is hidden entirely
-- tapOn:
-    id: "receive-selected-asset-pill"
-- assertVisible:
-    id: "receive-asset-list"
+# Stablecoins (single-chain) update the same screen and hide the chain bar
 - tapOn:
     id: "receive-asset-chf"
 - assertVisible:
-    id: "receive-qr"
+    id: "receive-asset-chf"
 - assertNotVisible:
     id: "receive-chain-bar"

@@ -1,20 +1,24 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAccount, type IAsset } from '@tetherto/wdk-react-native-core';
+import { useTranslation } from 'react-i18next';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+
 import { AppHeader, GlassSheet, Icon, ScreenBackdrop, type AmountKey } from '@/components';
-import { QrScanner } from '@/components/QrScanner';
 import type { ChainId } from '@/config/chains';
 import { getPaymasterTokenInfo } from '@/config/chains';
 import { getExplorerTxUrl } from '@/config/explorer';
 import { formatBalance } from '@/config/portfolio-presentation';
 import { getSendAssetForCanonical } from '@/config/tokens';
+import { ScannerView } from '@/features/scan/ScannerView';
+import { parseBitcoinAmount } from '@/features/scan/classifyScan';
+import { useScanHandler } from '@/features/scan/useScanHandler';
 import { AssetPickerStep } from '@/features/transfer/AssetPickerStep';
 import { ContactActionSheet, ContactFormSheet } from '@/features/transfer/ContactSheets';
+import { OwnCodeFullscreen } from '@/features/transfer/OwnCodeFullscreen';
 import { SendAmountStep } from '@/features/transfer/SendAmountStep';
 import { SendConfirmStep } from '@/features/transfer/SendConfirmStep';
 import { SendOverview } from '@/features/transfer/SendOverview';
@@ -77,8 +81,16 @@ const FEE_PREVIEW_DELAY_MS = 400;
 const COPIED_RESET_MS = 2000;
 const EMPTY_RATES: ReadonlyMap<string, number> = new Map();
 
+const firstParam = (value: string | string[] | undefined): string | undefined =>
+  Array.isArray(value) ? value[0] : value;
+
 export default function SendScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    address?: string | string[];
+    amount?: string | string[];
+    query?: string | string[];
+  }>();
   const { t } = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -91,6 +103,7 @@ export default function SendScreen() {
   const [unit, setUnit] = useState('BTC');
   const [input, setInput] = useState('');
   const [scannerVisible, setScannerVisible] = useState(false);
+  const [ownCodeOpen, setOwnCodeOpen] = useState(false);
   const [assetSheetVisible, setAssetSheetVisible] = useState(false);
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [copiedHash, setCopiedHash] = useState(false);
@@ -99,6 +112,7 @@ export default function SendScreen() {
   const [previewFee, setPreviewFee] = useState<FeeState>({ status: 'idle' });
   const estimateReqRef = useRef(0);
   const previewReqRef = useRef(0);
+  const routeParamsHandledRef = useRef(false);
 
   const { send, estimate, isLoading, txHash, error, reset } = useSendFlow(selectedChain);
   const estimateRef = useRef(estimate);
@@ -109,6 +123,7 @@ export default function SendScreen() {
   // Local address book. Hydration is explicit so importing the store never
   // touches native storage.
   const storedContacts = useAddressBookStore((s) => s.contacts);
+  const contactsHydrated = useAddressBookStore((s) => s.hydrated);
   const hydrateContacts = useAddressBookStore((s) => s.hydrate);
   const addContact = useAddressBookStore((s) => s.addContact);
   const renameContact = useAddressBookStore((s) => s.renameContact);
@@ -169,10 +184,13 @@ export default function SendScreen() {
   }, [defaultAssets, sendAsset]);
   const { data: balances } = useBalances(balanceAssets);
 
-  const hasBalanceFor = (symbol: string): boolean => {
-    const asset = defaultAssets.get(symbol);
-    return asset ? hasPositiveBalance(getRawBalance(balances, asset.getId())) : false;
-  };
+  const hasBalanceFor = useCallback(
+    (symbol: string): boolean => {
+      const asset = defaultAssets.get(symbol);
+      return asset ? hasPositiveBalance(getRawBalance(balances, asset.getId())) : false;
+    },
+    [balances, defaultAssets],
+  );
   const overviewAsset = pickDefaultAsset(SEND_ASSETS, hasBalanceFor);
   const overviewAssetInstance = defaultAssets.get(overviewAsset.symbol);
   const overviewBalance = overviewAssetInstance
@@ -239,26 +257,80 @@ export default function SendScreen() {
     return `${formatBalance(state.fee, paymasterToken.decimals)} ${paymasterToken.symbol}`;
   };
 
-  const goToAmount = (address: string, contact?: Contact) => {
-    const options = assetsForAddressKind(getAddressKind(address));
-    const preferred = contact?.assetSymbol
-      ? options.find((option) => option.symbol === contact.assetSymbol)
-      : undefined;
-    const asset = preferred ?? pickDefaultAsset(options, hasBalanceFor);
-    setRecipient(address);
-    setAssetSymbol(asset.symbol);
-    setSelectedChain(resolveChain(asset, contact?.chain));
-    setUnit(asset.symbol);
-    setInput('');
-    reset();
-    setStep('amount');
-  };
+  const goToAmount = useCallback(
+    (address: string, contact?: Contact): string => {
+      const options = assetsForAddressKind(getAddressKind(address));
+      const preferred = contact?.assetSymbol
+        ? options.find((option) => option.symbol === contact.assetSymbol)
+        : undefined;
+      const asset = preferred ?? pickDefaultAsset(options, hasBalanceFor);
+      setRecipient(address);
+      setAssetSymbol(asset.symbol);
+      setSelectedChain(resolveChain(asset, contact?.chain));
+      setUnit(asset.symbol);
+      setInput('');
+      reset();
+      setStep('amount');
+      return asset.symbol;
+    },
+    [hasBalanceFor, reset],
+  );
 
-  const handleScan = (data: string) => {
-    const address = normalizeAddressInput(data);
-    if (isPlausibleAddress(address)) goToAmount(address, findContactByAddress(contacts, address));
-    else setQuery(address);
-  };
+  const handleScannedAddress = useCallback(
+    (address: string, amount?: string) => {
+      setScannerVisible(false);
+      const symbol = goToAmount(address, findContactByAddress(contacts, address));
+      if (amount && symbol === 'BTC') {
+        setUnit('BTC');
+        setInput(amount);
+      }
+    },
+    [contacts, goToAmount],
+  );
+
+  const handleScannedIban = useCallback((iban: string) => {
+    setScannerVisible(false);
+    setQuery(iban);
+  }, []);
+
+  const scanHandler = useScanHandler({
+    onAddress: handleScannedAddress,
+    onIban: handleScannedIban,
+  });
+
+  const handleScan = useCallback(
+    (data: string): boolean => {
+      const handled = scanHandler(data);
+      if (handled) setScannerVisible(false);
+      return handled;
+    },
+    [scanHandler],
+  );
+
+  const routeAddress = firstParam(params.address);
+  const routeAmount = parseBitcoinAmount(firstParam(params.amount));
+  const routeQuery = firstParam(params.query);
+
+  useEffect(() => {
+    if (!contactsHydrated || routeParamsHandledRef.current || (!routeAddress && !routeQuery)) {
+      return;
+    }
+    routeParamsHandledRef.current = true;
+
+    if (routeAddress) {
+      const address = normalizeAddressInput(routeAddress);
+      if (isPlausibleAddress(address)) {
+        const symbol = goToAmount(address, findContactByAddress(contacts, address));
+        if (routeAmount && symbol === 'BTC') {
+          setUnit('BTC');
+          setInput(routeAmount);
+        }
+        return;
+      }
+    }
+
+    if (routeQuery) setQuery(routeQuery);
+  }, [contacts, contactsHydrated, goToAmount, routeAddress, routeAmount, routeQuery]);
 
   const handlePaste = async () => {
     const text = await Clipboard.getStringAsync();
@@ -460,7 +532,7 @@ export default function SendScreen() {
           onSelectContact={(contact) => goToAmount(contact.address, contact)}
           onContactActions={(contact) => setSheet({ kind: 'actions', contact })}
           onNewContact={() => setSheet({ kind: 'create' })}
-          onShowOwnCode={() => router.push('/(auth)/receive')}
+          onShowOwnCode={() => setOwnCodeOpen(true)}
           onOpenBuy={() => router.push('/(auth)/buy')}
           onOpenSell={() => router.push('/(auth)/sell')}
           onPaste={handlePaste}
@@ -514,12 +586,6 @@ export default function SendScreen() {
           {...(explorerUrl ? { explorerUrl } : {})}
         />
       )}
-
-      <QrScanner
-        visible={scannerVisible}
-        onScan={handleScan}
-        onClose={() => setScannerVisible(false)}
-      />
 
       <GlassSheet
         visible={assetSheetVisible}
@@ -585,6 +651,24 @@ export default function SendScreen() {
         <ScreenBackdrop />
         {body}
       </View>
+      <Modal
+        visible={scannerVisible}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setScannerVisible(false)}
+      >
+        <SafeAreaProvider>
+          <ScannerView
+            onScan={handleScan}
+            onClose={() => setScannerVisible(false)}
+            onOpenSettings={() => {
+              setScannerVisible(false);
+              router.push('/settings');
+            }}
+          />
+        </SafeAreaProvider>
+      </Modal>
+      <OwnCodeFullscreen visible={ownCodeOpen} onClose={() => setOwnCodeOpen(false)} />
     </>
   );
 }

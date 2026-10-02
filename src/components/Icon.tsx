@@ -12,6 +12,7 @@ type IconName =
   | 'send'
   | 'receive'
   | 'close'
+  | 'expand'
   | 'lightning'
   | 'arrow-left'
   | 'arrow-right'
@@ -199,6 +200,18 @@ export function Icon({ name, size = 24, color, strokeWidth = 2 }: Props) {
             stroke={stroke}
             strokeWidth={sw}
             strokeLinecap="round"
+          />
+        </Svg>
+      );
+    case 'expand':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M9 9L4 4m0 0h5M4 4v5m11 6l5 5m0 0h-5m5 0v-5"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
         </Svg>
       );

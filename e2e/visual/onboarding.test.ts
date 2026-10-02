@@ -102,37 +102,11 @@ describe('Visual Regression', () => {
         .withTimeout(30_000);
     });
 
-    it('shows receive screen (asset list)', async () => {
+    it('shows the one-screen receive flow', async () => {
       await element(by.id('dashboard-action-receive')).tap();
-      await waitFor(element(by.id('receive-screen')))
-        .toBeVisible()
-        .withTimeout(30_000);
-      await pause();
-      await expectScreenToMatchBaseline('receive');
-    });
-
-    it('shows receive QR step after picking BTC', async () => {
-      await element(by.id('receive-asset-btc')).tap();
-      // The selected-asset pill is the topmost element on the QR step
-      // — sitting just under the header — so it's the most reliable
-      // visibility anchor. Detox's `toBeVisible` is strict (>75% of
-      // the element on screen); the QR container can sit far enough
-      // down on a tall iPhone that it's only partially in view, so
-      // wait on the pill and then `pause()` for layout to settle
-      // before screenshotting.
-      await waitFor(element(by.id('receive-selected-asset-pill')))
-        .toBeVisible()
-        .withTimeout(30_000);
-      await pause(2_000);
-      await expectScreenToMatchBaseline('receive-qr-step');
-    });
-
-    it('returns to the receive asset list', async () => {
-      await element(by.id('receive-selected-asset-pill')).tap();
-      // After the pill tap the screen re-mounts the asset-step body;
-      // wait on the top BTC card (visible, anchored near the top of
-      // the scroll view) rather than the wrapper View, which can sit
-      // outside Detox's strict viewport heuristic.
+      // The asset selector is the topmost content element under the header.
+      // It is a stable >75%-visible anchor while the QR card may extend below
+      // the viewport on smaller devices.
       await waitFor(element(by.id('receive-asset-btc')))
         .toBeVisible()
         .withTimeout(30_000);

@@ -797,7 +797,7 @@
               </div>
             </div>
             <div class="rhs">
-              <b>2 Maestro · 2 Baselines</b>
+              <b>2 Maestro · Baseline offen</b>
               <div class="links">
                 <a
                   href="https://github.com/DFXswiss/dfx-wallet/blob/develop/.maestro/20-receive.yaml"
@@ -811,46 +811,24 @@
             </div>
           </div>
           <p class="spec-intro">
-            Zwei Schritte: Asset wählen → QR-Code anzeigen. BTC ist der einzige MVP-Asset mit
-            mehreren Chains (SegWit und EVM/Wrapped); die Stablecoins (CHF, EUR, USD) shippen nur
-            auf Ethereum, der Chain-Selector ist dort versteckt. Taproot- und Lightning-Layer sind
-            hinter <code>EXPO_PUBLIC_ENABLE_DFX_BACKEND</code> gegated.
+            Ein Screen statt zwei Schritte. Ganz oben steht die blaue Karte <em>„BTC kaufen“</em>
+            (Titel folgt dem gewählten Asset, per Banküberweisung, nur mit
+            <code>EXPO_PUBLIC_ENABLE_BUY_SELL</code>). Darunter die Asset-Leiste BTC, CHF, EUR, USD;
+            BTC hat zusätzlich eine Netz-Leiste (SegWit und EVM, Taproot und Lightning hinter
+            <code>EXPO_PUBLIC_ENABLE_DFX_BACKEND</code>), die Stablecoins laufen nur auf Ethereum.
+            Die QR-Karte zeigt den Code mit Vergrössern-Badge, die volle Adresse sowie Kopieren und
+            Teilen; ein Tipp auf den QR oder auf „Tippen zum Vergrössern“ öffnet den Code
+            bildschirmfüllend (✕ oder Tipp daneben schliesst). Darunter der Hinweis, nur das
+            gewählte Asset im gewählten Netz zu senden.
           </p>
 
-          <div class="tests cols-2">
-            <div class="test">
-              <div class="head">
-                <span class="name">receive</span>
-                <span class="src">asset-step</span>
-              </div>
-              <div class="img">
-                <img
-                  src="../../../e2e/__baselines__/receive.png"
-                  alt="Receive — Asset-Auswahl"
-                />
-              </div>
-              <div class="desc">
-                Vier Asset-Karten in fixierter Reihenfolge: BTC, CHF, EUR, USD. Tap öffnet den
-                QR-Step. Header trägt den Standard-Back-Button (zurück zum Dashboard).
-              </div>
-            </div>
-            <div class="test">
-              <div class="head">
-                <span class="name">receive-qr-step</span>
-                <span class="src">BTC SegWit</span>
-              </div>
-              <div class="img">
-                <img
-                  src="../../../e2e/__baselines__/receive-qr-step.png"
-                  alt="Receive — QR-Code für BTC SegWit"
-                />
-              </div>
-              <div class="desc">
-                Selected-Asset-Pill (BTC) oben, Chain-Bar mit <em>SegWit</em> / <em>EVM</em>,
-                QR-Code für die abgeleitete Adresse, kopierbarer Address-Text, Copy-CTA. Tap auf
-                die Pill bringt zurück zur Asset-Liste.
-              </div>
-            </div>
+          <div class="callout warn">
+            <p>
+              <b>Baseline offen:</b> die alten Bilder <code>receive.png</code> und
+              <code>receive-qr-step.png</code> zeigten den entfernten Zwei-Schritt-Ablauf und sind
+              gelöscht. Der neue Screen ist in <code>e2e/visual-coverage.json</code> als
+              <code>pending</code> (#278) geführt und wird auf dem CI-Simulator neu aufgenommen.
+            </p>
           </div>
         </section>
 
@@ -865,7 +843,7 @@
               </div>
             </div>
             <div class="rhs">
-              <b>2 Maestro · 2 Baselines</b>
+              <b>2 Maestro · 2 Baselines veraltet</b>
               <div class="links">
                 <a href="https://github.com/DFXswiss/dfx-wallet/blob/develop/.maestro/21-send.yaml"
                   >Maestro 21 ↗</a
@@ -878,45 +856,24 @@
             </div>
           </div>
           <p class="spec-intro">
-            Drei Schritte hat der echte Send-Flow: Asset → Input (Empfänger + Amount + Network-Fee)
-            → Confirm. Die MVP-E2E-Suite stoppt am Input-Step — der <em>Confirm</em>-Button auf der
-            Bestätigungsseite ruft <code>handleSend()</code> auf und broadcastet eine echte
-            Transaktion, das gehört nicht in einen Smoke-Test. Die Recipient-/Amount-Validierung
-            (mind. 26 Zeichen, &gt; 0 für Continue) ist hingegen ohne Tx-Risiko testbar.
+            Der Einstieg fragt <em>„An wen?“</em>: ein Eingabefeld für Name, Adresse oder IBAN mit
+            Einfügen-Button, darunter die Karte <em>„Dein Code“</em> mit Mini-QR und
+            Vergrössern-Badge — ein Tipp öffnet den eigenen Code bildschirmfüllend mit Asset- und
+            Netz-Leiste. Dann Kontakte und <em>„Meine Konten“</em>: dort steht das Bankkonto immer
+            an erster Stelle (ohne Konto als „Bankkonto hinzufügen · Geld aufs Konto auszahlen“),
+            danach die DFX Wallet. Der Scan-Button oben rechts öffnet denselben Scanner wie „Pay“
+            auf dem Dashboard: OpenCryptoPay geht zum Bezahlen, eine Adresse (bei
+            <code>bitcoin:</code> mit Betrag) direkt in den Betragsschritt, eine IBAN zur Auszahlung,
+            alles andere zeigt „Code nicht erkannt“ mit Kopieren und Erneut scannen. Danach folgen
+            Betrag und Bestätigung.
           </p>
 
-          <div class="tests cols-2">
-            <div class="test">
-              <div class="head">
-                <span class="name">send</span>
-                <span class="src">asset-step</span>
-              </div>
-              <div class="img">
-                <img src="../../../e2e/__baselines__/send.png" alt="Send — Asset-Auswahl" />
-              </div>
-              <div class="desc">
-                Asset-Liste wie bei Receive (BTC, CHF, EUR, USD). BTC im Send-Flow läuft
-                ausschließlich über Spark/Lightning — andere Bitcoin-Layer sind hinter
-                Feature-Flags gegated. Die Stablecoin-Sends bieten vier Chains.
-              </div>
-            </div>
-            <div class="test">
-              <div class="head">
-                <span class="name">send-input-step</span>
-                <span class="src">BTC Spark</span>
-              </div>
-              <div class="img">
-                <img
-                  src="../../../e2e/__baselines__/send-input-step.png"
-                  alt="Send — Input-Step für BTC"
-                />
-              </div>
-              <div class="desc">
-                Selected-Asset-Pill, Adress-Input mit Scan-Button, Amount-Input, disabled
-                Continue-CTA bis Input gültig ist. BTC hat nur einen Chain (Spark), daher kein
-                Chain-Selector.
-              </div>
-            </div>
+          <div class="callout warn">
+            <p>
+              <b>Bilder veraltet:</b> <code>send.png</code> und <code>send-input-step.png</code>
+              zeigen noch den alten Asset-Schritt und sind deshalb hier nicht abgebildet, bis sie auf
+              dem CI-Simulator neu aufgenommen sind.
+            </p>
           </div>
 
           <div class="callout warn">
