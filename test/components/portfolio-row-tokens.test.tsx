@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { ReactTestInstance } from 'react-test-renderer';
 import { BlurView } from 'expo-blur';
 import type { BalanceEntry, BalanceMap, BalanceSourceResult } from '@/services/balances';
@@ -183,6 +183,7 @@ describe('portfolio list-row tokens', () => {
     const card = flattenSurface(portfolioCard);
 
     const detail = renderDetail();
+    fireEvent.press(detail.getByTestId('asset-detail-expand'));
     const holdingRow = detail.getByTestId('holding-bitcoin-BTC');
     const holding = flattenSurface(holdingRow);
 

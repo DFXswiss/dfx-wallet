@@ -517,18 +517,28 @@
     "unlockFailed": "Your wallet couldn't be unlocked. Please try again or restore your wallet."
   },
   "portfolio": {
+    "actionBuy": "Buy",
+    "actionPayout": "Payout",
+    "actionReceive": "Receive",
+    "actionSend": "Send",
     "alwaysOn": "Always on",
-    "alwaysOnHint": "Default network — can't be disabled",
-    "empty": "No assets yet",
-    "emptyDescription": "Buy your first crypto to get started.",
-    "holdings": "Holdings by network",
+    "assetName": {
+      "CHF": "Franc",
+      "EUR": "Euro",
+      "USD": "Dollar"
+    },
+    "assetRate": "1 {{symbol}} = {{currency}} {{price}}",
+    "emptyText": "Buy your first bitcoin or have someone send you some.",
+    "emptyTitle": "No balance yet",
+    "hideByAddress": "Hide details by address",
     "linkedWalletA11y": "DFX wallet {{address}}",
     "linkedWallets": "Linked DFX wallets",
     "manage": "Manage",
     "manageChains": "Manage networks",
-    "networkCount_one": "{{count}} network",
-    "networkCount_other": "{{count}} networks",
+    "onYourWallet": "on your wallet",
     "optional": "Optional networks",
+    "showByAddress": "Show details by address",
+    "stablecoinHint": "Stablecoin · 1 = 1 {{currency}}",
     "totalValue": "Total value"
   },
   "receive": {
