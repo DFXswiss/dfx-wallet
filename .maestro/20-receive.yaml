@@ -5,9 +5,9 @@ tags:
   - dashboard
   - mvp
 ---
-# Walks an MVP user from a fresh install through the Receive flow:
-# Dashboard -> Receive (asset list) -> tap BTC -> QR step (container
-# rendered even before WDK has produced an address) -> back to assets.
+# Walks an MVP user from a fresh install to the one-screen Receive flow.
+# BTC, its chain selector and the QR card are present without an
+# intermediate asset-list step.
 # With EXPO_PUBLIC_ENABLE_PIN + EXPO_PUBLIC_ENABLE_LEGAL off,
 # SetupPinDisabled bridges Create -> Dashboard without a PIN or legal
 # step (see 10-onboarding-create.yaml for the same bridge).
@@ -41,7 +41,7 @@ tags:
 - tapOn:
     id: "create-wallet-continue-button"
 
-# Dashboard -> Receive (asset step)
+# Dashboard -> Receive (BTC is selected by default)
 - extendedWaitUntil:
     visible:
       id: "dashboard-screen"
@@ -52,24 +52,28 @@ tags:
 - assertVisible:
     id: "receive-screen"
 - assertVisible:
-    id: "receive-asset-list"
-- assertVisible:
     id: "receive-asset-btc"
 - assertVisible:
     id: "receive-asset-chf"
-
-# Asset -> QR step
-- tapOn:
-    id: "receive-asset-btc"
+- assertVisible:
+    id: "receive-chain-bar"
+- scrollUntilVisible:
+    element:
+      id: "receive-qr"
+    direction: DOWN
 - assertVisible:
     id: "receive-qr"
+- scrollUntilVisible:
+    element:
+      id: "receive-address"
+    direction: DOWN
 - assertVisible:
     id: "receive-address"
+- scrollUntilVisible:
+    element:
+      id: "receive-share-button"
+    direction: DOWN
+- assertVisible:
+    id: "receive-share-button"
 - assertVisible:
     id: "receive-copy-button"
-
-# Back to asset step via the selected-asset pill
-- tapOn:
-    id: "receive-selected-asset-pill"
-- assertVisible:
-    id: "receive-asset-list"

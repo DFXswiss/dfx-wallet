@@ -1,8 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
-import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
+
 import {
   GlassCard,
   GlassInputField,
@@ -12,10 +13,10 @@ import {
   QrCode,
 } from '@/components';
 import { FEATURES } from '@/config/features';
-import { ContactAvatar } from './ContactAvatar';
-import { UnitGlyph } from './UnitGlyph';
-import { isIban, isPlausibleAddress, maskIban, shortenAddress } from './address';
-import type { BankAccountRow } from './useBankAccounts';
+import { ContactAvatar } from '@/features/transfer/ContactAvatar';
+import { UnitGlyph } from '@/features/transfer/UnitGlyph';
+import { isIban, isPlausibleAddress, maskIban, shortenAddress } from '@/features/transfer/address';
+import type { BankAccountRow } from '@/features/transfer/useBankAccounts';
 import type { Contact } from '@/store';
 import {
   IconTile,
@@ -243,19 +244,31 @@ export function SendOverview({
       <GlassCard style={styles.section} contentStyle={styles.codeCard} testID="send-code-card">
         <View style={styles.codeTop}>
           <Pressable
+            style={styles.codeQr}
             onPress={onShowOwnCode}
             testID="send-code-qr"
             accessibilityRole="button"
             accessibilityLabel={t('send.showCode')}
           >
             <QrCode value={ownAddress} size={QR_SIZE} quietZone={QR_QUIET_ZONE} />
+            <View style={styles.expandBadge} pointerEvents="none">
+              <Icon name="expand" size={12} color={colors.white} strokeWidth={2} />
+            </View>
           </Pressable>
-          <View style={styles.codeText}>
+          <Pressable
+            style={styles.codeText}
+            onPress={onShowOwnCode}
+            accessibilityRole="button"
+            accessibilityLabel={t('send.showCode')}
+          >
             <Text style={styles.label}>{t('send.yourCode')}</Text>
             <Text style={styles.codeAddress} numberOfLines={1} testID="send-code-address">
               {ownAddress ? shortenAddress(ownAddress) : t('receive.walletNotInitialized')}
             </Text>
-          </View>
+            <Text style={styles.codeHint} testID="send-code-hint">
+              {t('send.tapToEnlarge')}
+            </Text>
+          </Pressable>
         </View>
         <View style={styles.codeActions}>
           <CodeAction
@@ -346,23 +359,8 @@ export function SendOverview({
       <View style={styles.section}>
         <Text style={styles.label}>{t('send.accountsLabel', { count: accountCount })}</Text>
         <GlassListGroup testID="send-accounts">
-          <AccountRow
-            testID="send-account-dfx"
-            styles={styles}
-            icon={<UnitGlyph symbol="BTC" size={ACCOUNT_ICON_SIZE} />}
-            title={t('send.accountDfx')}
-            subtitle={ownAddress ? shortenAddress(ownAddress) : t('receive.walletNotInitialized')}
-            last={!FEATURES.BUY_SELL}
-            right={
-              balanceLabel ? (
-                <Text style={styles.accountBalance} testID="send-account-balance">
-                  {balanceLabel}
-                </Text>
-              ) : null
-            }
-          />
           {hasBank &&
-            bankAccounts.map((account, index) => (
+            bankAccounts.map((account) => (
               <AccountRow
                 key={account.id}
                 testID={`send-account-bank-${account.id}`}
@@ -376,7 +374,6 @@ export function SendOverview({
                 subtitle={maskIban(account.iban)}
                 right={<Text style={styles.accountAction}>{t('send.payout')}</Text>}
                 onPress={onOpenSell}
-                last={index === bankAccounts.length - 1}
               />
             ))}
           {FEATURES.BUY_SELL && !hasBank && (
@@ -389,10 +386,25 @@ export function SendOverview({
                 </GlassSurface>
               }
               title={t('send.accountBankAdd')}
+              subtitle={t('send.accountBankAddHint')}
               onPress={onOpenSell}
-              last
             />
           )}
+          <AccountRow
+            testID="send-account-dfx"
+            styles={styles}
+            icon={<UnitGlyph symbol="BTC" size={ACCOUNT_ICON_SIZE} />}
+            title={t('send.accountDfx')}
+            subtitle={ownAddress ? shortenAddress(ownAddress) : t('receive.walletNotInitialized')}
+            last
+            right={
+              balanceLabel ? (
+                <Text style={styles.accountBalance} testID="send-account-balance">
+                  {balanceLabel}
+                </Text>
+              ) : null
+            }
+          />
         </GlassListGroup>
       </View>
     </ScrollView>
@@ -467,6 +479,20 @@ const makeStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       gap: Spacing.md,
     },
+    codeQr: {
+      position: 'relative',
+    },
+    expandBadge: {
+      position: 'absolute',
+      right: -6,
+      bottom: -6,
+      width: 22,
+      height: 22,
+      borderRadius: Radius.sm,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     codeText: {
       flex: 1,
       gap: Spacing.xs,
@@ -474,6 +500,10 @@ const makeStyles = (colors: ThemeColors) =>
     codeAddress: {
       ...Typography.monoLarge,
       color: colors.text,
+    },
+    codeHint: {
+      ...Typography.bodySmall,
+      color: colors.primary,
     },
     codeActions: {
       flexDirection: 'row',
