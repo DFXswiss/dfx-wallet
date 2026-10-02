@@ -208,14 +208,39 @@ describe('PortfolioScreenImpl', () => {
     expect(() => renderScreen()).not.toThrow();
   });
 
-  it('shows the empty state when no non-native assets are configured', () => {
-    (getAssets as jest.Mock).mockReturnValue([]);
+  it('shows the empty card, both actions, and all four assets for a zero balance', () => {
     setBalances({});
-    const { getByTestId } = renderScreen();
+    const { getByTestId, getByText } = renderScreen();
     expect(getByTestId('portfolio-empty')).toBeTruthy();
+    expect(getByTestId('portfolio-empty-buy')).toBeTruthy();
+    expect(getByTestId('portfolio-empty-receive')).toBeTruthy();
+    expect(getByTestId('portfolio-asset-BTC')).toBeTruthy();
+    expect(getByTestId('portfolio-asset-CHF')).toBeTruthy();
+    expect(getByTestId('portfolio-asset-EUR')).toBeTruthy();
+    expect(getByTestId('portfolio-asset-USD')).toBeTruthy();
+    expect(getByText('portfolio.stablecoinHint:{"currency":"CHF"}')).toBeTruthy();
+
+    fireEvent.press(getByTestId('portfolio-empty-buy'));
+    expect(mockPush).toHaveBeenLastCalledWith('/(auth)/buy');
+    fireEvent.press(getByTestId('portfolio-empty-receive'));
+    expect(mockPush).toHaveBeenLastCalledWith('/(auth)/receive');
   });
 
-  it('renders filled groups, merges networks, sorts BTC first, and navigates on tap', async () => {
+  it('shows funded assets and wallet actions when holdings have no fiat value', () => {
+    jest.spyOn(pricingService, 'getExchangeRate').mockReturnValue(undefined);
+    setBalances({ [WBTC_ETH_ID]: '100000000' });
+
+    const { getByTestId, queryByTestId } = renderScreen();
+
+    expect(queryByTestId('portfolio-empty')).toBeNull();
+    expect(getByTestId('wallet-actions')).toBeTruthy();
+    expect(getByTestId('portfolio-asset-BTC')).toBeTruthy();
+    expect(queryByTestId('portfolio-asset-CHF')).toBeNull();
+    expect(queryByTestId('portfolio-asset-EUR')).toBeNull();
+    expect(queryByTestId('portfolio-asset-USD')).toBeNull();
+  });
+
+  it('renders actions and only non-zero groups without network-count copy', async () => {
     setBalances({
       [WBTC_ETH_ID]: '100000000',
       [USDT_ETH_ID]: '2000000',
@@ -224,9 +249,16 @@ describe('PortfolioScreenImpl', () => {
       [ZCHF_ETH_ID]: '0',
       [ETH_NATIVE_ID]: '1000000000000000000',
     });
-    const { getByTestId, UNSAFE_getAllByType } = renderScreen();
+    const { getByTestId, getByText, queryByTestId, queryByText, UNSAFE_getAllByType } =
+      renderScreen();
     await waitFor(() => expect(getByTestId('portfolio-asset-BTC')).toBeTruthy());
+    expect(getByTestId('wallet-actions')).toBeTruthy();
+    expect(queryByTestId('portfolio-empty')).toBeNull();
     expect(getByTestId('portfolio-asset-USD')).toBeTruthy();
+    expect(queryByTestId('portfolio-asset-CHF')).toBeNull();
+    expect(queryByTestId('portfolio-asset-EUR')).toBeNull();
+    expect(getByText('portfolio.stablecoinHint:{"currency":"USD"}')).toBeTruthy();
+    expect(queryByText(/portfolio\.networkCount/)).toBeNull();
     // Every asset card renders on the shared glass module instead of a
     // one-off opaque card (JK: "alle Karten ... müssen Glas design haben").
     expect(UNSAFE_getAllByType(GlassCard).length).toBeGreaterThan(0);

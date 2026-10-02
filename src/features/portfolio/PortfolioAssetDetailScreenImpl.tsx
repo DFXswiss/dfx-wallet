@@ -4,11 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import { AppHeader, AssetActions, GlassSurface, ScreenBackdrop } from '@/components';
+import { AppHeader, GlassSurface, ScreenBackdrop } from '@/components';
 import type { ChainId } from '@/config/chains';
 import {
   getAssetsForCanonicalSymbol,
   getAssets,
+  getCategoryForCanonicalSymbol,
   getCanonicalNameForSymbol,
   WDK_SUPPORTED_CHAINS,
 } from '@/config/tokens';
@@ -16,13 +17,16 @@ import {
   CHAIN_LABELS,
   computeFiatValue,
   formatBalance,
+  formatFiat,
   formatNumber,
   resolveFiatCurrency,
   SYMBOL_COLORS,
   SYMBOL_GLYPH,
+  SYMBOL_TO_TICKER,
   toNumeric,
 } from '@/config/portfolio-presentation';
 import { useEnabledChains } from './useEnabledChains';
+import { WalletActions } from './WalletActions';
 import { useWalletStore } from '@/store';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import {
@@ -78,6 +82,7 @@ export default function AssetDetailScreen() {
   const router = useRouter();
   const { enabledChains } = useEnabledChains();
   const { selectedCurrency } = useWalletStore();
+  const [showDetails, setShowDetails] = useState(false);
 
   const holdingMetas = useMemo(
     () => getAssetsForCanonicalSymbol(canonicalSymbol, enabledChains),
@@ -157,87 +162,138 @@ export default function AssetDetailScreen() {
     [holdings],
   );
   const totalFiat = useMemo(() => holdings.reduce((sum, h) => sum + h.fiatValue, 0), [holdings]);
+  const unitPrice = useMemo(() => {
+    if (!pricingReady) return undefined;
+    const ticker = SYMBOL_TO_TICKER.get(canonicalSymbol);
+    if (!ticker) return undefined;
+    const price = pricingService.getExchangeRate(ticker, fiatCurrency);
+    return price !== undefined && Number.isFinite(price) ? price : undefined;
+  }, [canonicalSymbol, fiatCurrency, pricingReady]);
 
   const color = SYMBOL_COLORS.get(canonicalSymbol) ?? colors.primary;
   const glyph = SYMBOL_GLYPH.get(canonicalSymbol) ?? canonicalSymbol.slice(0, 1);
+  const canonicalCategory = getCategoryForCanonicalSymbol(canonicalSymbol);
+  const displayName =
+    canonicalCategory === 'stablecoin'
+      ? t(`portfolio.assetName.${canonicalSymbol}`)
+      : canonicalName;
+  const formattedBalance = `${formatNumber(totalBalance)} ${canonicalSymbol}`;
+  const rateText =
+    unitPrice !== undefined
+      ? t('portfolio.assetRate', {
+          currency: currencySymbol,
+          price: formatFiat(unitPrice),
+          symbol: canonicalSymbol,
+        })
+      : null;
+  const balanceAndRate = rateText ? `${formattedBalance} · ${rateText}` : formattedBalance;
 
   const body = (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <AppHeader title={canonicalName} testID="asset-detail" />
+      <AppHeader title={displayName} testID="asset-detail" />
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <GlassSurface variant="lead" radius={Card.radius} style={styles.totalCard}>
+        <View style={styles.totalSection}>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalCurrency} testID="asset-detail-total-currency">
+              {currencySymbol}
+            </Text>
+            <Text style={styles.totalValue}>{formatFiat(totalFiat)}</Text>
+          </View>
+          <Text style={styles.totalMeta}>{balanceAndRate}</Text>
+        </View>
+
+        <View style={styles.actionsRow}>
+          <WalletActions asset={canonicalSymbol} />
+        </View>
+
+        <GlassSurface
+          radius={Card.radius}
+          style={styles.summaryRow}
+          testID="asset-detail-summary"
+          variant="default"
+        >
           <View style={[styles.iconBubble, { backgroundColor: color }]}>
             <Text style={styles.iconText}>{glyph}</Text>
           </View>
-          <Text style={styles.totalCrypto}>
-            {formatNumber(totalBalance)} {canonicalSymbol}
-          </Text>
-          <Text style={styles.totalFiat}>
-            {currencySymbol}{' '}
-            {Number.isFinite(totalFiat)
-              ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })
-              : '0.00'}
-          </Text>
-          <View style={styles.actionsRow}>
-            <AssetActions asset={canonicalSymbol} testID={`asset-${canonicalSymbol}-actions`} />
+          <View style={styles.holdingInfo}>
+            <Text style={styles.holdingChain}>{displayName}</Text>
+            <Text style={styles.holdingSymbol}>{t('portfolio.onYourWallet')}</Text>
+          </View>
+          <View style={styles.holdingBalance}>
+            <Text style={styles.holdingValue}>
+              {currencySymbol} {formatFiat(totalFiat)}
+            </Text>
+            <Text style={styles.holdingCrypto}>
+              {formatNumber(totalBalance)} {canonicalSymbol}
+            </Text>
           </View>
         </GlassSurface>
 
-        <Text style={styles.sectionLabel}>{t('portfolio.holdings')}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showDetails }}
+          onPress={() => setShowDetails((current) => !current)}
+          style={({ pressed }) => [styles.expandButton, pressed && styles.holdingPressed]}
+          testID="asset-detail-expand"
+        >
+          <Text style={styles.expandLabel}>
+            {showDetails ? t('portfolio.hideByAddress') : t('portfolio.showByAddress')}
+          </Text>
+          <Text style={styles.expandChevron}>{showDetails ? '⌃' : '›'}</Text>
+        </Pressable>
 
-        <View style={styles.holdingsList}>
-          {holdings.map((holding) => (
-            <Pressable
-              key={holding.id}
-              style={({ pressed }) => [pressed && styles.holdingPressed]}
-              testID={`holding-${holding.network}-${holding.symbol}`}
-              onPress={() =>
-                router.push({
-                  pathname: '/(auth)/transaction-history',
-                  params: { asset: holding.symbol, network: holding.network },
-                })
-              }
-            >
-              <GlassSurface variant="default" radius={Card.radius} style={styles.holdingRow}>
-                <View style={styles.holdingInfo}>
-                  {/* For canonical groups with multiple stablecoin variants
+        {showDetails ? (
+          <View style={styles.holdingsList}>
+            {holdings.map((holding) => (
+              <Pressable
+                key={holding.id}
+                style={({ pressed }) => [pressed && styles.holdingPressed]}
+                testID={`holding-${holding.network}-${holding.symbol}`}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(auth)/transaction-history',
+                    params: { asset: holding.symbol, network: holding.network },
+                  })
+                }
+              >
+                <GlassSurface variant="default" radius={Card.radius} style={styles.holdingRow}>
+                  <View style={styles.holdingInfo}>
+                    {/* For canonical groups with multiple stablecoin variants
                         (USD → USDC/USDT, EUR → multiple) the user wants the
                         token symbol on top so they can tell the rows apart;
                         the generic canonical name ("Dollar") is redundant
                         with the screen title. For BTC and other groups where
                         every holding shares the same symbol, fall back to
-                        the canonical name + variant label as before. */}
-                  <Text style={styles.holdingChain}>
-                    {holding.symbol !== canonicalSymbol ? holding.symbol : holding.canonicalName}
-                  </Text>
-                  <Text style={styles.holdingSymbol}>{holding.variantLabel}</Text>
-                </View>
-                <View style={styles.holdingBalance}>
-                  <Text style={styles.holdingValue}>
-                    {currencySymbol}{' '}
-                    {Number.isFinite(holding.fiatValue)
-                      ? (Math.round(holding.fiatValue * 100) / 100).toLocaleString('de-CH', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })
-                      : '0.00'}
-                  </Text>
-                  <Text style={styles.holdingCrypto}>
-                    {formatNumber(holding.balanceNum)} {holding.symbol}
-                  </Text>
-                </View>
-              </GlassSurface>
-            </Pressable>
-          ))}
-        </View>
+                    the canonical name + variant label as before. */}
+                    <Text style={styles.holdingChain}>
+                      {holding.symbol !== canonicalSymbol ? holding.symbol : holding.canonicalName}
+                    </Text>
+                    <Text style={styles.holdingSymbol}>{holding.variantLabel}</Text>
+                  </View>
+                  <View style={styles.holdingBalance}>
+                    <Text style={styles.holdingValue}>
+                      {currencySymbol}{' '}
+                      {Number.isFinite(holding.fiatValue)
+                        ? (Math.round(holding.fiatValue * 100) / 100).toLocaleString('de-CH', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })
+                        : '0.00'}
+                    </Text>
+                    <Text style={styles.holdingCrypto}>
+                      {formatNumber(holding.balanceNum)} {holding.symbol}
+                    </Text>
+                  </View>
+                </GlassSurface>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -274,51 +330,75 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
       paddingBottom: Spacing.huge,
       gap: Spacing.base,
     },
-    totalCard: {
-      paddingTop: Spacing.md,
-      paddingBottom: Spacing.xl,
+    totalSection: {
       alignItems: 'center',
-      gap: Spacing.md,
+      gap: Spacing.xs,
+    },
+    totalRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+    },
+    totalCurrency: {
+      fontSize: Typography.headlineSmall.fontSize,
+      color: colors.textSecondary,
+      fontWeight: '700',
+      ...onBackdrop,
+    },
+    totalValue: {
+      ...Typography.displayMedium,
+      color: colors.text,
+      flexShrink: 1,
+      ...onBackdrop,
+    },
+    totalMeta: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      fontWeight: '500',
+      textAlign: 'center',
+      ...onBackdrop,
     },
     iconBubble: {
-      width: IconTile.lg.size,
-      height: IconTile.lg.size,
-      borderRadius: IconTile.lg.radius,
+      width: IconTile.md.size,
+      height: IconTile.md.size,
+      borderRadius: IconTile.md.radius,
       alignItems: 'center',
       justifyContent: 'center',
       shadowColor: colors.shadow,
-      shadowOpacity: 0.18,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
     },
     iconText: {
+      ...Typography.headlineSmall,
       color: colors.white,
-      fontWeight: '700',
-      fontSize: Typography.headlineLarge.fontSize,
-      lineHeight: 34,
-    },
-    totalCrypto: {
-      fontSize: 32,
-      lineHeight: 36,
-      fontWeight: '700',
-      color: colors.text,
-      ...onBackdrop,
-    },
-    totalFiat: {
-      ...Typography.bodyLarge,
-      color: colors.textSecondary,
-      fontWeight: '500',
-      ...onBackdrop,
     },
     actionsRow: {
-      marginTop: Spacing.md,
       alignSelf: 'stretch',
     },
-    sectionLabel: {
-      ...Typography.sectionLabel,
-      color: colors.textSecondary,
-      marginBottom: Spacing.sm,
-      ...onBackdrop,
+    summaryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: Card.padding,
+      gap: Card.gap,
+    },
+    expandButton: {
+      minHeight: 40,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+    },
+    expandLabel: {
+      ...Typography.bodySmall,
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    expandChevron: {
+      ...Typography.bodyLarge,
+      color: colors.primary,
+      fontWeight: '700',
     },
     holdingsList: {
       gap: Layout.listGap,
