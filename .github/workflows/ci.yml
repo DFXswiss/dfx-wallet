@@ -194,6 +194,8 @@ jobs:
       # dependency tree of a wallet is a merge blocker, not a yellow badge.
       # image-size GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq: no published
       # patched release (latest 2.0.2, repo archived) — allowlist only those.
+      # node-forge GHSA-86w9-cpqp-85rv: no published patched release (affects <=1.4.0, latest 1.4.0);
+      # only reached through expo -> @expo/cli build tooling, not the app bundle — allowlist only that ID.
       - name: npm audit (high+)
         run: |
           set +e
@@ -202,6 +204,7 @@ jobs:
           python3 <<'PY'
           import json, re, sys
           ALLOWED = {
+              "GHSA-86W9-CPQP-85RV",
               "GHSA-W3RX-R6R6-PGPR",
               "GHSA-5P2G-FCMC-QVQQ",
           }
