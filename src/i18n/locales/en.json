@@ -25,7 +25,6 @@
     "paymentMethodBank": "Bank transfer",
     "paymentMethodHint": "0–1 business day",
     "paymentMethodSepa": "SEPA bank transfer",
-    "paymentMethodSepaHint": "Free · 0-1 business day",
     "quoteError": {
       "AmountTooHigh": "Amount too high.",
       "AmountTooLow": "Amount too low.",

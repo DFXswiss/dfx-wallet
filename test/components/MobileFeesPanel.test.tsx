@@ -14,22 +14,26 @@ jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-jest.mock('@/theme', () => ({
-  useColors: () => ({
-    cardOverlay: '#fff',
-    border: '#ddd',
-    primary: '#06f',
-    primaryLight: '#def',
-    text: '#111',
-    textSecondary: '#555',
-    textTertiary: '#888',
-    success: '#16a34a',
-    card: '#f8f8f8',
-    surface: '#ffffff',
-    surfaceLight: '#f2f2f2',
-    divider: '#dddddd',
-  }),
-}));
+jest.mock('@/theme', () => {
+  const actual = jest.requireActual('@/theme');
+  return {
+    ...actual,
+    useColors: () => ({
+      cardOverlay: '#fff',
+      border: '#ddd',
+      primary: '#06f',
+      primaryLight: '#def',
+      text: '#111',
+      textSecondary: '#555',
+      textTertiary: '#888',
+      success: '#16a34a',
+      card: '#f8f8f8',
+      surface: '#ffffff',
+      surfaceLight: '#f2f2f2',
+      divider: '#dddddd',
+    }),
+  };
+});
 
 jest.mock('@/components/Icon', () => ({
   Icon: () => null,
@@ -37,29 +41,29 @@ jest.mock('@/components/Icon', () => ({
 
 const quote = {
   amount: 0.01,
-  estimatedAmount: 250,
-  exchangeRate: 25000,
-  rate: 0.00004,
+  estimatedAmount: 689.46,
+  exchangeRate: 0.000014271,
+  rate: 0.000014504,
   isValid: true,
   fees: {
-    rate: 0.01,
-    dfx: 9,
-    bank: 9,
-    network: 9,
+    rate: 0.016065,
+    dfx: 0.000103,
+    bank: 0.0000285,
+    network: 0.00002915,
     fixed: 0,
     min: 0,
     platform: 0,
-    total: 27,
+    total: 0.00016065,
   },
   feesTarget: {
-    rate: 0.02,
-    dfx: 2,
-    bank: 0,
-    network: 0,
+    rate: 0.016065,
+    dfx: 7.22,
+    bank: 2,
+    network: 2.04,
     fixed: 0,
     min: 0,
     platform: 0,
-    total: 2,
+    total: 11.26,
   },
 };
 
@@ -130,7 +134,7 @@ describe('MobileFeesPanel', () => {
     expect(makeTradeQuoteKey({ ...input, chain: 'ethereum' })).not.toBe(key);
   });
 
-  it('renders Sell feesTarget with Free, Included, negative values, and stable row order', () => {
+  it('renders the inverse Sell rates and only positive feesTarget rows in stable order', () => {
     const { getByTestId, getByRole, rerender } = render(
       <MobileFeesPanel
         mode="sell"
@@ -143,6 +147,9 @@ describe('MobileFeesPanel', () => {
         testID="fees"
       />,
     );
+    expect(
+      within(getByTestId('fees')).getByText(/^1 BTC ≈ 68['’]946\.50 CHF \(common\.inclFees\)$/),
+    ).toBeTruthy();
 
     fireEvent.press(getByRole('button'));
     rerender(
@@ -163,18 +170,83 @@ describe('MobileFeesPanel', () => {
     );
     expect(labels.map((node) => node.props.children)).toEqual([
       'buy.youPay',
-      'sell.feeDfx · 2.00%',
-      'sell.feeBank',
+      'sell.feeDfx · 1.61%',
       'sell.feeNetwork',
+      'sell.feeBank',
       'sell.feeTotal',
       'sell.exchangeRate',
       'sell.youReceive',
     ]);
-    expect(within(panel).getByText('common.free')).toBeTruthy();
-    expect(within(panel).getByText('common.included')).toBeTruthy();
-    expect(within(panel).getAllByText('−2.00 CHF')).toHaveLength(2);
-    expect(within(panel).queryByText('−9.00 CHF')).toBeNull();
+    expect(within(panel).getByText('−7.22 CHF')).toBeTruthy();
+    expect(within(panel).getByText('−2.04 CHF')).toBeTruthy();
+    expect(within(panel).getByText('−2.00 CHF')).toBeTruthy();
+    expect(within(panel).getByText('−11.26 CHF')).toBeTruthy();
+    expect(within(panel).getByText(/^1 BTC = 70['’]072\.17 CHF$/)).toBeTruthy();
+    expect(within(panel).queryByText('common.free')).toBeNull();
+    expect(within(panel).queryByText('common.included')).toBeNull();
     expect(within(panel).queryByText('sell.feeFixed')).toBeNull();
+  });
+
+  it('does not fall back to source-asset fees when Sell feesTarget is absent', () => {
+    const { feesTarget: omittedFeesTarget, ...quoteWithoutTarget } = quote;
+    void omittedFeesTarget;
+
+    const { getAllByText, queryByText } = render(
+      <MobileFeesPanel
+        mode="sell"
+        quote={quoteWithoutTarget}
+        payAssetCode="BTC"
+        receiveAssetCode=""
+        currencyCode="CHF"
+        expanded
+        onToggle={jest.fn()}
+        testID="fees-without-target"
+      />,
+    );
+
+    expect(getAllByText('—')).toHaveLength(2);
+    expect(queryByText('−0.00 CHF')).toBeNull();
+    expect(queryByText('sell.feeTotal')).toBeNull();
+  });
+
+  it('renders a positive Sell fixed fee from feesTarget', () => {
+    const { getByText } = render(
+      <MobileFeesPanel
+        mode="sell"
+        quote={{
+          ...quote,
+          feesTarget: { ...quote.feesTarget, fixed: 3, total: 14.26 },
+        }}
+        payAssetCode="BTC"
+        receiveAssetCode=""
+        currencyCode="CHF"
+        expanded
+        onToggle={jest.fn()}
+        testID="fees-with-fixed"
+      />,
+    );
+
+    expect([
+      getByText('sell.feeFixed').props.children,
+      getByText('−3.00 CHF').props.children,
+    ]).toEqual(['sell.feeFixed', '−3.00 CHF']);
+  });
+
+  it('omits the Sell market-rate row when exchangeRate is not positive', () => {
+    const { queryByText } = render(
+      <MobileFeesPanel
+        mode="sell"
+        quote={{ ...quote, exchangeRate: 0 }}
+        payAssetCode="BTC"
+        receiveAssetCode=""
+        currencyCode="CHF"
+        expanded
+        onToggle={jest.fn()}
+        testID="fees-without-rate"
+      />,
+    );
+
+    expect(queryByText('sell.exchangeRate')).toBeNull();
   });
 
   it('renders the empty summary and empty body without a quote', () => {

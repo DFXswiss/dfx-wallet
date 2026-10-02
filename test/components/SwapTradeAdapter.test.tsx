@@ -19,21 +19,24 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-jest.mock('@/theme', () => ({
-  Typography: { bodySmall: {}, headlineSmall: {} },
-  useColors: () => ({
-    background: '#ffffff',
-    border: '#dddddd',
-    borderLight: '#eeeeee',
-    cardOverlay: '#ffffff',
-    primary: '#0066ff',
-    primaryLight: '#e6f0ff',
-    surface: '#ffffff',
-    text: '#111111',
-    textTertiary: '#777777',
-  }),
-  useResolvedScheme: () => 'light',
-}));
+jest.mock('@/theme', () => {
+  const actual = jest.requireActual('@/theme');
+  return {
+    ...actual,
+    useColors: () => ({
+      background: '#ffffff',
+      border: '#dddddd',
+      borderLight: '#eeeeee',
+      cardOverlay: '#ffffff',
+      primary: '#0066ff',
+      primaryLight: '#e6f0ff',
+      surface: '#ffffff',
+      text: '#111111',
+      textTertiary: '#777777',
+    }),
+    useResolvedScheme: () => 'light',
+  };
+});
 
 jest.mock('../../src/components/Icon', () => {
   const ReactActual = jest.requireActual('react');

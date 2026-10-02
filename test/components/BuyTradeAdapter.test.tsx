@@ -5,7 +5,13 @@ jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string | string[], params?: Record<string, unknown>) => {
       const resolved = Array.isArray(key) ? key[0]! : key;
-      return params ? `${resolved}:${JSON.stringify(params)}` : resolved;
+      const translations: Record<string, string> = {
+        'buy.paymentMethodBank': 'Bank transfer',
+        'buy.paymentMethodHint': '0–1 business day',
+        'buy.paymentMethodSepa': 'SEPA bank transfer',
+      };
+      const rendered = translations[resolved] ?? resolved;
+      return params ? `${rendered}:${JSON.stringify(params)}` : rendered;
     },
   }),
 }));
@@ -169,29 +175,57 @@ const renderAdapter = () => render(<BuyTradeAdapter onShellChange={mockOnShellCh
 
 const PAYMENT_INFO = {
   id: 321,
+  uid: 'buy-quote-321',
+  routeId: 1,
+  timestamp: '2026-10-01T10:00:00.000Z',
   isValid: true,
   iban: 'CH9300762011623852957',
   bic: 'DSSWCHZZXXX',
   name: 'DFX AG',
+  street: 'Bahnhofstrasse',
+  number: '1',
+  zip: '8001',
+  city: 'Zurich',
+  country: 'CH',
+  sepaInstant: false,
   remittanceInfo: 'DFX-321',
-  amount: 100,
-  estimatedAmount: 0.001,
-  exchangeRate: 100000,
+  amount: 500,
+  estimatedAmount: 0.00702448,
+  exchangeRate: 70073.53,
   minVolume: 10,
   maxVolume: 10000,
-  currency: { name: 'CHF' },
-  asset: { name: 'BTC' },
-  rate: 101000,
+  currency: { id: 1, name: 'CHF' },
+  asset: { id: 1, name: 'BTC', uniqueName: 'Bitcoin', blockchain: 'Bitcoin' },
+  rate: 71179.66,
+  exactPrice: false,
+  priceSteps: [],
   fees: {
-    rate: 0.01,
-    dfx: 1,
-    network: 0,
+    rate: 0.01554,
     fixed: 0,
-    bank: 0,
-    platform: 0,
+    network: 0.77,
     min: 0,
-    total: 1,
+    dfx: 5,
+    platform: 0,
+    bank: 2,
+    bankFixed: 0,
+    bankVariable: 0,
+    networkStart: 0,
+    total: 7.77,
   },
+  feesTarget: {
+    rate: 0.01554,
+    fixed: 0,
+    network: 0.00001099,
+    min: 0,
+    dfx: 0.00007135,
+    platform: 0,
+    bank: 0.00002854,
+    bankFixed: 0,
+    bankVariable: 0,
+    networkStart: 0,
+    total: 0.00011088,
+  },
+  expiryDate: '2026-10-01T10:05:00.000Z',
 };
 
 beforeEach(() => {
@@ -216,7 +250,7 @@ describe('BuyTradeAdapter', () => {
     mockCreatePaymentInfo.mockResolvedValueOnce(null);
     const { getByTestId, queryByText, rerender } = renderAdapter();
 
-    fireEvent.changeText(getByTestId('buy-pay-amount'), '100');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '100');
     await act(async () => {
       fireEvent.press(getByTestId('buy-cta'));
     });
@@ -229,7 +263,7 @@ describe('BuyTradeAdapter', () => {
     expect(getByTestId('buy-receive-amount').props.value).not.toBe('');
     expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(false);
 
-    fireEvent.changeText(getByTestId('buy-pay-amount'), '101');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '101');
     expect(queryByText('payment info failed')).toBeNull();
   });
 
@@ -239,9 +273,9 @@ describe('BuyTradeAdapter', () => {
 
     const { getByTestId, getByText, queryByText } = renderAdapter();
 
-    fireEvent.changeText(getByTestId('buy-pay-amount'), '100');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '100');
     await act(async () => {
-      fireEvent.press(getByText('buy.title BTC'));
+      fireEvent.press(getByText('buy.cta:{"asset":"BTC"}'));
     });
 
     await waitFor(() => expect(getByText('buy.paymentInfo')).toBeTruthy());
@@ -263,16 +297,16 @@ describe('BuyTradeAdapter', () => {
 
     const feePanel = getByTestId('buy-fees-panel');
     expect(feePanel).toBeTruthy();
-    expect(within(feePanel).getAllByText('—')).toHaveLength(2);
+    expect(within(feePanel).getByText('buy.summary')).toBeTruthy();
+    expect(within(feePanel).getAllByText('—')).toHaveLength(1);
   });
 
-  it('keeps backend quote errors visible in the expanded fee panel', () => {
+  it('keeps backend quote errors visible while the fee panel is collapsed', () => {
     flowState.paymentInfo = { isValid: false, error: 'AmountTooLow' };
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
 
     const { getByTestId, getByText } = renderAdapter();
-    fireEvent.changeText(getByTestId('buy-pay-amount'), '1');
-    fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
+    fireEvent.changeText(getByTestId('buy-amount-input'), '1');
 
     expect(getByText(/buy\.quoteError\.AmountTooLow/)).toBeTruthy();
     expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(true);
@@ -283,7 +317,7 @@ describe('BuyTradeAdapter', () => {
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
 
     const { getByTestId } = renderAdapter();
-    fireEvent.changeText(getByTestId('buy-pay-amount'), '1');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '1');
 
     expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(false);
   });
@@ -294,13 +328,13 @@ describe('BuyTradeAdapter', () => {
     flowState.errorKey = '1|CHF|BTC|Bitcoin|bitcoin';
 
     const { getByTestId, getByText, queryByText } = renderAdapter();
-    fireEvent.changeText(getByTestId('buy-pay-amount'), '1');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '1');
     fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
 
     expect(getByText('network failed')).toBeTruthy();
     expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(false);
 
-    fireEvent.changeText(getByTestId('buy-pay-amount'), '2');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '2');
     expect(queryByText('network failed')).toBeNull();
     expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(true);
   });
@@ -311,7 +345,7 @@ describe('BuyTradeAdapter', () => {
     flowState.errorKey = '1|CHF|BTC|Bitcoin|bitcoin';
 
     const { getByTestId } = renderAdapter();
-    fireEvent.changeText(getByTestId('buy-pay-amount'), '2');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '2');
 
     expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(true);
   });
@@ -321,10 +355,12 @@ describe('BuyTradeAdapter', () => {
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
 
     const { getByTestId, getByText } = renderAdapter();
-    fireEvent.changeText(getByTestId('buy-pay-amount'), '1');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '1');
     fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
 
-    expect(getByText('buy.continueHint')).toBeTruthy();
+    expect(getByText(/buy\.continueHint/).props.children).toContain(
+      '"action":"buy.cta:{\\"asset\\":\\"BTC\\"}"',
+    );
   });
 
   it('does not render a previous quote while a replacement quote is loading', () => {
@@ -335,7 +371,8 @@ describe('BuyTradeAdapter', () => {
     const { getByTestId } = renderAdapter();
 
     expect(getByTestId('buy-receive-amount').props.value).toBe('');
-    expect(within(getByTestId('buy-fees-panel')).getAllByText('—')).toHaveLength(2);
+    expect(within(getByTestId('buy-fees-panel')).getByText('buy.fetchingQuote')).toBeTruthy();
+    expect(within(getByTestId('buy-fees-panel')).getAllByText('—')).toHaveLength(1);
   });
 
   it('invalidates the previous quote immediately when the amount changes', () => {
@@ -343,10 +380,11 @@ describe('BuyTradeAdapter', () => {
     flowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
 
     const { getByTestId } = renderAdapter();
-    fireEvent.changeText(getByTestId('buy-pay-amount'), '101');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '101');
 
     expect(getByTestId('buy-receive-amount').props.value).toBe('');
-    expect(within(getByTestId('buy-fees-panel')).getAllByText('—')).toHaveLength(2);
+    expect(within(getByTestId('buy-fees-panel')).getByText('buy.summary')).toBeTruthy();
+    expect(within(getByTestId('buy-fees-panel')).getAllByText('—')).toHaveLength(1);
     expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(true);
   });
 
@@ -355,11 +393,58 @@ describe('BuyTradeAdapter', () => {
     flowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
 
     const { getByTestId, queryByText } = renderAdapter();
-    fireEvent.changeText(getByTestId('buy-pay-amount'), '101');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '101');
     fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
 
     expect(queryByText(/buy\.quoteError\.AmountTooLow/)).toBeNull();
-    expect(queryByText('buy.continueHint')).toBeNull();
+    expect(queryByText(/buy\.continueHint/)).toBeNull();
+  });
+
+  it('uses the fee-inclusive rate in the buy headline and exposes the E2E input id', () => {
+    const { getByTestId, getByText } = renderAdapter();
+
+    fireEvent.changeText(getByTestId('buy-amount-input'), '100');
+
+    expect(getByTestId('buy-amount-input')).toBeTruthy();
+    const headline = getByText(/buy\.rateInclFees/).props.children;
+    expect(headline).toMatch(/"amount":"71['’]179\.66"/);
+    expect(headline).not.toMatch(/"amount":"70['’]073\.53"/);
+  });
+
+  it('falls back to the buy summary when the final rate is not positive', () => {
+    flowState.paymentInfo = { ...PAYMENT_INFO, rate: 0 };
+    const { getByTestId, getByText, queryByText } = renderAdapter();
+
+    fireEvent.changeText(getByTestId('buy-amount-input'), '100');
+
+    expect(getByText('buy.summary')).toBeTruthy();
+    expect(queryByText(/buy\.rateInclFees/)).toBeNull();
+  });
+
+  it('renders the interpolated CTA and the CHF bank-transfer payment method', () => {
+    const { getByTestId, getByText } = renderAdapter();
+
+    expect(getByText('buy.cta:{"asset":"BTC"}')).toBeTruthy();
+    const paymentMethod = getByTestId('buy-payment-method-row');
+    expect(
+      within(paymentMethod)
+        .getAllByText(/Bank transfer|0–1 business day/)
+        .map((node) => node.props.children),
+    ).toEqual(['Bank transfer', '0–1 business day']);
+  });
+
+  it('renders SEPA for EUR while keeping the neutral payment-method hint', () => {
+    const { getByTestId } = renderAdapter();
+
+    fireEvent.press(getByTestId('buy-pay-currency-pill'));
+    fireEvent.press(getByTestId('pay-currency-option-EUR'));
+
+    const paymentMethod = getByTestId('buy-payment-method-row');
+    expect(
+      within(paymentMethod)
+        .getAllByText(/SEPA bank transfer|0–1 business day/)
+        .map((node) => node.props.children),
+    ).toEqual(['SEPA bank transfer', '0–1 business day']);
   });
 
   it('reports the amount-step shell chrome on mount', () => {

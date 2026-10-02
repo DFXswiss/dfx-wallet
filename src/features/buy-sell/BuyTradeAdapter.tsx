@@ -216,7 +216,7 @@ export function BuyTradeAdapter({
   // instead of getting stuck on "Angebot wird berechnet …".
   // DFX sometimes returns 200 with `isValid: false` and no error code —
   // typically when the chain isn't yet attached to the user's account.
-  // Tapping Weiter triggers /buy/paymentInfos which fires the linkChain
+  // Tapping the buy CTA triggers /buy/paymentInfos which fires the linkChain
   // gate, runs the modal sign flow, and auto-refreshes the quote. Tell
   // the user to do exactly that instead of bouncing off a generic error.
   const unsupportedChain = !!selectedChainSpec?.unsupported;
@@ -240,6 +240,22 @@ export function BuyTradeAdapter({
   // *something* and can read the change as it lands.
   // App2 keeps the fee panel directly below the amount panels, including before
   // the first quote has arrived. The empty state is rendered by the panel itself.
+  const buyAction = t('buy.cta', { asset: targetAsset });
+  const quoteHeader = unsupportedChain
+    ? t('buy.chainUnsupported')
+    : quoteError
+      ? t([`buy.quoteError.${quoteError}`, 'buy.quoteError.generic'], { code: quoteError })
+      : needsContinue
+        ? t('buy.continueHint', { action: buyAction })
+        : isLoading
+          ? t('buy.fetchingQuote')
+          : hasQuote && paymentInfo && Number.isFinite(paymentInfo.rate) && paymentInfo.rate > 0
+            ? t('buy.rateInclFees', {
+                asset: targetAsset,
+                amount: fmtFiat(paymentInfo.rate),
+                currency: selectedCurrency,
+              })
+            : t('buy.summary');
   const feePanelStatus = unsupportedChain
     ? t('buy.chainUnsupported')
     : quoteError
@@ -249,7 +265,7 @@ export function BuyTradeAdapter({
         : genericActionError
           ? genericActionError
           : needsContinue
-            ? t('buy.continueHint')
+            ? t('buy.continueHint', { action: buyAction })
             : null;
   const minVolume = paymentInfo?.minVolume;
   const maxVolume = paymentInfo?.maxVolume;
@@ -270,13 +286,13 @@ export function BuyTradeAdapter({
         payLabel={<Text style={styles.plabel}>{t('buy.youPay')}</Text>}
         payAmount={
           <TextInput
+            testID="buy-amount-input"
             style={styles.amt}
             value={amount}
             onChangeText={setAmount}
             placeholder="0"
             placeholderTextColor={colors.textTertiary}
             keyboardType="decimal-pad"
-            testID="buy-pay-amount"
           />
         }
         paySelector={
@@ -379,6 +395,7 @@ export function BuyTradeAdapter({
             expanded={!collapsed}
             onToggle={() => setCollapsed((value) => !value)}
             testID="buy-fees-panel"
+            headline={quoteHeader}
             statusMessage={feePanelStatus}
           />
 
@@ -404,8 +421,10 @@ export function BuyTradeAdapter({
               <Icon name="wallet" size={18} color={colors.primary} />
             </View>
             <View style={styles.paymentMethodBody}>
-              <Text style={styles.paymentMethodTitle}>{t('buy.paymentMethodSepa')}</Text>
-              <Text style={styles.paymentMethodHint}>{t('buy.paymentMethodSepaHint')}</Text>
+              <Text style={styles.paymentMethodTitle}>
+                {t(selectedCurrency === 'EUR' ? 'buy.paymentMethodSepa' : 'buy.paymentMethodBank')}
+              </Text>
+              <Text style={styles.paymentMethodHint}>{t('buy.paymentMethodHint')}</Text>
             </View>
           </View>
 
@@ -413,7 +432,7 @@ export function BuyTradeAdapter({
 
           <PrimaryButton
             testID="buy-cta"
-            title={`${t('buy.title')} ${targetAsset}`}
+            title={buyAction}
             icon={<Icon name="arrow-right" size={18} color={colors.white} />}
             onPress={async () => {
               if (!selectedChainSpec) return;

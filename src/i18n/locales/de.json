@@ -25,7 +25,6 @@
     "paymentMethodBank": "Banküberweisung",
     "paymentMethodHint": "0–1 Werktag",
     "paymentMethodSepa": "SEPA-Banküberweisung",
-    "paymentMethodSepaHint": "Kostenlos · 0-1 Werktag",
     "quoteError": {
       "AmountTooHigh": "Betrag zu hoch.",
       "AmountTooLow": "Betrag zu niedrig.",

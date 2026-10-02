@@ -208,19 +208,30 @@ const renderAdapter = (props: Partial<React.ComponentProps<typeof BuyTradeAdapte
 
 const PAYMENT_INFO = {
   id: 321,
+  uid: 'buy-quote-321',
+  routeId: 1,
+  timestamp: '2026-10-01T10:00:00.000Z',
   isValid: true,
   iban: 'CH9300762011623852957',
   bic: 'DSSWCHZZXXX',
   name: 'DFX AG',
+  street: 'Bahnhofstrasse',
+  number: '1',
+  zip: '8001',
+  city: 'Zurich',
+  country: 'CH',
+  sepaInstant: false,
   remittanceInfo: 'DFX-321',
   amount: 100,
   estimatedAmount: 0.001,
   exchangeRate: 100000,
   minVolume: 10,
   maxVolume: 10000,
-  currency: { name: 'CHF' },
-  asset: { name: 'BTC' },
+  currency: { id: 1, name: 'CHF' },
+  asset: { id: 1, name: 'BTC', uniqueName: 'Bitcoin', blockchain: 'Bitcoin' },
   rate: 101000,
+  exactPrice: false,
+  priceSteps: [],
   fees: {
     rate: 0.01,
     dfx: 1,
@@ -231,6 +242,17 @@ const PAYMENT_INFO = {
     min: 0,
     total: 1,
   },
+  feesTarget: {
+    rate: 0.01,
+    dfx: 0.00001,
+    network: 0,
+    fixed: 0,
+    bank: 0,
+    platform: 0,
+    min: 0,
+    total: 0.00001,
+  },
+  expiryDate: '2026-10-01T10:05:00.000Z',
 };
 
 /** Narrows a captured-callback ref without a non-null assertion. */
@@ -268,7 +290,7 @@ describe('BuyTradeAdapter — payment/confirm steps', () => {
     mockCreatePaymentInfo.mockResolvedValueOnce(PAYMENT_INFO);
     const { getByTestId, getByText } = renderAdapter();
 
-    fireEvent.changeText(getByTestId('buy-pay-amount'), '100');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '100');
     await act(async () => {
       fireEvent.press(getByTestId('buy-cta'));
     });
@@ -302,7 +324,7 @@ describe('BuyTradeAdapter — payment/confirm steps', () => {
       lastShell.onBack();
     });
     expect(getByTestId('buy-cta')).toBeTruthy();
-    expect(getByTestId('buy-pay-amount')).toBeTruthy();
+    expect(getByTestId('buy-amount-input')).toBeTruthy();
   });
 
   it('confirms the transfer, shows the success step, and Done navigates back', async () => {
@@ -310,7 +332,7 @@ describe('BuyTradeAdapter — payment/confirm steps', () => {
     mockConfirmPayment.mockResolvedValueOnce(true);
     const { getByTestId, getByText, queryByText } = renderAdapter();
 
-    fireEvent.changeText(getByTestId('buy-pay-amount'), '100');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '100');
     await act(async () => {
       fireEvent.press(getByTestId('buy-cta'));
     });
@@ -385,7 +407,7 @@ describe('BuyTradeAdapter — linked-wallet target params', () => {
     expect(getByTestId('buy-target-wallet-banner')).toBeTruthy();
     expect(queryByTestId('confirm-target-wallet-modal')).toBeNull();
 
-    fireEvent.changeText(getByTestId('buy-pay-amount'), '100');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '100');
     fireEvent.press(getByTestId('buy-cta'));
 
     expect(getByTestId('confirm-target-wallet-modal')).toBeTruthy();

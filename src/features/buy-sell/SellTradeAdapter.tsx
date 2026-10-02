@@ -171,6 +171,19 @@ export function SellTradeAdapter({
       (c) =>
         c.chain === selectedChainSpec.chain && c.tokens.some((tk) => tk.assetSymbol === sellAsset),
     );
+  const hasAnySellBalance =
+    balanceResults == null
+      ? null
+      : SELL_ASSETS.some((candidate) =>
+          candidate.chains.some((candidateChain) =>
+            candidateChain.tokens.some((token) =>
+              hasHolding(candidateChain.chain, token.assetSymbol),
+            ),
+          ),
+        );
+  const showNoBalance =
+    (!selectedAsset && hasAnySellBalance === false) ||
+    (selectedAsset !== null && !selectedAssetIsAvailable);
   const currentQuoteKey = makeTradeQuoteKey({
     amount: parseFloat(amount),
     currency: payoutCurrency,
@@ -247,11 +260,11 @@ export function SellTradeAdapter({
     quoteIsCurrent &&
     !!paymentInfo &&
     paymentInfo.isValid &&
-    !!paymentInfo.fees &&
+    !!paymentInfo.feesTarget &&
     parseFloat(amount) > 0;
   // Empty quote without an explicit error code → the chain still has to
-  // be linked. Tapping Weiter triggers the linkChain modal and auto-
-  // retries the quote. See BuyTradeAdapter for full rationale.
+  // be linked. The sell CTA opens the bank step; submitting the IBAN with
+  // Continue triggers the linkChain modal and retries the quote.
   const paymentError = quoteIsCurrent ? (paymentInfo?.error ?? paymentInfo?.errors?.[0]) : null;
   const quoteError = quoteIsCurrent && !hasQuote && paymentError ? String(paymentError) : null;
   const quoteErrorIsCurrent = !!currentQuoteKey && !isLoading && errorKey === currentQuoteKey;
@@ -266,6 +279,20 @@ export function SellTradeAdapter({
     !isLoading &&
     !!currentQuoteKey &&
     (authGateIsCurrent || !!genericQuoteError || needsContinue || isAccountGateError(quoteError));
+  const sellAction = t('sell.cta', { asset: sellAsset });
+  const quoteHeader = quoteError
+    ? t([`sell.quoteError.${quoteError}`, 'sell.quoteError.generic'], { code: quoteError })
+    : needsContinue
+      ? t('sell.continueHint', { action: sellAction, next: t('common.continue') })
+      : isLoading
+        ? t('sell.fetchingQuote')
+        : hasQuote && paymentInfo && Number.isFinite(paymentInfo.rate) && paymentInfo.rate > 0
+          ? t('sell.rateInclFees', {
+              asset: sellAsset,
+              amount: fmtFiat(1 / paymentInfo.rate),
+              currency: payoutCurrency,
+            })
+          : t('sell.summary');
   const feePanelStatus = quoteError
     ? t([`sell.quoteError.${quoteError}`, 'sell.quoteError.generic'], { code: quoteError })
     : genericQuoteError
@@ -273,13 +300,14 @@ export function SellTradeAdapter({
       : genericActionError
         ? genericActionError
         : needsContinue
-          ? t('sell.continueHint')
+          ? t('sell.continueHint', { action: sellAction, next: t('common.continue') })
           : null;
   const minVolume = paymentInfo?.minVolume;
   const maxVolume = paymentInfo?.maxVolume;
   const numAmount = parseFloat(amount);
   const belowMin = minVolume != null && numAmount > 0 && numAmount < minVolume;
   const aboveMax = maxVolume != null && numAmount > maxVolume;
+  const feesTarget = paymentInfo?.feesTarget;
 
   const renderAmountStepContent = () => (
     <View style={styles.stepContent}>
@@ -294,6 +322,7 @@ export function SellTradeAdapter({
         payLabel={<Text style={styles.plabel}>{t('sell.youSell')}</Text>}
         payAmount={
           <TextInput
+            testID="sell-amount-input"
             style={styles.amt}
             value={amount}
             onChangeText={setAmount}
@@ -301,7 +330,6 @@ export function SellTradeAdapter({
             placeholderTextColor={colors.textTertiary}
             keyboardType="decimal-pad"
             editable={!!selectedAsset}
-            testID="sell-pay-amount"
           />
         }
         paySelector={
@@ -382,11 +410,14 @@ export function SellTradeAdapter({
         expanded={!collapsed}
         onToggle={() => setCollapsed((value) => !value)}
         testID="sell-fees-panel"
+        headline={quoteHeader}
         statusMessage={feePanelStatus}
       />
 
-      {selectedAsset && !selectedAssetIsAvailable ? (
-        <Text style={sharedStyles.warning}>{t('sell.noBalance')}</Text>
+      {showNoBalance ? (
+        <Text style={sharedStyles.warning} testID="sell-no-balance">
+          {t('sell.noBalance')}
+        </Text>
       ) : null}
 
       {belowMin ? (
@@ -408,7 +439,7 @@ export function SellTradeAdapter({
 
       <PrimaryButton
         testID="sell-cta"
-        title={`${t('sell.title')} ${sellAsset}`}
+        title={sellAction}
         icon={<Icon name="arrow-right" size={18} color={colors.white} />}
         onPress={() => {
           if (hasTargetWallet) {
@@ -495,10 +526,48 @@ export function SellTradeAdapter({
             label={t('sell.youSell')}
             value={`${fmtCrypto(paymentInfo.amount)} ${paymentInfo.asset.name}`}
           />
-          <QuoteRow
-            label={t('sell.exchangeRate')}
-            value={`1 ${paymentInfo.asset.name} = ${fmtFiat(paymentInfo.exchangeRate)} ${paymentInfo.currency.name}`}
-          />
+          {Number.isFinite(paymentInfo.exchangeRate) && paymentInfo.exchangeRate > 0 ? (
+            <QuoteRow
+              label={t('sell.exchangeRate')}
+              value={`1 ${paymentInfo.asset.name} = ${fmtFiat(
+                1 / paymentInfo.exchangeRate,
+              )} ${paymentInfo.currency.name}`}
+            />
+          ) : null}
+          {feesTarget ? (
+            <>
+              <QuoteRow
+                label={t('sell.feeDfx')}
+                value={`${(paymentInfo.fees.rate * 100).toFixed(2)}%`}
+                {...(feesTarget.dfx > 0
+                  ? { sub: `${fmtFiat(feesTarget.dfx)} ${paymentInfo.currency.name}` }
+                  : {})}
+              />
+              {feesTarget.network > 0 ? (
+                <QuoteRow
+                  label={t('sell.feeNetwork')}
+                  value={`${fmtFiat(feesTarget.network)} ${paymentInfo.currency.name}`}
+                />
+              ) : null}
+              {feesTarget.fixed > 0 ? (
+                <QuoteRow
+                  label={t('sell.feeFixed')}
+                  value={`${fmtFiat(feesTarget.fixed)} ${paymentInfo.currency.name}`}
+                />
+              ) : null}
+              {feesTarget.bank > 0 ? (
+                <QuoteRow
+                  label={t('sell.feeBank')}
+                  value={`${fmtFiat(feesTarget.bank)} ${paymentInfo.currency.name}`}
+                />
+              ) : null}
+              <QuoteRow
+                label={t('sell.feeTotal')}
+                value={`${fmtFiat(feesTarget.total)} ${paymentInfo.currency.name}`}
+                emphasis
+              />
+            </>
+          ) : null}
           <View style={sharedStyles.quoteDivider} />
           <QuoteRow
             label={t('sell.youReceive')}

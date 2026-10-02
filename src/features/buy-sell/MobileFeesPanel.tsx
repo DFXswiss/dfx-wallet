@@ -29,6 +29,7 @@ type Props = {
   expanded: boolean;
   onToggle: () => void;
   testID: string;
+  headline?: string;
   statusMessage?: string | null;
 };
 
@@ -41,16 +42,22 @@ export function MobileFeesPanel({
   expanded,
   onToggle,
   testID,
+  headline,
   statusMessage,
 }: Props) {
   const { t } = useTranslation();
   const colors = useColors();
   const styles = makeStyles(colors);
-  const valid = !!quote && quote.isValid !== false && !!quote.fees;
-  const fees = valid ? (mode === 'sell' ? (quote!.feesTarget ?? quote!.fees) : quote!.fees) : null;
-  const hasRate = valid && typeof quote!.rate === 'number' && quote!.rate > 0;
+  const valid =
+    !!quote && quote.isValid !== false && (mode === 'sell' ? !!quote.feesTarget : !!quote.fees);
+  const fees = valid ? (mode === 'sell' ? quote!.feesTarget! : quote!.fees!) : null;
+  const rate = quote?.rate;
+  const hasRate = valid && typeof rate === 'number' && Number.isFinite(rate) && rate > 0;
+  const hasSellExchangeRate =
+    valid && Number.isFinite(quote!.exchangeRate) && quote!.exchangeRate > 0;
   const summary =
-    valid && hasRate
+    headline ??
+    (valid && hasRate
       ? summaryRate(
           mode,
           quote!,
@@ -59,7 +66,8 @@ export function MobileFeesPanel({
           currencyCode,
           t('common.inclFees'),
         )
-      : '—';
+      : '—');
+  const bodyStatus = statusMessage && statusMessage !== headline ? statusMessage : null;
 
   const formatFee = (value: number) =>
     mode === 'swap' ? `${fmtCrypto(value)} ${payAssetCode}` : `${fmtFiat(value)} ${currencyCode}`;
@@ -73,7 +81,7 @@ export function MobileFeesPanel({
       ? `${fmtFiat(quote!.estimatedAmount)} ${currencyCode}`
       : `${fmtCrypto(quote!.estimatedAmount)} ${receiveAssetCode}`
     : '—';
-  const dfxLabel = `${mode === 'buy' ? t('buy.feeDfx') : mode === 'sell' ? t('sell.feeDfx') : t('buy.feeDfx')}${fees?.rate ? ` · ${(fees.rate * 100).toFixed(2)}%` : ''}`;
+  const dfxLabel = `${mode === 'buy' ? t('buy.feeDfx') : mode === 'sell' ? t('sell.feeDfx') : t('buy.feeDfx')}${fees ? ` · ${(fees.rate * 100).toFixed(2)}%` : ''}`;
 
   return (
     <View style={styles.card} testID={testID}>
@@ -87,33 +95,41 @@ export function MobileFeesPanel({
           <Icon name="chevron-right" size={16} color={colors.textTertiary} />
         </View>
       </Pressable>
-      {expanded && (valid || statusMessage) ? (
+      {expanded && (valid || bodyStatus) ? (
         <View style={styles.body}>
-          {statusMessage ? <Text style={styles.status}>{statusMessage}</Text> : null}
+          {bodyStatus ? <Text style={styles.status}>{bodyStatus}</Text> : null}
           {valid ? (
             <>
               <FeeRow label={t('buy.youPay')} value={payValue} styles={styles} />
               <FeeRow label={dfxLabel} value={`−${formatFee(fees!.dfx)}`} styles={styles} />
-              {mode !== 'swap' && (fees!.bank > 0 || mode === 'sell') ? (
+              {mode !== 'sell' || fees!.network > 0 ? (
                 <FeeRow
-                  label={mode === 'buy' ? t('buy.feeBank') : t('sell.feeBank')}
-                  value={fees!.bank > 0 ? `−${formatFee(fees!.bank)}` : t('common.free')}
-                  positive={!fees!.bank}
+                  label={
+                    mode === 'buy'
+                      ? t('buy.feeNetwork')
+                      : mode === 'sell'
+                        ? t('sell.feeNetwork')
+                        : t('buy.feeNetwork')
+                  }
+                  value={fees!.network > 0 ? `−${formatFee(fees!.network)}` : t('common.included')}
+                  positive={!fees!.network}
                   styles={styles}
                 />
               ) : null}
-              <FeeRow
-                label={
-                  mode === 'buy'
-                    ? t('buy.feeNetwork')
-                    : mode === 'sell'
-                      ? t('sell.feeNetwork')
-                      : t('buy.feeNetwork')
-                }
-                value={fees!.network > 0 ? `−${formatFee(fees!.network)}` : t('common.included')}
-                positive={!fees!.network}
-                styles={styles}
-              />
+              {mode === 'sell' && fees!.fixed > 0 ? (
+                <FeeRow
+                  label={t('sell.feeFixed')}
+                  value={`−${formatFee(fees!.fixed)}`}
+                  styles={styles}
+                />
+              ) : null}
+              {mode !== 'swap' && fees!.bank > 0 ? (
+                <FeeRow
+                  label={mode === 'buy' ? t('buy.feeBank') : t('sell.feeBank')}
+                  value={`−${formatFee(fees!.bank)}`}
+                  styles={styles}
+                />
+              ) : null}
               <FeeRow
                 label={
                   mode === 'buy'
@@ -125,17 +141,19 @@ export function MobileFeesPanel({
                 value={`−${formatFee(fees!.total)}`}
                 styles={styles}
               />
-              <FeeRow
-                label={
-                  mode === 'buy'
-                    ? t('buy.exchangeRate')
-                    : mode === 'sell'
-                      ? t('sell.exchangeRate')
-                      : t('buy.exchangeRate')
-                }
-                value={rateValue(mode, quote!, payAssetCode, receiveAssetCode)}
-                styles={styles}
-              />
+              {mode !== 'sell' || hasSellExchangeRate ? (
+                <FeeRow
+                  label={
+                    mode === 'buy'
+                      ? t('buy.exchangeRate')
+                      : mode === 'sell'
+                        ? t('sell.exchangeRate')
+                        : t('buy.exchangeRate')
+                  }
+                  value={rateValue(mode, quote!, payAssetCode, receiveAssetCode, currencyCode)}
+                  styles={styles}
+                />
+              ) : null}
               <FeeRow
                 label={
                   mode === 'buy'
@@ -164,16 +182,24 @@ function summaryRate(
   currency: string,
   qualifier: string,
 ) {
-  const rate = quote.rate!;
-  if (mode === 'buy') return `1 ${receive} ≈ ${fmtFiat(rate)} ${currency} (${qualifier})`;
-  if (mode === 'sell') return `1 ${pay} ≈ ${fmtFiat(1 / rate)} ${currency} (${qualifier})`;
-  return `1 ${pay} ≈ ${fmtCrypto(1 / rate)} ${receive} (${qualifier})`;
+  const feeInclusiveRate = quote.rate!;
+  if (mode === 'buy')
+    return `1 ${receive} ≈ ${fmtFiat(feeInclusiveRate)} ${currency} (${qualifier})`;
+  if (mode === 'sell')
+    return `1 ${pay} ≈ ${fmtFiat(1 / feeInclusiveRate)} ${currency} (${qualifier})`;
+  return `1 ${pay} ≈ ${fmtCrypto(1 / feeInclusiveRate)} ${receive} (${qualifier})`;
 }
 
-function rateValue(mode: MobileTradeMode, quote: MobileTradeQuote, pay: string, receive: string) {
+function rateValue(
+  mode: MobileTradeMode,
+  quote: MobileTradeQuote,
+  pay: string,
+  receive: string,
+  currency: string,
+) {
   if (!quote.exchangeRate) return '—';
   if (mode === 'buy') return `${fmtFiat(quote.exchangeRate)} / ${receive}`;
-  if (mode === 'sell') return `${fmtFiat(1 / quote.exchangeRate)} / ${pay}`;
+  if (mode === 'sell') return `1 ${pay} = ${fmtFiat(1 / quote.exchangeRate)} ${currency}`;
   return `${fmtCrypto(1 / quote.exchangeRate)} ${receive} / ${pay}`;
 }
 
