@@ -20,12 +20,11 @@ describe('groupAddress', () => {
       'r0tm',
       'kl3l',
       'ahsa',
-      '6wcu',
-      'xm',
+      '6wcuxm',
     ]);
-    expect(grouped.lines).toEqual(['bc1q 0062 y02g mwjp m7mt', 'akaf r0tm kl3l ahsa 6wcu xm']);
+    expect(grouped.lines).toEqual(['bc1q 0062 y02g mwjp m7mt', 'akaf r0tm kl3l ahsa 6wcuxm']);
     expect(grouped.emphasizedStart).toBe('bc1q');
-    expect(grouped.emphasizedEnd).toBe('wcuxm');
+    expect(grouped.emphasizedEnd).toBe('6wcuxm');
   });
 
   it('groups an EVM address, exposes the spoken grouping and keeps bold ends', () => {
@@ -33,10 +32,22 @@ describe('groupAddress', () => {
     const grouped = groupAddress(address);
 
     expect(grouped.original).toBe(address);
-    expect(grouped.lines).toHaveLength(2);
-    expect(grouped.accessibilityLabel).toBe('0x5D 9254 c594 7f5a 86B2 139f 49f1 801A 3B88 4E81 C3');
+    expect(grouped.groups).toEqual([
+      '0x5D',
+      '9254',
+      'c594',
+      '7f5a',
+      '86B2',
+      '139f',
+      '49f1',
+      '801A',
+      '3B88',
+      '4E81C3',
+    ]);
+    expect(grouped.lines).toEqual(['0x5D 9254 c594 7f5a 86B2', '139f 49f1 801A 3B88 4E81C3']);
+    expect(grouped.accessibilityLabel).toBe('0x5D 9254 c594 7f5a 86B2 139f 49f1 801A 3B88 4E81C3');
     expect(grouped.emphasizedStart).toBe('0x5D');
-    expect(grouped.emphasizedEnd).toBe('E81C3');
+    expect(grouped.emphasizedEnd).toBe('4E81C3');
   });
 
   it('renders bold start/end characters while the selectable layer keeps the original', () => {
@@ -52,8 +63,22 @@ describe('groupAddress', () => {
       .map((node) => node.props.children)
       .join('');
 
-    expect(emphasized).toBe('bc1qwcuxm');
+    expect(emphasized).toBe('bc1q6wcuxm');
     expect(getByTestId('address').props.children).toBe(address);
     expect(getByTestId('address').props.selectable).toBe(true);
+  });
+
+  it('renders overlapping bold ends once for a short address', () => {
+    const address = 'abc';
+    const { UNSAFE_getAllByType } = render(<GroupedAddress address={address} />);
+    const emphasized = UNSAFE_getAllByType(Text)
+      .filter(
+        (node) =>
+          StyleSheet.flatten(node.props.style as StyleProp<TextStyle>)?.fontWeight === '800',
+      )
+      .map((node) => node.props.children)
+      .join('');
+
+    expect(emphasized).toBe(address);
   });
 });

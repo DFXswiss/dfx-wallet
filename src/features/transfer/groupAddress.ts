@@ -8,7 +8,6 @@ export type GroupedAddressValue = {
 };
 
 const GROUP_SIZE = 4;
-const END_EMPHASIS_LENGTH = 5;
 
 const renderedLength = (groups: string[]): number =>
   groups.reduce((length, group) => length + group.length, 0) + Math.max(0, groups.length - 1);
@@ -33,7 +32,13 @@ function balancedSplit(groups: string[]): number {
 }
 
 export function groupAddress(address: string): GroupedAddressValue {
-  const groups = address.match(/.{1,4}/g) ?? [];
+  const initialGroups = address.match(/.{1,4}/g) ?? [];
+  const trailingGroup = initialGroups[initialGroups.length - 1];
+  const hasShortTrailingGroup =
+    initialGroups.length > 1 && trailingGroup !== undefined && trailingGroup.length < GROUP_SIZE;
+  const groups = hasShortTrailingGroup
+    ? [...initialGroups.slice(0, -2), initialGroups.slice(-2).join('')]
+    : initialGroups;
   const splitIndex = balancedSplit(groups);
   const lines =
     groups.length > 1
@@ -46,6 +51,6 @@ export function groupAddress(address: string): GroupedAddressValue {
     lines,
     accessibilityLabel: groups.join(' '),
     emphasizedStart: address.slice(0, GROUP_SIZE),
-    emphasizedEnd: address.slice(-Math.min(END_EMPHASIS_LENGTH, address.length)),
+    emphasizedEnd: groups[groups.length - 1] ?? '',
   };
 }
