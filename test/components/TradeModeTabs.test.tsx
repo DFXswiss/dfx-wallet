@@ -7,20 +7,15 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@/theme', () => {
-  const actualTheme = jest.requireActual<typeof import('@/theme')>('@/theme');
+  const actual = jest.requireActual('@/theme');
   return {
-    Typography: {
-      bodyMedium: { fontSize: 14, lineHeight: 20, fontWeight: '400' },
-    },
-    Spacing: actualTheme.Spacing,
-    Radius: actualTheme.Radius,
+    ...actual,
     useColors: () => ({
       border: '#dddddd',
       card: '#ffffff',
       surfaceLight: '#f5f5f5',
       text: '#111111',
       textTertiary: '#777777',
-      transparent: 'transparent',
     }),
   };
 });

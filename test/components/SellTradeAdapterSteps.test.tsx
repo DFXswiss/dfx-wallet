@@ -115,26 +115,29 @@ jest.mock('@/config/tokens', () => ({
   ],
   getAssetMeta: (id: string) => ({ symbol: id }),
 }));
-jest.mock('@/theme', () => ({
-  Typography: { bodySmall: { fontSize: 12 } },
-  useColors: () => ({
-    background: '#fff',
-    border: '#ddd',
-    card: '#f8f8f8',
-    cardOverlay: '#fff',
-    divider: '#ddd',
-    primary: '#06f',
-    primaryLight: '#def',
-    surface: '#fff',
-    surfaceLight: '#f2f2f2',
-    success: '#16a34a',
-    text: '#111',
-    textSecondary: '#555',
-    textTertiary: '#888',
-    white: '#fff',
-  }),
-  useResolvedScheme: () => 'light',
-}));
+jest.mock('@/theme', () => {
+  const actual = jest.requireActual('@/theme');
+  return {
+    ...actual,
+    useColors: () => ({
+      background: '#fff',
+      border: '#ddd',
+      card: '#f8f8f8',
+      cardOverlay: '#fff',
+      divider: '#ddd',
+      primary: '#06f',
+      primaryLight: '#def',
+      surface: '#fff',
+      surfaceLight: '#f2f2f2',
+      success: '#16a34a',
+      text: '#111',
+      textSecondary: '#555',
+      textTertiary: '#888',
+      white: '#fff',
+    }),
+    useResolvedScheme: () => 'light',
+  };
+});
 jest.mock('@/components', () => ({
   AppHeader: ({ title, testID }: { title?: string; testID?: string }) => {
     const ReactActual = jest.requireActual('react');
@@ -232,19 +235,43 @@ function pressShellBack() {
 
 const PAYMENT_INFO = {
   id: 123,
+  uid: 'sell-quote-123',
+  routeId: 1,
+  timestamp: '2026-10-01T10:00:00.000Z',
   isValid: true,
-  depositAddress: 'bc1q-deposit-address',
-  amount: 1,
-  estimatedAmount: 25000,
-  exchangeRate: 25000,
-  rate: 0.00004,
+  depositAddress: 'bc1q-dfx-deposit-address',
+  amount: 0.01,
+  estimatedAmount: 689.46,
+  exchangeRate: 0.000014271,
+  rate: 0.000014504,
   minVolume: 0.001,
   maxVolume: 10,
-  currency: { name: 'CHF' },
-  asset: { name: 'BTC' },
+  currency: { id: 1, name: 'CHF' },
+  asset: { id: 1, name: 'BTC', uniqueName: 'Bitcoin', blockchain: 'Bitcoin' },
   beneficiary: { iban: 'CH9300762011623852957' },
-  fees: { rate: 0.01, dfx: 9, bank: 9, network: 9, fixed: 0, total: 27 },
-  feesTarget: { rate: 0.02, dfx: 2, bank: 0, network: 0, fixed: 0, total: 2 },
+  exactPrice: false,
+  priceSteps: [],
+  fees: {
+    rate: 0.016065,
+    fixed: 0,
+    network: 0.00002915,
+    min: 0,
+    dfx: 0.000103,
+    platform: 0,
+    bank: 0.0000285,
+    total: 0.00016065,
+  },
+  feesTarget: {
+    rate: 0.016065,
+    fixed: 0,
+    network: 2.04,
+    min: 0,
+    dfx: 7.22,
+    platform: 0,
+    bank: 2,
+    total: 11.26,
+  },
+  expiryDate: '2026-10-01T10:05:00.000Z',
 };
 
 /** Narrows a captured-callback ref without a non-null assertion. */
@@ -278,7 +305,8 @@ beforeEach(() => {
 
 describe('SellTradeAdapter — bank/confirm steps', () => {
   it('submits the IBAN and shows deposit + quote rows; back returns bank then amount', async () => {
-    const { getByTestId, getByText, getByPlaceholderText, queryByTestId } = renderAdapter();
+    const { getByTestId, getByText, getByPlaceholderText, queryByTestId, queryByText } =
+      renderAdapter();
 
     act(() => {
       fireEvent.press(getByTestId('sell-pay-asset-pill'));
@@ -286,7 +314,7 @@ describe('SellTradeAdapter — bank/confirm steps', () => {
     act(() => {
       fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
     });
-    fireEvent.changeText(getByTestId('sell-pay-amount'), '1');
+    fireEvent.changeText(getByTestId('sell-amount-input'), '1');
     fireEvent.press(getByTestId('sell-cta'));
 
     fireEvent.changeText(
@@ -311,11 +339,17 @@ describe('SellTradeAdapter — bank/confirm steps', () => {
     await waitFor(() => expect(getByText('sell.confirmSale')).toBeTruthy());
     expect(getByText(PAYMENT_INFO.depositAddress)).toBeTruthy();
     const sellText = `${fmtCrypto(PAYMENT_INFO.amount)} ${PAYMENT_INFO.asset.name}`;
-    const rate = fmtFiat(PAYMENT_INFO.exchangeRate);
+    const rate = fmtFiat(1 / PAYMENT_INFO.exchangeRate);
     const rateText = `1 ${PAYMENT_INFO.asset.name} = ${rate} ${PAYMENT_INFO.currency.name}`;
     const receiveText = `${fmtFiat(PAYMENT_INFO.estimatedAmount)} ${PAYMENT_INFO.currency.name}`;
     expect(getByText(sellText)).toBeTruthy();
     expect(getByText(rateText)).toBeTruthy();
+    expect(getByText('1.61%')).toBeTruthy();
+    expect(getByText('7.22 CHF')).toBeTruthy();
+    expect(getByText('2.04 CHF')).toBeTruthy();
+    expect(getByText('2.00 CHF')).toBeTruthy();
+    expect(getByText('11.26 CHF')).toBeTruthy();
+    expect(queryByText('sell.feeFixed')).toBeNull();
     expect(getByText(receiveText)).toBeTruthy();
     expect(getByText(PAYMENT_INFO.beneficiary.iban)).toBeTruthy();
 
@@ -336,7 +370,7 @@ describe('SellTradeAdapter — bank/confirm steps', () => {
     act(() => {
       fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
     });
-    fireEvent.changeText(getByTestId('sell-pay-amount'), '1');
+    fireEvent.changeText(getByTestId('sell-amount-input'), '1');
     fireEvent.press(getByTestId('sell-cta'));
     fireEvent.changeText(
       getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
