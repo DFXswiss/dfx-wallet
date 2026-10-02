@@ -6,11 +6,10 @@ tags:
   - mvp
 ---
 # Tests the chain selector on the Receive screen. BTC ships with two
-# layers in the MVP build (DFX_BACKEND off): SegWit (chain=bitcoin) and
-# EVM (chain=ethereum); the Taproot + Lightning layers only appear with
-# DFX_BACKEND on. Stablecoin assets (CHF/EUR/USD) all have a single
-# chain so the bar is hidden — BTC is the only MVP asset that
-# exercises the multi-chain path.
+# layers in the MVP build (DFX_BACKEND off): Bitcoin (chain=bitcoin) and
+# Ethereum (chain=ethereum); the Taproot + Lightning layers only appear with
+# DFX_BACKEND on. Stablecoin assets (CHF/EUR/USD) keep a locked Ethereum
+# segment visible so switching assets does not shift the layout.
 - launchApp:
     clearState: true
     clearKeychain: true
@@ -71,10 +70,12 @@ tags:
 - assertVisible:
     id: "receive-chain-bitcoin"
 
-# Stablecoins (single-chain) update the same screen and hide the chain bar
+# Stablecoins update the same screen and retain the locked Ethereum segment
 - tapOn:
     id: "receive-asset-chf"
 - assertVisible:
     id: "receive-asset-chf"
-- assertNotVisible:
+- assertVisible:
     id: "receive-chain-bar"
+- assertVisible:
+    id: "receive-chain-ethereum"

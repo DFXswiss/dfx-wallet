@@ -62,7 +62,7 @@ beforeEach(() => {
 
 describe('OwnCodeFullscreen', () => {
   it('starts with BTC, its first chain and the corresponding address', () => {
-    const { getByTestId } = render(<OwnCodeFullscreen visible onClose={jest.fn()} />);
+    const { getByTestId, queryByText } = render(<OwnCodeFullscreen visible onClose={jest.fn()} />);
 
     expect(getByTestId('own-code-asset-BTC').props.accessibilityState.selected).toBe(true);
     expect(getByTestId('own-code-asset-BTC').props.accessibilityRole).toBe('tab');
@@ -70,16 +70,16 @@ describe('OwnCodeFullscreen', () => {
     expect(getByTestId('own-code-chain-bitcoin').props.accessibilityRole).toBe('tab');
     expect(getByTestId('own-code-address').props.children).toBe(BTC_ADDRESS);
     expect(getByTestId('qrcode-stub').props.children).toBe(BTC_ADDRESS);
+    expect(queryByText('send.closeHint')).toBeNull();
   });
 
-  it('switches to the Ethereum address for CHF and hides the network tabs', () => {
-    const { getByTestId, queryByTestId } = render(
-      <OwnCodeFullscreen visible onClose={jest.fn()} />,
-    );
+  it('switches to the Ethereum address for CHF and keeps the locked network bar', () => {
+    const { getByTestId } = render(<OwnCodeFullscreen visible onClose={jest.fn()} />);
 
     fireEvent.press(getByTestId('own-code-asset-CHF'));
     expect(getByTestId('own-code-address').props.children).toBe(ETH_ADDRESS);
-    expect(queryByTestId('own-code-chain-bitcoin')).toBeNull();
+    expect(getByTestId('own-code-chain-bar')).toBeTruthy();
+    expect(getByTestId('own-code-chain-ethereum').props.accessibilityState.disabled).toBe(true);
   });
 
   it('switches the BTC address when its EVM chain is selected', () => {

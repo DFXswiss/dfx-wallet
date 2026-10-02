@@ -3,7 +3,15 @@ import { FEATURES } from '@/config/features';
 
 export type ReceiveAssetOption = {
   symbol: string;
-  chains: { chain: ChainId; label: string }[];
+  addressTitle: string;
+  chains: ReceiveChainOption[];
+};
+
+export type ReceiveChainOption = {
+  chain: ChainId;
+  label: string;
+  caption: string;
+  networkName: string;
 };
 
 /**
@@ -15,18 +23,48 @@ export type ReceiveAssetOption = {
 export const buildReceiveAssets = (): ReceiveAssetOption[] => [
   {
     symbol: 'BTC',
+    addressTitle: 'receive.addressTitleBitcoin',
     chains: [
-      { chain: 'bitcoin', label: 'SegWit' },
+      {
+        chain: 'bitcoin',
+        label: 'Bitcoin',
+        caption: 'receive.networkCaptionRecommended',
+        networkName: 'receive.networkNameBitcoin',
+      },
       ...(FEATURES.DFX_BACKEND
         ? ([
-            { chain: 'bitcoin-taproot', label: 'Taproot' },
-            { chain: 'spark', label: 'Lightning' },
+            {
+              chain: 'bitcoin-taproot',
+              label: 'Taproot',
+              caption: 'receive.networkCaptionLightningAddress',
+              networkName: 'receive.networkNameLightning',
+            },
+            {
+              chain: 'spark',
+              label: 'Lightning',
+              caption: 'receive.networkCaptionInstant',
+              networkName: 'receive.networkNameLightning',
+            },
           ] as const)
         : []),
-      { chain: 'ethereum', label: 'EVM' },
+      {
+        chain: 'ethereum',
+        label: 'Ethereum',
+        caption: 'receive.networkCaptionWrappedBtc',
+        networkName: 'receive.networkNameEthereum',
+      },
     ],
   },
-  { symbol: 'CHF', chains: [{ chain: 'ethereum', label: 'Ethereum' }] },
-  { symbol: 'EUR', chains: [{ chain: 'ethereum', label: 'Ethereum' }] },
-  { symbol: 'USD', chains: [{ chain: 'ethereum', label: 'Ethereum' }] },
+  ...(['CHF', 'EUR', 'USD'] as const).map((symbol) => ({
+    symbol,
+    addressTitle: 'receive.addressTitleNetwork',
+    chains: [
+      {
+        chain: 'ethereum' as const,
+        label: 'Ethereum',
+        caption: 'receive.networkCaptionOnlyAsset',
+        networkName: 'receive.networkNameEthereum',
+      },
+    ],
+  })),
 ];

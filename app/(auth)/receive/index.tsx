@@ -7,16 +7,16 @@ import { useTranslation } from 'react-i18next';
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AppHeader, GlassCard, Icon, PrimaryButton, ScreenBackdrop } from '@/components';
+import { AppHeader, GlassCard, GlassSurface, Icon, ScreenBackdrop } from '@/components';
 import type { ChainId } from '@/config/chains';
-import { FEATURES } from '@/config/features';
 import { AssetCoinSelector } from '@/features/transfer/AssetCoinSelector';
-import { NetworkTextTabs } from '@/features/transfer/NetworkTextTabs';
+import { BuyCard } from '@/features/transfer/BuyCard';
+import { GroupedAddress } from '@/features/transfer/GroupedAddress';
+import { NetworkBar } from '@/features/transfer/NetworkBar';
+import { NetworkWarning } from '@/features/transfer/NetworkWarning';
 import { OwnCodeFullscreen } from '@/features/transfer/OwnCodeFullscreen';
-import { buildReceiveAssets } from '@/features/transfer/receiveAssets';
-import { useReceiveAddress } from '@/features/transfer/useReceiveAddress';
+import { useReceivePresentation } from '@/features/transfer/useReceivePresentation';
 import {
-  IconTile,
   Interaction,
   Layout,
   Radius,
@@ -27,7 +27,7 @@ import {
   type ThemeColors,
 } from '@/theme';
 
-const QR_TILE_SIZE = 168;
+const QR_TILE_SIZE = 212;
 const QR_PADDING = 14;
 const QR_SIZE = QR_TILE_SIZE - 2 * QR_PADDING;
 
@@ -37,23 +37,15 @@ export default function ReceiveScreen() {
   const colors = useColors();
   const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const receiveAssets = useMemo(buildReceiveAssets, []);
-  const initialAsset = receiveAssets.find((asset) => asset.symbol === 'BTC') ?? receiveAssets[0]!;
-  const [selectedSymbol, setSelectedSymbol] = useState(initialAsset.symbol);
-  const [selectedChain, setSelectedChain] = useState<ChainId>(initialAsset.chains[0]!.chain);
+  const [selectedSymbol, setSelectedSymbol] = useState('BTC');
+  const [selectedChain, setSelectedChain] = useState<ChainId>('bitcoin');
   const [copied, setCopied] = useState(false);
   const [ownCodeOpen, setOwnCodeOpen] = useState(false);
-
-  const selectedAsset =
-    receiveAssets.find((asset) => asset.symbol === selectedSymbol) ?? initialAsset;
-  const selectedNetwork =
-    selectedAsset.chains.find((option) => option.chain === selectedChain) ??
-    selectedAsset.chains[0]!;
-  const address = useReceiveAddress(selectedChain);
-  const primaryForeground = scheme === 'dark' ? colors.background : colors.white;
+  const presentation = useReceivePresentation(selectedSymbol, selectedChain);
+  const foreground = scheme === 'dark' ? colors.background : colors.white;
 
   const handleAssetChange = (key: string) => {
-    const asset = receiveAssets.find((option) => option.symbol.toLowerCase() === key);
+    const asset = presentation.assets.find((option) => option.symbol.toLowerCase() === key);
     if (!asset) return;
     setSelectedSymbol(asset.symbol);
     setSelectedChain(asset.chains[0]!.chain);
@@ -61,26 +53,24 @@ export default function ReceiveScreen() {
   };
 
   const handleChainChange = (chain: string) => {
-    const option = selectedAsset.chains.find((candidate) => candidate.chain === chain);
+    const option = presentation.asset.chains.find((candidate) => candidate.chain === chain);
     if (!option) return;
     setSelectedChain(option.chain);
     setCopied(false);
   };
 
   const handleCopy = async () => {
-    if (!address) return;
-    await Clipboard.setStringAsync(address);
+    if (!presentation.address) return;
+    await Clipboard.setStringAsync(presentation.address);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleShare = () => {
-    if (!address) return;
-    void Share.share({ message: address });
+    if (!presentation.address) return;
+    void Share.share({ message: presentation.address });
   };
-
-  const openOwnCode = () => setOwnCodeOpen(true);
 
   return (
     <>
@@ -99,69 +89,46 @@ export default function ReceiveScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {FEATURES.BUY_SELL && (
-              <Pressable
-                testID="receive-buy"
-                accessibilityRole="button"
-                accessibilityLabel={t('receive.buyAsset', { asset: selectedAsset.symbol })}
-                onPress={() =>
-                  router.push({
-                    pathname: '/(auth)/buy',
-                    params: { asset: selectedAsset.symbol },
-                  })
-                }
-                style={({ pressed }) => [styles.buyCard, pressed && styles.buyCardPressed]}
-              >
-                <View style={styles.buyIconTile}>
-                  <Icon name="bank" size={20} color={primaryForeground} strokeWidth={2.2} />
-                </View>
-                <View style={styles.buyText}>
-                  <Text style={[styles.buyTitle, { color: primaryForeground }]}>
-                    {t('receive.buyAsset', { asset: selectedAsset.symbol })}
-                  </Text>
-                  <Text style={[styles.buySubtitle, { color: primaryForeground }]}>
-                    {t('receive.buyFromBankSubtitle')}
-                  </Text>
-                </View>
-                <Icon name="arrow-right" size={20} color={primaryForeground} />
-              </Pressable>
-            )}
+            <BuyCard
+              title={presentation.buyTitle}
+              onPress={() =>
+                router.push({
+                  pathname: '/(auth)/buy',
+                  params: { asset: presentation.asset.symbol },
+                })
+              }
+            />
 
             <AssetCoinSelector
-              options={receiveAssets.map((asset) => ({
+              options={presentation.assets.map((asset) => ({
                 key: asset.symbol.toLowerCase(),
                 symbol: asset.symbol,
               }))}
-              value={selectedAsset.symbol.toLowerCase()}
+              value={presentation.asset.symbol.toLowerCase()}
               onChange={handleAssetChange}
               testIDPrefix="receive-asset"
             />
 
-            {selectedAsset.chains.length > 1 && (
-              <View testID="receive-chain-bar">
-                <NetworkTextTabs
-                  options={selectedAsset.chains.map((option) => ({
-                    key: option.chain,
-                    label: option.label,
-                  }))}
-                  value={selectedChain}
-                  onChange={handleChainChange}
-                  testIDPrefix="receive-chain"
-                />
-              </View>
-            )}
+            <NetworkBar
+              options={presentation.networks}
+              value={presentation.chain.chain}
+              onChange={handleChainChange}
+              testIDPrefix="receive-chain"
+            />
 
             <GlassCard contentStyle={styles.qrCard}>
+              <Text style={styles.addressTitle}>{presentation.addressTitle}</Text>
+
               <Pressable
                 testID="receive-qr"
                 accessibilityRole="button"
                 accessibilityLabel={t('send.showCode')}
-                onPress={openOwnCode}
+                onPress={() => setOwnCodeOpen(true)}
                 style={styles.qrTile}
               >
-                {address ? (
+                {presentation.address ? (
                   <QRCode
-                    value={address}
+                    value={presentation.address}
                     size={QR_SIZE}
                     quietZone={0}
                     backgroundColor={colors.white}
@@ -171,52 +138,62 @@ export default function ReceiveScreen() {
                   <Text style={styles.noAddress}>{t('receive.noAddress')}</Text>
                 )}
                 <View style={styles.expandBadge} pointerEvents="none">
-                  <Icon name="expand" size={12} color={colors.white} strokeWidth={2} />
+                  <Icon name="expand" size={15} color={colors.white} strokeWidth={2.4} />
                 </View>
               </Pressable>
 
-              <Pressable
-                testID="receive-qr-hint"
-                accessibilityRole="button"
-                accessibilityLabel={t('send.showCode')}
-                onPress={openOwnCode}
-              >
-                <Text style={styles.qrHint}>{t('send.tapToEnlarge')}</Text>
-              </Pressable>
+              {presentation.address ? (
+                <GroupedAddress address={presentation.address} testID="receive-address" />
+              ) : (
+                <Text testID="receive-address" style={styles.noAddress} selectable>
+                  {t('receive.noAddress')}
+                </Text>
+              )}
 
-              <Text testID="receive-address" style={styles.address} selectable>
-                {address || t('receive.noAddress')}
-              </Text>
+              <NetworkWarning text={presentation.warningText} testID="receive-network-warning" />
 
               <View style={styles.actions}>
-                <View style={styles.action}>
-                  <PrimaryButton
-                    testID="receive-copy-button"
-                    title={copied ? t('common.copied') : t('common.copy')}
-                    onPress={handleCopy}
-                    disabled={!address}
-                    icon={<Icon name="copy" size={18} color={colors.white} />}
-                  />
-                </View>
-                <View style={styles.action}>
-                  <PrimaryButton
-                    testID="receive-share-button"
-                    title={t('send.share')}
-                    onPress={handleShare}
-                    disabled={!address}
-                    variant="outlined"
-                    icon={<Icon name="share" size={18} color={colors.primary} />}
-                  />
-                </View>
+                <Pressable
+                  testID="receive-copy-button"
+                  accessibilityRole="button"
+                  accessibilityLabel={copied ? t('common.copied') : t('common.copy')}
+                  accessibilityState={{ disabled: !presentation.address }}
+                  disabled={!presentation.address}
+                  onPress={handleCopy}
+                  style={({ pressed }) => [
+                    styles.action,
+                    styles.copyAction,
+                    !presentation.address && styles.actionDisabled,
+                    pressed && styles.actionPressed,
+                  ]}
+                >
+                  <Icon name="copy" size={17} color={foreground} />
+                  <Text style={[styles.actionText, { color: foreground }]}>
+                    {copied ? t('common.copied') : t('common.copy')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  testID="receive-share-button"
+                  accessibilityRole="button"
+                  accessibilityLabel={t('send.share')}
+                  accessibilityState={{ disabled: !presentation.address }}
+                  disabled={!presentation.address}
+                  onPress={handleShare}
+                  style={({ pressed }) => [
+                    styles.action,
+                    !presentation.address && styles.actionDisabled,
+                    pressed && styles.actionPressed,
+                  ]}
+                >
+                  <GlassSurface variant="quiet" radius={Radius.sm} style={styles.glassAction}>
+                    <Icon name="share" size={17} color={colors.text} />
+                    <Text style={[styles.actionText, { color: colors.text }]}>
+                      {t('send.share')}
+                    </Text>
+                  </GlassSurface>
+                </Pressable>
               </View>
             </GlassCard>
-
-            <Text style={styles.networkHint}>
-              {t('receive.onlyCorrectNetwork', {
-                asset: selectedAsset.symbol,
-                network: selectedNetwork.label,
-              })}
-            </Text>
           </ScrollView>
         </SafeAreaView>
       </View>
@@ -224,8 +201,8 @@ export default function ReceiveScreen() {
       <OwnCodeFullscreen
         visible={ownCodeOpen}
         onClose={() => setOwnCodeOpen(false)}
-        initialSymbol={selectedAsset.symbol}
-        initialChain={selectedChain}
+        initialSymbol={presentation.asset.symbol}
+        initialChain={presentation.chain.chain}
       />
     </>
   );
@@ -245,51 +222,18 @@ const makeStyles = (colors: ThemeColors) =>
     },
     scrollContent: {
       paddingHorizontal: Layout.screenPadding,
-      paddingTop: Spacing.lg,
+      paddingTop: Spacing.base,
       paddingBottom: Spacing.xxl,
-      gap: Spacing.base,
-    },
-    buyCard: {
-      minHeight: 76,
-      flexDirection: 'row',
-      alignItems: 'center',
       gap: Spacing.md,
-      padding: Spacing.base,
-      borderRadius: Radius.md,
-      backgroundColor: colors.primary,
-      shadowColor: colors.primary,
-      shadowOpacity: 0.2,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 6 },
-      elevation: 3,
-    },
-    buyCardPressed: {
-      opacity: Interaction.pressedOpacity,
-      transform: [{ scale: 0.99 }],
-    },
-    buyIconTile: {
-      width: IconTile.sm.size,
-      height: IconTile.sm.size,
-      borderRadius: IconTile.sm.radius,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.primaryDark,
-    },
-    buyText: {
-      flex: 1,
-      gap: Spacing.xs,
-    },
-    buyTitle: {
-      ...Typography.bodyLarge,
-      fontWeight: '700',
-    },
-    buySubtitle: {
-      ...Typography.bodySmall,
-      opacity: 0.82,
     },
     qrCard: {
       alignItems: 'center',
       gap: Spacing.md,
+    },
+    addressTitle: {
+      ...Typography.addressLabel,
+      color: colors.textSecondary,
+      textAlign: 'center',
     },
     qrTile: {
       position: 'relative',
@@ -300,14 +244,19 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.white,
       alignItems: 'center',
       justifyContent: 'center',
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.18,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 3,
     },
     expandBadge: {
       position: 'absolute',
-      right: -6,
-      bottom: -6,
-      width: 22,
-      height: 22,
-      borderRadius: Radius.sm,
+      right: -10,
+      bottom: -10,
+      width: 30,
+      height: 30,
+      borderRadius: 10,
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
@@ -317,17 +266,6 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textTertiary,
       textAlign: 'center',
     },
-    qrHint: {
-      ...Typography.bodySmall,
-      color: colors.primary,
-      textAlign: 'center',
-    },
-    address: {
-      ...Typography.mono,
-      alignSelf: 'stretch',
-      color: colors.text,
-      textAlign: 'center',
-    },
     actions: {
       alignSelf: 'stretch',
       flexDirection: 'row',
@@ -335,11 +273,34 @@ const makeStyles = (colors: ThemeColors) =>
     },
     action: {
       flex: 1,
+      height: 48,
+      borderRadius: Radius.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: Spacing.sm,
     },
-    networkHint: {
-      ...Typography.bodySmall,
-      color: colors.textSecondary,
-      textAlign: 'center',
-      paddingHorizontal: Spacing.md,
+    copyAction: {
+      backgroundColor: colors.primary,
+    },
+    glassAction: {
+      width: '100%',
+      height: '100%',
+      borderRadius: Radius.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: Spacing.sm,
+    },
+    actionText: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+    },
+    actionDisabled: {
+      opacity: Interaction.disabledOpacity,
+    },
+    actionPressed: {
+      opacity: Interaction.pressedOpacity,
+      transform: [{ scale: 0.99 }],
     },
   });

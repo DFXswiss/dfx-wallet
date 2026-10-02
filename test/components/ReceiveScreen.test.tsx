@@ -71,8 +71,8 @@ beforeEach(() => {
 });
 
 describe('ReceiveScreen', () => {
-  it('starts on BTC and shows the BTC network tabs on the same screen', () => {
-    const { getByTestId, getByText } = render(<ReceiveScreen />);
+  it('starts on BTC and shows the BTC network bar on the same screen', () => {
+    const { getByTestId, getByText, queryByTestId } = render(<ReceiveScreen />);
 
     expect(getByTestId('receive-asset-btc').props.accessibilityState).toEqual(
       expect.objectContaining({ selected: true }),
@@ -83,24 +83,28 @@ describe('ReceiveScreen', () => {
       expect.objectContaining({ selected: true }),
     );
     expect(getByTestId('receive-chain-bitcoin').props.accessibilityRole).toBe('tab');
-    expect(getByText('SegWit')).toBeTruthy();
+    expect(getByText('Bitcoin')).toBeTruthy();
     expect(getByText('Taproot')).toBeTruthy();
     expect(getByText('Lightning')).toBeTruthy();
-    expect(getByText('EVM')).toBeTruthy();
-    expect(getByText('receive.onlyCorrectNetwork:BTC:SegWit')).toBeTruthy();
+    expect(getByText('Ethereum')).toBeTruthy();
+    expect(getByText('receive.networkCaptionRecommended:BTC')).toBeTruthy();
+    expect(getByText('receive.networkWarning:BTC:receive.networkNameBitcoin')).toBeTruthy();
+    expect(queryByTestId('receive-qr-hint')).toBeNull();
     expect(getByTestId('receive-address').props.selectable).toBe(true);
     expect(getByTestId('receive-address').props.children).toBe('bc1qbitcoinaddress');
   });
 
-  it('switches to CHF, hides the network tabs, and uses the Ethereum address', () => {
-    const { getByTestId, queryByTestId } = render(<ReceiveScreen />);
+  it('switches to CHF while retaining the network bar and uses the Ethereum address', () => {
+    const { getByTestId, getByText } = render(<ReceiveScreen />);
 
     fireEvent.press(getByTestId('receive-asset-chf'));
 
     expect(getByTestId('receive-asset-chf').props.accessibilityState).toEqual(
       expect.objectContaining({ selected: true }),
     );
-    expect(queryByTestId('receive-chain-bar')).toBeNull();
+    expect(getByTestId('receive-chain-bar')).toBeTruthy();
+    expect(getByTestId('receive-chain-ethereum').props.accessibilityState.disabled).toBe(true);
+    expect(getByText('receive.networkWarning:CHF:receive.networkNameEthereum')).toBeTruthy();
     expect(getByTestId('receive-address').props.children).toBe(
       '0x1111222233334444555566667777888899990000',
     );
@@ -185,11 +189,11 @@ describe('ReceiveScreen', () => {
     );
   });
 
-  it('opens the full-screen code from the hint with the selected asset', () => {
+  it('opens the full-screen code from the QR with a selected stablecoin', () => {
     const { getByTestId } = render(<ReceiveScreen />);
     fireEvent.press(getByTestId('receive-asset-chf'));
 
-    fireEvent.press(getByTestId('receive-qr-hint'));
+    fireEvent.press(getByTestId('receive-qr'));
 
     expect(getByTestId('own-code-qr')).toBeTruthy();
     expect(getByTestId('own-code-asset-CHF').props.accessibilityState).toEqual(
@@ -252,7 +256,7 @@ describe('ReceiveScreen', () => {
 });
 
 describe('ReceiveScreen with DFX_BACKEND disabled', () => {
-  it('keeps SegWit and EVM but omits Taproot and Lightning', () => {
+  it('keeps Bitcoin and Ethereum but omits Taproot and Lightning', () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const features = require('@/config/features');
     const replacement = jest.replaceProperty(features.FEATURES, 'DFX_BACKEND', false);
