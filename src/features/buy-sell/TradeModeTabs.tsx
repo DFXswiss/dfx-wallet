@@ -45,18 +45,10 @@ export default function TradeModeTabs({ active, onChange }: TradeModeTabsProps) 
                 onChange(mode.key);
               }
             }}
-            style={[
-              styles.tab,
-              { backgroundColor: selected ? colors.card : 'transparent' },
-            ]}
+            style={[styles.tab, { backgroundColor: selected ? colors.card : 'transparent' }]}
             testID={`trade-tab-${mode.key}`}
           >
-            <Text
-              style={[
-                styles.label,
-                { color: selected ? colors.text : colors.textTertiary },
-              ]}
-            >
+            <Text style={[styles.label, { color: selected ? colors.text : colors.textTertiary }]}>
               {t(mode.label)}
             </Text>
           </Pressable>
