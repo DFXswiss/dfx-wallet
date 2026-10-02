@@ -66,7 +66,7 @@ export const Typography = {
   address: {
     fontFamily: MONO_FAMILY,
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '400',
     lineHeight: 22,
     letterSpacing: 0.28,
   } as TextStyle,
