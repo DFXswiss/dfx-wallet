@@ -119,6 +119,7 @@ export function ScannerView({ onScan, onClose, onOpenSettings }: Props) {
 
         {unknownData === null ? (
           <GlassPill
+            shape="rounded"
             onPress={() => void handlePaste()}
             style={styles.pasteButton}
             contentStyle={styles.fullWidthButton}
@@ -137,6 +138,7 @@ export function ScannerView({ onScan, onClose, onOpenSettings }: Props) {
             </Text>
             <View style={styles.unknownActions}>
               <GlassPill
+                shape="rounded"
                 onPress={() => void handleCopy()}
                 style={styles.unknownAction}
                 contentStyle={styles.fullWidthButton}
@@ -148,6 +150,7 @@ export function ScannerView({ onScan, onClose, onOpenSettings }: Props) {
               </GlassPill>
               <GlassPill
                 selected
+                shape="rounded"
                 onPress={handleRescan}
                 style={styles.unknownAction}
                 contentStyle={styles.fullWidthButton}
