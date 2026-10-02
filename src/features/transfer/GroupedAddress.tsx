@@ -14,14 +14,19 @@ type Segment = {
   emphasized: boolean;
 };
 
-function lineSegments(line: string, original: string, offset: number): Segment[] {
+function lineSegments(
+  line: string,
+  offset: number,
+  emphasizedStartLength: number,
+  emphasizedEndIndex: number,
+): Segment[] {
   const segments: Segment[] = [];
   let addressIndex = offset;
 
   for (const character of line) {
     const isSpace = character === ' ';
     const emphasized =
-      !isSpace && (addressIndex < 4 || addressIndex >= Math.max(4, original.length - 5));
+      !isSpace && (addressIndex < emphasizedStartLength || addressIndex >= emphasizedEndIndex);
     const previous = segments.at(-1);
 
     if (previous?.emphasized === emphasized) {
@@ -51,7 +56,12 @@ export function GroupedAddress({ address, testID }: Props) {
         pointerEvents="none"
       >
         {grouped.lines.map((line, lineIndex) => {
-          const segments = lineSegments(line, grouped.original, offset);
+          const segments = lineSegments(
+            line,
+            offset,
+            grouped.emphasizedStart.length,
+            grouped.original.length - grouped.emphasizedEnd.length,
+          );
           offset += line.replace(/ /g, '').length;
 
           return (
