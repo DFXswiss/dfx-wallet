@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
+import { Rect } from 'react-native-svg';
 
 jest.mock('expo-blur', () => {
   const { View } = jest.requireActual('react-native');
@@ -15,7 +16,7 @@ import { BlurView } from 'expo-blur';
 // eslint-disable-next-line import/first
 import { GlassSurface } from '../../src/components/GlassSurface';
 // eslint-disable-next-line import/first
-import { ThemeProvider, useThemeStore } from '@/theme';
+import { Card, Radius, ThemeProvider, useThemeStore } from '@/theme';
 
 type GlassVariant = 'quiet' | 'default' | 'lead';
 
@@ -51,6 +52,42 @@ describe('GlassSurface', () => {
     useThemeStore.setState({ mode: 'dark' });
     const dark = renderGlass();
     expect(dark.UNSAFE_queryAllByType(BlurView)).toHaveLength(1);
+  });
+
+  it('uses the clipped pill radius for the glow and edge', () => {
+    const result = render(
+      <ThemeProvider>
+        <GlassSurface radius={Radius.pill} testID="pill-surface" />
+      </ThemeProvider>,
+    );
+
+    fireEvent(result.getByTestId('pill-surface'), 'layout', {
+      nativeEvent: { layout: { width: 300, height: 48, x: 0, y: 0 } },
+    });
+
+    const [glow, edge] = result.UNSAFE_getAllByType(Rect);
+    expect(glow?.props.rx).toBe(24);
+    expect(glow?.props.ry).toBe(glow?.props.rx);
+    expect(edge?.props.rx).toBe(24 - Card.borderWidth / 2);
+    expect(edge?.props.ry).toBe(edge?.props.rx);
+  });
+
+  it('keeps a regular radius for the glow and edge', () => {
+    const result = render(
+      <ThemeProvider>
+        <GlassSurface radius={Radius.lg} testID="regular-surface" />
+      </ThemeProvider>,
+    );
+
+    fireEvent(result.getByTestId('regular-surface'), 'layout', {
+      nativeEvent: { layout: { width: 300, height: 100, x: 0, y: 0 } },
+    });
+
+    const [glow, edge] = result.UNSAFE_getAllByType(Rect);
+    expect(glow?.props.rx).toBe(Radius.lg);
+    expect(glow?.props.ry).toBe(Radius.lg);
+    expect(edge?.props.rx).toBe(Radius.lg - Card.borderWidth / 2);
+    expect(edge?.props.ry).toBe(edge?.props.rx);
   });
 });
 
