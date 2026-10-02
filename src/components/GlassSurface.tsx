@@ -71,7 +71,9 @@ export function GlassSurface({
   };
 
   const strokeInset = Card.borderWidth / 2;
-  const strokeRx = Math.max(0, radius - strokeInset);
+  const effectiveRadius =
+    box.width > 0 && box.height > 0 ? Math.min(radius, box.width / 2, box.height / 2) : radius;
+  const strokeRx = Math.max(0, effectiveRadius - strokeInset);
 
   return (
     <View
@@ -122,7 +124,8 @@ export function GlassSurface({
               y={0}
               width={box.width}
               height={box.height}
-              rx={radius}
+              rx={effectiveRadius}
+              ry={effectiveRadius}
               fill={`url(#gs-glow-${uid})`}
             />
             <Rect
@@ -131,6 +134,7 @@ export function GlassSurface({
               width={box.width - Card.borderWidth}
               height={box.height - Card.borderWidth}
               rx={strokeRx}
+              ry={strokeRx}
               fill="none"
               stroke={`url(#gs-edge-${uid})`}
               strokeWidth={Card.borderWidth}
