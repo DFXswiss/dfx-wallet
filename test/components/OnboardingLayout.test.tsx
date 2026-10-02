@@ -54,6 +54,15 @@ describe('OnboardingLayout routing guards', () => {
     expect(getByTestId('stack-rendered')).toBeTruthy();
   });
 
+  it('stays on restore-wallet when onboarded but unauthenticated (recovery path)', () => {
+    useAuthStore.setState({ isOnboarded: true, isAuthenticated: false });
+    mockActiveWalletId.current = 'default';
+    mockSegments.current = ['(onboarding)', 'restore-wallet'];
+    const { queryByTestId, getByTestId } = render(<OnboardingLayout />);
+    expect(queryByTestId('redirect')).toBeNull();
+    expect(getByTestId('stack-rendered')).toBeTruthy();
+  });
+
   it('jumps to setup-pin when a wallet exists but PIN has not been set yet', () => {
     useAuthStore.setState({ isOnboarded: false, isAuthenticated: false });
     mockActiveWalletId.current = 'default';

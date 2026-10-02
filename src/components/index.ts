@@ -7,6 +7,7 @@ export { ConfirmTargetWalletModal } from './ConfirmTargetWalletModal';
 export { DarkBackdrop } from './DarkBackdrop';
 export { DashboardHeader } from './DashboardHeader';
 export { DfxBackgroundScreen } from './DfxBackgroundScreen';
+export { DfxLogoLoader, PinProcessingOverlay } from './DfxLogoLoader';
 export { EmptyState } from './EmptyState';
 export { ErrorBoundary } from './ErrorBoundary';
 // `DfxAuthGate` lives in `@/features/dfx-backend/DfxAuthGate` — it is

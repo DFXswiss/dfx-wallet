@@ -1,12 +1,38 @@
-jest.mock('@noble/hashes/argon2', () => ({
-  argon2idAsync: jest.fn(async (password: string, salt: Uint8Array, opts: { dkLen: number }) => {
-    const bytes = new Uint8Array(opts.dkLen);
-    const input = `${password}:${Array.from(salt).join(',')}`;
-    for (let i = 0; i < bytes.length; i++) {
-      bytes[i] = input.charCodeAt(i % input.length) ^ i;
-    }
-    return bytes;
-  }),
+// `src/services/pin.ts` now calls the native argon2 from
+// react-native-quick-crypto, which isn't available under the unit Jest
+// project (`react-native-nitro-modules` is mapped to an empty stub here).
+// Replace it with the same fast, deterministic fake develop previously used
+// for `@noble/hashes/argon2` (XOR over `${password}:${salt}`), reshaped for
+// the native callback API — running the real Argon2id (m=32768, t=3) for
+// every setPin/verifyPin call in this suite pushed it well past Jest's
+// default 5s test timeout. This file has no compatibility assertion, so it
+// never needs the real implementation.
+type NativeArgon2Params = {
+  message: Uint8Array;
+  nonce: Uint8Array;
+  parallelism: number;
+  tagLength: number;
+  memory: number;
+  passes: number;
+  version: number;
+};
+
+jest.mock('react-native-quick-crypto', () => ({
+  argon2: jest.fn(
+    (
+      _algorithm: string,
+      params: NativeArgon2Params,
+      callback: (err: Error | null, result: Uint8Array) => void,
+    ) => {
+      const password = new TextDecoder().decode(params.message);
+      const bytes = new Uint8Array(params.tagLength);
+      const input = `${password}:${Array.from(params.nonce).join(',')}`;
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = input.charCodeAt(i % input.length) ^ i;
+      }
+      callback(null, bytes);
+    },
+  ),
 }));
 
 import { useAuthStore } from '../../src/store/auth';
