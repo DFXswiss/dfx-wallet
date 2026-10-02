@@ -534,6 +534,7 @@ export default function SendScreen() {
           onNewContact={() => setSheet({ kind: 'create' })}
           onShowOwnCode={() => setOwnCodeOpen(true)}
           onOpenBuy={() => router.push('/(auth)/buy')}
+          onAddBankAccount={() => router.push('/(auth)/bank-accounts/add')}
           onOpenSell={() => router.push('/(auth)/sell')}
           onPaste={handlePaste}
         />

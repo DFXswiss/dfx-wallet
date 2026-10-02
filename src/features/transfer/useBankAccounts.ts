@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+
 import { FEATURES } from '@/config/features';
 import type { BankAccountDto } from '@/features/dfx-backend/services/dto';
 import { useAuthStore } from '@/store';
@@ -33,33 +35,35 @@ export function useBankAccounts(): BankAccountRow[] {
   const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
   const [accounts, setAccounts] = useState<BankAccountRow[]>([]);
 
-  useEffect(() => {
-    if (!paymentModule || !isDfxAuthenticated) {
-      setAccounts((prev) => (prev.length === 0 ? prev : []));
-      return;
-    }
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const list = await paymentModule.dfxPaymentService.getBankAccounts();
-        if (cancelled) return;
-        const active = list.filter((account) => account.active);
-        setAccounts(
-          active.map((account) => ({
-            id: account.id,
-            iban: account.iban,
-            ...(account.label ? { label: account.label } : {}),
-          })),
-        );
-      } catch {
-        if (!cancelled) setAccounts([]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!paymentModule || !isDfxAuthenticated) {
+        setAccounts((prev) => (prev.length === 0 ? prev : []));
+        return;
       }
-    };
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [isDfxAuthenticated]);
+      let cancelled = false;
+      const load = async () => {
+        try {
+          const list = await paymentModule.dfxPaymentService.getBankAccounts();
+          if (cancelled) return;
+          const active = list.filter((account) => account.active);
+          setAccounts(
+            active.map((account) => ({
+              id: account.id,
+              iban: account.iban,
+              ...(account.label ? { label: account.label } : {}),
+            })),
+          );
+        } catch {
+          if (!cancelled) setAccounts([]);
+        }
+      };
+      void load();
+      return () => {
+        cancelled = true;
+      };
+    }, [isDfxAuthenticated]),
+  );
 
   return accounts;
 }

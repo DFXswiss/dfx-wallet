@@ -7,8 +7,9 @@ import QRCode from 'react-native-qrcode-svg';
 
 import { GlassIconButton } from '@/components/GlassIconButton';
 import { Icon } from '@/components/Icon';
-import { SegmentedControl } from '@/components/SegmentedControl';
 import type { ChainId } from '@/config/chains';
+import { AssetCoinSelector } from '@/features/transfer/AssetCoinSelector';
+import { NetworkTextTabs } from '@/features/transfer/NetworkTextTabs';
 import { buildReceiveAssets } from '@/features/transfer/receiveAssets';
 import { useReceiveAddress } from '@/features/transfer/useReceiveAddress';
 import { Radius, Spacing, Typography, useColors, type ThemeColors } from '@/theme';
@@ -119,24 +120,23 @@ export function OwnCodeFullscreen({
               </Text>
 
               <View style={styles.controls} pointerEvents="box-none">
-                <SegmentedControl
+                <AssetCoinSelector
                   options={receiveAssets.map((asset) => ({
                     key: asset.symbol,
-                    label: asset.symbol,
+                    symbol: asset.symbol,
                   }))}
                   value={selectedAsset.symbol}
                   onChange={handleAssetChange}
                   testIDPrefix="own-code-asset"
                 />
                 {selectedAsset.chains.length > 1 && (
-                  <SegmentedControl
+                  <NetworkTextTabs
                     options={selectedAsset.chains.map((option) => ({
                       key: option.chain,
                       label: option.label,
                     }))}
                     value={selectedChain}
                     onChange={handleChainChange}
-                    size="sm"
                     testIDPrefix="own-code-chain"
                   />
                 )}
@@ -218,7 +218,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
     controls: {
       alignSelf: 'stretch',
-      gap: Spacing.sm,
+      gap: Spacing.base,
     },
     qrTile: {
       padding: QR_PADDING,

@@ -1,4 +1,13 @@
 {
+  "bankAccounts": {
+    "addIntro": "You pay out money from your wallet to this account.",
+    "iban": "IBAN",
+    "label": "Name (optional)",
+    "labelPlaceholder": "e.g. UBS personal account",
+    "listHint": "You pick one of these accounts when you pay out.",
+    "saveError": "Couldn't save the account.",
+    "title": "Bank accounts"
+  },
   "biometric": {
     "enable": "Enable Biometric",
     "usePin": "Use PIN"

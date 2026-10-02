@@ -36,6 +36,22 @@ jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
 }));
 
+const mockFeatures = { BUY_SELL: true };
+// The factory runs while imports are evaluated, before `mockFeatures` is initialised, so the
+// flag is read lazily through a getter instead of being captured eagerly.
+jest.mock('@/config/features', () => {
+  const actual = jest.requireActual('@/config/features');
+  return {
+    ...actual,
+    FEATURES: {
+      ...actual.FEATURES,
+      get BUY_SELL() {
+        return mockFeatures.BUY_SELL;
+      },
+    },
+  };
+});
+
 jest.mock('expo-haptics', () => ({
   selectionAsync: jest.fn(),
   impactAsync: jest.fn(),
@@ -118,6 +134,7 @@ describe('SettingsScreenImpl', () => {
     mockReplace.mockReset();
     mockCanGoBack.mockReset();
     mockCanGoBack.mockReturnValue(true);
+    mockFeatures.BUY_SELL = true;
     __i18n.language = 'en';
     __i18n.changeLanguage.mockReset();
     __i18n.changeLanguage.mockResolvedValue(undefined);
@@ -161,6 +178,7 @@ describe('SettingsScreenImpl', () => {
     await waitFor(() => expect(getByTestId('settings-email')).toBeTruthy());
     const routes: [string, string][] = [
       ['settings-email', '/(auth)/email'],
+      ['settings-bank-accounts', '/(auth)/bank-accounts'],
       ['settings-dfx-wallets', '/(auth)/wallets'],
       ['settings-seed', '/(auth)/seed-export'],
       ['settings-hardware-wallet', '/(auth)/hardware-connect'],
@@ -175,6 +193,19 @@ describe('SettingsScreenImpl', () => {
       fireEvent.press(getByTestId(id));
       expect(mockPush).toHaveBeenCalledWith(route);
     }
+  });
+
+  it('shows bank accounts only while buy/sell is enabled', async () => {
+    const enabled = renderScreen();
+    await waitFor(() => expect(enabled.getByTestId('settings-bank-accounts')).toBeTruthy());
+    fireEvent.press(enabled.getByTestId('settings-bank-accounts'));
+    expect(mockPush).toHaveBeenCalledWith('/(auth)/bank-accounts');
+    enabled.unmount();
+
+    mockFeatures.BUY_SELL = false;
+    const disabled = renderScreen();
+    await waitFor(() => expect(disabled.getByTestId('settings-user-data')).toBeTruthy());
+    expect(disabled.queryByTestId('settings-bank-accounts')).toBeNull();
   });
 
   it('cycles language, currency and appearance', async () => {

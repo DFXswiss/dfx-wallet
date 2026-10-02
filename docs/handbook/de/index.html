@@ -813,8 +813,9 @@
           <p class="spec-intro">
             Ein Screen statt zwei Schritte. Ganz oben steht die blaue Karte <em>„BTC kaufen“</em>
             (Titel folgt dem gewählten Asset, per Banküberweisung, nur mit
-            <code>EXPO_PUBLIC_ENABLE_BUY_SELL</code>). Darunter die Asset-Leiste BTC, CHF, EUR, USD;
-            BTC hat zusätzlich eine Netz-Leiste (SegWit und EVM, Taproot und Lightning hinter
+            <code>EXPO_PUBLIC_ENABLE_BUY_SELL</code>). Darunter die Asset-Auswahl als vier Münzen BTC, CHF,
+            EUR, USD (die aktive mit blauem Ring); BTC hat zusätzlich eine Netz-Auswahl als Text
+            (SegWit und EVM, Taproot und Lightning hinter
             <code>EXPO_PUBLIC_ENABLE_DFX_BACKEND</code>), die Stablecoins laufen nur auf Ethereum.
             Die QR-Karte zeigt den Code mit Vergrössern-Badge, die volle Adresse sowie Kopieren und
             Teilen; ein Tipp auf den QR oder auf „Tippen zum Vergrössern“ öffnet den Code
@@ -859,9 +860,12 @@
             Der Einstieg fragt <em>„An wen?“</em>: ein Eingabefeld für Name, Adresse oder IBAN mit
             Einfügen-Button, darunter die Karte <em>„Dein Code“</em> mit Mini-QR und
             Vergrössern-Badge — ein Tipp öffnet den eigenen Code bildschirmfüllend mit Asset- und
-            Netz-Leiste. Dann Kontakte und <em>„Meine Konten“</em>: dort steht das Bankkonto immer
-            an erster Stelle (ohne Konto als „Bankkonto hinzufügen · Geld aufs Konto auszahlen“),
-            danach die DFX Wallet. Der Scan-Button oben rechts öffnet denselben Scanner wie „Pay“
+            Netz-Auswahl. Dann Kontakte und <em>„Meine Konten“</em>: dort steht das Bankkonto immer
+            an erster Stelle, danach die DFX Wallet. Ohne Konto heisst die Zeile „Bankkonto
+            hinzufügen · Geld aufs Konto auszahlen“ und öffnet das Formular aus den Einstellungen
+            (IBAN, optionale Bezeichnung, Speichern legt das Konto bei DFX an); mit Konto führt die
+            Zeile direkt zu Auszahlen. Dieselben Bankkonten sind unter Einstellungen → Bankkonten
+            jederzeit verwaltbar (nur mit <code>EXPO_PUBLIC_ENABLE_BUY_SELL</code>). Der Scan-Button oben rechts öffnet denselben Scanner wie „Pay“
             auf dem Dashboard: OpenCryptoPay geht zum Bezahlen, eine Adresse (bei
             <code>bitcoin:</code> mit Betrag) direkt in den Betragsschritt, eine IBAN zur Auszahlung,
             alles andere zeigt „Code nicht erkannt“ mit Kopieren und Erneut scannen. Danach folgen

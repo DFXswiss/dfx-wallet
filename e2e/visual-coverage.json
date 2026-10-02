@@ -70,6 +70,16 @@
       "status": "baselined",
       "baselines": ["send", "send-input-step"]
     },
+    "(auth)/bank-accounts/index.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#278",
+      "reason": "The bank-account list needs an authenticated DFX account fixture before a deterministic visual baseline can be captured."
+    },
+    "(auth)/bank-accounts/add.tsx": {
+      "status": "pending",
+      "tracking": "DFXswiss/dfx-wallet#278",
+      "reason": "The add-bank-account form and authentication recovery states need stable DFX fixtures before visual baselines can be captured."
+    },
 
     "index.tsx": {
       "status": "exempt",
