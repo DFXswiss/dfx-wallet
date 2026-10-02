@@ -28,7 +28,10 @@ jest.mock('@tetherto/wdk-react-native-core', () => ({
   }),
 }));
 
+// eslint-disable-next-line import/first
 import CreateWalletScreen from '../../app/(onboarding)/create-wallet';
+// eslint-disable-next-line import/first
+import { GlassCard } from '../../src/components/GlassCard';
 
 describe('CreateWalletScreen', () => {
   beforeEach(() => {
@@ -57,6 +60,12 @@ describe('CreateWalletScreen', () => {
     expect(getByTestId('create-wallet-seed-container')).toBeTruthy();
     expect(getByTestId('create-wallet-word-1')).toBeTruthy();
     expect(getByTestId('create-wallet-word-12')).toBeTruthy();
+  });
+
+  it('renders the seed card and word tiles on glass surfaces', () => {
+    const { getByTestId, UNSAFE_queryAllByType } = render(<CreateWalletScreen />);
+    fireEvent.press(getByTestId('create-wallet-reveal-button'));
+    expect(UNSAFE_queryAllByType(GlassCard).length).toBeGreaterThanOrEqual(1);
   });
 
   it('disables the continue CTA before the seed is revealed', () => {

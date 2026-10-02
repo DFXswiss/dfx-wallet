@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { AppHeader, DfxBackgroundScreen } from '@/components';
+import { AppHeader, DfxBackgroundScreen, GlassCard, SeedWordTile } from '@/components';
 import {
   authenticatePasskey,
   deriveMnemonicFromPrf,
@@ -149,11 +149,7 @@ export default function SeedExportScreen() {
         </Text>
 
         {!seedWords ? (
-          <Pressable
-            style={[styles.revealButton, isLoading && styles.revealButtonDisabled]}
-            onPress={handleReveal}
-            disabled={isLoading}
-          >
+          <GlassCard contentStyle={styles.revealButton} onPress={handleReveal} disabled={isLoading}>
             <Text style={styles.revealText}>
               {isLoading
                 ? t('common.loading')
@@ -161,19 +157,16 @@ export default function SeedExportScreen() {
                   ? t('seedExport.revealPasskey')
                   : t('seedExport.revealSeed')}
             </Text>
-          </Pressable>
+          </GlassCard>
         ) : (
           <>
-            <View style={styles.warningContainer}>
+            <GlassCard tone="warning" style={styles.warningContainer}>
               <Text style={styles.warningText}>{t('seedExport.warning')}</Text>
-            </View>
+            </GlassCard>
 
             <View style={styles.seedContainer}>
               {seedWords.map((word, index) => (
-                <View key={index} style={styles.wordCard}>
-                  <Text style={styles.wordIndex}>{index + 1}.</Text>
-                  <Text style={styles.word}>{word}</Text>
-                </View>
+                <SeedWordTile key={index} index={index} word={word} style={styles.wordCard} />
               ))}
             </View>
 
@@ -207,16 +200,8 @@ const makeStyles = (colors: ThemeColors) =>
     },
     revealButton: {
       padding: 48,
-      borderRadius: 12,
-      backgroundColor: colors.cardOverlay,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderStyle: 'dashed',
       alignItems: 'center',
       justifyContent: 'center',
-    },
-    revealButtonDisabled: {
-      opacity: 0.5,
     },
     revealText: {
       ...Typography.bodyLarge,
@@ -224,10 +209,6 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '600',
     },
     warningContainer: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.warning,
       padding: 16,
     },
     warningText: {
@@ -240,25 +221,7 @@ const makeStyles = (colors: ThemeColors) =>
       gap: 8,
     },
     wordCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.border,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      gap: 6,
       width: '31%',
-    },
-    wordIndex: {
-      ...Typography.bodySmall,
-      color: colors.textTertiary,
-      width: 24,
-    },
-    word: {
-      ...Typography.bodyMedium,
-      color: colors.text,
     },
     copyButton: {
       alignSelf: 'center',

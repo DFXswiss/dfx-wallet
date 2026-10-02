@@ -52,7 +52,10 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 
+// eslint-disable-next-line import/first
 import OpenCryptoPayScreen from '../../app/(auth)/pay/opencryptopay';
+// eslint-disable-next-line import/first
+import { GlassCard } from '../../src/components/GlassCard';
 
 const SAMPLE_INVOICE = {
   displayName: 'Test Merchant',
@@ -95,6 +98,12 @@ describe('OpenCryptoPayScreen', () => {
     expect(getByTestId('opencryptopay-asset-ZCHF')).toBeTruthy();
     expect(getByTestId('opencryptopay-asset-USDC')).toBeTruthy();
     expect(getByTestId('opencryptopay-confirm').props.accessibilityState?.disabled).toBeFalsy();
+  });
+
+  it('renders the merchant summary on a glass card', async () => {
+    const { getByText, UNSAFE_queryAllByType } = render(<OpenCryptoPayScreen />);
+    await waitFor(() => expect(getByText('Test Merchant')).toBeTruthy());
+    expect(UNSAFE_queryAllByType(GlassCard).length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows the invalid-QR error and a Close button when no lnurl param is present', async () => {

@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import {
   AppHeader,
   DfxBackgroundScreen,
+  GlassCard,
   OnboardingStepIndicator,
   PrimaryButton,
 } from '@/components';
@@ -53,7 +54,7 @@ export default function LegalDisclaimerScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.card}>
+        <GlassCard testID="legal-disclaimer-card">
           <Text style={styles.eyebrow}>{t('legal.intro')}</Text>
           <Text style={styles.paragraph}>{t('legal.bodyWallet')}</Text>
           <Text style={styles.paragraph}>{t('legal.bodyTransactions')}</Text>
@@ -61,30 +62,31 @@ export default function LegalDisclaimerScreen() {
 
           <View style={styles.links}>
             {LEGAL_LINKS.map((link) => (
-              <Pressable
+              <GlassCard
                 key={link.url}
-                style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
+                variant="quiet"
+                contentStyle={styles.linkRow}
                 onPress={() => void openLegalLink(link.url)}
               >
                 <Text style={styles.link}>{t(link.labelKey)}</Text>
                 <Text style={styles.linkArrow}>{'\u203A'}</Text>
-              </Pressable>
+              </GlassCard>
             ))}
           </View>
-        </View>
+        </GlassCard>
       </ScrollView>
 
       <View style={styles.footer}>
-        <Pressable
+        <GlassCard
           testID="legal-accept-checkbox"
-          style={styles.checkboxRow}
+          contentStyle={styles.checkboxRow}
           onPress={() => setAccepted(!accepted)}
         >
           <View style={[styles.checkbox, accepted && styles.checkboxChecked]}>
             {accepted && <Text style={styles.checkmark}>{'\u2713'}</Text>}
           </View>
           <Text style={styles.checkboxLabel}>{t('legal.accept')}</Text>
-        </Pressable>
+        </GlassCard>
 
         <PrimaryButton
           testID="legal-continue-button"
@@ -115,13 +117,6 @@ const makeStyles = (colors: ThemeColors) =>
       gap: 16,
       paddingTop: 16,
     },
-    card: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 18,
-    },
     eyebrow: {
       ...Typography.bodyMedium,
       color: colors.textSecondary,
@@ -140,11 +135,6 @@ const makeStyles = (colors: ThemeColors) =>
     },
     linkRow: {
       minHeight: 48,
-      borderRadius: 8,
-      backgroundColor: colors.surfaceLight,
-      borderWidth: 1,
-      borderColor: colors.border,
-      paddingHorizontal: 14,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -158,18 +148,10 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.headlineSmall,
       color: colors.primary,
     },
-    pressed: {
-      opacity: 0.7,
-    },
     checkboxRow: {
       flexDirection: 'row',
       alignItems: 'flex-start',
       gap: 12,
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 14,
     },
     checkbox: {
       width: 24,

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader, Icon, ScreenContainer } from '@/components';
+import { AppHeader, GlassCard, GlassIconButton, Icon, ScreenContainer } from '@/components';
 import { useDfxAuth } from '@/hooks';
 import { DfxApiError, dfxUserService } from '@/features/dfx-backend/services';
 import { Typography, useColors, type ThemeColors } from '@/theme';
@@ -84,7 +84,7 @@ export default function UserDataScreen() {
               <ActivityIndicator color={colors.primary} />
             </View>
           ) : isMergedState ? (
-            <View style={styles.mergedCard}>
+            <GlassCard style={styles.mergedCard} testID="email-merged-card">
               <Text style={styles.mergedText}>{t('wallets.mergedExplanation')}</Text>
               <Pressable
                 style={({ pressed }) => [styles.reauthBtn, pressed && styles.pressed]}
@@ -101,7 +101,7 @@ export default function UserDataScreen() {
                 )}
               </Pressable>
               {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
-            </View>
+            </GlassCard>
           ) : (
             <>
               <UserDataRow
@@ -135,22 +135,21 @@ function UserDataRow({ label, value, onEdit, editTestID }: UserDataRowProps) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
-    <View style={styles.row}>
+    <GlassCard style={styles.row} testID="email-data-row">
       <View style={styles.rowText}>
         <Text style={styles.rowLabel}>{label}</Text>
         <Text style={styles.rowValue}>{value}</Text>
       </View>
       {onEdit ? (
-        <Pressable
-          style={({ pressed }) => [styles.editBtn, pressed && styles.pressed]}
+        <GlassIconButton
+          icon={<Icon name="document" size={18} color={colors.primary} />}
           onPress={onEdit}
-          testID={editTestID}
+          size={36}
           accessibilityLabel="Edit"
-        >
-          <Icon name="document" size={18} color={colors.primary} />
-        </Pressable>
+          {...(editTestID ? { testID: editTestID } : {})}
+        />
       ) : null}
-    </View>
+    </GlassCard>
   );
 }
 
@@ -168,9 +167,6 @@ const makeStyles = (colors: ThemeColors) =>
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderRadius: 14,
-      padding: 14,
       gap: 12,
     },
     rowText: {
@@ -188,21 +184,10 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodyLarge,
       color: colors.text,
     },
-    editBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: colors.primaryLight,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
     pressed: {
       opacity: 0.7,
     },
     mergedCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 14,
-      padding: 16,
       gap: 12,
     },
     mergedText: {

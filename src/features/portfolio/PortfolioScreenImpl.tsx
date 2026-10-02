@@ -1,18 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ImageBackground,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader, DarkBackdrop, EmptyState, Icon, Skeleton } from '@/components';
+import { AppHeader, EmptyState, GlassCard, Icon, ScreenBackdrop, Skeleton } from '@/components';
 import { getAssetMeta, getAssets, type TokenCategory } from '@/config/tokens';
 import { getRawBalance, useBalances } from '@/services/balances';
 import {
@@ -39,7 +31,6 @@ import {
   BackdropText,
   Card,
   IconTile,
-  Interaction,
   Layout,
   Spacing,
   Typography,
@@ -309,7 +300,7 @@ export default function PortfolioScreen() {
           // when data lands.
           <View style={styles.assetList}>
             {[0, 1, 2, 3].map((i) => (
-              <View key={i} style={styles.skeletonRow}>
+              <GlassCard key={i} style={styles.skeletonRow}>
                 <Skeleton
                   width={IconTile.md.size}
                   height={IconTile.md.size}
@@ -320,7 +311,7 @@ export default function PortfolioScreen() {
                   <Skeleton width={'40%'} height={11} radius={6} />
                 </View>
                 <Skeleton width={84} height={16} radius={6} />
-              </View>
+              </GlassCard>
             ))}
           </View>
         ) : groups.length > 0 ? (
@@ -384,15 +375,7 @@ export default function PortfolioScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>
@@ -439,9 +422,9 @@ function LinkedWalletCard({
       })}`
     : '—';
   return (
-    <Pressable
+    <GlassCard
+      contentStyle={styles.linkedCard}
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       testID={`portfolio-linked-wallet-${address.slice(0, 8)}`}
       accessibilityRole="button"
       accessibilityLabel={t('portfolio.linkedWalletA11y', { address: truncated })}
@@ -465,7 +448,7 @@ function LinkedWalletCard({
           {truncated}
         </Text>
       </View>
-    </Pressable>
+    </GlassCard>
   );
 }
 
@@ -481,9 +464,9 @@ function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) 
       ? t('portfolio.networkCount_one', { count: group.networks.size })
       : t('portfolio.networkCount_other', { count: group.networks.size });
   return (
-    <Pressable
+    <GlassCard
+      contentStyle={styles.card}
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       testID={`portfolio-asset-${group.canonicalSymbol}`}
       accessibilityRole="button"
       accessibilityLabel={group.canonicalName}
@@ -508,17 +491,9 @@ function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) 
           {formatNumber(group.totalBalanceNum)} {group.canonicalSymbol}
         </Text>
       </View>
-    </Pressable>
+    </GlassCard>
   );
 }
-
-const cardElevation = (colors: ThemeColors) => ({
-  shadowColor: colors.shadow,
-  shadowOpacity: 0.07,
-  shadowRadius: 12,
-  shadowOffset: { width: 0, height: 5 },
-  elevation: 2,
-});
 
 const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
   const onBackdrop =
@@ -561,7 +536,7 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
       gap: Spacing.xs,
     },
     totalCurrency: {
-      fontSize: 20,
+      fontSize: Typography.headlineSmall.fontSize,
       color: colors.textTertiary,
       fontWeight: '500',
       ...onBackdrop,
@@ -581,13 +556,7 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
     skeletonRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: Card.radius,
-      borderWidth: Card.borderWidth,
-      borderColor: colors.cardOverlayBorder,
-      padding: Card.padding,
       gap: Card.gap,
-      ...cardElevation(colors),
     },
     skeletonCopy: {
       flex: 1,
@@ -596,16 +565,12 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
     card: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: Card.radius,
-      borderWidth: Card.borderWidth,
-      borderColor: colors.cardOverlayBorder,
-      padding: Card.padding,
       gap: Card.gap,
-      ...cardElevation(colors),
     },
-    cardPressed: {
-      opacity: Interaction.pressedCardOpacity,
+    linkedCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Card.gap,
     },
     iconBubble: {
       width: IconTile.md.size,

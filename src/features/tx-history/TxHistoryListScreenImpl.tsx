@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
-  ImageBackground,
   type ListRenderItemInfo,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -17,15 +15,17 @@ import { useAccount } from '@tetherto/wdk-react-native-core';
 import {
   AppHeader,
   AssetActions,
-  DarkBackdrop,
   EmptyState,
+  GlassCard,
+  GlassPill,
   Icon,
+  ScreenBackdrop,
   Skeleton,
   TransactionRow,
 } from '@/components';
 import { CHAIN_LABELS } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/features/dfx-backend/services';
-import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Layout, Typography, useColors, type ThemeColors } from '@/theme';
 
 type FilterType = 'all' | 'in' | 'out' | 'pay';
 
@@ -43,7 +43,6 @@ export default function TransactionHistoryScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const params = useLocalSearchParams<{ asset?: string; network?: string }>();
   const assetFilter = typeof params.asset === 'string' ? params.asset.toUpperCase() : undefined;
@@ -124,12 +123,12 @@ export default function TransactionHistoryScreen() {
             {filters.map((f) => {
               const isActive = filter === f.key;
               return (
-                <Pressable
+                <GlassPill
                   key={f.key}
-                  style={[styles.segment, isActive && styles.segmentActive]}
+                  selected={isActive}
                   onPress={() => setFilter(f.key)}
+                  style={styles.segment}
                   accessibilityRole="button"
-                  accessibilityState={{ selected: isActive }}
                 >
                   <Text
                     style={[styles.segmentText, isActive && styles.segmentTextActive]}
@@ -137,7 +136,7 @@ export default function TransactionHistoryScreen() {
                   >
                     {f.label}
                   </Text>
-                </Pressable>
+                </GlassPill>
               );
             })}
           </View>
@@ -205,15 +204,7 @@ export default function TransactionHistoryScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>
@@ -241,7 +232,7 @@ function WalletAddressBar({ network }: { network: string }) {
   };
 
   return (
-    <Pressable style={styles.addressCard} onPress={handleCopy} testID="wallet-address-copy">
+    <GlassCard contentStyle={styles.addressCard} onPress={handleCopy} testID="wallet-address-copy">
       <View style={styles.addressIconCircle}>
         <Icon name="wallet" size={22} color={colors.primary} />
       </View>
@@ -249,10 +240,10 @@ function WalletAddressBar({ network }: { network: string }) {
       <Text style={styles.addressText} numberOfLines={1} selectable>
         {short}
       </Text>
-      <View style={styles.copyBadge}>
+      <GlassPill style={styles.copyBadge}>
         <Text style={styles.copyText}>{copied ? t('common.copied') : t('common.copy')}</Text>
-      </View>
-    </Pressable>
+      </GlassPill>
+    </GlassCard>
   );
 }
 
@@ -265,10 +256,6 @@ const makeStyles = (colors: ThemeColors) =>
       paddingVertical: 24,
       paddingHorizontal: 20,
       gap: 8,
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
     },
     addressIconCircle: {
       width: 48,
@@ -295,10 +282,6 @@ const makeStyles = (colors: ThemeColors) =>
     },
     copyBadge: {
       marginTop: 4,
-      paddingHorizontal: 20,
-      paddingVertical: 8,
-      backgroundColor: colors.primaryLight,
-      borderRadius: 12,
     },
     copyText: {
       ...Typography.bodyMedium,
@@ -323,21 +306,11 @@ const makeStyles = (colors: ThemeColors) =>
     },
     segmented: {
       flexDirection: 'row',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 4,
+      gap: 4,
     },
     segment: {
       flex: 1,
-      height: 36,
-      borderRadius: 8,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    segmentActive: {
-      backgroundColor: colors.primary,
+      alignSelf: 'stretch',
     },
     segmentText: {
       ...Typography.bodySmall,
@@ -348,7 +321,7 @@ const makeStyles = (colors: ThemeColors) =>
       textAlignVertical: 'center',
     },
     segmentTextActive: {
-      color: colors.white,
+      color: colors.primary,
     },
     loadingContainer: {
       flex: 1,
