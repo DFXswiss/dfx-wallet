@@ -37,7 +37,7 @@ export function BuyCard({ title, onPress }: Props) {
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
       <View style={styles.markTile}>
-        <DfxMark size={21} color={foreground} />
+        <DfxMark size={21} />
       </View>
       <View style={styles.text}>
         <Text style={[styles.title, { color: foreground }]}>{title}</Text>
@@ -77,7 +77,7 @@ const makeStyles = (colors: ThemeColors) =>
       borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.primaryDark,
+      backgroundColor: colors.white,
     },
     text: {
       flex: 1,
