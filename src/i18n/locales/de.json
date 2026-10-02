@@ -1,4 +1,13 @@
 {
+  "bankAccounts": {
+    "addIntro": "Auf dieses Konto zahlst du Geld aus deiner Wallet aus.",
+    "iban": "IBAN",
+    "label": "Bezeichnung (optional)",
+    "labelPlaceholder": "z. B. UBS Privatkonto",
+    "listHint": "Beim Auszahlen wählst du eines dieser Konten aus.",
+    "saveError": "Konto konnte nicht gespeichert werden.",
+    "title": "Bankkonten"
+  },
   "biometric": {
     "enable": "Biometrie aktivieren",
     "usePin": "PIN verwenden"

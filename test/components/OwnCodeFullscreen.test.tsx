@@ -9,21 +9,9 @@ jest.mock('react-i18next', () => ({
 
 jest.mock('react-native-qrcode-svg', () => {
   const { Text } = jest.requireActual('react-native');
-  function QRCode({
-    value,
-    size,
-    quietZone,
-  }: {
-    value: string;
-    size: number;
-    quietZone: number;
-  }) {
+  function QRCode({ value, size, quietZone }: { value: string; size: number; quietZone: number }) {
     return (
-      <Text
-        testID="qrcode-stub"
-        accessibilityLabel={`${size}`}
-        accessibilityHint={`${quietZone}`}
-      >
+      <Text testID="qrcode-stub" accessibilityLabel={`${size}`} accessibilityHint={`${quietZone}`}>
         {value}
       </Text>
     );
@@ -77,12 +65,14 @@ describe('OwnCodeFullscreen', () => {
     const { getByTestId } = render(<OwnCodeFullscreen visible onClose={jest.fn()} />);
 
     expect(getByTestId('own-code-asset-BTC').props.accessibilityState.selected).toBe(true);
+    expect(getByTestId('own-code-asset-BTC').props.accessibilityRole).toBe('tab');
     expect(getByTestId('own-code-chain-bitcoin').props.accessibilityState.selected).toBe(true);
+    expect(getByTestId('own-code-chain-bitcoin').props.accessibilityRole).toBe('tab');
     expect(getByTestId('own-code-address').props.children).toBe(BTC_ADDRESS);
     expect(getByTestId('qrcode-stub').props.children).toBe(BTC_ADDRESS);
   });
 
-  it('switches to the Ethereum address for CHF and hides the chain control', () => {
+  it('switches to the Ethereum address for CHF and hides the network tabs', () => {
     const { getByTestId, queryByTestId } = render(
       <OwnCodeFullscreen visible onClose={jest.fn()} />,
     );
@@ -109,7 +99,7 @@ describe('OwnCodeFullscreen', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
-  it('does not close when the QR, a segment or the address is pressed', () => {
+  it('does not close when the QR, an asset tab or the address is pressed', () => {
     const onClose = jest.fn();
     const { getByTestId } = render(<OwnCodeFullscreen visible onClose={onClose} />);
 

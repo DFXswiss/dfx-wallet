@@ -1,5 +1,5 @@
 import React from 'react';
-import { Linking, Share } from 'react-native';
+import { Linking, Share, StyleSheet } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { useAccount } from '@tetherto/wdk-react-native-core';
@@ -137,6 +137,8 @@ import SendScreen from '../../app/(auth)/send/index';
 import { getSendAssetForCanonical } from '../../src/config/tokens';
 // eslint-disable-next-line import/first
 import { useAddressBookStore, type Contact } from '../../src/store/address-book';
+// eslint-disable-next-line import/first
+import { Typography } from '../../src/theme';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.now();
@@ -322,7 +324,10 @@ describe('SendScreen', () => {
 
     it('routes an IBAN to the cash-out flow instead of the amount step', () => {
       const screen = render(<SendScreen />);
-      fireEvent.changeText(screen.getByTestId('send-recipient-input'), 'CH93 0076 2011 6238 5295 7');
+      fireEvent.changeText(
+        screen.getByTestId('send-recipient-input'),
+        'CH93 0076 2011 6238 5295 7',
+      );
       expect(screen.queryByTestId('send-recipient-continue')).toBeNull();
       expect(screen.getByText('send.payoutToBank')).toBeTruthy();
       fireEvent.press(screen.getByTestId('send-iban-payout'));
@@ -400,11 +405,14 @@ describe('SendScreen', () => {
       expect(mockPush).toHaveBeenCalledWith('/(auth)/sell');
     });
 
-    it('offers "add bank account" when there is none and opens the cash-out flow', () => {
+    it('opens bank-account setup from the add row and uses a proportional subtitle', () => {
       const screen = render(<SendScreen />);
-      expect(screen.getByText('send.accountBankAddHint')).toBeTruthy();
+      const subtitle = screen.getByText('send.accountBankAddHint');
+      const subtitleStyle = StyleSheet.flatten(subtitle.props.style);
+      expect(subtitleStyle.fontSize).toBe(Typography.bodyMedium.fontSize);
+      expect(subtitleStyle.fontFamily).not.toBe(Typography.mono.fontFamily);
       fireEvent.press(screen.getByTestId('send-account-bank-add'));
-      expect(mockPush).toHaveBeenCalledWith('/(auth)/sell');
+      expect(mockPush).toHaveBeenCalledWith('/(auth)/bank-accounts/add');
     });
 
     it('opens the scanner from the header and closes it again', () => {
@@ -606,12 +614,15 @@ describe('SendScreen', () => {
       ['CHF', MARCO, ['CHF', 'EUR']],
       ['EUR', LEA, ['EUR', 'CHF']],
       ['USD', TIM, ['USD', 'CHF', 'EUR']],
-    ] as const)('orders the units asset first, then CHF, then EUR: %s', (_symbol, contact, units) => {
-      seedContacts(ANNA, MARCO, LEA, TIM);
-      const screen = render(<SendScreen />);
-      fireEvent.press(screen.getByTestId(`send-contact-${contact.id}`));
-      expect(unitIds(screen)).toEqual(units.map((u) => `send-unit-${u}`));
-    });
+    ] as const)(
+      'orders the units asset first, then CHF, then EUR: %s',
+      (_symbol, contact, units) => {
+        seedContacts(ANNA, MARCO, LEA, TIM);
+        const screen = render(<SendScreen />);
+        fireEvent.press(screen.getByTestId(`send-contact-${contact.id}`));
+        expect(unitIds(screen)).toEqual(units.map((u) => `send-unit-${u}`));
+      },
+    );
 
     it('starts on the asset unit and marks it selected', () => {
       seedContacts(ANNA);
@@ -685,7 +696,9 @@ describe('SendScreen', () => {
       expect(screen.getByTestId('send-chain-polygon').props.accessibilityState.selected).toBe(true);
       fireEvent.press(screen.getByTestId('send-chain-base'));
       expect(screen.getByTestId('send-chain-base').props.accessibilityState.selected).toBe(true);
-      expect(screen.getByTestId('send-chain-polygon').props.accessibilityState.selected).toBe(false);
+      expect(screen.getByTestId('send-chain-polygon').props.accessibilityState.selected).toBe(
+        false,
+      );
     });
 
     it('has no chain bar for BTC', () => {

@@ -13,13 +13,14 @@ import {
   ScreenBackdrop,
   SectionTitle,
 } from '@/components';
+import { FEATURES } from '@/config/features';
 import { isBiometricAvailable } from '@/features/biometric/biometric';
 import { dfxUserService } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
 import { Typography, useColors, useThemeStore, type ThemeColors, type ThemeMode } from '@/theme';
 
-type IconName = 'user' | 'wallet' | 'shield' | 'globe' | 'document' | 'support';
+type IconName = 'bank' | 'document' | 'globe' | 'shield' | 'support' | 'user' | 'wallet';
 
 type SettingsRow = {
   label: string;
@@ -142,6 +143,16 @@ export default function SettingsScreen() {
           testID: 'settings-user-data',
           route: '/(auth)/kyc',
         },
+        ...(FEATURES.BUY_SELL
+          ? [
+              {
+                icon: 'bank' as const,
+                label: t('bankAccounts.title'),
+                testID: 'settings-bank-accounts',
+                route: '/(auth)/bank-accounts',
+              },
+            ]
+          : []),
         {
           icon: 'user',
           label: t('settings.email'),

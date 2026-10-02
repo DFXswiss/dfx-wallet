@@ -51,6 +51,7 @@ type Props = {
   onNewContact: () => void;
   onShowOwnCode: () => void;
   onOpenBuy: () => void;
+  onAddBankAccount: () => void;
   onOpenSell: () => void;
   onPaste: () => void;
 };
@@ -59,6 +60,7 @@ type AccountRowProps = {
   icon: ReactNode;
   title: string;
   subtitle?: string;
+  subtitleMono?: boolean;
   right?: ReactNode;
   last?: boolean;
   onPress?: () => void;
@@ -70,6 +72,7 @@ function AccountRow({
   icon,
   title,
   subtitle,
+  subtitleMono = true,
   right,
   last,
   onPress,
@@ -86,7 +89,11 @@ function AccountRow({
       {icon}
       <View style={styles.accountText}>
         <Text style={styles.accountTitle}>{title}</Text>
-        {subtitle ? <Text style={styles.accountSubtitle}>{subtitle}</Text> : null}
+        {subtitle ? (
+          <Text style={subtitleMono ? styles.accountSubtitle : styles.accountSubtitleBody}>
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
       {right}
     </GlassListGroup.Row>
@@ -140,6 +147,7 @@ export function SendOverview({
   onNewContact,
   onShowOwnCode,
   onOpenBuy,
+  onAddBankAccount,
   onOpenSell,
   onPaste,
 }: Props) {
@@ -387,7 +395,8 @@ export function SendOverview({
               }
               title={t('send.accountBankAdd')}
               subtitle={t('send.accountBankAddHint')}
-              onPress={onOpenSell}
+              subtitleMono={false}
+              onPress={onAddBankAccount}
             />
           )}
           <AccountRow
@@ -586,6 +595,10 @@ const makeStyles = (colors: ThemeColors) =>
     },
     accountSubtitle: {
       ...Typography.mono,
+      color: colors.textSecondary,
+    },
+    accountSubtitleBody: {
+      ...Typography.bodyMedium,
       color: colors.textSecondary,
     },
     accountBalance: {
