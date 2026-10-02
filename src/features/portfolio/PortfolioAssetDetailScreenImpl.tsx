@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import { AppHeader, AssetActions, DarkBackdrop } from '@/components';
+import { AppHeader, AssetActions, GlassSurface, ScreenBackdrop } from '@/components';
 import type { ChainId } from '@/config/chains';
 import {
   getAssetsForCanonicalSymbol,
@@ -170,7 +170,7 @@ export default function AssetDetailScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.totalCard}>
+        <GlassSurface variant="lead" radius={Card.radius} style={styles.totalCard}>
           <View style={[styles.iconBubble, { backgroundColor: color }]}>
             <Text style={styles.iconText}>{glyph}</Text>
           </View>
@@ -189,7 +189,7 @@ export default function AssetDetailScreen() {
           <View style={styles.actionsRow}>
             <AssetActions asset={canonicalSymbol} testID={`asset-${canonicalSymbol}-actions`} />
           </View>
-        </View>
+        </GlassSurface>
 
         <Text style={styles.sectionLabel}>{t('portfolio.holdings')}</Text>
 
@@ -197,7 +197,7 @@ export default function AssetDetailScreen() {
           {holdings.map((holding) => (
             <Pressable
               key={holding.id}
-              style={({ pressed }) => [styles.holdingRow, pressed && styles.holdingPressed]}
+              style={({ pressed }) => [pressed && styles.holdingPressed]}
               testID={`holding-${holding.network}-${holding.symbol}`}
               onPress={() =>
                 router.push({
@@ -206,33 +206,35 @@ export default function AssetDetailScreen() {
                 })
               }
             >
-              <View style={styles.holdingInfo}>
-                {/* For canonical groups with multiple stablecoin variants
+              <GlassSurface variant="default" radius={Card.radius} style={styles.holdingRow}>
+                <View style={styles.holdingInfo}>
+                  {/* For canonical groups with multiple stablecoin variants
                         (USD → USDC/USDT, EUR → multiple) the user wants the
                         token symbol on top so they can tell the rows apart;
                         the generic canonical name ("Dollar") is redundant
                         with the screen title. For BTC and other groups where
                         every holding shares the same symbol, fall back to
                         the canonical name + variant label as before. */}
-                <Text style={styles.holdingChain}>
-                  {holding.symbol !== canonicalSymbol ? holding.symbol : holding.canonicalName}
-                </Text>
-                <Text style={styles.holdingSymbol}>{holding.variantLabel}</Text>
-              </View>
-              <View style={styles.holdingBalance}>
-                <Text style={styles.holdingValue}>
-                  {currencySymbol}{' '}
-                  {Number.isFinite(holding.fiatValue)
-                    ? (Math.round(holding.fiatValue * 100) / 100).toLocaleString('de-CH', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })
-                    : '0.00'}
-                </Text>
-                <Text style={styles.holdingCrypto}>
-                  {formatNumber(holding.balanceNum)} {holding.symbol}
-                </Text>
-              </View>
+                  <Text style={styles.holdingChain}>
+                    {holding.symbol !== canonicalSymbol ? holding.symbol : holding.canonicalName}
+                  </Text>
+                  <Text style={styles.holdingSymbol}>{holding.variantLabel}</Text>
+                </View>
+                <View style={styles.holdingBalance}>
+                  <Text style={styles.holdingValue}>
+                    {currencySymbol}{' '}
+                    {Number.isFinite(holding.fiatValue)
+                      ? (Math.round(holding.fiatValue * 100) / 100).toLocaleString('de-CH', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })
+                      : '0.00'}
+                  </Text>
+                  <Text style={styles.holdingCrypto}>
+                    {formatNumber(holding.balanceNum)} {holding.symbol}
+                  </Text>
+                </View>
+              </GlassSurface>
             </Pressable>
           ))}
         </View>
@@ -244,28 +246,12 @@ export default function AssetDetailScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>
   );
 }
-
-const cardElevation = (colors: ThemeColors) => ({
-  shadowColor: colors.shadow,
-  shadowOpacity: 0.07,
-  shadowRadius: 12,
-  shadowOffset: { width: 0, height: 5 },
-  elevation: 2,
-});
 
 const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
   const onBackdrop =
@@ -308,7 +294,7 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
     iconText: {
       color: colors.white,
       fontWeight: '700',
-      fontSize: 30,
+      fontSize: Typography.headlineLarge.fontSize,
       lineHeight: 34,
     },
     totalCrypto: {
@@ -340,13 +326,8 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
     holdingRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: Card.radius,
-      borderWidth: Card.borderWidth,
-      borderColor: colors.cardOverlayBorder,
       padding: Card.padding,
       gap: Card.gap,
-      ...cardElevation(colors),
     },
     holdingPressed: {
       opacity: Interaction.pressedCardOpacity,
