@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import { UnitGlyph } from '@/features/transfer/UnitGlyph';
 import { Spacing, Typography, useColors, type ThemeColors } from '@/theme';
 
@@ -44,6 +45,11 @@ export function AssetCoinSelector({ options, value, onChange, testIDPrefix }: Pr
           >
             <View style={[styles.coinFrame, selected && styles.coinFrameSelected]}>
               <UnitGlyph symbol={option.symbol} size={GLYPH_SIZE} />
+              {selected && (
+                <View style={styles.checkBadge} testID={`${testIDPrefix}-${option.key}-check`}>
+                  <Icon name="check" size={10} color={colors.white} strokeWidth={3} />
+                </View>
+              )}
             </View>
             <Text style={[styles.label, selected && styles.labelSelected]}>{option.symbol}</Text>
           </Pressable>
@@ -66,6 +72,7 @@ const makeStyles = (colors: ThemeColors) =>
       gap: Spacing.xs,
     },
     coinFrame: {
+      position: 'relative',
       width: COIN_FRAME_SIZE,
       height: COIN_FRAME_SIZE,
       borderRadius: COIN_FRAME_SIZE / 2,
@@ -78,6 +85,19 @@ const makeStyles = (colors: ThemeColors) =>
       padding: RING_GAP,
       backgroundColor: colors.background,
     },
+    checkBadge: {
+      position: 'absolute',
+      right: -2,
+      bottom: -2,
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      borderWidth: 2,
+      borderColor: colors.background,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     label: {
       ...Typography.bodySmall,
       fontWeight: '600',
@@ -85,5 +105,6 @@ const makeStyles = (colors: ThemeColors) =>
     },
     labelSelected: {
       color: colors.text,
+      fontWeight: '700',
     },
   });

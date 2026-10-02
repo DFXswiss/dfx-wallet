@@ -63,6 +63,36 @@ export const Typography = {
     lineHeight: 20,
     fontVariant: ['tabular-nums'],
   } as TextStyle,
+  address: {
+    fontFamily: MONO_FAMILY,
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 22,
+    letterSpacing: 0.28,
+  } as TextStyle,
+  addressLabel: {
+    fontFamily: MONO_FAMILY,
+    fontSize: 11,
+    fontWeight: '700',
+    lineHeight: 14,
+    letterSpacing: 0.99,
+    textTransform: 'uppercase',
+  } as TextStyle,
+  networkCaption: {
+    fontSize: 10.5,
+    fontWeight: '500',
+    lineHeight: 13,
+  } as TextStyle,
+  networkLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 16,
+  } as TextStyle,
+  warning: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    lineHeight: 19,
+  } as TextStyle,
   sectionLabel: {
     fontSize: 12,
     fontWeight: '600',
