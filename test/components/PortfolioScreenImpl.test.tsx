@@ -45,6 +45,7 @@ jest.mock('@/features/portfolio/useEnabledChains', () => ({
 }));
 
 let mockBalanceMap: BalanceMap | undefined;
+let mockBtcRate = 50_000;
 jest.mock('@/services/balances', () => {
   const actual = jest.requireActual('@/services/balances');
   return {
@@ -165,6 +166,7 @@ describe('PortfolioScreenImpl', () => {
         jest.requireActual('@/config/tokens').getAssets(...args),
     );
     setBalances({});
+    mockBtcRate = 50_000;
     useWalletStore.getState().reset();
     useWalletStore.setState({ selectedCurrency: 'USD' });
     useAuthStore.setState({ isDfxAuthenticated: false });
@@ -175,7 +177,7 @@ describe('PortfolioScreenImpl', () => {
     jest.spyOn(pricingService, 'getExchangeRate').mockImplementation((ticker, currency) => {
       if (currency !== FiatCurrency.USD) return undefined;
       if (ticker === 'usdt') return 1;
-      if (ticker === 'btc') return 50_000;
+      if (ticker === 'btc') return mockBtcRate;
       if (ticker === 'zchf') return 1.1;
       return undefined;
     });
@@ -232,6 +234,19 @@ describe('PortfolioScreenImpl', () => {
       pathname: '/(auth)/portfolio/[symbol]',
       params: { symbol: 'BTC' },
     });
+  });
+
+  it('recomputes portfolio values when the pricing service publishes an update', async () => {
+    setBalances({ [WBTC_ETH_ID]: '100000000' });
+    const { getByTestId } = renderScreen();
+    const totalDigits = () =>
+      String(getByTestId('portfolio-total-value').props.children).replace(/\D/g, '');
+    expect(totalDigits()).toBe('5000000');
+
+    mockBtcRate = 60_000;
+    act(() => pricingService.reset());
+
+    await waitFor(() => expect(totalDigits()).toBe('6000000'));
   });
 
   it('uses the CHF / EUR currency glyphs', () => {

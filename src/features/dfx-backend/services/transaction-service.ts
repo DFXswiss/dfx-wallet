@@ -61,12 +61,16 @@ export class DfxTransactionService {
       { userAddress: params.userAddress },
       { responseType: 'text' },
     );
-    if (typeof fileKey !== 'string' || fileKey.trim().length === 0) {
+    if (typeof fileKey !== 'string') {
+      throw new Error('DFX transaction CSV export returned an empty file key.');
+    }
+    const trimmedFileKey = fileKey.trim();
+    if (trimmedFileKey.length === 0) {
       throw new Error('DFX transaction CSV export returned an empty file key.');
     }
     return {
-      fileKey,
-      downloadUrl: `${dfxApi.baseUrlPublic()}/v1/transaction/csv?key=${encodeURIComponent(fileKey)}`,
+      fileKey: trimmedFileKey,
+      downloadUrl: `${dfxApi.baseUrlPublic()}/v1/transaction/csv?key=${encodeURIComponent(trimmedFileKey)}`,
     };
   }
 }

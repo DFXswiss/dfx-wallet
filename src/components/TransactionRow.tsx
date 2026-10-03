@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from './Icon';
 import { computeFiatValue, resolveFiatCurrency } from '@/config/portfolio-presentation';
@@ -6,6 +6,7 @@ import { getCanonicalForSymbol } from '@/config/tokens';
 import { pricingService } from '@/services/pricing-service';
 import type { TransactionDto } from '@/features/dfx-backend/services';
 import { useWalletStore } from '@/store';
+import { usePricingSnapshot } from '@/hooks/usePricingSnapshot';
 import { useColors, useResolvedScheme, type ThemeColors, Typography } from '@/theme';
 
 const FIAT_LABEL = new Map<string, string>([
@@ -77,16 +78,13 @@ export function TransactionRow({ tx, onPress, showState = true, testID }: Props)
 
   const { selectedCurrency } = useWalletStore();
   const fiatCurrency = resolveFiatCurrency(selectedCurrency);
-  const [pricingReady, setPricingReady] = useState(pricingService.isReady());
+  const pricingRevision = usePricingSnapshot();
+  const pricingReady = pricingService.isReady();
   useEffect(() => {
     if (pricingService.isReady()) {
-      setPricingReady(true);
       return;
     }
-    void pricingService
-      .initialize()
-      .then(() => setPricingReady(true))
-      .catch(() => setPricingReady(false));
+    void pricingService.initialize().catch(() => undefined);
   }, []);
 
   // Pay rows lead with the merchant — that's the answer to "where did I spend?".
@@ -97,6 +95,7 @@ export function TransactionRow({ tx, onPress, showState = true, testID }: Props)
   // user has configured. Falls back gracefully when pricing isn't available
   // or when the asset symbol isn't in the canonical map.
   const canonical = getCanonicalForSymbol(tx.outputAsset);
+  void pricingRevision;
   const fiatEstimate = canonical
     ? computeFiatValue(tx.outputAmount, canonical, fiatCurrency, pricingReady)
     : 0;
@@ -134,7 +133,11 @@ export function TransactionRow({ tx, onPress, showState = true, testID }: Props)
         </Text>
         <View style={styles.subtitleRow}>
           {isPay ? <View style={[styles.payDot, { backgroundColor: iconConfig.fg }]} /> : null}
-          <Text style={styles.subtitle} numberOfLines={1}>
+          <Text
+            style={styles.subtitle}
+            numberOfLines={1}
+            testID={testID ? `${testID}-subtitle` : undefined}
+          >
             {secondaryLabel}
           </Text>
         </View>

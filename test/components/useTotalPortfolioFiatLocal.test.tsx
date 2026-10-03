@@ -1,6 +1,10 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { BalanceEntry, BalanceMap, BalanceSourceResult } from '@/services/balances';
-import { getAssets } from '@/config/tokens';
+import {
+  assetIncludedInEvmBalanceQuery,
+  assetIncludedInWdkBalanceQuery,
+  getAssets,
+} from '@/config/tokens';
 import { useTotalPortfolioFiat } from '@/features/portfolio/useTotalPortfolioFiatLocal';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { useWalletStore } from '@/store';
@@ -152,6 +156,21 @@ describe('useTotalPortfolioFiat (local / MVP variant)', () => {
     mockBalanceMap = balances;
     const { result } = renderHook(() => useTotalPortfolioFiat());
     await waitFor(() => expect(result.current.isIncomplete).toBe(true));
+  });
+
+  it('ignores supported assets that neither balance source queries when deciding completeness', async () => {
+    mockBalanceMap = new Map(
+      getAssets()
+        .filter(
+          (asset) =>
+            assetIncludedInWdkBalanceQuery(asset) || assetIncludedInEvmBalanceQuery(asset),
+        )
+        .map((asset) => [asset.getId(), makeEntry(asset.getId(), '0')]),
+    );
+
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+
+    await waitFor(() => expect(result.current.isIncomplete).toBe(false));
   });
 
   it('recomputes the total when the pricing service publishes an update', async () => {

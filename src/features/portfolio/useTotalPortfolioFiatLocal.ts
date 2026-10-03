@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   computeFiatValue,
   formatBalance,
@@ -6,7 +6,13 @@ import {
   toNumeric,
   SYMBOL_TO_TICKER,
 } from '@/config/portfolio-presentation';
-import { getAssetMeta, getAssets } from '@/config/tokens';
+import {
+  assetIncludedInEvmBalanceQuery,
+  assetIncludedInWdkBalanceQuery,
+  getAssetMeta,
+  getAssets,
+} from '@/config/tokens';
+import { usePricingSnapshot } from '@/hooks/usePricingSnapshot';
 import { getRawBalance, useBalances } from '@/services/balances';
 import { pricingService } from '@/services/pricing-service';
 import { useWalletStore } from '@/store';
@@ -35,28 +41,15 @@ export function useTotalPortfolioFiat(): PortfolioFiatResult {
   // to deselect anyway because the manage screen is not reachable.
   const assetConfigs = useMemo(() => getAssets(), []);
   const { data: balances, isLoading: balancesLoading } = useBalances(assetConfigs);
-  const [pricingReady, setPricingReady] = useState(pricingService.isReady());
-  const [pricingRevision, setPricingRevision] = useState(0);
+  const pricingRevision = usePricingSnapshot();
+  const pricingReady = pricingService.isReady();
 
   useEffect(() => {
     if (pricingService.isReady()) {
-      setPricingReady(true);
       return;
     }
-    void pricingService
-      .initialize()
-      .then(() => setPricingReady(true))
-      .catch(() => setPricingReady(false));
+    void pricingService.initialize().catch(() => undefined);
   }, []);
-
-  useEffect(
-    () =>
-      pricingService.subscribe(() => {
-        setPricingReady(pricingService.isReady());
-        setPricingRevision((revision) => revision + 1);
-      }),
-    [],
-  );
 
   const fiatCurrency = resolveFiatCurrency(selectedCurrency);
 
@@ -68,12 +61,15 @@ export function useTotalPortfolioFiat(): PortfolioFiatResult {
       const meta = getAssetMeta(asset.getId());
       if (!meta || meta.category === 'native') continue;
       const balanceEntry = balances.get(asset.getId());
+      const isQueried =
+        assetIncludedInWdkBalanceQuery(asset) || assetIncludedInEvmBalanceQuery(asset);
       if (
-        !balanceEntry ||
-        balanceEntry.status === 'idle' ||
-        balanceEntry.status === 'loading' ||
-        balanceEntry.status === 'error' ||
-        balanceEntry.status === 'stale'
+        isQueried &&
+        (!balanceEntry ||
+          balanceEntry.status === 'idle' ||
+          balanceEntry.status === 'loading' ||
+          balanceEntry.status === 'error' ||
+          balanceEntry.status === 'stale')
       )
         isIncomplete = true;
       const rawBalance = getRawBalance(balances, asset.getId());
