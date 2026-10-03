@@ -450,6 +450,51 @@ describe('useAuthStore', () => {
       expect(s.lockedUntil).toBeNull();
       expect(s.hydrateError).toBeNull();
     });
+
+    it('clears in-memory auth and continues cleanup when one storage removal fails', async () => {
+      const removalError = new Error('keychain unavailable');
+      const clearAuthToken = jest.spyOn(dfxApi, 'clearAuthToken');
+      const adoptStoredToken = jest.spyOn(dfxAuthService, 'adoptStoredToken');
+      dfxAuthService.adoptStoredToken('residual-token');
+      clearAuthToken.mockClear();
+      adoptStoredToken.mockClear();
+      deleteItemMock.mockImplementation(async (key: string) => {
+        if (key === 'pinHash') throw removalError;
+      });
+      useAuthStore.setState({
+        isOnboarded: true,
+        isAuthenticated: true,
+        isDfxAuthenticated: true,
+        biometricEnabled: true,
+        pinHash: 'hash',
+        failedAttempts: 7,
+        lockedUntil: 123456,
+      });
+
+      let thrown: unknown;
+      try {
+        await useAuthStore.getState().reset();
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(AggregateError);
+      expect((thrown as AggregateError).errors).toEqual([removalError]);
+      expect(deleteItemMock).toHaveBeenCalledWith('walletType');
+      expect(deleteItemMock).toHaveBeenCalledWith('biometricEnabled');
+      expect(clearAuthToken).toHaveBeenCalledTimes(1);
+      expect(adoptStoredToken).toHaveBeenCalledWith(null);
+      expect(dfxAuthService.getAccessToken()).toBeNull();
+      expect(useAuthStore.getState()).toMatchObject({
+        isOnboarded: false,
+        isAuthenticated: false,
+        isDfxAuthenticated: false,
+        biometricEnabled: false,
+        pinHash: null,
+        failedAttempts: 0,
+        lockedUntil: null,
+      });
+    });
   });
 
   describe('authenticateBiometric', () => {

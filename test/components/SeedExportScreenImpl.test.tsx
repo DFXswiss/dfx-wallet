@@ -89,6 +89,15 @@ jest.mock('@/features/passkey/services', () => {
 const TWELVE =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
+function mockPasskeyStorage(derivationVersion: string | null = '1') {
+  (secureStorage.get as jest.Mock).mockImplementation(async (key: string) => {
+    if (key === StorageKeys.WALLET_ORIGIN) return 'passkey';
+    if (key === StorageKeys.PASSKEY_CREDENTIAL_ID) return 'stored-credential';
+    if (key === StorageKeys.PASSKEY_DERIVATION_VERSION) return derivationVersion;
+    return null;
+  });
+}
+
 // eslint-disable-next-line import/first
 import SeedExportScreenImpl from '../../src/features/settings/SeedExportScreenImpl';
 
@@ -246,23 +255,21 @@ describe('SeedExportScreenImpl', () => {
   });
 
   it('defaults the passkey derivation version to 1 when none is stored', async () => {
-    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
-      key === StorageKeys.WALLET_ORIGIN ? 'passkey' : null,
-    );
+    mockPasskeyStorage(null);
     (authenticatePasskey as jest.Mock).mockResolvedValue({ prfOutput: new Uint8Array([1]) });
     const { getByText } = render(<SeedExportScreenImpl />);
     await waitFor(() => expect(getByText('seedExport.revealPasskey')).toBeTruthy());
     await act(async () => {
       fireEvent.press(getByText('seedExport.revealPasskey'));
     });
-    await waitFor(() => expect(deriveMnemonicFromPrf).toHaveBeenCalledWith(expect.any(Uint8Array), 1));
-    expect(authenticatePasskey).toHaveBeenCalledWith({});
+    await waitFor(() =>
+      expect(deriveMnemonicFromPrf).toHaveBeenCalledWith(expect.any(Uint8Array), 1),
+    );
+    expect(authenticatePasskey).toHaveBeenCalledWith({ credentialId: 'stored-credential' });
   });
 
   it('does not reveal a passkey-derived mnemonic that differs from the WDK wallet', async () => {
-    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
-      key === StorageKeys.WALLET_ORIGIN ? 'passkey' : null,
-    );
+    mockPasskeyStorage();
     (authenticatePasskey as jest.Mock).mockResolvedValue({ prfOutput: new Uint8Array([1]) });
     (deriveMnemonicFromPrf as jest.Mock).mockReturnValue('different derived mnemonic');
     const { getByText, queryAllByText } = render(<SeedExportScreenImpl />);
@@ -279,45 +286,68 @@ describe('SeedExportScreenImpl', () => {
     );
   });
 
-  it('reveals the derived mnemonic when WDK getMnemonic is unavailable', async () => {
+  it('does not reveal a passkey-derived mnemonic when WDK getMnemonic is unavailable', async () => {
     (useWalletManager as jest.Mock).mockReturnValue({});
-    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
-      key === StorageKeys.WALLET_ORIGIN ? 'passkey' : null,
-    );
+    mockPasskeyStorage();
     (authenticatePasskey as jest.Mock).mockResolvedValue({ prfOutput: new Uint8Array([1]) });
-    const { getByText, getAllByText } = render(<SeedExportScreenImpl />);
+    const { getByText, queryAllByText } = render(<SeedExportScreenImpl />);
     await waitFor(() => expect(getByText('seedExport.revealPasskey')).toBeTruthy());
 
     await act(async () => {
       fireEvent.press(getByText('seedExport.revealPasskey'));
     });
 
-    await waitFor(() => expect(getAllByText('abandon').length).toBeGreaterThan(0));
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'common.error',
+      'seedExport.passkeyVerificationUnavailable',
+    );
+    expect(queryAllByText('abandon')).toHaveLength(0);
+    expect(authenticatePasskey).not.toHaveBeenCalled();
   });
 
-  it('reveals the derived mnemonic when WDK has no mnemonic to compare', async () => {
+  it('does not reveal a passkey-derived mnemonic when WDK has no mnemonic to compare', async () => {
     getMnemonic.mockResolvedValue(null);
-    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
-      key === StorageKeys.WALLET_ORIGIN ? 'passkey' : null,
-    );
+    mockPasskeyStorage();
     (authenticatePasskey as jest.Mock).mockResolvedValue({ prfOutput: new Uint8Array([1]) });
-    const { getByText, getAllByText } = render(<SeedExportScreenImpl />);
+    const { getByText, queryAllByText } = render(<SeedExportScreenImpl />);
     await waitFor(() => expect(getByText('seedExport.revealPasskey')).toBeTruthy());
 
     await act(async () => {
       fireEvent.press(getByText('seedExport.revealPasskey'));
     });
 
-    await waitFor(() => expect(getAllByText('abandon').length).toBeGreaterThan(0));
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'common.error',
+      'seedExport.passkeyVerificationUnavailable',
+    );
+    expect(queryAllByText('abandon')).toHaveLength(0);
     expect(getMnemonic).toHaveBeenCalledWith('default');
+  });
+
+  it('does not authenticate or reveal when the stored passkey credential ID is missing', async () => {
+    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
+      key === StorageKeys.WALLET_ORIGIN ? 'passkey' : null,
+    );
+    const { getByText, queryAllByText } = render(<SeedExportScreenImpl />);
+    await waitFor(() => expect(getByText('seedExport.revealPasskey')).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.press(getByText('seedExport.revealPasskey'));
+    });
+
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'common.error',
+      'seedExport.passkeyVerificationUnavailable',
+    );
+    expect(authenticatePasskey).not.toHaveBeenCalled();
+    expect(deriveMnemonicFromPrf).not.toHaveBeenCalled();
+    expect(queryAllByText('abandon')).toHaveLength(0);
   });
 
   it('shows the iOS PRF-unsupported copy', async () => {
     const originalOS = Platform.OS;
     Object.defineProperty(Platform, 'OS', { configurable: true, value: 'ios' });
-    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
-      key === StorageKeys.WALLET_ORIGIN ? 'passkey' : null,
-    );
+    mockPasskeyStorage();
     (authenticatePasskey as jest.Mock).mockRejectedValue(new PasskeyPrfUnsupportedError());
     try {
       const { getByText } = render(<SeedExportScreenImpl />);
@@ -339,9 +369,7 @@ describe('SeedExportScreenImpl', () => {
     const selectSpy = jest.spyOn(Platform, 'select').mockImplementation(
       (spec: { ios?: unknown; default?: unknown }) => spec.default ?? spec.ios,
     );
-    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
-      key === StorageKeys.WALLET_ORIGIN ? 'passkey' : null,
-    );
+    mockPasskeyStorage();
     (authenticatePasskey as jest.Mock).mockRejectedValue(new PasskeyPrfUnsupportedError());
     try {
       const { getByText } = render(<SeedExportScreenImpl />);
@@ -356,9 +384,7 @@ describe('SeedExportScreenImpl', () => {
   });
 
   it('alerts a generic derive-failed message for other passkey errors', async () => {
-    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
-      key === StorageKeys.WALLET_ORIGIN ? 'passkey' : null,
-    );
+    mockPasskeyStorage();
     (authenticatePasskey as jest.Mock).mockRejectedValue(new Error('cancelled'));
     const { getByText } = render(<SeedExportScreenImpl />);
     await waitFor(() => expect(getByText('seedExport.revealPasskey')).toBeTruthy());

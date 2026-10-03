@@ -1,4 +1,4 @@
-export type DeleteWalletResult = 'cancelled' | 'deleted' | 'failed';
+export type DeleteWalletResult = 'cancelled' | 'deleted' | 'deleted-with-cleanup-error' | 'failed';
 
 type DeleteWalletDependencies = {
   requestReauth: () => Promise<boolean>;
@@ -12,7 +12,7 @@ async function resetAfterDeletion(reset: () => Promise<void>): Promise<DeleteWal
     await reset();
     return 'deleted';
   } catch {
-    return 'failed';
+    return 'deleted-with-cleanup-error';
   }
 }
 
