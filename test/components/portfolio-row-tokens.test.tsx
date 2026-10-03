@@ -58,14 +58,15 @@ jest.mock('@/features/portfolio/useEnabledChains', () => ({
   }),
 }));
 
-let mockBalanceMap: BalanceMap | undefined;
+let mockBalanceMap: BalanceMap = new Map();
+let mockBalancesLoading = false;
 jest.mock('@/services/balances', () => {
   const actual = jest.requireActual('@/services/balances');
   return {
     ...actual,
     useBalances: (): BalanceSourceResult => ({
-      data: mockBalanceMap as BalanceMap,
-      isLoading: false,
+      data: mockBalanceMap,
+      isLoading: mockBalancesLoading,
       error: null,
     }),
   };
@@ -138,6 +139,7 @@ describe('portfolio list-row tokens', () => {
     mockBack.mockReset();
     mockParams.symbol = 'BTC';
     mockBalanceMap = new Map([[WBTC_ETH_ID, entry(WBTC_ETH_ID, '100000000')]]);
+    mockBalancesLoading = false;
     useWalletStore.getState().reset();
     useWalletStore.setState({ selectedCurrency: 'USD' });
     useAuthStore.setState({ isDfxAuthenticated: false });
@@ -177,7 +179,8 @@ describe('portfolio list-row tokens', () => {
   });
 
   it('keeps the skeleton tile the same size and radius as the loaded asset tile', async () => {
-    mockBalanceMap = undefined;
+    mockBalanceMap = new Map();
+    mockBalancesLoading = true;
     const skeletonScreen = renderPortfolio();
     const iconSkeletons = skeletonScreen
       .UNSAFE_getAllByType(Skeleton)
@@ -191,6 +194,7 @@ describe('portfolio list-row tokens', () => {
     skeletonScreen.unmount();
 
     mockBalanceMap = new Map([[WBTC_ETH_ID, entry(WBTC_ETH_ID, '100000000')]]);
+    mockBalancesLoading = false;
     const loaded = renderPortfolio();
     await waitFor(() => expect(loaded.getByTestId('portfolio-asset-icon-BTC')).toBeTruthy());
     const tile = flattenStyle(loaded.getByTestId('portfolio-asset-icon-BTC').props.style);
