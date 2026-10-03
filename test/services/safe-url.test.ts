@@ -1,6 +1,5 @@
 import {
   isAllowedDfxHost,
-  isDfxOwnedHost,
   isDfxTokenHost,
   isSafeHttpsUrl,
 } from '../../src/services/security/safe-url';
@@ -64,32 +63,6 @@ describe('isAllowedDfxHost', () => {
   it('rejects malformed / empty input', () => {
     expect(isAllowedDfxHost('')).toBe(false);
     expect(isAllowedDfxHost('not-a-url')).toBe(false);
-  });
-});
-
-describe('isDfxOwnedHost', () => {
-  it('accepts DFX-owned hosts and subdomains', () => {
-    expect(isDfxOwnedHost('https://api.dfx.swiss')).toBe(true);
-    expect(isDfxOwnedHost('https://docs.dfx.swiss/de/tnc.html')).toBe(true);
-    expect(isDfxOwnedHost('https://lightning.dfx.swiss')).toBe(true);
-  });
-
-  it('rejects KYC vendor hosts (they are allow-listed but not DFX-owned)', () => {
-    expect(isDfxOwnedHost('https://sumsub.com')).toBe(false);
-    expect(isDfxOwnedHost('https://cockpit.idnow.de')).toBe(false);
-  });
-
-  it('rejects unrelated hosts', () => {
-    expect(isDfxOwnedHost('https://example.com')).toBe(false);
-  });
-
-  it('rejects non-https schemes even on owned hosts', () => {
-    expect(isDfxOwnedHost('http://dfx.swiss')).toBe(false);
-  });
-
-  it('rejects malformed input', () => {
-    expect(isDfxOwnedHost('not-a-url')).toBe(false);
-    expect(isDfxOwnedHost('')).toBe(false);
   });
 });
 

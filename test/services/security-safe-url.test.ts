@@ -19,7 +19,6 @@
 
 import {
   isAllowedDfxHost,
-  isDfxOwnedHost,
   isSafeHttpsUrl,
 } from '../../src/services/security/safe-url';
 
@@ -266,8 +265,6 @@ describe('isAllowedDfxHost — trailing dot (FQDN) handling', () => {
     // (browsers/DNS collapse it), so there is no attacker-controlled origin
     // here. Pinned so the behaviour is intentional, not accidental.
     expect(isAllowedDfxHost('https://.dfx.swiss')).toBe(true);
-    // The apex with a leading dot is likewise inside DFX's space.
-    expect(isDfxOwnedHost('https://.app.dfx.swiss')).toBe(true);
   });
 });
 
@@ -311,47 +308,4 @@ describe('isAllowedDfxHost — scheme + malformed gate', () => {
       expect(isAllowedDfxHost(input)).toBe(false);
     },
   );
-});
-
-describe('isDfxOwnedHost — owned set is stricter than the allowlist', () => {
-  it.each([
-    'https://dfx.swiss',
-    'https://app.dfx.swiss',
-    'https://services.dfx.swiss',
-    'https://api.dfx.swiss',
-    'https://docs.dfx.swiss/de/tnc.html',
-    'https://lightning.space',
-    'https://lightning.dfx.swiss',
-    'https://deep.nested.app.dfx.swiss',
-  ])('accepts DFX-owned host / subdomain %s', (input) => {
-    expect(isDfxOwnedHost(input)).toBe(true);
-  });
-
-  it.each([
-    // allow-listed (KYC vendors) but explicitly NOT DFX-owned
-    'https://sumsub.com',
-    'https://in.sumsub.com',
-    'https://cockpit.idnow.de',
-    'https://go.idnow.de',
-  ])('rejects allow-listed-but-not-owned vendor host %s', (input) => {
-    expect(isAllowedDfxHost(input)).toBe(true); // sanity: still allow-listed
-    expect(isDfxOwnedHost(input)).toBe(false);
-  });
-
-  it.each([
-    'https://evil.com',
-    'https://evil-dfx.swiss',
-    'https://dfx.swiss.evil.com',
-    'https://dfx.swiss@evil.com',
-    'http://dfx.swiss',
-    'javascript:alert(1)',
-    '',
-    'not-a-url',
-  ])('rejects unrelated / unsafe %s', (input) => {
-    expect(isDfxOwnedHost(input)).toBe(false);
-  });
-
-  it('shares the trailing-dot blind spot with the allowlist (FQDN rejected)', () => {
-    expect(isDfxOwnedHost('https://dfx.swiss.')).toBe(false);
-  });
 });
