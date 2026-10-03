@@ -18,7 +18,7 @@ import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
 import { getPaymasterTokenInfo } from '@/config/chains';
 import { FEATURES } from '@/config/features';
-import { formatBalance, parseUnits } from '@/config/portfolio-presentation';
+import { CHAIN_LABELS, formatBalance, parseUnits } from '@/config/portfolio-presentation';
 import { getSendAssetForCanonical } from '@/config/tokens';
 import { isBitcoinOnChainAddress, isSparkMainnetAddress } from '@/services/bitcoin-address';
 import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
@@ -83,7 +83,6 @@ export default function SendScreen() {
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [scannerVisible, setScannerVisible] = useState(false);
-  const { send, estimate, isLoading, txHash, error, reset } = useSendFlow(selectedChain);
 
   type FeeState =
     | { status: 'idle' }
@@ -94,16 +93,20 @@ export default function SendScreen() {
   const estimateReqRef = useRef(0);
 
   const symbol = selectedAsset?.symbol ?? '';
+  const normalizedRecipient = recipient.trim();
+  const effectiveChain =
+    symbol === 'BTC' && isBitcoinOnChainAddress(normalizedRecipient) ? 'bitcoin' : selectedChain;
+  const { send, estimate, isLoading, txHash, error, reset } = useSendFlow(effectiveChain);
   const sendAsset = useMemo(
     () =>
-      selectedAsset ? getSendAssetForCanonical(selectedAsset.symbol, selectedChain) : undefined,
-    [selectedAsset, selectedChain],
+      selectedAsset ? getSendAssetForCanonical(selectedAsset.symbol, effectiveChain) : undefined,
+    [selectedAsset, effectiveChain],
   );
-  const paymasterToken = useMemo(() => getPaymasterTokenInfo(selectedChain), [selectedChain]);
+  const paymasterToken = useMemo(() => getPaymasterTokenInfo(effectiveChain), [effectiveChain]);
   const isValidAddress =
     selectedAsset?.symbol === 'BTC'
-      ? isBitcoinOnChainAddress(recipient) || isSparkMainnetAddress(recipient)
-      : recipient.length >= 26;
+      ? isBitcoinOnChainAddress(normalizedRecipient) || isSparkMainnetAddress(normalizedRecipient)
+      : normalizedRecipient.length >= 26;
 
   const handleAssetSelect = (asset: AssetOption) => {
     setSelectedAsset(asset);
@@ -112,12 +115,12 @@ export default function SendScreen() {
   };
 
   const goToConfirm = useCallback(async () => {
-    // Continue + Confirm buttons are gated on `sendAsset` via their
-    // `disabled` props, so it is non-null by the time these handlers run.
+    // Continue is gated on `sendAsset`, and Confirm is only enabled after this
+    // estimate succeeds, so it is non-null by the time either handler runs.
     setStep('confirm');
     setFeeState({ status: 'loading' });
     const reqId = ++estimateReqRef.current;
-    const result = await estimate({ asset: sendAsset!, to: recipient, amount });
+    const result = await estimate({ asset: sendAsset!, to: normalizedRecipient, amount });
     // Drop stale results from earlier estimate calls (e.g. user went back, edited, returned).
     if (reqId !== estimateReqRef.current) return;
     if (result.success) {
@@ -125,10 +128,10 @@ export default function SendScreen() {
     } else {
       setFeeState({ status: 'error', message: result.error });
     }
-  }, [sendAsset, estimate, recipient, amount]);
+  }, [sendAsset, estimate, normalizedRecipient, amount]);
 
   const handleSend = async () => {
-    const hash = await send({ asset: sendAsset!, to: recipient, amount });
+    const hash = await send({ asset: sendAsset!, to: normalizedRecipient, amount });
     if (hash) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStep('success');
@@ -295,12 +298,14 @@ export default function SendScreen() {
       <View style={styles.summary}>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>{t('send.network')}</Text>
-          <Text style={styles.summaryValue}>{selectedChain}</Text>
+          <Text style={styles.summaryValue}>
+            {CHAIN_LABELS.get(effectiveChain) ?? effectiveChain}
+          </Text>
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>{t('send.recipient')}</Text>
           <Text style={styles.summaryValue} numberOfLines={1}>
-            {recipient.slice(0, 10)}...{recipient.slice(-6)}
+            {normalizedRecipient.slice(0, 10)}...{normalizedRecipient.slice(-6)}
           </Text>
         </View>
         <View style={styles.summaryRow}>
@@ -328,12 +333,21 @@ export default function SendScreen() {
 
       <View style={styles.spacer} />
 
-      <PrimaryButton
-        testID="send-confirm-button"
-        title={t('common.confirm')}
-        onPress={handleSend}
-        loading={isLoading}
-      />
+      {feeState.status === 'error' ? (
+        <PrimaryButton
+          testID="send-fee-retry-button"
+          title={t('common.retry')}
+          onPress={goToConfirm}
+        />
+      ) : (
+        <PrimaryButton
+          testID="send-confirm-button"
+          title={t('common.confirm')}
+          onPress={handleSend}
+          disabled={feeState.status !== 'ok'}
+          loading={isLoading}
+        />
+      )}
       <PrimaryButton
         testID="send-cancel-button"
         title={t('common.cancel')}
@@ -358,7 +372,7 @@ export default function SendScreen() {
           {t('send.sentDescription', {
             amount,
             symbol,
-            recipient: `${recipient.slice(0, 10)}...${recipient.slice(-6)}`,
+            recipient: `${normalizedRecipient.slice(0, 10)}...${normalizedRecipient.slice(-6)}`,
           })}
         </Text>
         {txHash && (

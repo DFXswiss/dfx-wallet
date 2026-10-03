@@ -63,6 +63,8 @@ jest.mock('@tetherto/wdk-react-native-core', () => ({
 }));
 
 jest.mock('@/config/tokens', () => ({
+  assetIncludedInEvmBalanceQuery: () => false,
+  assetIncludedInWdkBalanceQuery: () => true,
   getAssets: () => [{ getNetwork: () => 'bitcoin', getId: () => 'btc', getDecimals: () => 8 }],
   getAssetMeta: () => ({ symbol: 'BTC' }),
   WDK_SUPPORTED_CHAINS: ['bitcoin'],

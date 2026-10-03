@@ -10,6 +10,11 @@ jest.mock('@/services/storage', () => ({
 jest.mock('expo-secure-store', () => ({ getItem: jest.fn(() => null) }));
 
 describe('persisted app language', () => {
+  beforeEach(() => {
+    (secureStorage.set as jest.Mock).mockReset();
+    (secureStorage.set as jest.Mock).mockResolvedValue(undefined);
+  });
+
   it('accepts only supported persisted languages', () => {
     expect(normalizeLanguage('de')).toBe('de');
     expect(normalizeLanguage('en')).toBe('en');
@@ -17,7 +22,7 @@ describe('persisted app language', () => {
     expect(normalizeLanguage('fr')).toBeNull();
   });
 
-  it('persists before changing the active language', async () => {
+  it('changes the active language before persisting it', async () => {
     const callOrder: string[] = [];
     (secureStorage.set as jest.Mock).mockImplementationOnce(async () => {
       callOrder.push('persist');
@@ -28,7 +33,20 @@ describe('persisted app language', () => {
     await setLanguage('de', { changeLanguage });
     expect(secureStorage.set).toHaveBeenCalledWith(StorageKeys.SELECTED_LANGUAGE, 'de');
     expect(changeLanguage).toHaveBeenCalledWith('de');
-    expect(callOrder).toEqual(['persist', 'activate']);
+    expect(callOrder).toEqual(['activate', 'persist']);
+  });
+
+  it('keeps the activated language when persistence fails', async () => {
+    let activeLanguage = 'en';
+    const changeLanguage = jest.fn(async (language: string) => {
+      activeLanguage = language;
+    });
+    (secureStorage.set as jest.Mock).mockRejectedValueOnce(new Error('storage unavailable'));
+
+    await expect(setLanguage('de', { changeLanguage })).resolves.toBeUndefined();
+
+    expect(activeLanguage).toBe('de');
+    expect(secureStorage.set).toHaveBeenCalledWith(StorageKeys.SELECTED_LANGUAGE, 'de');
   });
 
   it('reads a supported persisted language synchronously during startup', () => {

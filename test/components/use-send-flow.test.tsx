@@ -325,10 +325,10 @@ describe('useSendFlow — account binding', () => {
     expect(mockUseAccount).toHaveBeenCalledWith({ network: 'polygon', accountIndex: 0 });
   });
 
-  it('uses the Bitcoin account for an on-chain BTC send and fee estimate', async () => {
+  it('uses the chain-bound Bitcoin account for send and fee estimate', async () => {
     mockBitcoinSend.mockResolvedValueOnce({ success: true, hash: 'btc-hash' });
     mockBitcoinEstimateFee.mockResolvedValueOnce({ success: true, fee: '100' });
-    const { result } = renderHook(() => useSendFlow('spark'), { wrapper: wrap });
+    const { result } = renderHook(() => useSendFlow('bitcoin'), { wrapper: wrap });
     // eslint-disable-next-line no-secrets/no-secrets -- public BIP173 example address, not a secret
     const to = 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
 
@@ -347,7 +347,7 @@ describe('useSendFlow — account binding', () => {
     expect(mockEstimateFee).not.toHaveBeenCalled();
   });
 
-  it('keeps a Spark destination on the selected Spark account', async () => {
+  it('uses the chain-bound Spark account for a Spark send', async () => {
     mockSend.mockResolvedValueOnce({ success: true, hash: 'spark-hash' });
     const { result } = renderHook(() => useSendFlow('spark'), { wrapper: wrap });
 

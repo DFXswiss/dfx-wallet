@@ -59,6 +59,55 @@ const AUTH_HEADERS = {
   Authorization: 'Bearer TEST_TOKEN',
 };
 
+const CATALOG_ABORT_CASES: Array<{
+  name: string;
+  endpoint: string;
+  invoke: (signal: AbortSignal) => Promise<unknown>;
+}> = [
+  {
+    name: 'getBuyQuote',
+    endpoint: '/v1/buy/quote',
+    invoke: (signal) =>
+      dfxPaymentService.getBuyQuote(
+        { amount: 1, currency: 'EUR', asset: 'BTC', blockchain: 'Bitcoin' },
+        { signal },
+      ),
+  },
+  {
+    name: 'createBuyPaymentInfo',
+    endpoint: '/v1/buy/paymentInfos',
+    invoke: (signal) =>
+      dfxPaymentService.createBuyPaymentInfo(
+        { amount: 1, currency: 'EUR', asset: 'BTC', blockchain: 'Bitcoin' },
+        { signal },
+      ),
+  },
+  {
+    name: 'getSellQuote',
+    endpoint: '/v1/sell/quote',
+    invoke: (signal) =>
+      dfxPaymentService.getSellQuote(
+        { amount: 1, currency: 'EUR', asset: 'BTC', blockchain: 'Bitcoin' },
+        { signal },
+      ),
+  },
+  {
+    name: 'createSellPaymentInfo',
+    endpoint: '/v1/sell/paymentInfos',
+    invoke: (signal) =>
+      dfxPaymentService.createSellPaymentInfo(
+        {
+          amount: 1,
+          currency: 'EUR',
+          asset: 'BTC',
+          blockchain: 'Bitcoin',
+          iban: 'CH9300762011623852957',
+        },
+        { signal },
+      ),
+  },
+];
+
 beforeAll(() => {
   globalThis.fetch = fetchMock as unknown as typeof fetch;
 });
@@ -79,6 +128,38 @@ afterEach(() => {
   dfxApi.clearAuthToken();
   dfxAssetService.reset();
   dfxFiatService.reset();
+});
+
+describe('dfxPaymentService catalog aborts', () => {
+  it.each(CATALOG_ABORT_CASES)(
+    '$name aborts before its request when shared catalog resolution is pending',
+    async ({ endpoint, invoke }) => {
+      let resolveFiat!: (response: Response) => void;
+      let resolveAsset!: (response: Response) => void;
+      fetchMock.mockImplementation((url) => {
+        if (url === `${BASE}/v1/fiat`) {
+          return new Promise<Response>((resolve) => {
+            resolveFiat = resolve;
+          });
+        }
+        if (url === `${BASE}/v1/asset`) {
+          return new Promise<Response>((resolve) => {
+            resolveAsset = resolve;
+          });
+        }
+        return Promise.resolve(jsonOk({ isValid: true }));
+      });
+      const controller = new AbortController();
+
+      const request = invoke(controller.signal);
+      controller.abort();
+      resolveFiat(jsonOk(FIATS));
+      resolveAsset(jsonOk(ASSETS));
+
+      await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+      expect(fetchMock.mock.calls.some(([url]) => url === `${BASE}${endpoint}`)).toBe(false);
+    },
+  );
 });
 
 describe('dfxPaymentService buy flow', () => {

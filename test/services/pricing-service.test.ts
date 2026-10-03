@@ -111,10 +111,12 @@ describe('pricingService', () => {
   it('notifies subscribers after a successful price update and supports unsubscribe', async () => {
     const listener = jest.fn();
     const unsubscribe = pricingService.subscribe(listener);
+    const initialSnapshot = pricingService.getSnapshot();
     stubFetch({ bitcoin: { usd: 100 } });
 
     await pricingService.initialize();
     expect(listener).toHaveBeenCalledTimes(1);
+    expect(pricingService.getSnapshot()).toBe(initialSnapshot + 1);
 
     unsubscribe();
     stubFetch({ bitcoin: { usd: 120 } });

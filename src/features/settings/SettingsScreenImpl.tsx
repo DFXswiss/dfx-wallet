@@ -213,7 +213,7 @@ export default function SettingsScreen() {
               await setLanguage(next, i18n);
               syncLanguageToDfx(next);
             } catch {
-              // Keep the current language and remote preference unchanged.
+              // Activation failed; keep the current language and remote preference unchanged.
             }
           },
         },

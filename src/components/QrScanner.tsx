@@ -118,7 +118,7 @@ const makeStyles = (colors: ThemeColors) =>
     permissionButtonText: {
       ...Typography.bodyMedium,
       fontWeight: '600',
-      color: colors.white,
+      color: colors.onPrimary,
     },
     pasteButton: {
       position: 'absolute',
@@ -131,7 +131,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
     pasteText: {
       ...Typography.bodyMedium,
-      color: colors.white,
+      color: colors.onPrimary,
       fontWeight: '600',
     },
     closeButton: {

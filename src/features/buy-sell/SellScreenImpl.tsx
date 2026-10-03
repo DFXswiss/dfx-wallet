@@ -36,7 +36,12 @@ import {
   normalizeDecimalAmount,
   toNumeric,
 } from '@/config/portfolio-presentation';
-import { getAssetMeta, getAssets } from '@/config/tokens';
+import {
+  assetIncludedInEvmBalanceQuery,
+  assetIncludedInWdkBalanceQuery,
+  getAssetMeta,
+  getAssets,
+} from '@/config/tokens';
 import { useLdsWallet } from '@/hooks';
 import { useEnabledChains } from '@/features/portfolio/useEnabledChains';
 import { useLinkedWalletReauth } from '@/features/linked-wallets/useLinkedWalletReauth';
@@ -386,7 +391,11 @@ export default function SellScreen() {
   // Wallet balances — drive the chain/token chip filter so users only see
   // chains where they actually have funds to sell.
   const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const { data: balances } = useBalances(assetConfigs);
+  const {
+    data: balances,
+    isLoading: balancesLoading,
+    error: balancesError,
+  } = useBalances(assetConfigs);
 
   const hasHolding = (network: ChainId, symbol: string): boolean => {
     const asset = assetConfigs.find(
@@ -408,6 +417,33 @@ export default function SellScreen() {
       .filter((c) => c.tokens.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAsset, balances, assetConfigs]);
+
+  const selectedBalanceStatuses = useMemo(() => {
+    if (!selectedAsset) return [];
+    const selectedSymbols = new Set(
+      selectedAsset.chains.flatMap((chain) => chain.tokens.map((token) => token.assetSymbol)),
+    );
+    return assetConfigs
+      .filter((asset) => {
+        const meta = getAssetMeta(asset.getId());
+        return (
+          meta !== undefined &&
+          selectedSymbols.has(meta.symbol) &&
+          (assetIncludedInWdkBalanceQuery(asset) || assetIncludedInEvmBalanceQuery(asset))
+        );
+      })
+      .map((asset) => balances.get(asset.getId())?.status);
+  }, [assetConfigs, balances, selectedAsset]);
+  const balancesPending =
+    balancesLoading ||
+    (balancesError === null &&
+      selectedBalanceStatuses.some(
+        (status) => status === undefined || status === 'idle' || status === 'loading',
+      ));
+  const balancesIncomplete =
+    balancesPending ||
+    balancesError !== null ||
+    selectedBalanceStatuses.some((status) => status === 'error' || status === 'stale');
 
   // eslint-disable-next-line security/detect-object-injection -- selectedChainIndex is bounded by availableChains.length
   const selectedChainSpec = availableChains[selectedChainIndex] ?? null;
@@ -524,7 +560,13 @@ export default function SellScreen() {
         ))}
       </View>
 
-      {selectedAsset && availableChains.length === 0 ? (
+      {selectedAsset && balancesIncomplete ? (
+        <Text style={styles.warning} testID="sell-balance-incomplete">
+          {t(balancesPending ? 'sell.balanceLoading' : 'sell.balanceUnavailable')}
+        </Text>
+      ) : null}
+
+      {selectedAsset && !balancesIncomplete && availableChains.length === 0 ? (
         <Text style={styles.warning} testID="sell-no-balance">
           {t('sell.noBalance')}
         </Text>

@@ -21,7 +21,6 @@ describe('localised product terminology', () => {
   });
 
   it('uses DFX account consistently in English account copy', () => {
-    expect(en.email.successBody).toContain('DFX account');
     expect(en.linkedWallet.notFound).toContain('DFX account');
     expect(en.wallets.intro).toContain('DFX account');
     expect(en.wallets.loadError).toContain('DFX account');

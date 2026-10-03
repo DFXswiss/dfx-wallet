@@ -21,6 +21,10 @@ export async function setLanguage(
   language: AppLanguage,
   instance: { changeLanguage: (language: string) => Promise<unknown> },
 ): Promise<void> {
-  await secureStorage.set(StorageKeys.SELECTED_LANGUAGE, language);
   await instance.changeLanguage(language);
+  try {
+    await secureStorage.set(StorageKeys.SELECTED_LANGUAGE, language);
+  } catch {
+    // The active language remains usable even if secure storage is temporarily unavailable.
+  }
 }

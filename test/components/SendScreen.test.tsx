@@ -21,6 +21,7 @@ jest.mock('expo-router', () => ({
 const mockSend = jest.fn();
 const mockEstimate = jest.fn();
 const mockReset = jest.fn();
+const mockUseSendFlow = jest.fn();
 const flowState: {
   isLoading: boolean;
   txHash: string | null;
@@ -28,14 +29,17 @@ const flowState: {
 } = { isLoading: false, txHash: null, error: null };
 
 jest.mock('@/hooks', () => ({
-  useSendFlow: () => ({
-    send: mockSend,
-    estimate: mockEstimate,
-    reset: mockReset,
-    isLoading: flowState.isLoading,
-    txHash: flowState.txHash,
-    error: flowState.error,
-  }),
+  useSendFlow: (chain: string) => {
+    mockUseSendFlow(chain);
+    return {
+      send: mockSend,
+      estimate: mockEstimate,
+      reset: mockReset,
+      isLoading: flowState.isLoading,
+      txHash: flowState.txHash,
+      error: flowState.error,
+    };
+  },
 }));
 
 // QrScanner pulls in expo-camera at module load — stub it out, and
@@ -84,6 +88,7 @@ describe('SendScreen', () => {
     mockEstimate.mockReset();
     mockEstimate.mockResolvedValue({ success: true, fee: '21000000000000' });
     mockReset.mockReset();
+    mockUseSendFlow.mockReset();
     flowState.isLoading = false;
     flowState.txHash = null;
     flowState.error = null;
@@ -188,7 +193,9 @@ describe('SendScreen', () => {
   describe('confirm step', () => {
     it('transitions to confirm after a successful estimate and shows the formatted fee', async () => {
       mockEstimate.mockResolvedValueOnce({ success: true, fee: '1234' });
-      const { getByText, getByPlaceholderText, findByText } = render(<SendScreen />);
+      const { getByText, getByPlaceholderText, getByTestId, findByText } = render(
+        <SendScreen />,
+      );
       fireEvent.press(getByText('BTC'));
       fillRecipientAndAmount(getByPlaceholderText);
       await act(async () => {
@@ -201,11 +208,52 @@ describe('SendScreen', () => {
       );
       expect(getByText('send.networkFee')).toBeTruthy();
       expect(getByText('0.00001234 BTC')).toBeTruthy();
+      expect(getByText('Bitcoin (SegWit)')).toBeTruthy();
+      expect(mockUseSendFlow).toHaveBeenLastCalledWith('bitcoin');
+      expect(getByTestId('send-confirm-button').props.accessibilityState?.disabled).not.toBe(true);
     });
 
-    it('shows the "fee unavailable" copy when the estimate fails', async () => {
+    it('uses Spark for a Spark BTC recipient and displays its network label', async () => {
+      const { getByText, getByPlaceholderText, findByText } = render(<SendScreen />);
+      fireEvent.press(getByText('BTC'));
+      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), SPARK_RECIPIENT);
+      fireEvent.changeText(getByPlaceholderText('0.00'), '1');
+      await act(async () => {
+        fireEvent.press(getByText('common.continue'));
+      });
+
+      expect(await findByText('Bitcoin Lightning')).toBeTruthy();
+      expect(mockUseSendFlow).toHaveBeenLastCalledWith('spark');
+      expect(mockEstimate).toHaveBeenCalledWith(
+        expect.objectContaining({ to: SPARK_RECIPIENT, amount: '1' }),
+      );
+    });
+
+    it('normalizes the recipient for validation, estimate, and send', async () => {
+      mockSend.mockResolvedValueOnce('btc-hash');
+      const paddedRecipient = ` \n${RECIPIENT}\n `;
+      const { getByText, getByPlaceholderText, getByTestId } = render(<SendScreen />);
+      fireEvent.press(getByText('BTC'));
+      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), paddedRecipient);
+      fireEvent.changeText(getByPlaceholderText('0.00'), '1');
+      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).not.toBe(true);
+
+      await act(async () => {
+        fireEvent.press(getByText('common.continue'));
+      });
+      expect(mockEstimate).toHaveBeenCalledWith(expect.objectContaining({ to: RECIPIENT }));
+
+      await act(async () => {
+        fireEvent.press(getByText('common.confirm'));
+      });
+      expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ to: RECIPIENT }));
+    });
+
+    it('shows a retry action instead of Confirm when the estimate fails', async () => {
       mockEstimate.mockResolvedValueOnce({ success: false, error: 'rpc-error' });
-      const { getByText, getByPlaceholderText, findByText, getAllByText } = render(<SendScreen />);
+      const { getByText, getByPlaceholderText, findByText, getAllByText, queryByText } = render(
+        <SendScreen />,
+      );
       // CHF has a paymaster — the fee row actually renders.
       // CHF has 2 occurrences (symbol + label) — press the first.
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -215,6 +263,14 @@ describe('SendScreen', () => {
         fireEvent.press(getByText('common.continue'));
       });
       expect(await findByText('send.feeUnavailable')).toBeTruthy();
+      expect(queryByText('common.confirm')).toBeNull();
+      expect(getByText('common.retry')).toBeTruthy();
+
+      await act(async () => {
+        fireEvent.press(getByText('common.retry'));
+      });
+      expect(mockEstimate).toHaveBeenCalledTimes(2);
+      expect(getByText('common.confirm')).toBeTruthy();
     });
 
     it('renders the irreversibility warning + confirm + cancel CTAs', async () => {
@@ -424,7 +480,7 @@ describe('SendScreen', () => {
             releaseEstimate = resolve;
           }),
       );
-      const { getByText, getByPlaceholderText } = render(<SendScreen />);
+      const { getByText, getByPlaceholderText, getByTestId } = render(<SendScreen />);
       fireEvent.press(getByText('BTC'));
       fillRecipientAndAmount(getByPlaceholderText);
       fireEvent.press(getByText('common.continue'));
@@ -433,6 +489,7 @@ describe('SendScreen', () => {
         await Promise.resolve();
       });
       expect(getByText('send.feeEstimating')).toBeTruthy();
+      expect(getByTestId('send-confirm-button').props.accessibilityState?.disabled).toBe(true);
       // Release so the promise queue drains before the test ends.
       releaseEstimate?.({ success: true, fee: '21000000000000' });
       await act(async () => {
@@ -441,9 +498,9 @@ describe('SendScreen', () => {
     });
 
     it('drops the stale fee result when a second estimate races the first', async () => {
-      // First estimate hangs; cancel + retry bumps `estimateReqRef`. The
-      // first promise finally resolves — its result must be silently
-      // dropped, leaving the second estimate's "ok" value on screen.
+      // First estimate hangs; navigating back and continuing starts a second
+      // overlapping estimate. The second resolves first and must remain visible
+      // after the older request eventually resolves.
       let resolveFirst: ((value: { success: boolean; fee: string }) => void) | undefined;
       mockEstimate.mockImplementationOnce(
         () =>
@@ -451,32 +508,32 @@ describe('SendScreen', () => {
             resolveFirst = resolve;
           }),
       );
-      mockEstimate.mockResolvedValueOnce({ success: true, fee: '21000000000000' });
+      mockEstimate.mockResolvedValueOnce({ success: true, fee: '2222' });
 
-      const { getByText, getByPlaceholderText } = render(<SendScreen />);
+      const { getByText, getByPlaceholderText, getByLabelText, queryByText } = render(
+        <SendScreen />,
+      );
       fireEvent.press(getByText('BTC'));
       fillRecipientAndAmount(getByPlaceholderText);
       fireEvent.press(getByText('common.continue'));
       await act(async () => {
         await Promise.resolve();
       });
-      // Cancel — increments estimateReqRef.
-      fireEvent.press(getByText('common.cancel'));
-      // Retry — second estimate resolves immediately with the fresh fee.
+      fireEvent.press(getByLabelText('common.back'));
       fireEvent.press(getByText('common.continue'));
       await act(async () => {
         await Promise.resolve();
         await Promise.resolve();
       });
+      expect(getByText('0.00002222 BTC')).toBeTruthy();
       // Late resolve of the stale first estimate — the `reqId !==
       // estimateReqRef.current` guard discards it without touching state.
       await act(async () => {
-        resolveFirst?.({ success: false, fee: 'STALE-VALUE' });
+        resolveFirst?.({ success: true, fee: '1111' });
         await Promise.resolve();
       });
-      // No assertion error means the stale fee did not overwrite the live
-      // confirm view; this test is here purely to drive the guard branch.
-      expect(getByText('send.confirmTransaction')).toBeTruthy();
+      expect(getByText('0.00002222 BTC')).toBeTruthy();
+      expect(queryByText('0.00001111 BTC')).toBeNull();
     });
 
     it('renders the in-flow error message on the confirm step too', async () => {

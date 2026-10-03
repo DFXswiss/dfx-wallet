@@ -6,12 +6,18 @@ import {
   toNumeric,
   SYMBOL_TO_TICKER,
 } from '@/config/portfolio-presentation';
-import { getAssetMeta, getAssets } from '@/config/tokens';
+import {
+  assetIncludedInEvmBalanceQuery,
+  assetIncludedInWdkBalanceQuery,
+  getAssetMeta,
+  getAssets,
+} from '@/config/tokens';
 import { getRawBalance, useBalances } from '@/services/balances';
 import { dfxUserService } from '@/features/dfx-backend/services';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { pricingService } from '@/services/pricing-service';
 import { useAuthStore, useWalletStore } from '@/store';
+import { usePricingSnapshot } from '@/hooks/usePricingSnapshot';
 import { useEnabledChains } from './useEnabledChains';
 import { useLinkedWalletDiscovery } from '@/features/linked-wallets/useLinkedWalletDiscovery';
 import { useLinkedWalletSelection } from '@/features/linked-wallets/useLinkedWalletSelection';
@@ -37,8 +43,8 @@ export function useTotalPortfolioFiat() {
 
   const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
   const { data: balances, isLoading: balancesLoading } = useBalances(assetConfigs);
-  const [pricingReady, setPricingReady] = useState(pricingService.isReady());
-  const [pricingRevision, setPricingRevision] = useState(0);
+  const pricingRevision = usePricingSnapshot();
+  const pricingReady = pricingService.isReady();
 
   const [linkedAddresses, setLinkedAddresses] = useState<UserAddressDto[]>([]);
   const [activeAddress, setActiveAddress] = useState<string | null>(null);
@@ -46,29 +52,18 @@ export function useTotalPortfolioFiat() {
 
   useEffect(() => {
     if (pricingService.isReady()) {
-      setPricingReady(true);
       return;
     }
-    void pricingService
-      .initialize()
-      .then(() => setPricingReady(true))
-      .catch(() => setPricingReady(false));
+    void pricingService.initialize().catch(() => undefined);
   }, []);
-
-  useEffect(
-    () =>
-      pricingService.subscribe(() => {
-        setPricingReady(pricingService.isReady());
-        setPricingRevision((revision) => revision + 1);
-      }),
-    [],
-  );
 
   // Pull the DFX user once on dashboard mount (and on auth state changes)
   // so the linked-wallets balance hook can fan out without each consumer
   // having to bring its own fetch.
   useEffect(() => {
     if (!isDfxAuthenticated) {
+      setLinkedAddresses([]);
+      setActiveAddress(null);
       setLinkedUserIncomplete(false);
       return;
     }
@@ -117,12 +112,15 @@ export function useTotalPortfolioFiat() {
       const meta = getAssetMeta(asset.getId());
       if (!meta || meta.category === 'native') continue;
       const balanceEntry = balances.get(asset.getId());
+      const isQueried =
+        assetIncludedInWdkBalanceQuery(asset) || assetIncludedInEvmBalanceQuery(asset);
       if (
-        !balanceEntry ||
-        balanceEntry.status === 'idle' ||
-        balanceEntry.status === 'loading' ||
-        balanceEntry.status === 'error' ||
-        balanceEntry.status === 'stale'
+        isQueried &&
+        (!balanceEntry ||
+          balanceEntry.status === 'idle' ||
+          balanceEntry.status === 'loading' ||
+          balanceEntry.status === 'error' ||
+          balanceEntry.status === 'stale')
       )
         isIncomplete = true;
       const rawBalance = getRawBalance(balances, asset.getId());

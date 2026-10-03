@@ -112,7 +112,7 @@ public hooks are `useWdkApp`, `useWalletManager`, `useAccount`, `useAddresses`,
 | `useWdkApp()` | ❌ no direct caller | Provider state is consumed through the wallet-manager and account hooks used by the routed flows. |
 | `useWalletManager()` | ✅ used | Onboarding, unlock, passkey, seed export, and settings use the current `restoreWallet`, `unlock`, `deleteWallet`, and `activeWalletId` API. |
 | `useAccount({ network, accountIndex })` | ✅ used | `useSendFlow.ts` routes sends and fee estimates through chain-specific accounts. |
-| `useAddresses()` | ❌ never used | We pull addresses out of `useWallet().wallets[id].addresses` instead |
+| `useAddresses()` | ❌ never used | We read the chain-specific address from `useAccount()` instead. |
 | `useBalance()` | ❌ never used | — |
 | `useBalancesForWallet()` | ✅ used | Used by the balance coordinator and asset/buy-sell views. |
 | `useRefreshBalance()` | ✅ used | Wrapped by `src/services/balances/useRefreshBalances.ts`. |

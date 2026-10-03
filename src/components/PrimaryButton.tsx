@@ -39,7 +39,7 @@ export function PrimaryButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isFilled ? colors.white : colors.primary} />
+        <ActivityIndicator color={isFilled ? colors.onPrimary : colors.primary} />
       ) : (
         <View style={styles.content}>
           <Text style={[styles.text, !isFilled && styles.outlinedText]}>{title}</Text>

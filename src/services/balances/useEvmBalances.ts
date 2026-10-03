@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAccount, type IAsset } from '@tetherto/wdk-react-native-core';
 import { getEvmRpcUrl, type ChainId } from '@/config/chains';
@@ -11,6 +11,7 @@ const sharedFetcher = new EvmBalanceFetcher(getEvmRpcUrl);
 const STALE_TIME_MS = 15_000;
 const REFETCH_INTERVAL_MS = 30_000;
 const EMPTY_BALANCES: BalanceMap = new Map();
+const lastSuccessfulByAddress = new Map<string, BalanceEntry>();
 
 /** Prefix shared with `useRefreshBalances` so invalidation matches every key. */
 export const EVM_BALANCES_QUERY_KEY_PREFIX = ['balances', 'evm'] as const;
@@ -24,7 +25,6 @@ export const EVM_BALANCES_QUERY_KEY_PREFIX = ['balances', 'evm'] as const;
  * EVM chain) so Rules of Hooks are satisfied.
  */
 export function useEvmBalances(assets: IAsset[], accountIndex = 0): BalanceSourceResult {
-  const lastSuccessfulRef = useRef(new Map<string, BalanceEntry>());
   const ethAccount = useAccount({ network: 'ethereum', accountIndex });
   const arbAccount = useAccount({ network: 'arbitrum', accountIndex });
   const polygonAccount = useAccount({ network: 'polygon', accountIndex });
@@ -110,9 +110,9 @@ export function useEvmBalances(assets: IAsset[], accountIndex = 0): BalanceSourc
             fetchedAt,
           };
           map.set(spec.assetId, entry);
-          if (cacheKey) lastSuccessfulRef.current.set(cacheKey, entry);
+          if (cacheKey) lastSuccessfulByAddress.set(cacheKey, entry);
         } else {
-          const previous = cacheKey ? lastSuccessfulRef.current.get(cacheKey) : undefined;
+          const previous = cacheKey ? lastSuccessfulByAddress.get(cacheKey) : undefined;
           map.set(spec.assetId, {
             assetId: spec.assetId,
             rawBalance: previous?.rawBalance ?? '0',

@@ -159,7 +159,6 @@
     "placeholder": "name@example.com",
     "sendCta": "Send confirmation email",
     "sendError": "Could not send the confirmation email. Please try again.",
-    "successBody": "Your email address {{mail}} is now linked to your DFX account.",
     "successTitle": "Email verified",
     "title": "Contact details",
     "tokenHint": "We sent a confirmation email to {{mail}}. Open it and paste the token from the link into the field below.",
@@ -519,6 +518,8 @@
   "portfolio": {
     "alwaysOn": "Always on",
     "alwaysOnHint": "Default network — can't be disabled",
+    "balanceLoading": "Balances are loading…",
+    "balanceUnavailable": "Balances are currently unavailable.",
     "empty": "No assets yet",
     "emptyDescription": "Buy your first crypto to get started.",
     "holdings": "Holdings by network",
@@ -556,6 +557,8 @@
     "warning": "Never share your Seed Phrase. Anyone with these words can access your wallet."
   },
   "sell": {
+    "balanceLoading": "Balances are loading…",
+    "balanceUnavailable": "Balances are currently unavailable. Try again later.",
     "bankAccount": "Bank account",
     "bankDescription": "Enter the IBAN where the payout should arrive.",
     "confirmSale": "Confirm sale",

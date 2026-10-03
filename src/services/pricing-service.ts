@@ -103,6 +103,7 @@ class PricingService {
   private inflight: Promise<void> | null = null;
   private autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
   private listeners = new Set<() => void>();
+  private revision = 0;
 
   private constructor() {}
 
@@ -182,7 +183,12 @@ class PricingService {
     return () => this.listeners.delete(listener);
   }
 
+  getSnapshot(): number {
+    return this.revision;
+  }
+
   private notify(): void {
+    this.revision += 1;
     for (const listener of this.listeners) listener();
   }
 

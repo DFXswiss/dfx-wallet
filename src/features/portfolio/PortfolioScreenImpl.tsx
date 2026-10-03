@@ -35,6 +35,7 @@ import { dfxUserService } from '@/features/dfx-backend/services';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { useAuthStore, useWalletStore } from '@/store';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
+import { usePricingSnapshot } from '@/hooks/usePricingSnapshot';
 import {
   BackdropText,
   Card,
@@ -75,7 +76,8 @@ export default function PortfolioScreen() {
 
   const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
   const { data: balances } = useBalances(assetConfigs);
-  const [pricingReady, setPricingReady] = useState(pricingService.isReady());
+  const pricingRevision = usePricingSnapshot();
+  const pricingReady = pricingService.isReady();
   const [linkedAddresses, setLinkedAddresses] = useState<UserAddressDto[]>([]);
   const [activeAddress, setActiveAddress] = useState<string | null>(null);
 
@@ -141,13 +143,9 @@ export default function PortfolioScreen() {
 
   useEffect(() => {
     if (pricingService.isReady()) {
-      setPricingReady(true);
       return;
     }
-    void pricingService
-      .initialize()
-      .then(() => setPricingReady(true))
-      .catch(() => setPricingReady(false));
+    void pricingService.initialize().catch(() => undefined);
   }, []);
 
   const fiatCurrency = resolveFiatCurrency(selectedCurrency);
@@ -155,6 +153,7 @@ export default function PortfolioScreen() {
     fiatCurrency === FiatCurrency.CHF ? 'CHF' : fiatCurrency === FiatCurrency.EUR ? '€' : '$';
 
   const groups = useMemo<PortfolioGroup[]>(() => {
+    void pricingRevision;
     const byCanonical = new Map<string, PortfolioGroup>();
 
     for (const asset of assetConfigs) {
@@ -211,7 +210,7 @@ export default function PortfolioScreen() {
       if (cat !== 0) return cat;
       return a.canonicalSymbol.localeCompare(b.canonicalSymbol);
     });
-  }, [assetConfigs, balances, fiatCurrency, pricingReady]);
+  }, [assetConfigs, balances, fiatCurrency, pricingReady, pricingRevision]);
 
   // Headline total = local WDK groups + selected linked-wallet discovery
   // fiat. Wallets the discovery couldn't resolve contribute nothing
@@ -293,7 +292,7 @@ export default function PortfolioScreen() {
         <Text style={styles.totalLabel}>{t('portfolio.totalValue')}</Text>
         <View style={styles.totalRow}>
           <Text style={styles.totalCurrency}>{currencySymbol}</Text>
-          <Text style={styles.totalValue}>
+          <Text style={styles.totalValue} testID="portfolio-total-value">
             {Number.isFinite(totalFiat)
               ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', {
                   minimumFractionDigits: 2,
