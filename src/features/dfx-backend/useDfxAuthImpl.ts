@@ -68,15 +68,18 @@ export function useDfxAuth() {
   }, [address, signMessage]);
 
   const authenticate = useCallback(
-    async (options?: { wallet?: string }): Promise<string> => {
+    async (options?: { wallet?: string }, authGeneration?: number): Promise<string> => {
       setIsAuthenticating(true);
       setError(null);
 
       try {
         const walletAddress = await resolveAuthAddress();
-        const token = await dfxAuthService.login(walletAddress, signMessage, {
-          wallet: options?.wallet ?? 'DFX Wallet',
-        });
+        const token =
+          authGeneration === undefined
+            ? await dfxAuthService.login(walletAddress, signMessage, {
+                wallet: options?.wallet ?? 'DFX Wallet',
+              })
+            : await dfxAuthService.refresh(walletAddress, signMessage, authGeneration);
 
         await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
         setDfxAuthenticated(true);
@@ -93,13 +96,16 @@ export function useDfxAuth() {
   );
 
   /** Best-effort variant for background callers: returns the new token or null. */
-  const authenticateSilent = useCallback(async (): Promise<string | null> => {
-    try {
-      return await authenticate();
-    } catch {
-      return null;
-    }
-  }, [authenticate]);
+  const authenticateSilent = useCallback(
+    async (authGeneration?: number): Promise<string | null> => {
+      try {
+        return await authenticate(undefined, authGeneration);
+      } catch {
+        return null;
+      }
+    },
+    [authenticate],
+  );
 
   /**
    * Recovery for the "User is merged" 403 path. Drops the prior session

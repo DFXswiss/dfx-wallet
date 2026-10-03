@@ -2,7 +2,8 @@ import {
   dfxApi,
   DfxApiError,
   DfxApiTimeoutError,
-} from '../../src/features/dfx-backend/services/api';
+} from '@/features/dfx-backend/services/api';
+import { dfxAuthService } from '@/features/dfx-backend/services/auth-service';
 
 describe('DfxApiError', () => {
   it('should create error with correct properties', () => {
@@ -51,7 +52,9 @@ describe('dfxApi request hardening', () => {
   afterEach(() => {
     jest.useRealTimers();
     jest.restoreAllMocks();
+    dfxApi.clearAuthToken();
     dfxApi.setOnUnauthorized(async () => null);
+    dfxAuthService.adoptStoredToken(null);
   });
 
   it('rejects absolute authenticated URLs to avoid bearer leakage', async () => {
@@ -104,7 +107,13 @@ describe('dfxApi request hardening', () => {
     const pendingRefresh = new Promise<string>((resolve) => {
       resolveRefresh = resolve;
     });
-    const refresh = jest.fn(() => pendingRefresh);
+    const refresh = jest.fn((authGeneration: number) => {
+      expect(dfxApi.clearAuthTokenForRefresh(authGeneration)).toBe(true);
+      return pendingRefresh.then((token) => {
+        expect(dfxApi.setAuthTokenForRefresh(token, authGeneration)).toBe(true);
+        return token;
+      });
+    });
     dfxApi.setOnUnauthorized(refresh);
     const unauthorized = {
       ok: false,
@@ -121,6 +130,189 @@ describe('dfxApi request hardening', () => {
     resolveRefresh('NEW_TOKEN');
     await expect(Promise.all(requests)).resolves.toEqual([{}, {}]);
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries when a legacy refresh handler installs its returned token', async () => {
+    dfxApi.setAuthToken('OLD_TOKEN');
+    dfxApi.setOnUnauthorized(async () => {
+      dfxApi.setAuthToken('REFRESHED_TOKEN');
+      return 'REFRESHED_TOKEN';
+    });
+    (globalThis.fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Expired' }),
+      })
+      .mockResolvedValueOnce({ ok: true, status: 200, text: async () => '{}' });
+
+    await expect(dfxApi.get('/v1/user')).resolves.toEqual({});
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect((globalThis.fetch as jest.Mock).mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer REFRESHED_TOKEN' }),
+      }),
+    );
+  });
+
+  it('rejects the original 401 without retrying when auth is cleared during refresh', async () => {
+    let resolveRefresh!: (token: string) => void;
+    let markRefreshStarted!: () => void;
+    let markReplacementRefreshStarted!: () => void;
+    const refreshStarted = new Promise<void>((resolve) => {
+      markRefreshStarted = resolve;
+    });
+    const replacementRefreshStarted = new Promise<void>((resolve) => {
+      markReplacementRefreshStarted = resolve;
+    });
+    const pendingRefresh = new Promise<string>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    const refresh = jest
+      .fn<Promise<string | null>, [number]>()
+      .mockImplementationOnce(async (authGeneration) => {
+        expect(dfxApi.clearAuthTokenForRefresh(authGeneration)).toBe(true);
+        markRefreshStarted();
+        const token = await pendingRefresh;
+        expect(dfxApi.setAuthTokenForRefresh(token, authGeneration)).toBe(false);
+        return token;
+      })
+      .mockImplementationOnce(async () => {
+        markReplacementRefreshStarted();
+        return null;
+      });
+    dfxApi.setAuthToken('OLD_TOKEN');
+    dfxApi.setOnUnauthorized(refresh);
+    const unauthorized = {
+      ok: false,
+      status: 401,
+      json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Expired' }),
+    };
+    (globalThis.fetch as jest.Mock)
+      .mockResolvedValueOnce(unauthorized)
+      .mockResolvedValueOnce(unauthorized);
+
+    const request = dfxApi.get('/v1/user');
+    await refreshStarted;
+    dfxApi.clearAuthToken();
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+
+    const postLogoutRequest = dfxApi.get('/v1/user');
+    await replacementRefreshStarted;
+    expect(refresh).toHaveBeenCalledTimes(2);
+    resolveRefresh('STALE_TOKEN');
+
+    await expect(request).rejects.toMatchObject({
+      name: 'DfxApiError',
+      statusCode: 401,
+      code: 'UNAUTHORIZED',
+      message: 'Expired',
+    });
+    await expect(postLogoutRequest).rejects.toBeInstanceOf(DfxApiError);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+
+    (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '{}',
+    });
+    await dfxApi.get('/v1/asset');
+    expect((globalThis.fetch as jest.Mock).mock.calls[2]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.not.objectContaining({ Authorization: expect.any(String) }),
+      }),
+    );
+  });
+
+  it('preserves a newly set token when an older refresh resolves', async () => {
+    let resolveRefresh!: (token: string) => void;
+    let markRefreshStarted!: () => void;
+    const refreshStarted = new Promise<void>((resolve) => {
+      markRefreshStarted = resolve;
+    });
+    const pendingRefresh = new Promise<string>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    const refresh = jest.fn(() => {
+      markRefreshStarted();
+      return pendingRefresh;
+    });
+    dfxApi.setAuthToken('OLD_TOKEN');
+    dfxApi.setOnUnauthorized(refresh);
+    (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Expired' }),
+    });
+
+    const request = dfxApi.get('/v1/user');
+    await refreshStarted;
+    dfxApi.setAuthToken('NEW_SESSION_TOKEN');
+    resolveRefresh('STALE_TOKEN');
+
+    await expect(request).rejects.toBeInstanceOf(DfxApiError);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+
+    (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '{}',
+    });
+    await dfxApi.get('/v1/asset');
+    expect((globalThis.fetch as jest.Mock).mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer NEW_SESSION_TOKEN' }),
+      }),
+    );
+  });
+
+  it('preserves a token set after a 401 before refresh login starts', async () => {
+    let authGetSpy!: jest.SpyInstance;
+    const clearAuthTokenSpy = jest.spyOn(dfxApi, 'clearAuthToken');
+    const fetchSpy = globalThis.fetch as jest.Mock;
+    dfxApi.setAuthToken('OLD_TOKEN');
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    dfxApi.setOnUnauthorized(async (authGeneration) => {
+      dfxApi.setAuthToken('NEWER_TOKEN');
+      authGetSpy = jest
+        .spyOn(dfxApi, 'get')
+        .mockRejectedValue(new Error('Unexpected authentication request'));
+      try {
+        return await dfxAuthService.refresh(
+          '0xaddress',
+          jest.fn().mockResolvedValue('SIGNATURE'),
+          authGeneration,
+        );
+      } catch {
+        return null;
+      }
+    });
+    fetchSpy
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Expired' }),
+      })
+      .mockResolvedValueOnce({ ok: true, status: 200, text: async () => '{}' });
+
+    await expect(dfxApi.get('/v1/test')).rejects.toMatchObject({
+      name: 'DfxApiError',
+      statusCode: 401,
+      code: 'UNAUTHORIZED',
+      message: 'Expired',
+    });
+    expect(authGetSpy).not.toHaveBeenCalled();
+    expect(clearAuthTokenSpy).not.toHaveBeenCalled();
+
+    authGetSpy.mockRestore();
+    await dfxApi.get('/v1/test');
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer NEWER_TOKEN' }),
+      }),
+    );
   });
 
   it('cleans up the pending response when token refresh rejects', async () => {

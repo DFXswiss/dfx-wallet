@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ImageBackground,
   Pressable,
@@ -85,6 +85,7 @@ export default function SendScreen() {
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [scannerVisible, setScannerVisible] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   type FeeState =
     | { status: 'idle' }
@@ -93,6 +94,15 @@ export default function SendScreen() {
     | { status: 'error'; message: string };
   const [feeState, setFeeState] = useState<FeeState>({ status: 'idle' });
   const estimateReqRef = useRef(0);
+  const sendAttemptRef = useRef(0);
+  const sendingRef = useRef(false);
+
+  useEffect(
+    () => () => {
+      sendAttemptRef.current += 1;
+    },
+    [],
+  );
 
   const symbol = selectedAsset?.symbol ?? '';
   const normalizedRecipient = recipient.trim();
@@ -133,10 +143,25 @@ export default function SendScreen() {
   }, [sendAsset, estimate, normalizedRecipient, amount]);
 
   const handleSend = async () => {
-    const hash = await send({ asset: sendAsset!, to: normalizedRecipient, amount });
-    if (hash) {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setStep('success');
+    if (!sendAsset || sendingRef.current) return;
+
+    const confirmedParams = { asset: sendAsset, to: normalizedRecipient, amount };
+    const attemptId = ++sendAttemptRef.current;
+    sendingRef.current = true;
+    setIsSending(true);
+
+    try {
+      const hash = await send(confirmedParams);
+      if (attemptId !== sendAttemptRef.current) return;
+      if (hash) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setStep('success');
+      }
+    } finally {
+      if (attemptId === sendAttemptRef.current) {
+        sendingRef.current = false;
+        setIsSending(false);
+      }
     }
   };
 
@@ -283,7 +308,7 @@ export default function SendScreen() {
 
         {FEATURES.BUY_SELL && (
           <ShortcutAction
-            icon={<Icon name="swap" size={18} color={colors.white} strokeWidth={2.2} />}
+            icon={<Icon name="swap" size={18} color={colors.onPrimary} strokeWidth={2.2} />}
             label={t('send.sellInstead')}
             onPress={() => router.push('/(auth)/sell')}
             testID="send-action-sell"
@@ -347,14 +372,18 @@ export default function SendScreen() {
           title={t('common.confirm')}
           onPress={handleSend}
           disabled={feeState.status !== 'ok'}
-          loading={isLoading}
+          loading={isLoading || isSending}
         />
       )}
       <PrimaryButton
         testID="send-cancel-button"
         title={t('common.cancel')}
         variant="outlined"
+        disabled={isSending}
         onPress={() => {
+          sendAttemptRef.current += 1;
+          sendingRef.current = false;
+          setIsSending(false);
           reset();
           // Drop any in-flight estimate so a late-arriving result doesn't render after cancel.
           estimateReqRef.current += 1;
@@ -394,6 +423,7 @@ export default function SendScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <AppHeader
         title={t('send.title')}
+        backDisabled={isSending}
         onBack={() => {
           if (step === 'confirm') setStep('input');
           else if (step === 'input') setStep('asset');
@@ -428,7 +458,7 @@ export default function SendScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: !isSending }} />
       <View style={styles.bg}>
         {scheme === 'dark' ? (
           <DarkBackdrop baseColor={colors.background} />

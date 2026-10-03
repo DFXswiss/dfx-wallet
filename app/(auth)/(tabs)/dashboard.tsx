@@ -116,7 +116,7 @@ export default function DashboardScreen() {
           <View style={styles.actions}>
             {FEATURES.PORTFOLIO && (
               <ShortcutAction
-                icon={<Icon name="wallet" size={18} color={colors.white} strokeWidth={2.2} />}
+                icon={<Icon name="wallet" size={18} color={colors.onPrimary} strokeWidth={2.2} />}
                 label={t('dashboard.portfolio')}
                 testID="dashboard-action-portfolio"
                 onPress={() => router.push('/(auth)/portfolio')}
@@ -125,7 +125,7 @@ export default function DashboardScreen() {
             )}
             {FEATURES.PAY && (
               <ShortcutAction
-                icon={<Icon name="grid" size={18} color={colors.white} strokeWidth={2.2} />}
+                icon={<Icon name="grid" size={18} color={colors.onPrimary} strokeWidth={2.2} />}
                 label={t('dashboard.pay')}
                 testID="dashboard-action-pay"
                 onPress={() => router.push('/(auth)/pay')}

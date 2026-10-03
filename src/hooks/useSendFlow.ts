@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { useAccount, type IAsset } from '@tetherto/wdk-react-native-core';
 import { useTranslation } from 'react-i18next';
 import type { ChainId } from '@/config/chains';
-import { parseUnits } from '@/config/portfolio-presentation';
+import { hasExcessPrecision, parseUnits } from '@/config/portfolio-presentation';
 import { useRefreshBalances } from '@/services/balances';
 
 type SendState = {
@@ -55,7 +55,13 @@ export function useSendFlow(chain: ChainId) {
       setState({ isLoading: true, txHash: null, error: null });
 
       try {
-        const baseAmount = parseUnits(params.amount, params.asset.getDecimals());
+        const decimals = params.asset.getDecimals();
+        if (hasExcessPrecision(params.amount, decimals)) {
+          const msg = t('send.error.amountPrecision');
+          setState({ isLoading: false, txHash: null, error: msg });
+          return null;
+        }
+        const baseAmount = parseUnits(params.amount, decimals);
         if (baseAmount === '0') {
           const msg = t('send.error.amountZero');
           setState({ isLoading: false, txHash: null, error: msg });
@@ -92,7 +98,11 @@ export function useSendFlow(chain: ChainId) {
   const estimate = useCallback(
     async (params: { asset: IAsset; to: string; amount: string }): Promise<FeeEstimate> => {
       try {
-        const baseAmount = parseUnits(params.amount, params.asset.getDecimals());
+        const decimals = params.asset.getDecimals();
+        if (hasExcessPrecision(params.amount, decimals)) {
+          return { success: false, error: t('send.error.amountPrecision') };
+        }
+        const baseAmount = parseUnits(params.amount, decimals);
         if (baseAmount === '0') {
           return { success: false, error: t('send.error.amountZero') };
         }
