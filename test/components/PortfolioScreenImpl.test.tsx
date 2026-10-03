@@ -1,8 +1,15 @@
 import React from 'react';
 import { RefreshControl } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import type { BalanceEntry, BalanceMap, BalanceSourceResult } from '@/services/balances';
+import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
+import { Skeleton } from '@/components';
+import * as portfolioCompleteness from '@/features/portfolio/portfolio-completeness';
+import type {
+  BalanceEntry,
+  BalanceMap,
+  BalanceSourceResult,
+  BalanceStatus,
+} from '@/services/balances';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import type { WalletDiscovery } from '@/features/linked-wallets/useLinkedWalletDiscovery';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
@@ -44,15 +51,16 @@ jest.mock('@/features/portfolio/useEnabledChains', () => ({
   }),
 }));
 
-let mockBalanceMap: BalanceMap | undefined;
-let mockBtcRate = 50_000;
+let mockBalanceMap: BalanceMap = new Map();
+let mockBalancesLoading = false;
+let mockBtcRate: number | undefined = 50_000;
 jest.mock('@/services/balances', () => {
   const actual = jest.requireActual('@/services/balances');
   return {
     ...actual,
     useBalances: (): BalanceSourceResult => ({
-      data: mockBalanceMap as BalanceMap,
-      isLoading: false,
+      data: mockBalanceMap,
+      isLoading: mockBalancesLoading,
       error: null,
     }),
   };
@@ -104,16 +112,25 @@ const WBTC_ETH_ID = 'ethereum-0x2260fac5e5542a773aa44fbcfedf7c193bc2c599';
 const ZCHF_ETH_ID = 'ethereum-0xb58e61c3098d85632df34eecfb899a1ed80921cb';
 const ETH_NATIVE_ID = 'ethereum-native';
 
-function entry(assetId: string, rawBalance: string): BalanceEntry {
-  return { assetId, rawBalance, status: 'ok', source: 'wdk' };
+function entry(assetId: string, rawBalance: string, status: BalanceStatus = 'ok'): BalanceEntry {
+  return { assetId, rawBalance, status, source: 'wdk' };
 }
 
-function setBalances(entries: Record<string, string> | undefined) {
-  if (entries === undefined) {
-    mockBalanceMap = undefined;
-    return;
+function setBalances(entries: Record<string, string>) {
+  const balances = new Map(
+    getAssets().map((asset) => [asset.getId(), entry(asset.getId(), '0')] as const),
+  );
+  for (const [assetId, rawBalance] of Object.entries(entries)) {
+    balances.set(assetId, entry(assetId, rawBalance));
   }
-  mockBalanceMap = new Map(Object.entries(entries).map(([k, v]) => [k, entry(k, v)]));
+  mockBalanceMap = balances;
+}
+
+function setBalanceStatus(assetId: string, status: BalanceStatus) {
+  const balances = new Map(mockBalanceMap);
+  const current = balances.get(assetId) ?? entry(assetId, '0');
+  balances.set(assetId, { ...current, status });
+  mockBalanceMap = balances;
 }
 
 const LONG_ADDR = '0x1111222233334444555566667777888899990000';
@@ -165,6 +182,7 @@ describe('PortfolioScreenImpl', () => {
       (...args: unknown[]) =>
         jest.requireActual('@/config/tokens').getAssets(...args),
     );
+    mockBalancesLoading = false;
     setBalances({});
     mockBtcRate = 50_000;
     useWalletStore.getState().reset();
@@ -197,16 +215,37 @@ describe('PortfolioScreenImpl', () => {
     expect(mockPush).toHaveBeenCalledWith('/(auth)/portfolio/manage');
   });
 
-  it('shows skeleton rows while balances have not resolved', () => {
-    setBalances(undefined);
-    const { queryByTestId } = renderScreen();
-    expect(queryByTestId('portfolio-empty')).toBeNull();
-    expect(queryByTestId('portfolio-asset-BTC')).toBeNull();
+  it('renders incomplete groups from an empty balance map', () => {
+    mockBalanceMap = new Map();
+
+    const screen = renderScreen();
+
+    expect(screen.queryByTestId('portfolio-empty')).toBeNull();
+    expect(screen.getByTestId('portfolio-total-value').props.children).toBe('—');
+    expect(within(screen.getByTestId('portfolio-asset-BTC')).getAllByText('—')).toHaveLength(2);
   });
 
-  it('does not throw when useBalances data is still undefined (first paint before query resolve)', () => {
-    setBalances(undefined);
-    expect(() => renderScreen()).not.toThrow();
+  it('shows skeleton tiles during the first balance load', () => {
+    mockBalanceMap = new Map();
+    mockBalancesLoading = true;
+
+    const screen = renderScreen();
+
+    expect(screen.UNSAFE_getAllByType(Skeleton).length).toBeGreaterThan(0);
+    expect(screen.getByTestId('portfolio-total-value').props.children).toBe('—');
+    expect(screen.getAllByText('dashboard.incompleteBalance')).toHaveLength(1);
+    for (const symbol of ['BTC', 'USD', 'CHF', 'EUR']) {
+      expect(screen.queryByTestId(`portfolio-asset-${symbol}`)).toBeNull();
+    }
+  });
+
+  it('renders placeholders when a real balance-map entry is loading', () => {
+    setBalanceStatus(USDT_ETH_ID, 'loading');
+
+    const screen = renderScreen();
+
+    expect(screen.getByTestId('portfolio-total-value').props.children).toBe('—');
+    expect(within(screen.getByTestId('portfolio-asset-USD')).getAllByText('—')).toHaveLength(2);
   });
 
   it('shows the empty state when no non-native assets are configured', () => {
@@ -214,6 +253,105 @@ describe('PortfolioScreenImpl', () => {
     setBalances({});
     const { getByTestId } = renderScreen();
     expect(getByTestId('portfolio-empty')).toBeTruthy();
+  });
+
+  it('shows placeholder cards instead of skeletons when loading has settled data', () => {
+    mockBalanceMap = new Map([[USDT_ETH_ID, entry(USDT_ETH_ID, '1000000')]]);
+    mockBalancesLoading = true;
+
+    const screen = renderScreen();
+
+    expect(screen.getByTestId('portfolio-total-value').props.children).toBe('—');
+    expect(within(screen.getByTestId('portfolio-asset-USD')).getAllByText('—')).toHaveLength(2);
+    expect(screen.getAllByText('dashboard.incompleteBalance')).toHaveLength(1);
+    expect(screen.UNSAFE_queryAllByType(Skeleton)).toHaveLength(0);
+  });
+
+  it.each(['error', 'stale'] as const)(
+    'shows balance and fiat placeholders for a %s balance entry',
+    (status) => {
+      setBalances({ [USDT_ETH_ID]: '1000000' });
+      setBalanceStatus(USDT_ETH_ID, status);
+
+      const screen = renderScreen();
+
+      expect(screen.getByTestId('portfolio-total-value').props.children).toBe('—');
+      expect(within(screen.getByTestId('portfolio-asset-USD')).getAllByText('—')).toHaveLength(2);
+      expect(screen.getAllByText('dashboard.incompleteBalance')).toHaveLength(1);
+    },
+  );
+
+  it('keeps an exact crypto balance but hides fiat when a positive balance has no price', () => {
+    setBalances({ [WBTC_ETH_ID]: '100000000' });
+    mockBtcRate = undefined;
+
+    const screen = renderScreen();
+    const btcCard = within(screen.getByTestId('portfolio-asset-BTC'));
+
+    expect(screen.getByTestId('portfolio-total-value').props.children).toBe('—');
+    expect(btcCard.getByText('—')).toBeTruthy();
+    expect(btcCard.getByText('1.00 BTC')).toBeTruthy();
+    expect(screen.getAllByText('dashboard.incompleteBalance')).toHaveLength(1);
+  });
+
+  it('starts with an incomplete headline while the authenticated DFX profile is pending', () => {
+    const completenessSpy = jest.spyOn(portfolioCompleteness, 'isCombinedPortfolioComplete');
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    mockGetUser.mockReturnValue(new Promise(() => undefined));
+    setBalances({ [USDT_ETH_ID]: '1000000' });
+
+    const screen = renderScreen();
+
+    try {
+      expect(completenessSpy).toHaveBeenCalled();
+      expect(completenessSpy.mock.calls[0]?.[0]).toMatchObject({
+        localBalancesComplete: true,
+        linkedProfileIncomplete: true,
+        linkedWalletAddresses: [],
+      });
+      expect(completenessSpy.mock.results[0]?.value).toBe(false);
+      expect(screen.getByTestId('portfolio-total-value').props.children).toBe('—');
+      expect(within(screen.getByTestId('portfolio-asset-USD')).getByText('$ 1.00')).toBeTruthy();
+      expect(screen.getAllByText('dashboard.incompleteBalance')).toHaveLength(1);
+    } finally {
+      screen.unmount();
+      completenessSpy.mockRestore();
+    }
+  });
+
+  it('keeps the headline incomplete after the authenticated DFX profile rejects', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    let rejectProfile: (reason?: unknown) => void = () => undefined;
+    mockGetUser.mockReturnValue(
+      new Promise((_, reject) => {
+        rejectProfile = reject;
+      }),
+    );
+    setBalances({ [USDT_ETH_ID]: '1000000' });
+
+    const screen = renderScreen();
+    await waitFor(() => expect(mockGetUser).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      rejectProfile(new Error('profile unavailable'));
+    });
+
+    expect(screen.getByTestId('portfolio-total-value').props.children).toBe('—');
+    expect(within(screen.getByTestId('portfolio-asset-USD')).getByText('$ 1.00')).toBeTruthy();
+    expect(screen.getAllByText('dashboard.incompleteBalance')).toHaveLength(1);
+  });
+
+  it('shows exact group and headline amounts once balances, prices and profile are complete', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    mockGetUser.mockResolvedValue({ addresses: [], activeAddress: null });
+    setBalances({ [USDT_ETH_ID]: '1000000' });
+
+    const screen = renderScreen();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('portfolio-total-value').props.children).toBe('1.00'),
+    );
+    expect(within(screen.getByTestId('portfolio-asset-USD')).getByText('$ 1.00')).toBeTruthy();
+    expect(screen.queryByText('dashboard.incompleteBalance')).toBeNull();
   });
 
   it('renders filled groups, merges networks, sorts BTC first, and navigates on tap', async () => {
@@ -250,6 +388,9 @@ describe('PortfolioScreenImpl', () => {
   });
 
   it('uses the CHF / EUR currency glyphs', () => {
+    jest.spyOn(pricingService, 'getExchangeRate').mockImplementation((ticker) =>
+      ticker === 'usdt' ? 1 : undefined,
+    );
     setBalances({ [USDT_ETH_ID]: '1000000' });
     useWalletStore.setState({ selectedCurrency: 'CHF' });
     const chf = renderScreen();
@@ -284,12 +425,13 @@ describe('PortfolioScreenImpl', () => {
     });
     setBalances({ [USDT_ETH_ID]: '1000000' });
     const { UNSAFE_getByType } = renderScreen();
+    await waitFor(() => expect(mockGetUser).toHaveBeenCalledTimes(1));
     await act(async () => {
       fireEvent(UNSAFE_getByType(RefreshControl), 'refresh');
     });
     expect(mockRefetchDiscovery).toHaveBeenCalled();
     expect(pricingService.refresh).toHaveBeenCalled();
-    expect(mockGetUser).toHaveBeenCalled();
+    await waitFor(() => expect(mockGetUser).toHaveBeenCalledTimes(2));
   });
 
   it('pull-to-refresh skips the DFX user when unauthenticated and swallows refresh errors', async () => {
@@ -425,9 +567,11 @@ describe('PortfolioScreenImpl', () => {
       .mockRejectedValueOnce(new Error('refresh failed'));
     setBalances({});
     const { UNSAFE_getByType } = renderScreen();
+    await waitFor(() => expect(mockGetUser).toHaveBeenCalledTimes(1));
     await act(async () => {
       fireEvent(UNSAFE_getByType(RefreshControl), 'refresh');
     });
+    await waitFor(() => expect(mockGetUser).toHaveBeenCalledTimes(2));
   });
 
   it('renders the dark backdrop when the theme is dark', () => {
