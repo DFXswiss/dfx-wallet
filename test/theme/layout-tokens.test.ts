@@ -11,7 +11,6 @@ const CONVERTED_FILES = [
   'src/theme/layout.ts',
   'src/components/AppHeader.tsx',
   'src/components/AssetActions.tsx',
-  'src/components/AssetListItem.tsx',
   'src/components/DfxBackgroundScreen.tsx',
   'src/components/EmptyState.tsx',
   'src/components/ScreenContainer.tsx',

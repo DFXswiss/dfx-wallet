@@ -152,6 +152,41 @@ describe('Visual Regression (full variant)', () => {
       await pause();
     });
 
+    it('reaches the swap mode from the buy flow', async () => {
+      // Buy/Sell/Swap are one module (`TradeScreen`) now: tapping the
+      // "Swap" tab only flips in-place state, it does not navigate to a
+      // `/swap` route. The screen underneath stays the `/buy` route the
+      // whole time, so a single back tap from Swap mode goes straight to
+      // the receive list — there is no intermediate "buy-screen" to land
+      // on first (that used to take two back taps under the old
+      // route-per-mode `router.replace` design).
+      await element(by.id('dashboard-action-receive')).tap();
+      await waitFor(element(by.id('receive-destination-bank')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await element(by.id('receive-destination-bank')).tap();
+      await waitFor(element(by.id('trade-tab-swap')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await element(by.id('trade-tab-swap')).tap();
+      await waitFor(element(by.id('swap-header')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await pause();
+      await expectScreenToMatchBaseline('swap-placeholder');
+      await expect(element(by.id('swap-amount-panels'))).toBeVisible();
+      await expect(element(by.id('swap-fees-panel'))).toBeVisible();
+      await element(by.id('swap-header-back')).tap();
+      await waitFor(element(by.id('receive-asset-list')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await element(by.id('receive-header-back')).tap();
+      await waitFor(element(by.id('dashboard-screen')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await pause();
+    });
+
     // --- Settings and its sub-screens (reached from the dashboard menu) ---
     it('shows the settings screen', async () => {
       await openSettings();

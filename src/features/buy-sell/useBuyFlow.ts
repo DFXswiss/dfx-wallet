@@ -3,6 +3,7 @@ import type { ChainId } from '@/config/chains';
 import { dfxPaymentService, interpretDfxAuthError } from '@/features/dfx-backend/services';
 import type { DfxAuthGateState } from '@/features/dfx-backend/services';
 import type { BuyPaymentInfoDto } from '@/features/dfx-backend/services/dto';
+import { makeTradeQuoteKey } from './tradePanelStyles';
 
 type QuoteParams = {
   amount: number;
@@ -33,6 +34,9 @@ type BuyState = {
   status: BuyStatus;
   isLoading: boolean;
   paymentInfo: BuyPaymentInfoDto | null;
+  quoteKey: string | null;
+  errorKey: string | null;
+  actionErrorKey: string | null;
   error: string | null;
   authGate: DfxAuthGateState | null;
 };
@@ -41,6 +45,9 @@ const INITIAL_STATE: BuyState = {
   status: 'idle',
   isLoading: false,
   paymentInfo: null,
+  quoteKey: null,
+  errorKey: null,
+  actionErrorKey: null,
   error: null,
   authGate: null,
 };
@@ -96,7 +103,12 @@ export function useBuyFlow() {
     };
   }, []);
 
-  const handleError = (err: unknown, fallback: string) => {
+  const handleError = (
+    err: unknown,
+    fallback: string,
+    requestKey: string | null = null,
+    source: 'quote' | 'action' = 'action',
+  ) => {
     // AbortError is expected when a newer quote supersedes an older one;
     // do not flip the screen into an error state for it.
     if (err instanceof Error && err.name === 'AbortError') return;
@@ -113,16 +125,26 @@ export function useBuyFlow() {
         isLoading: false,
         authGate: enriched,
         error: null,
+        errorKey: source === 'quote' ? requestKey : s.errorKey,
+        actionErrorKey: source === 'action' ? requestKey : s.actionErrorKey,
         status: 'authGate',
       }));
       return;
     }
     const msg = err instanceof Error ? err.message : fallback;
-    setState((s) => ({ ...s, isLoading: false, error: msg, status: 'error' }));
+    setState((s) => ({
+      ...s,
+      isLoading: false,
+      error: msg,
+      errorKey: source === 'quote' ? requestKey : s.errorKey,
+      actionErrorKey: source === 'action' ? requestKey : s.actionErrorKey,
+      status: 'error',
+    }));
   };
 
   const getQuote = useCallback(async (params: QuoteParams) => {
     lastAction.current = { kind: 'quote', params };
+    const requestKey = makeTradeQuoteKey(params);
 
     // Cancel any predecessor and start a fresh window.
     quoteAbortRef.current?.abort();
@@ -132,6 +154,9 @@ export function useBuyFlow() {
     setState((s) => ({
       ...s,
       isLoading: true,
+      quoteKey: null,
+      errorKey: null,
+      actionErrorKey: null,
       error: null,
       authGate: null,
       status: s.paymentInfo ? 'loading' : 'loading',
@@ -149,13 +174,16 @@ export function useBuyFlow() {
       setBuyState({
         isLoading: false,
         paymentInfo: normalised,
+        quoteKey: requestKey,
+        errorKey: null,
+        actionErrorKey: null,
         error: null,
         authGate: null,
       });
       return normalised;
     } catch (err) {
       if (quoteAbortRef.current !== controller) return null;
-      handleError(err, 'Quote failed');
+      handleError(err, 'Quote failed', requestKey, 'quote');
       return null;
     }
   }, []);
@@ -165,21 +193,45 @@ export function useBuyFlow() {
     // /paymentInfos commits the order — we do NOT want a previous quote
     // race to cancel it. Use its own controller, scoped just to this call.
     const controller = new AbortController();
-    setState((s) => ({ ...s, isLoading: true, error: null, authGate: null, status: 'loading' }));
+    setState((s) => ({
+      ...s,
+      isLoading: true,
+      error: null,
+      errorKey: null,
+      actionErrorKey: null,
+      authGate: null,
+      status: 'loading',
+    }));
     try {
       const info = await dfxPaymentService.createBuyPaymentInfo(params, {
         signal: controller.signal,
       });
-      setBuyState({ isLoading: false, paymentInfo: info, error: null, authGate: null });
+      setBuyState({
+        isLoading: false,
+        paymentInfo: info,
+        quoteKey: makeTradeQuoteKey(params),
+        errorKey: null,
+        actionErrorKey: null,
+        error: null,
+        authGate: null,
+      });
       return info;
     } catch (err) {
-      handleError(err, 'Failed to create payment info');
+      handleError(err, 'Failed to create payment info', makeTradeQuoteKey(params), 'action');
       return null;
     }
   }, []);
 
   const confirmPayment = useCallback(async (id: number) => {
-    setState((s) => ({ ...s, isLoading: true, error: null, authGate: null, status: 'loading' }));
+    setState((s) => ({
+      ...s,
+      isLoading: true,
+      error: null,
+      errorKey: null,
+      actionErrorKey: null,
+      authGate: null,
+      status: 'loading',
+    }));
     try {
       await dfxPaymentService.confirmBuy(id);
       setState((s) => ({

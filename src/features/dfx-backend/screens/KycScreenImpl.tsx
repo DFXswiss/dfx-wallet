@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Linking,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader, Icon, PrimaryButton, ScreenContainer } from '@/components';
+import {
+  AppHeader,
+  GlassCard,
+  GlassInputField,
+  Icon,
+  PrimaryButton,
+  ScreenContainer,
+} from '@/components';
 import { useDfxAuth } from '@/hooks';
 import { useKycFlow } from '../useKycFlow';
 import { decodeDfxJwt, DfxApiError, dfxApi, dfxAuthService } from '@/features/dfx-backend/services';
@@ -345,9 +344,9 @@ export default function KycScreen() {
   const renderLegalDocuments = () => (
     <View style={styles.documentList}>
       {DFX_LEGAL_DOCUMENTS.map((document) => (
-        <Pressable
+        <GlassCard
           key={document.titleKey}
-          style={({ pressed }) => [styles.documentRow, pressed && styles.pressed]}
+          contentStyle={styles.documentRow}
           onPress={() => {
             void Linking.openURL(document.url);
           }}
@@ -357,7 +356,7 @@ export default function KycScreen() {
           </View>
           <Text style={styles.documentTitle}>{t(document.titleKey)}</Text>
           <Icon name="chevron-right" size={18} color={colors.textTertiary} />
-        </Pressable>
+        </GlassCard>
       ))}
     </View>
   );
@@ -392,15 +391,13 @@ export default function KycScreen() {
             <View style={styles.preKycStep}>
               <Text style={styles.preKycTitle}>{t('kyc.registerEmailTitle')}</Text>
               <Text style={styles.preKycBody}>{t('kyc.registerEmailBody')}</Text>
-              <TextInput
-                style={styles.input}
+              <GlassInputField
                 value={mail}
                 onChangeText={(value) => {
                   setMail(value);
                   setPreKycMailRegistered(false);
                 }}
                 placeholder={t('dfxLogin.mailLabel')}
-                placeholderTextColor={colors.textTertiary}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -506,7 +503,7 @@ export default function KycScreen() {
          * comes through on the next loadKycStatus().
          */}
         {isMerged ? (
-          <View style={styles.errorBlock}>
+          <GlassCard style={styles.errorBlock} testID="kyc-merged-card">
             <Text style={styles.mergedTitle}>{t('kyc.mergedTitle')}</Text>
             <Text style={styles.helperText}>{t('wallets.mergedExplanation')}</Text>
             <Pressable
@@ -524,21 +521,21 @@ export default function KycScreen() {
               )}
             </Pressable>
             {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
-          </View>
+          </GlassCard>
         ) : (
-          <View style={styles.levelCard}>
+          <GlassCard style={styles.levelCard} testID="kyc-level-card">
             <Text style={styles.levelLabel}>{t('kyc.currentLevel')}</Text>
             <Text style={styles.levelValue}>{currentLevel}</Text>
             <Text style={styles.tierTitle}>
               {isNoKyc ? t('kyc.noKycTitle') : t(matchingTier.titleKey)}
             </Text>
             <Text style={styles.tierBody}>{t(matchingTier.bodyKey)}</Text>
-          </View>
+          </GlassCard>
         )}
 
         {/* Steps overview */}
         {!isMerged && steps.length > 0 ? (
-          <View style={styles.stepsContainer}>
+          <GlassCard testID="kyc-steps-card">
             <Text style={styles.sectionLabel}>{t('kyc.stepsLabel')}</Text>
             {steps.map((step) => (
               <View key={step.name} style={styles.stepRow}>
@@ -560,23 +557,21 @@ export default function KycScreen() {
                 </Text>
               </View>
             ))}
-          </View>
+          </GlassCard>
         ) : null}
 
         {/* Current step form */}
         {!isMerged && showApiForm && (
-          <View style={styles.formContainer}>
+          <GlassCard style={styles.formContainer} testID="kyc-form-card">
             <Text style={styles.formTitle}>
               {t(STEP_LABEL_KEYS[currentStep.name] ?? 'kyc.unknownStep')}
             </Text>
 
             {currentStep.name === 'ContactData' && (
-              <TextInput
-                style={styles.input}
+              <GlassInputField
                 value={email}
                 onChangeText={setEmail}
                 placeholder={t('dfxLogin.mailLabel')}
-                placeholderTextColor={colors.textTertiary}
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
@@ -584,26 +579,20 @@ export default function KycScreen() {
 
             {currentStep.name === 'PersonalData' && (
               <>
-                <TextInput
-                  style={styles.input}
+                <GlassInputField
                   value={firstName}
                   onChangeText={setFirstName}
                   placeholder={t('kyc.firstName')}
-                  placeholderTextColor={colors.textTertiary}
                 />
-                <TextInput
-                  style={styles.input}
+                <GlassInputField
                   value={lastName}
                   onChangeText={setLastName}
                   placeholder={t('kyc.lastName')}
-                  placeholderTextColor={colors.textTertiary}
                 />
-                <TextInput
-                  style={styles.input}
+                <GlassInputField
                   value={phone}
                   onChangeText={setPhone}
                   placeholder={t('kyc.phone')}
-                  placeholderTextColor={colors.textTertiary}
                   keyboardType="phone-pad"
                   autoCorrect={false}
                 />
@@ -620,14 +609,14 @@ export default function KycScreen() {
                   (firstName.trim().length === 0 || lastName.trim().length === 0))
               }
             />
-          </View>
+          </GlassCard>
         )}
 
         {!isMerged &&
           currentStep?.session?.type === 'API' &&
           !showApiForm &&
           currentStep.name !== 'PhoneChange' && (
-            <View style={styles.formContainer}>
+            <GlassCard style={styles.formContainer} testID="kyc-unsupported-form-card">
               <Text style={styles.formTitle}>
                 {t(STEP_LABEL_KEYS[currentStep.name] ?? 'kyc.unknownStep')}
               </Text>
@@ -637,7 +626,7 @@ export default function KycScreen() {
                 onPress={handleContinue}
                 loading={isLoading}
               />
-            </View>
+            </GlassCard>
           )}
 
         {/*
@@ -650,19 +639,17 @@ export default function KycScreen() {
         {!isMerged &&
           currentStep?.name === 'PhoneChange' &&
           currentStep.session?.type === 'API' && (
-            <View style={styles.formContainer}>
+            <GlassCard style={styles.formContainer} testID="kyc-tfa-form-card">
               <Text style={styles.formTitle}>{t('kyc.tfaTitle')}</Text>
               <Text style={styles.formDescription}>
                 {tfaRequested ? t('kyc.tfaCodePrompt') : t('kyc.tfaDescription')}
               </Text>
               {tfaRequested ? (
                 <>
-                  <TextInput
-                    style={styles.input}
+                  <GlassInputField
                     value={tfaCode}
                     onChangeText={setTfaCode}
                     placeholder={t('kyc.tfaCodePlaceholder')}
-                    placeholderTextColor={colors.textTertiary}
                     keyboardType="number-pad"
                     maxLength={6}
                   />
@@ -680,11 +667,11 @@ export default function KycScreen() {
                   loading={isLoading}
                 />
               )}
-            </View>
+            </GlassCard>
           )}
 
         {!isMerged && currentStep?.session?.type === 'Browser' && (
-          <View style={styles.formContainer}>
+          <GlassCard style={styles.formContainer} testID="kyc-browser-form-card">
             <Text style={styles.formTitle}>
               {t(STEP_LABEL_KEYS[currentStep.name] ?? 'kyc.unknownStep')}
             </Text>
@@ -695,7 +682,7 @@ export default function KycScreen() {
                 void openKycUrl(currentStep.session!.url, openInAppWebView);
               }}
             />
-          </View>
+          </GlassCard>
         )}
 
         {!isMerged && error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -766,14 +753,9 @@ const makeStyles = (colors: ThemeColors) =>
     },
     documentRow: {
       minHeight: 58,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      paddingHorizontal: 14,
     },
     documentIcon: {
       width: 34,
@@ -795,9 +777,6 @@ const makeStyles = (colors: ThemeColors) =>
       justifyContent: 'center',
     },
     levelCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 20,
       alignItems: 'center',
       gap: 4,
     },
@@ -835,11 +814,6 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '600',
       marginBottom: 8,
     },
-    stepsContainer: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 16,
-    },
     stepRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -861,9 +835,6 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
     },
     formContainer: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 16,
       gap: 12,
     },
     formTitle: {
@@ -875,15 +846,6 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodyMedium,
       color: colors.textSecondary,
       lineHeight: 20,
-    },
-    input: {
-      backgroundColor: colors.surface,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-      borderRadius: 12,
-      padding: 14,
-      color: colors.text,
-      ...Typography.bodyLarge,
     },
     textButton: {
       alignSelf: 'center',
@@ -901,9 +863,6 @@ const makeStyles = (colors: ThemeColors) =>
       textAlign: 'center',
     },
     errorBlock: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 16,
       gap: 12,
     },
     mergedTitle: {

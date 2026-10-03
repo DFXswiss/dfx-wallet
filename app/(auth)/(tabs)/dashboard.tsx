@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { DarkBackdrop, DashboardHeader, Icon, ShortcutAction } from '@/components';
+import { DashboardHeader, GlassSurface, Icon, ScreenBackdrop, ShortcutAction } from '@/components';
 import { FEATURES } from '@/config/features';
 import { useDfxAuth, useTotalPortfolioFiat } from '@/hooks';
 import { useAuthStore, useWalletStore } from '@/store';
 import {
+  backdropTextShadow,
   Typography,
   useColors,
   useResolvedScheme,
@@ -148,7 +149,7 @@ export default function DashboardScreen() {
           {/* Send left, Receive right — matches the Revolut / Coinbase /
               Cash-App convention of giving the more-frequent action
               ("Send") thumb-priority on the left. */}
-          <View style={styles.bottomPill}>
+          <GlassSurface variant="default" radius={24} style={styles.bottomPill}>
             <Pressable
               style={styles.bottomPillItem}
               onPress={() => router.push('/(auth)/send')}
@@ -170,7 +171,7 @@ export default function DashboardScreen() {
               <Icon name="receive" size={22} color={colors.primary} />
               <Text style={styles.bottomPillLabel}>{t('receive.title')}</Text>
             </Pressable>
-          </View>
+          </GlassSurface>
         </View>
       </View>
     </SafeAreaView>
@@ -178,15 +179,7 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.bg}>
-      {scheme === 'dark' ? (
-        <DarkBackdrop baseColor={colors.background} />
-      ) : (
-        <ImageBackground
-          source={require('../../../assets/dashboard-bg.png')}
-          style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-        />
-      )}
+      <ScreenBackdrop variant="hero" />
       {content}
     </View>
   );
@@ -196,14 +189,9 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
   // In dark mode the balance sits over the cinematic mountain photo, so the
   // muted label/symbol/fraction tones need a soft navy shadow to stay crisp
   // over the brighter mist. Light mode keeps its flat surface — no shadow.
-  const overImage =
-    scheme === 'dark'
-      ? ({
-          textShadowColor: 'rgba(4,16,32,0.6)',
-          textShadowOffset: { width: 0, height: 1 },
-          textShadowRadius: 10,
-        } as const)
-      : null;
+  // Shared with PortfolioScreenImpl / PortfolioAssetDetailScreenImpl's
+  // `onBackdrop` pattern instead of a screen-local shadow recipe.
+  const overImage = backdropTextShadow(scheme, colors);
   return StyleSheet.create({
     bg: {
       flex: 1,
@@ -317,19 +305,10 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
     bottomPill: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 24,
-      borderWidth: 1,
-      borderColor: colors.cardOverlayBorder,
       paddingHorizontal: 6,
       paddingVertical: 8,
       width: '100%',
       maxWidth: 360,
-      shadowColor: colors.shadow,
-      shadowOpacity: 0.18,
-      shadowRadius: 18,
-      shadowOffset: { width: 0, height: 8 },
-      elevation: 3,
     },
     bottomPillItem: {
       flex: 1,

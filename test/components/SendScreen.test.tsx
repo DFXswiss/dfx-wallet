@@ -63,7 +63,12 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 
+// eslint-disable-next-line import/first
 import SendScreen from '../../app/(auth)/send/index';
+// eslint-disable-next-line import/first
+import { GlassCard } from '../../src/components/GlassCard';
+// eslint-disable-next-line import/first
+import { GlassSurface } from '../../src/components/GlassSurface';
 
 const RECIPIENT = '0x1234567890123456789012345678901234567890';
 
@@ -107,6 +112,11 @@ describe('SendScreen', () => {
       const { getByTestId } = render(<SendScreen />);
       fireEvent.press(getByTestId('send-destination-bank'));
       expect(mockPush).toHaveBeenCalledWith('/(auth)/sell');
+    });
+
+    it('renders the asset cards on glass surfaces', () => {
+      const { UNSAFE_queryAllByType } = render(<SendScreen />);
+      expect(UNSAFE_queryAllByType(GlassCard).length).toBeGreaterThanOrEqual(1);
     });
 
     it('switches to the input step after picking BTC', () => {
@@ -368,20 +378,21 @@ describe('SendScreen', () => {
   });
 
   describe('pressed-state style branches', () => {
-    it('exercises every function-style Pressable with pressed=true', () => {
-      const { UNSAFE_root } = render(<SendScreen />);
-      let invoked = 0;
-      const walk = (node: { props?: { style?: unknown }; children?: unknown[] }) => {
-        if (typeof node.props?.style === 'function') {
-          node.props.style({ pressed: true });
-          invoked += 1;
-        }
-        for (const child of node.children ?? []) {
-          if (typeof child === 'object' && child) walk(child as typeof node);
-        }
-      };
-      walk(UNSAFE_root);
-      expect(invoked).toBeGreaterThanOrEqual(2);
+    it('drives the pressed "lead" feedback on the asset card and the bank-destination card', () => {
+      // The asset/destination cards are `GlassCard onPress` now (G5) instead
+      // of a hand-rolled `Pressable style={({pressed}) => …}` — press
+      // feedback is real `onPressIn`/`onPressOut` state inside `GlassCard`.
+      const { getByTestId } = render(<SendScreen />);
+      for (const id of ['send-asset-btc', 'send-destination-bank']) {
+        const surfaceAtRest = getByTestId(id).findByType(GlassSurface);
+        expect(surfaceAtRest.props.variant).not.toBe('lead');
+
+        fireEvent(getByTestId(id), 'pressIn');
+        expect(getByTestId(id).findByType(GlassSurface).props.variant).toBe('lead');
+
+        fireEvent(getByTestId(id), 'pressOut');
+        expect(getByTestId(id).findByType(GlassSurface).props.variant).not.toBe('lead');
+      }
     });
   });
 

@@ -137,6 +137,10 @@
       "status": "baselined",
       "baselines": ["buy-amount"]
     },
+    "(auth)/swap/index.tsx": {
+      "status": "baselined",
+      "baselines": ["swap-placeholder"]
+    },
     "(auth)/sell/index.tsx": {
       "status": "baselined",
       "baselines": ["sell-no-balance"]

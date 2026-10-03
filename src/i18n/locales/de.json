@@ -18,6 +18,7 @@
     "feeNetwork": "Netzwerkgebühr",
     "feeTotal": "Gesamtgebühr",
     "fetchingQuote": "Angebot wird berechnet …",
+    "flipToSell": "Zu Verkaufen wechseln",
     "howMuch": "Wie viel möchtest du kaufen?",
     "iban": "IBAN",
     "paymentInfo": "Zahlungsinformationen",
@@ -42,14 +43,17 @@
       "generic": "Angebot konnte nicht erstellt werden ({{code}})."
     },
     "rateInclFees": "1 {{asset}} ≈ {{amount}} {{currency}} (inkl. Gebühren)",
+    "receiveLabel": "Du erhältst",
     "recipient": "Empfänger",
     "reference": "Verwendungszweck",
+    "security": "Sichere Banküberweisung",
     "selectAsset": "Was möchtest du kaufen?",
     "summary": "Angebot",
     "title": "Kaufen",
     "transfer": "Überweise diesen Betrag mit dem Verwendungszweck. Deine Krypto kommt in deine Wallet sobald die Zahlung eingegangen ist.",
     "volumeMax": "Max {{amount}} {{currency}}",
     "volumeMin": "Min {{amount}} {{currency}}",
+    "youPay": "Du zahlst",
     "youReceive": "Du erhältst (ca.)"
   },
   "common": {
@@ -63,6 +67,9 @@
     "copy": "Kopieren",
     "done": "Fertig",
     "error": "Fehler",
+    "free": "Kostenlos",
+    "inclFees": "inkl. Gebühren",
+    "included": "Inklusive",
     "loading": "Laden...",
     "next": "Weiter",
     "noData": "Keine Daten",
@@ -495,8 +502,8 @@
     "incorrectAttemptsLeft_one": "Falsche PIN. Noch {{count}} Versuch übrig.",
     "incorrectAttemptsLeft_other": "Falsche PIN. Noch {{count}} Versuche übrig.",
     "mismatch": "PINs stimmen nicht überein.",
-    "recoveryCta": "Wallet wiederherstellen",
     "processing": "Einen Moment …",
+    "recoveryCta": "Wallet wiederherstellen",
     "remainingAttempts": "{{count}} Versuche übrig.",
     "saveError": "PIN konnte nicht gespeichert werden. Bitte erneut versuchen.",
     "tooMany": "Zu viele Fehlversuche. Bitte starte die App neu.",
@@ -551,6 +558,7 @@
     "feeNetwork": "Netzwerkgebühr",
     "feeTotal": "Gesamtgebühr",
     "fetchingQuote": "Angebot wird berechnet …",
+    "flipToBuy": "Zu Kaufen wechseln",
     "howMuch": "Wie viel möchtest du verkaufen?",
     "noBalance": "Keine Bestände zum Verkaufen — bitte zuerst aufladen.",
     "payoutTo": "Auszahlung an",
@@ -572,6 +580,7 @@
       "generic": "Angebot konnte nicht erstellt werden ({{code}})."
     },
     "rateInclFees": "1 {{asset}} ≈ {{amount}} {{currency}} (inkl. Gebühren)",
+    "security": "Sichere Bankauszahlung",
     "selectAsset": "Was möchtest du verkaufen?",
     "summary": "Angebot",
     "title": "Verkaufen",
@@ -638,6 +647,10 @@
     "noTickets": "Keine Support-Tickets",
     "sendError": "Nachricht konnte nicht gesendet werden. Bitte erneut versuchen.",
     "title": "Support"
+  },
+  "swap": {
+    "comingSoon": "Tauschen ist bald verfügbar.",
+    "title": "Tauschen"
   },
   "taxReport": {
     "cta": "Steuerreport herunterladen",

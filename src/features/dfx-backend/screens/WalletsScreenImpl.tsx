@@ -7,6 +7,8 @@ import {
   AppHeader,
   DfxBackgroundScreen,
   EmptyState,
+  GlassCard,
+  GlassListGroup,
   Icon,
   PrimaryButton,
   RenameWalletModal,
@@ -193,11 +195,13 @@ export default function WalletsScreen() {
               {addresses.length > 0 ? (
                 <Text style={styles.selectHint}>{t('wallets.selectHint')}</Text>
               ) : null}
-              <View style={styles.section}>
-                {addresses.length === 0 ? (
+              {addresses.length === 0 ? (
+                <GlassCard testID="wallets-empty-card">
                   <Text style={styles.emptyText}>{t('wallets.noAddresses')}</Text>
-                ) : (
-                  addresses.map((a) => {
+                </GlassCard>
+              ) : (
+                <GlassListGroup testID="wallets-address-list">
+                  {addresses.map((a, idx) => {
                     const isActive =
                       activeAddress?.address.toLowerCase() === a.address.toLowerCase();
                     // The active address is always implicitly part of the
@@ -208,14 +212,11 @@ export default function WalletsScreen() {
                     const checked = showCheckbox && isSelected(a.address);
                     const displayName = getName(a.address) ?? defaultLinkedWalletName(a.blockchain);
                     return (
-                      <Pressable
+                      <GlassListGroup.Row
                         key={a.address}
-                        style={({ pressed }) => [
-                          styles.addressRow,
-                          showCheckbox && pressed && styles.pressed,
-                        ]}
+                        style={styles.addressRow}
+                        last={idx === addresses.length - 1}
                         onPress={() => {
-                          if (!showCheckbox) return;
                           void toggleLinkedWallet(a.address);
                         }}
                         disabled={!showCheckbox}
@@ -264,20 +265,21 @@ export default function WalletsScreen() {
                             {checked ? <Icon name="check" size={14} color={colors.white} /> : null}
                           </View>
                         )}
-                      </Pressable>
+                      </GlassListGroup.Row>
                     );
-                  })
-                )}
-              </View>
+                  })}
+                </GlassListGroup>
+              )}
 
               {linkable.length > 0 && (
                 <>
                   <Text style={styles.sectionLabel}>{t('wallets.addLabel')}</Text>
-                  <View style={styles.section}>
-                    {linkable.map((c) => (
-                      <Pressable
+                  <GlassListGroup testID="wallets-linkable-list">
+                    {linkable.map((c, idx) => (
+                      <GlassListGroup.Row
                         key={c.network}
-                        style={({ pressed }) => [styles.addRow, pressed && styles.pressed]}
+                        style={styles.addRow}
+                        last={idx === linkable.length - 1}
                         onPress={c.onPress}
                         disabled={c.busy || !c.address}
                         testID={`wallets-link-${c.network}`}
@@ -296,9 +298,9 @@ export default function WalletsScreen() {
                         ) : (
                           <Icon name="chevron-right" size={18} color={colors.textTertiary} />
                         )}
-                      </Pressable>
+                      </GlassListGroup.Row>
                     ))}
-                  </View>
+                  </GlassListGroup>
                 </>
               )}
 
@@ -351,13 +353,6 @@ const makeStyles = (colors: ThemeColors) =>
       paddingHorizontal: 4,
       marginTop: 8,
     },
-    section: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      overflow: 'hidden',
-    },
     loadingRow: {
       paddingVertical: 24,
       alignItems: 'center',
@@ -375,23 +370,16 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodyMedium,
       color: colors.textTertiary,
       textAlign: 'center',
-      padding: 18,
     },
     addressRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      paddingVertical: 14,
-      paddingHorizontal: 14,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
     },
     addRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      paddingVertical: 14,
-      paddingHorizontal: 14,
     },
     pressed: { opacity: 0.7 },
     avatar: {

@@ -18,6 +18,7 @@
     "feeNetwork": "Network fee",
     "feeTotal": "Total fee",
     "fetchingQuote": "Calculating quote…",
+    "flipToSell": "Switch to Sell",
     "howMuch": "How much do you want to buy?",
     "iban": "IBAN",
     "paymentInfo": "Payment information",
@@ -42,14 +43,17 @@
       "generic": "Quote could not be generated ({{code}})."
     },
     "rateInclFees": "1 {{asset}} ≈ {{amount}} {{currency}} (incl. fees)",
+    "receiveLabel": "You receive",
     "recipient": "Recipient",
     "reference": "Reference code",
+    "security": "Secure bank transfer",
     "selectAsset": "What do you want to buy?",
     "summary": "Quote",
     "title": "Buy",
     "transfer": "Transfer this amount with the reference code. Your crypto arrives in your wallet once payment is received.",
     "volumeMax": "Max {{amount}} {{currency}}",
     "volumeMin": "Min {{amount}} {{currency}}",
+    "youPay": "You pay",
     "youReceive": "You receive (est.)"
   },
   "common": {
@@ -63,6 +67,9 @@
     "copy": "Copy",
     "done": "Done",
     "error": "Error",
+    "free": "Free",
+    "inclFees": "incl. fees",
+    "included": "Included",
     "loading": "Loading...",
     "next": "Next",
     "noData": "No data",
@@ -495,8 +502,8 @@
     "incorrectAttemptsLeft_one": "Incorrect PIN. {{count}} attempt remaining.",
     "incorrectAttemptsLeft_other": "Incorrect PIN. {{count}} attempts remaining.",
     "mismatch": "PINs do not match.",
-    "recoveryCta": "Restore your wallet",
     "processing": "One moment…",
+    "recoveryCta": "Restore your wallet",
     "remainingAttempts": "{{count}} attempts remaining.",
     "saveError": "Could not save PIN. Please try again.",
     "tooMany": "Too many failed attempts. Please restart the app.",
@@ -551,6 +558,7 @@
     "feeNetwork": "Network fee",
     "feeTotal": "Total fee",
     "fetchingQuote": "Calculating quote…",
+    "flipToBuy": "Switch to Buy",
     "howMuch": "How much do you want to sell?",
     "noBalance": "No holdings to sell — top up your wallet first.",
     "payoutTo": "Payout to",
@@ -572,6 +580,7 @@
       "generic": "Quote could not be generated ({{code}})."
     },
     "rateInclFees": "1 {{asset}} ≈ {{amount}} {{currency}} (incl. fees)",
+    "security": "Secure bank payout",
     "selectAsset": "What do you want to sell?",
     "summary": "Quote",
     "title": "Sell",
@@ -638,6 +647,10 @@
     "noTickets": "No support tickets",
     "sendError": "Message could not be sent. Please try again.",
     "title": "Support"
+  },
+  "swap": {
+    "comingSoon": "Swap is coming soon.",
+    "title": "Swap"
   },
   "taxReport": {
     "cta": "Download tax report",
