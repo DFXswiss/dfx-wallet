@@ -32,6 +32,7 @@ import type { ChainId } from '@/config/chains';
 import {
   formatFiat as fmtFiat,
   formatCryptoAmount as fmtCrypto,
+  normalizeDecimalAmount,
   SYMBOL_GLYPH,
 } from '@/config/portfolio-presentation';
 import { useLdsWallet } from '@/hooks';
@@ -287,9 +288,10 @@ export default function BuyScreen() {
 
       const errorCode = getPaymentInfoErrorCode(info);
       if (!errorCode) return;
-      const translatedError = t([`buy.quoteError.${errorCode}`, 'buy.quoteError.generic'], {
-        code: errorCode,
-      });
+      const translatedError =
+        errorCode === 'noCode'
+          ? t('buy.quoteError.noCode')
+          : t([`buy.quoteError.${errorCode}`, 'buy.quoteError.generic'], { code: errorCode });
       if (hasTargetWallet) {
         setConfirmError(translatedError);
       } else {
@@ -312,9 +314,9 @@ export default function BuyScreen() {
   useFocusEffect(
     useCallback(() => {
       if (isDfxAuthenticated) {
-        void retryLast();
+        void retryPaymentInfoAfterLink();
       }
-    }, [isDfxAuthenticated, retryLast]),
+    }, [isDfxAuthenticated, retryPaymentInfoAfterLink]),
   );
 
   // WDK accounts for the chains the user can buy on. We hold each at the
@@ -434,6 +436,8 @@ export default function BuyScreen() {
   const selectedTokenSpec = selectedChainSpec?.tokens[selectedTokenIndex] ?? null;
   const targetAsset = selectedTokenSpec?.assetSymbol ?? '';
   const blockchain = selectedChainSpec?.blockchain ?? '';
+  const normalizedAmount = normalizeDecimalAmount(amount);
+  const numAmount = normalizedAmount === null ? null : Number(normalizedAmount);
 
   // Live quote: fetch a fresh exchange-rate + fee preview whenever the user
   // changes amount, currency, or target chain. Debounced so we don't hammer
@@ -441,8 +445,7 @@ export default function BuyScreen() {
   useEffect(() => {
     if (step !== 'amount' || !selectedChainSpec) return;
     if (selectedChainSpec.unsupported) return;
-    const numAmount = parseFloat(amount);
-    if (!numAmount || numAmount <= 0) return;
+    if (numAmount === null || numAmount <= 0) return;
     const id = setTimeout(() => {
       if (!selectedChainSpec || selectedChainSpec.unsupported) return;
       void getQuote({
@@ -454,7 +457,7 @@ export default function BuyScreen() {
       });
     }, 350);
     return () => clearTimeout(id);
-  }, [amount, selectedCurrency, targetAsset, blockchain, step, getQuote, selectedChainSpec]);
+  }, [numAmount, selectedCurrency, targetAsset, blockchain, step, getQuote, selectedChainSpec]);
 
   const copy = async (label: string, value: string) => {
     if (!value) return;
@@ -471,7 +474,11 @@ export default function BuyScreen() {
   // the response is `isValid: true` with a fee block — no need to wait
   // for `paymentInfo.asset` to materialise (it never will on /quote).
   const hasQuote =
-    !!paymentInfo && paymentInfo.isValid && !!paymentInfo.fees && parseFloat(amount) > 0;
+    !!paymentInfo &&
+    paymentInfo.isValid &&
+    !!paymentInfo.fees &&
+    numAmount !== null &&
+    numAmount > 0;
   // DFX returns 200 with `error` set for soft validation failures (e.g.
   // KycRequired, AssetUnsupported). We need to surface that to the user
   // instead of getting stuck on "Angebot wird berechnet …".
@@ -487,12 +494,12 @@ export default function BuyScreen() {
   // even before the first /buy/quote round-trip returns. Keeps the previous
   // quote on screen while a refresh is in flight so the user always sees
   // *something* and can read the change as it lands.
-  const showQuoteCard = hasQuote || (parseFloat(amount) > 0 && !!selectedChainSpec);
+  const showQuoteCard = hasQuote || (numAmount !== null && numAmount > 0 && !!selectedChainSpec);
   const minVolume = paymentInfo?.minVolume;
   const maxVolume = paymentInfo?.maxVolume;
-  const numAmount = parseFloat(amount);
-  const belowMin = minVolume != null && numAmount > 0 && numAmount < minVolume;
-  const aboveMax = maxVolume != null && numAmount > maxVolume;
+  const belowMin =
+    minVolume != null && numAmount !== null && numAmount > 0 && numAmount < minVolume;
+  const aboveMax = maxVolume != null && numAmount !== null && numAmount > maxVolume;
   const buyAction = t('buy.cta', { asset: targetAsset });
   const quoteHeader = unsupportedChain
     ? t('buy.chainUnsupported')
@@ -773,7 +780,7 @@ export default function BuyScreen() {
             title={buyAction}
             icon={<Icon name="arrow-right" size={18} color={colors.white} />}
             onPress={async () => {
-              if (!selectedChainSpec) return;
+              if (!selectedChainSpec || numAmount === null || numAmount <= 0) return;
               if (hasTargetWallet) {
                 // Linked-wallet flow: gate the bank-data step behind a
                 // confirmation modal so the user verifies asset+wallet
@@ -794,7 +801,9 @@ export default function BuyScreen() {
               });
               handlePaymentInfoResult(info);
             }}
-            disabled={!numAmount || numAmount <= 0 || belowMin || aboveMax || unsupportedChain}
+            disabled={
+              numAmount === null || numAmount <= 0 || belowMin || aboveMax || unsupportedChain
+            }
             loading={isLoading}
           />
         </>
@@ -975,7 +984,15 @@ export default function BuyScreen() {
           setConfirmError(null);
         }}
         onConfirm={async () => {
-          if (!selectedChainSpec || !targetAddress || !targetBlockchain) return;
+          if (
+            !selectedChainSpec ||
+            !targetAddress ||
+            !targetBlockchain ||
+            numAmount === null ||
+            numAmount <= 0
+          ) {
+            return;
+          }
           setConfirmLoading(true);
           setConfirmError(null);
           try {

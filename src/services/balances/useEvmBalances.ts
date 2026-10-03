@@ -89,6 +89,10 @@ export function useEvmBalances(assets: IAsset[], accountIndex = 0): BalanceSourc
       const fetchedAt = Date.now();
       for (const spec of specs) {
         const r = result.get(spec.assetId);
+        const address = addressByChain.get(spec.network);
+        const cacheKey = address
+          ? `${spec.network}:${address.toLowerCase()}:${spec.assetId}`
+          : null;
         if (!r) {
           map.set(spec.assetId, {
             assetId: spec.assetId,
@@ -106,9 +110,9 @@ export function useEvmBalances(assets: IAsset[], accountIndex = 0): BalanceSourc
             fetchedAt,
           };
           map.set(spec.assetId, entry);
-          lastSuccessfulRef.current.set(spec.assetId, entry);
+          if (cacheKey) lastSuccessfulRef.current.set(cacheKey, entry);
         } else {
-          const previous = lastSuccessfulRef.current.get(spec.assetId);
+          const previous = cacheKey ? lastSuccessfulRef.current.get(cacheKey) : undefined;
           map.set(spec.assetId, {
             assetId: spec.assetId,
             rawBalance: previous?.rawBalance ?? '0',

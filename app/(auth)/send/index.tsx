@@ -20,6 +20,7 @@ import { getPaymasterTokenInfo } from '@/config/chains';
 import { FEATURES } from '@/config/features';
 import { formatBalance, parseUnits } from '@/config/portfolio-presentation';
 import { getSendAssetForCanonical } from '@/config/tokens';
+import { isBitcoinOnChainAddress, isSparkMainnetAddress } from '@/services/bitcoin-address';
 import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
 type SendStep = 'asset' | 'input' | 'confirm' | 'success';
@@ -99,7 +100,10 @@ export default function SendScreen() {
     [selectedAsset, selectedChain],
   );
   const paymasterToken = useMemo(() => getPaymasterTokenInfo(selectedChain), [selectedChain]);
-  const isValidAddress = recipient.length >= 26;
+  const isValidAddress =
+    selectedAsset?.symbol === 'BTC'
+      ? isBitcoinOnChainAddress(recipient) || isSparkMainnetAddress(recipient)
+      : recipient.length >= 26;
 
   const handleAssetSelect = (asset: AssetOption) => {
     setSelectedAsset(asset);
@@ -311,8 +315,9 @@ export default function SendScreen() {
             {feeState.status === 'loading' && t('send.feeEstimating')}
             {feeState.status === 'error' && t('send.feeUnavailable')}
             {feeState.status === 'ok' &&
-              paymasterToken &&
-              `${formatBalance(feeState.fee, paymasterToken.decimals)} ${paymasterToken.symbol}`}
+              (paymasterToken
+                ? `${formatBalance(feeState.fee, paymasterToken.decimals)} ${paymasterToken.symbol}`
+                : `${formatBalance(feeState.fee, 8)} BTC`)}
           </Text>
         </View>
       </View>

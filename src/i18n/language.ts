@@ -17,19 +17,6 @@ export function resolveInitialLanguageSync(fallback: AppLanguage): AppLanguage {
   }
 }
 
-export async function resolveInitialLanguage(
-  fallback: AppLanguage,
-  readStoredLanguage: () => Promise<string | null> = () =>
-    secureStorage.get(StorageKeys.SELECTED_LANGUAGE),
-): Promise<AppLanguage> {
-  try {
-    return normalizeLanguage(await readStoredLanguage()) ?? fallback;
-  } catch {
-    // Secure storage can be temporarily unavailable before the device unlocks.
-    return fallback;
-  }
-}
-
 export async function setLanguage(
   language: AppLanguage,
   instance: { changeLanguage: (language: string) => Promise<unknown> },

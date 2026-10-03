@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { BalanceEntry, BalanceMap, BalanceSourceResult } from '@/services/balances';
+import { getAssets } from '@/config/tokens';
 import { useTotalPortfolioFiat } from '@/features/portfolio/useTotalPortfolioFiatLocal';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { useWalletStore } from '@/store';
@@ -7,13 +8,14 @@ import { useWalletStore } from '@/store';
 // Mock the balance coordinator before importing the hook so we control which
 // assets the hook sees and what raw balances it sums.
 let mockBalanceMap: BalanceMap = new Map();
+let mockBalancesLoading = false;
 jest.mock('@/services/balances', () => {
   const actual = jest.requireActual('@/services/balances');
   return {
     ...actual,
     useBalances: (): BalanceSourceResult => ({
       data: mockBalanceMap,
-      isLoading: false,
+      isLoading: mockBalancesLoading,
       error: null,
     }),
   };
@@ -58,9 +60,16 @@ function setBalances(entries: Record<string, string>) {
   mockBalanceMap = new Map(Object.entries(entries).map(([k, v]) => [k, makeEntry(k, v)]));
 }
 
+function setCompleteZeroBalances() {
+  mockBalanceMap = new Map(
+    getAssets().map((asset) => [asset.getId(), makeEntry(asset.getId(), '0')]),
+  );
+}
+
 describe('useTotalPortfolioFiat (local / MVP variant)', () => {
   beforeEach(() => {
     mockBtcRate = 50_000;
+    mockBalancesLoading = false;
     setBalances({});
     useWalletStore.getState().reset();
     useWalletStore.setState({ selectedCurrency: 'USD' });
@@ -118,6 +127,31 @@ describe('useTotalPortfolioFiat (local / MVP variant)', () => {
     const { result } = renderHook(() => useTotalPortfolioFiat());
     await waitFor(() => expect(result.current.totalFiat).toBe(1));
     expect(result.current.isIncomplete).toBe(true);
+  });
+
+  it('marks the total incomplete while the shared balances are loading', async () => {
+    setCompleteZeroBalances();
+    mockBalancesLoading = true;
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+    await waitFor(() => expect(result.current.isIncomplete).toBe(true));
+  });
+
+  it('marks the total incomplete when an expected balance entry is missing', async () => {
+    setCompleteZeroBalances();
+    const balances = new Map(mockBalanceMap);
+    balances.delete(USDT_ETH_ID);
+    mockBalanceMap = balances;
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+    await waitFor(() => expect(result.current.isIncomplete).toBe(true));
+  });
+
+  it('marks the total incomplete when a balance entry is idle', async () => {
+    setCompleteZeroBalances();
+    const balances = new Map(mockBalanceMap);
+    balances.set(USDT_ETH_ID, { ...makeEntry(USDT_ETH_ID, '0'), status: 'idle' });
+    mockBalanceMap = balances;
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+    await waitFor(() => expect(result.current.isIncomplete).toBe(true));
   });
 
   it('recomputes the total when the pricing service publishes an update', async () => {

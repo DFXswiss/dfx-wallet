@@ -15,6 +15,13 @@ export type RequestOptions = {
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
+type PendingResponse = {
+  response: Response;
+  cleanup: () => void;
+  didTimeOut: () => boolean;
+  timeoutMs: number;
+};
+
 class DfxApi {
   private baseUrl = env.dfxApiUrl;
   private authToken: string | null = null;
@@ -52,8 +59,8 @@ class DfxApi {
    * contain the asset/fiat the buy/sell flow needs.
    */
   async getPublic<T>(path: string, options?: RequestOptions): Promise<T> {
-    const response = await this.fetch('GET', path, undefined, options, false);
-    return this.handleResponse<T>(response, options?.responseType);
+    const pending = await this.fetch('GET', path, undefined, options, false);
+    return this.consumeResponse<T>(pending, options?.responseType);
   }
 
   async post<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
@@ -74,19 +81,26 @@ class DfxApi {
     body?: unknown,
     options?: RequestOptions,
   ): Promise<T> {
-    const response = await this.fetch(method, path, body, options);
+    const pending = await this.fetch(method, path, body, options);
 
     // Handle 401 — attempt token refresh once
-    if (response.status === 401 && this.onUnauthorized && !path.startsWith('/v1/auth')) {
-      const newToken = await this.refreshAuthToken();
+    if (pending.response.status === 401 && this.onUnauthorized && !path.startsWith('/v1/auth')) {
+      let newToken: string | null;
+      try {
+        newToken = await this.refreshAuthToken();
+      } catch (error) {
+        pending.cleanup();
+        throw error;
+      }
       if (newToken) {
         this.authToken = newToken;
-        const retryResponse = await this.fetch(method, path, body, options);
-        return this.handleResponse<T>(retryResponse, options?.responseType);
+        pending.cleanup();
+        const retryPending = await this.fetch(method, path, body, options);
+        return this.consumeResponse<T>(retryPending, options?.responseType);
       }
     }
 
-    return this.handleResponse<T>(response, options?.responseType);
+    return this.consumeResponse<T>(pending, options?.responseType);
   }
 
   private refreshAuthToken(): Promise<string | null> {
@@ -105,7 +119,7 @@ class DfxApi {
     body?: unknown,
     options?: RequestOptions,
     authenticated = true,
-  ): Promise<Response> {
+  ): Promise<PendingResponse> {
     const url = this.buildUrl(path);
     const controller = new AbortController();
     let timedOut = false;
@@ -117,8 +131,12 @@ class DfxApi {
       timedOut = true;
       controller.abort();
     }, timeoutMs);
+    const cleanup = () => {
+      clearTimeout(timeout);
+      options?.signal?.removeEventListener('abort', abortFromCaller);
+    };
     try {
-      return await fetch(url, {
+      const response = await fetch(url, {
         method,
         headers: authenticated
           ? this.getHeaders(options?.headers)
@@ -126,12 +144,25 @@ class DfxApi {
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
         signal: controller.signal,
       });
+      return { response, cleanup, didTimeOut: () => timedOut, timeoutMs };
     } catch (error) {
+      cleanup();
       if (timedOut) throw new DfxApiTimeoutError(timeoutMs);
       throw error;
+    }
+  }
+
+  private async consumeResponse<T>(
+    pending: PendingResponse,
+    responseType?: 'json' | 'text',
+  ): Promise<T> {
+    try {
+      return await this.handleResponse<T>(pending.response, responseType);
+    } catch (error) {
+      if (pending.didTimeOut()) throw new DfxApiTimeoutError(pending.timeoutMs);
+      throw error;
     } finally {
-      clearTimeout(timeout);
-      options?.signal?.removeEventListener('abort', abortFromCaller);
+      pending.cleanup();
     }
   }
 
