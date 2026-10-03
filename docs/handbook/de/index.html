@@ -764,7 +764,7 @@
               </div>
               <div class="desc">
                 Default-State direkt nach Onboarding: CHF 0.00, Bergpanorama-Background,
-                Bottom-Pill mit Receive (links) und Send (rechts).
+                Bottom-Pill mit Send (links) und Receive (rechts).
               </div>
             </div>
             <div class="test">
@@ -882,8 +882,9 @@
             → Confirm. Die MVP-E2E-Suite stoppt am Input-Step — der <em>Confirm</em>-Button auf der
             Bestätigungsseite ruft <code>handleSend()</code> auf und broadcastet eine echte
             Transaktion, das gehört nicht in einen Smoke-Test. Bei BTC wird eine gültige
-            Mainnet-On-Chain- oder Spark-Adresse verlangt; bei anderen Assets sind es mindestens 26
-            Zeichen. Zusätzlich muss der Betrag &gt; 0 sein, damit Continue aktiv wird. Das ist ohne
+            Mainnet-On-Chain- oder Spark-Adresse verlangt; bei anderen Assets brauchst du eine
+            gültige EVM-Adresse. Bei gemischter Groß- und Kleinschreibung muss ihre Prüfsumme
+            stimmen. Zusätzlich muss der Betrag &gt; 0 sein, damit Continue aktiv wird. Das ist ohne
             Tx-Risiko testbar.
           </p>
 

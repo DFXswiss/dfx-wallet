@@ -19,10 +19,11 @@ dedicated test coverage. A function being marked `deferred` is a
 flows already exist and work; they are simply held back until their
 tests are written.
 
-**Code isolation.** Except for the OpenCryptoPay route described below,
-every deferred feature lives in `src/features/<feature>/` and is loaded
-through a conditional `require()` against a `FEATURES.X` constant from
-`src/config/features.ts`.
+**Code isolation.** Most deferred features live in `src/features/<feature>/`
+and are loaded through a conditional `require()` against a `FEATURES.X`
+constant from `src/config/features.ts`. There are two static-import
+exceptions: the OpenCryptoPay route and the authenticated layout's DFX
+services bootstrap, described below.
 Expo's `babel-preset-expo` inlines `process.env.EXPO_PUBLIC_*` at build
 time, so each `FEATURES.X` resolves to a boolean literal inside
 `features.ts` itself.
@@ -30,17 +31,22 @@ time, so each `FEATURES.X` resolves to a boolean literal inside
 At the call site (`const Screen = FEATURES.X ? require('A') : require('B')`)
 Metro keeps both `require()` calls — the boolean is read at runtime
 from a separate module, so the bundler cannot fold the ternary
-across module boundaries. `app/(auth)/pay/opencryptopay.tsx` is the
-exception: it imports `@/services/opencryptopay` statically and only
-redirects when Pay is disabled, so a disabled build can still evaluate
-that service module's top-level code. The effect for the conditionally
-loaded features:
+across module boundaries. `app/(auth)/pay/opencryptopay.tsx` imports
+`@/services/opencryptopay` statically and only redirects when Pay is
+disabled, so a disabled build can still evaluate that service module's
+top-level code. `app/(auth)/_layout.tsx` also imports the
+`@/features/dfx-backend/services` barrel statically and registers
+`dfxApi.setOnUnauthorized` regardless of `FEATURES.DFX_BACKEND`. The effect
+for modules reached only through conditional loading:
 
-- A build with the flag off **never evaluates** the deferred module's
-  top-level code (no `new BitboxProvider()`, no service-singleton
-  bootstrap, no fetch interceptors), because the `require()` for the
-  real implementation is unreachable. This is the crash- and
-  exfiltration-isolation property the matrix relies on.
+- A build with the flag off **never evaluates that conditionally loaded
+  deferred module's** top-level code (for example, no
+  `new BitboxProvider()`), because the `require()` for the real implementation
+  is unreachable. This guarantee does not cover the two static-import
+  exceptions above; in particular, a disabled DFX backend build still
+  evaluates the DFX services barrel and its service-singleton bootstrap.
+  This scoped crash- and exfiltration-isolation property is what the matrix
+  relies on.
 - The deferred module's source **does** still ship in the JavaScript
   bundle as an unevaluated factory. Surface-isolation (symbol absent
   from the binary) is a stronger property and is a known limitation;
@@ -177,10 +183,10 @@ runtime gate provides crash-safety, not source removal.
 
 ### Build-time configuration (`EXPO_PUBLIC_*`)
 
-These variables are configuration, not feature switches: they override
-URLs, RPC providers, or API keys. Defaults are baked into
-`src/config/chains.ts` / `src/config/env.ts` so the app runs with none of
-them set.
+Except for the reserved WDK indexer names noted below, these variables are
+configuration, not feature switches: they override URLs, RPC providers, or
+API keys. Defaults are baked into `src/config/chains.ts` / `src/config/env.ts`
+so the app runs with none of them set.
 
 | Variable                                                          | Effect                                                                                                                | Default                                   | Tests                                                         |
 | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------- |
@@ -194,7 +200,7 @@ them set.
 | `EXPO_PUBLIC_PLASMA_RPC_URL`                                      | Custom Plasma RPC                                                                                                     | `https://rpc.plasma.to`                   | none                                                          |
 | `EXPO_PUBLIC_SEPOLIA_RPC_URL`                                     | Custom Sepolia (testnet) RPC                                                                                          | `https://sepolia.gateway.tenderly.co`     | none                                                          |
 | `EXPO_PUBLIC_BTC_ELECTRUM_HOST` / `EXPO_PUBLIC_BTC_ELECTRUM_PORT` | Custom Electrum server for the BTC WDK provider                                                                       | `electrum.blockstream.info:50001`         | none                                                          |
-| `EXPO_PUBLIC_WDK_INDEXER_URL` / `EXPO_PUBLIC_WDK_INDEXER_API_KEY` | WDK indexer for richer balance + transaction queries                                                                  | unset (RPC-only mode)                     | none                                                          |
+| `EXPO_PUBLIC_WDK_INDEXER_URL` / `EXPO_PUBLIC_WDK_INDEXER_API_KEY` | Reserved for future WDK indexer integration; not read by the app                                                       | unused                                    | none                                                          |
 
 ### Supported chains (via WDK bundle)
 

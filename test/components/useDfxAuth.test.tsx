@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react-native';
 
-import { useDfxAuth } from '../../src/features/dfx-backend/useDfxAuthImpl';
+import { useDfxAuth } from '@/features/dfx-backend/useDfxAuthImpl';
 
 const mockLogin = jest.fn();
 const mockRefresh = jest.fn();

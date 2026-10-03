@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
-import type { BalanceEntry, BalanceMap, BalanceSourceResult } from '@/services/balances';
+import type { BalanceEntry, BalanceSourceResult } from '@/services/balances';
 import {
   assetIncludedInEvmBalanceQuery,
   assetIncludedInWdkBalanceQuery,
@@ -13,7 +13,7 @@ import type { WalletDiscovery } from '@/features/linked-wallets/useLinkedWalletD
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { useAuthStore, useWalletStore } from '@/store';
 
-let mockBalanceMap: BalanceMap = new Map();
+let mockBalanceMap: Map<string, BalanceEntry> = new Map();
 let mockBalancesLoading = false;
 jest.mock('@/services/balances', () => {
   const actual = jest.requireActual('@/services/balances');
@@ -100,6 +100,13 @@ function setCompleteZeroBalances() {
   );
 }
 
+function setCompleteBalances(entries: Record<string, string>) {
+  setCompleteZeroBalances();
+  for (const [assetId, rawBalance] of Object.entries(entries)) {
+    mockBalanceMap.set(assetId, makeEntry(assetId, rawBalance));
+  }
+}
+
 function trackStateUpdates(): jest.Mock {
   const originalUseState = React.useState;
   const updates = jest.fn();
@@ -160,13 +167,14 @@ describe('useTotalPortfolioFiat (full)', () => {
   });
 
   it('returns 0 and persists "0" when the user holds nothing', async () => {
+    setCompleteZeroBalances();
     const { result } = renderHook(() => useTotalPortfolioFiat());
     await waitFor(() => expect(result.current.totalFiat).toBe(0));
     expect(useWalletStore.getState().totalBalanceFiat).toBe('0');
   });
 
   it('sums a 1-USDT holding to 1 USD and skips native ETH', async () => {
-    setBalances({
+    setCompleteBalances({
       [USDT_ETH_ID]: '1000000',
       [ETH_NATIVE_ID]: '1000000000000000000',
     });
@@ -176,7 +184,7 @@ describe('useTotalPortfolioFiat (full)', () => {
   });
 
   it('rounds the persisted total to two decimals', async () => {
-    setBalances({ [USDT_ETH_ID]: '123450' });
+    setCompleteBalances({ [USDT_ETH_ID]: '123450' });
     const { result } = renderHook(() => useTotalPortfolioFiat());
     await waitFor(() => expect(result.current.totalFiat).toBeCloseTo(0.12345, 5));
     expect(useWalletStore.getState().totalBalanceFiat).toBe('0.12');
@@ -290,10 +298,13 @@ describe('useTotalPortfolioFiat (full)', () => {
   });
 
   it('marks the total incomplete while the shared balances are loading', async () => {
-    setCompleteZeroBalances();
+    setCompleteBalances({ [USDT_ETH_ID]: '1000000' });
     mockBalancesLoading = true;
+    useWalletStore.setState({ totalBalanceFiat: '987.65' });
     const { result } = renderHook(() => useTotalPortfolioFiat());
     await waitFor(() => expect(result.current.isIncomplete).toBe(true));
+    expect(result.current.totalFiat).toBe(1);
+    expect(useWalletStore.getState().totalBalanceFiat).toBe('987.65');
   });
 
   it('marks the total incomplete when an expected balance entry is missing', async () => {
@@ -372,7 +383,7 @@ describe('useTotalPortfolioFiat (full)', () => {
       '@/config/portfolio-presentation',
     ) as typeof import('@/config/portfolio-presentation');
     jest.spyOn(presentation, 'computeFiatValue').mockReturnValue(Number.NaN);
-    setBalances({ [USDT_ETH_ID]: '1000000' });
+    setCompleteBalances({ [USDT_ETH_ID]: '1000000' });
     const { result } = renderHook(() => useTotalPortfolioFiat());
     await waitFor(() => expect(useWalletStore.getState().totalBalanceFiat).toBe('0'));
     expect(Number.isFinite(result.current.totalFiat)).toBe(false);

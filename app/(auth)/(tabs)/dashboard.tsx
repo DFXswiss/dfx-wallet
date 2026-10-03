@@ -97,14 +97,21 @@ export default function DashboardScreen() {
             style={styles.balanceValueRow}
             testID={balanceVisible ? 'dashboard-balance-value' : 'dashboard-balance-hidden'}
           >
-            <Text style={styles.balanceSymbol}>{symbol}</Text>
             {balanceVisible ? (
-              <>
-                <Text style={styles.balanceWhole}>{whole}</Text>
-                <Text style={styles.balanceFraction}>.{fraction}</Text>
-              </>
+              isIncomplete ? (
+                <Text style={styles.balanceWhole}>—</Text>
+              ) : (
+                <>
+                  <Text style={styles.balanceSymbol}>{symbol}</Text>
+                  <Text style={styles.balanceWhole}>{whole}</Text>
+                  <Text style={styles.balanceFraction}>.{fraction}</Text>
+                </>
+              )
             ) : (
-              <Text style={styles.balanceHidden}>••••</Text>
+              <>
+                <Text style={styles.balanceSymbol}>{symbol}</Text>
+                <Text style={styles.balanceHidden}>••••</Text>
+              </>
             )}
           </View>
           {isIncomplete ? (
