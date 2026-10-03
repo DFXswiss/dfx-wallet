@@ -154,6 +154,8 @@ describe('SettingsScreenImpl', () => {
     (secureStorage.get as jest.Mock).mockReset();
     (secureStorage.get as jest.Mock).mockResolvedValue(null);
     (secureStorage.set as jest.Mock).mockResolvedValue(undefined);
+    (secureStorage.remove as jest.Mock).mockReset();
+    (secureStorage.remove as jest.Mock).mockResolvedValue(undefined);
     deleteWallet.mockReset();
     deleteWallet.mockResolvedValue(undefined);
     getEncryptedSeed.mockReset();
@@ -369,6 +371,30 @@ describe('SettingsScreenImpl', () => {
     });
     expect(getEncryptedSeed).toHaveBeenCalledWith('default');
     expect(mockReplace).toHaveBeenCalledWith('/');
+  });
+
+  it('leaves the authenticated screen and warns when cleanup is incomplete after deletion', async () => {
+    (secureStorage.remove as jest.Mock).mockImplementation(async (key: string) => {
+      if (key === StorageKeys.PIN_HASH) throw new Error('keychain unavailable');
+    });
+    useAuthStore.setState({ isOnboarded: true, isAuthenticated: true, pinHash: 'hash' });
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-delete-wallet')).toBeTruthy());
+    fireEvent.press(getByTestId('settings-delete-wallet'));
+
+    await act(async () => {
+      await pressConfirm(alertSpy);
+    });
+
+    expect(mockReplace).toHaveBeenCalledWith('/');
+    expect(alertSpy).toHaveBeenLastCalledWith(
+      'common.error',
+      'settings.deleteWalletCleanupFailed',
+    );
+    expect(mockReplace.mock.invocationCallOrder[0]).toBeLessThan(
+      alertSpy.mock.invocationCallOrder.at(-1)!,
+    );
   });
 
   it('does not delete when wallet reauthentication is declined', async () => {

@@ -1,5 +1,6 @@
 import { Redirect, Stack, useSegments } from 'expo-router';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
+import { FEATURES } from '@/config/features';
 import { useAuthStore } from '@/store';
 import { useColors } from '@/theme';
 
@@ -11,8 +12,9 @@ export default function OnboardingLayout() {
   const currentScreen = segments.at(-1);
   const isOnboardingRoute = segments[0] === '(onboarding)';
   const isUnauthenticatedRecovery = currentScreen === 'restore-wallet' && !isAuthenticated;
+  const isPinMigration = FEATURES.PIN && isOnboarded && !pinHash && currentScreen === 'setup-pin';
 
-  if (isOnboardingRoute && isOnboarded && !isUnauthenticatedRecovery) {
+  if (isOnboardingRoute && isOnboarded && !isUnauthenticatedRecovery && !isPinMigration) {
     return <Redirect href={isAuthenticated ? '/(auth)/(tabs)/dashboard' : '/(pin)/verify'} />;
   }
 

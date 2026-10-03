@@ -77,10 +77,26 @@ describe('setupPasskeyWallet', () => {
 
     // And the three keys are written in the documented order.
     expect(mockedStorage.set.mock.calls.map((c) => c[0])).toEqual([
+      StorageKeys.PASSKEY_CREDENTIAL_ID,
+      StorageKeys.PASSKEY_DERIVATION_VERSION,
       StorageKeys.WALLET_ORIGIN,
+    ]);
+  });
+
+  it('does not mark the wallet as passkey-origin when metadata persistence fails', async () => {
+    mockedStorage.set
+      .mockImplementationOnce(async () => undefined)
+      .mockRejectedValueOnce(new Error('keychain unavailable'));
+
+    await expect(
+      setupPasskeyWallet(PRF_32, CREDENTIAL_ID, async () => undefined),
+    ).rejects.toThrow('keychain unavailable');
+
+    expect(mockedStorage.set.mock.calls.map((call) => call[0])).toEqual([
       StorageKeys.PASSKEY_CREDENTIAL_ID,
       StorageKeys.PASSKEY_DERIVATION_VERSION,
     ]);
+    expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBeNull();
   });
 
   it('does not write orphaned storage keys when wallet init fails', async () => {

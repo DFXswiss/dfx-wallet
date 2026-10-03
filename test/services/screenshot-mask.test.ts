@@ -1,5 +1,7 @@
+import { PNG } from 'pngjs';
 import {
   elementFramesFromAttributes,
+  maskPngBuffer,
   maskPngRegions,
   SCREENSHOT_MASK_RGBA,
   type MaskablePng,
@@ -26,6 +28,19 @@ describe('screenshot masking', () => {
     expect(pixelAt(png, 1, 1)).toEqual(Object.values(SCREENSHOT_MASK_RGBA));
     expect(pixelAt(png, 2, 2)).toEqual(Object.values(SCREENSHOT_MASK_RGBA));
     expect(pixelAt(png, 3, 3)).toEqual([0, 0, 0, 0]);
+  });
+
+  it('returns an encoded PNG with the requested region masked', () => {
+    const source = new PNG({ width: 2, height: 2 });
+    source.data.fill(0);
+    const encoded = PNG.sync.write(source);
+
+    const masked = maskPngBuffer(encoded, [{ x: 0, y: 0, width: 1, height: 1 }], 2);
+    const decoded = PNG.sync.read(masked);
+
+    expect(pixelAt(decoded, 0, 0)).toEqual(Object.values(SCREENSHOT_MASK_RGBA));
+    expect(pixelAt(decoded, 1, 1)).toEqual([0, 0, 0, 0]);
+    expect(PNG.sync.read(encoded).data.every((channel: number) => channel === 0)).toBe(true);
   });
 
   it('clamps rounded edges and ignores empty or negative regions', () => {

@@ -1,3 +1,5 @@
+import { PNG } from 'pngjs';
+
 export type ScreenshotMaskRect = {
   x: number;
   y: number;
@@ -103,4 +105,14 @@ export function maskPngRegions(
       }
     }
   }
+}
+
+export function maskPngBuffer(
+  screenshot: Buffer,
+  rects: readonly ScreenshotMaskRect[],
+  windowWidth: number,
+): Buffer {
+  const png = PNG.sync.read(screenshot);
+  maskPngRegions(png, rects, png.width / windowWidth);
+  return PNG.sync.write(png);
 }
