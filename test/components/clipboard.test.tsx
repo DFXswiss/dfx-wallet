@@ -155,6 +155,75 @@ describe('copySensitive', () => {
     expect(mockSubscriptions[0]?.remove).toHaveBeenCalledTimes(1);
   });
 
+  it('retries a failed clear by timer while the app stays active', async () => {
+    jest.mocked(Clipboard.getStringAsync).mockResolvedValue('secret seed');
+    jest
+      .mocked(Clipboard.setStringAsync)
+      .mockImplementationOnce(async () => true)
+      .mockImplementationOnce(async () => {
+        throw new Error('write denied');
+      })
+      .mockResolvedValue(true);
+
+    await copySensitive('secret seed', 500);
+    const subscription = mockSubscriptions[0]!;
+    await jest.advanceTimersByTimeAsync(500);
+
+    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(1);
+    expect(subscription.remove).not.toHaveBeenCalled();
+
+    await jest.advanceTimersByTimeAsync(500);
+
+    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(2);
+    expect(Clipboard.setStringAsync).toHaveBeenLastCalledWith('');
+    expect(subscription.remove).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops the retry timer after the maximum attempts', async () => {
+    jest.mocked(Clipboard.getStringAsync).mockRejectedValue(new Error('permission denied'));
+
+    await copySensitive('secret seed', 500);
+    const subscription = mockSubscriptions[0]!;
+
+    await jest.advanceTimersByTimeAsync(500);
+    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(500);
+    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(2);
+    await jest.advanceTimersByTimeAsync(500);
+
+    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(3);
+    expect(subscription.remove).toHaveBeenCalledTimes(1);
+
+    await jest.advanceTimersByTimeAsync(1_000);
+
+    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not schedule the retry timer while the app is backgrounded', async () => {
+    const pendingRead = deferred<string>();
+    jest
+      .mocked(Clipboard.getStringAsync)
+      .mockReturnValueOnce(pendingRead.promise)
+      .mockResolvedValue('secret seed');
+    await copySensitive('secret seed', 500);
+    const subscription = mockSubscriptions[0]!;
+
+    await jest.advanceTimersByTimeAsync(500);
+    setCurrentAppState('background');
+    pendingRead.reject(new Error('permission denied'));
+    await flushClipboardCleanup();
+
+    expect(jest.getTimerCount()).toBe(0);
+    await jest.advanceTimersByTimeAsync(500);
+    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(1);
+    expect(subscription.remove).not.toHaveBeenCalled();
+
+    setCurrentAppState('active');
+    subscription.listener('active');
+    await flushClipboardCleanup();
+    expect(subscription.remove).toHaveBeenCalledTimes(1);
+  });
+
   it('retries a failed read on the next active event', async () => {
     jest
       .mocked(Clipboard.getStringAsync)
