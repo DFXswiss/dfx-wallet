@@ -250,11 +250,8 @@ jobs:
                               advisory_ghsas.update(m.upper() for m in GHSA_RE.findall(val))
                       found |= advisory_ghsas or {"UNIDENTIFIED-ADVISORY"}
                   elif isinstance(via, str):
-                      referenced_ghsas = {m.upper() for m in GHSA_RE.findall(via)}
-                      found |= referenced_ghsas
                       if via not in vulns:
-                          if not referenced_ghsas:
-                              found.add("UNIDENTIFIED-ADVISORY")
+                          found.add("UNIDENTIFIED-ADVISORY")
                       elif via not in seen:
                           found |= collect_ghsas(via, seen)
                   else:
