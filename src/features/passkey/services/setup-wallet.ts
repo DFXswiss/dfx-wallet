@@ -20,7 +20,7 @@ export async function setupPasskeyWallet(
 
   await initializeWallet(mnemonic);
 
-  await secureStorage.set(StorageKeys.WALLET_ORIGIN, 'passkey');
   await secureStorage.set(StorageKeys.PASSKEY_CREDENTIAL_ID, credentialId);
   await secureStorage.set(StorageKeys.PASSKEY_DERIVATION_VERSION, String(DERIVATION_VERSION));
+  await secureStorage.set(StorageKeys.WALLET_ORIGIN, 'passkey');
 }
