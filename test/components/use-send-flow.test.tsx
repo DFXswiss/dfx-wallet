@@ -17,6 +17,8 @@
 import React from 'react';
 import { act, renderHook } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { bech32m } from 'bech32';
+
 import { useSendFlow } from '../../src/hooks/useSendFlow';
 
 const mockSend = jest.fn();
@@ -58,6 +60,10 @@ const assetWithDecimals = (decimals: number, id = 'asset'): Asset =>
 const usdt = assetWithDecimals(6, 'usdt-eth');
 const eth = assetWithDecimals(18, 'eth');
 const sparkBtc = assetWithDecimals(8, 'spark-native');
+ 
+const EVM_RECIPIENT = '0x52908400098527886E0F7030069857D2E4169EE7';
+const SPARK_PAYLOAD = new Uint8Array(33).map((_, index) => index);
+const SPARK_RECIPIENT = bech32m.encode('spark', bech32m.toWords(SPARK_PAYLOAD), 1023);
 
 function wrap({ children }: { children: React.ReactNode }) {
   const client = new QueryClient({
@@ -96,7 +102,7 @@ describe('useSendFlow — amount parsing / precision (send path)', () => {
 
     let txHash: string | null = 'sentinel';
     await act(async () => {
-      txHash = await result.current.send({ asset, to: '0xabc', amount });
+      txHash = await result.current.send({ asset, to: EVM_RECIPIENT, amount });
     });
 
     expect(txHash).toBeNull();
@@ -110,10 +116,14 @@ describe('useSendFlow — amount parsing / precision (send path)', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '1,5' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1,5' });
     });
 
-    expect(mockSend).toHaveBeenCalledWith({ asset: usdt, to: '0xabc', amount: '1500000' });
+    expect(mockSend).toHaveBeenCalledWith({
+      asset: usdt,
+      to: EVM_RECIPIENT,
+      amount: '1500000',
+    });
   });
 
   it('truncates fractional digits beyond the asset decimals (no rounding)', async () => {
@@ -122,10 +132,14 @@ describe('useSendFlow — amount parsing / precision (send path)', () => {
 
     await act(async () => {
       // 1.2345678 at 6 decimals → drops the 8th digit → 1234567 base units.
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '1.2345678' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1.2345678' });
     });
 
-    expect(mockSend).toHaveBeenCalledWith({ asset: usdt, to: '0xabc', amount: '1234567' });
+    expect(mockSend).toHaveBeenCalledWith({
+      asset: usdt,
+      to: EVM_RECIPIENT,
+      amount: '1234567',
+    });
   });
 
   it('sends the smallest representable unit (1 wei-equivalent) when it survives truncation', async () => {
@@ -133,10 +147,10 @@ describe('useSendFlow — amount parsing / precision (send path)', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '0.000001' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '0.000001' });
     });
 
-    expect(mockSend).toHaveBeenCalledWith({ asset: usdt, to: '0xabc', amount: '1' });
+    expect(mockSend).toHaveBeenCalledWith({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
   });
 
   it('handles full 18-decimal precision without float drift', async () => {
@@ -144,12 +158,16 @@ describe('useSendFlow — amount parsing / precision (send path)', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: eth, to: '0xabc', amount: '1.999999999999999999' });
+      await result.current.send({
+        asset: eth,
+        to: EVM_RECIPIENT,
+        amount: '1.999999999999999999',
+      });
     });
 
     expect(mockSend).toHaveBeenCalledWith({
       asset: eth,
-      to: '0xabc',
+      to: EVM_RECIPIENT,
       amount: '1999999999999999999',
     });
   });
@@ -159,10 +177,10 @@ describe('useSendFlow — amount parsing / precision (send path)', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '  1  ' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '  1  ' });
     });
 
-    expect(mockSend).toHaveBeenCalledWith({ asset: usdt, to: '0xabc', amount: '1000000' });
+    expect(mockSend).toHaveBeenCalledWith({ asset: usdt, to: EVM_RECIPIENT, amount: '1000000' });
   });
 });
 
@@ -172,14 +190,14 @@ describe('useSendFlow — loading + state machine', () => {
 
     // First send fails (zero amount) → error is set.
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '0' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '0' });
     });
     expect(result.current.error).toBe('Amount must be greater than zero.');
 
     // Second send succeeds → error must be cleared.
     mockSend.mockResolvedValueOnce({ success: true, hash: '0xok' });
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '1' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
     });
     expect(result.current.error).toBeNull();
     expect(result.current.txHash).toBe('0xok');
@@ -196,7 +214,7 @@ describe('useSendFlow — loading + state machine', () => {
 
     let pending!: Promise<string | null>;
     act(() => {
-      pending = result.current.send({ asset: usdt, to: '0xabc', amount: '1' });
+      pending = result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
     });
     // Mid-flight: the optimistic loading flag is set.
     expect(result.current.isLoading).toBe(true);
@@ -215,7 +233,7 @@ describe('useSendFlow — loading + state machine', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '1' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
     });
     expect(result.current.isLoading).toBe(false);
     expect(result.current.error).toBe('The network is unavailable. Try again later.');
@@ -229,7 +247,7 @@ describe('useSendFlow — balance refresh discipline', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '1' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
     });
     expect(mockRefreshWdkMutate).toHaveBeenCalledTimes(1);
     expect(mockRefreshWdkMutate).toHaveBeenCalledWith({ accountIndex: 0, type: 'wallet' });
@@ -240,7 +258,7 @@ describe('useSendFlow — balance refresh discipline', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '1' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
     });
     expect(mockRefreshWdkMutate).not.toHaveBeenCalled();
   });
@@ -250,7 +268,7 @@ describe('useSendFlow — balance refresh discipline', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '1' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
     });
     expect(mockRefreshWdkMutate).not.toHaveBeenCalled();
   });
@@ -262,11 +280,11 @@ describe('useSendFlow — estimate path shares scaling + parsing', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.estimate({ asset: eth, to: '0xabc', amount: '0.5' });
+      await result.current.estimate({ asset: eth, to: EVM_RECIPIENT, amount: '0.5' });
     });
     expect(mockEstimateFee).toHaveBeenCalledWith({
       asset: eth,
-      to: '0xabc',
+      to: EVM_RECIPIENT,
       amount: '500000000000000000',
     });
   });
@@ -276,7 +294,11 @@ describe('useSendFlow — estimate path shares scaling + parsing', () => {
 
     let fee: Awaited<ReturnType<typeof result.current.estimate>> | undefined;
     await act(async () => {
-      fee = await result.current.estimate({ asset: usdt, to: '0xabc', amount: '0.0000001' });
+      fee = await result.current.estimate({
+        asset: usdt,
+        to: EVM_RECIPIENT,
+        amount: '0.0000001',
+      });
     });
     expect(fee).toEqual({ success: false, error: 'Amount must be greater than zero.' });
     expect(mockEstimateFee).not.toHaveBeenCalled();
@@ -287,7 +309,11 @@ describe('useSendFlow — estimate path shares scaling + parsing', () => {
 
     let fee: Awaited<ReturnType<typeof result.current.estimate>> | undefined;
     await act(async () => {
-      fee = await result.current.estimate({ asset: usdt, to: '0xabc', amount: 'not-a-number' });
+      fee = await result.current.estimate({
+        asset: usdt,
+        to: EVM_RECIPIENT,
+        amount: 'not-a-number',
+      });
     });
     expect(fee).toEqual({ success: false, error: 'Amount must be greater than zero.' });
     expect(mockEstimateFee).not.toHaveBeenCalled();
@@ -298,7 +324,7 @@ describe('useSendFlow — estimate path shares scaling + parsing', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.estimate({ asset: usdt, to: '0xabc', amount: '1' });
+      await result.current.estimate({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
     });
     // estimate must not leak its failure into the send-flow error surface.
     expect(result.current.error).toBeNull();
@@ -330,7 +356,7 @@ describe('useSendFlow — account binding', () => {
     mockBitcoinEstimateFee.mockResolvedValueOnce({ success: true, fee: '100' });
     const { result } = renderHook(() => useSendFlow('bitcoin'), { wrapper: wrap });
     // eslint-disable-next-line no-secrets/no-secrets -- public BIP173 example address, not a secret
-    const to = 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
+    const to = 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4';
 
     await act(async () => {
       await result.current.send({ asset: sparkBtc, to, amount: '0.1' });
@@ -352,11 +378,11 @@ describe('useSendFlow — account binding', () => {
     const { result } = renderHook(() => useSendFlow('spark'), { wrapper: wrap });
 
     await act(async () => {
-      await result.current.send({ asset: sparkBtc, to: 'spark:destination', amount: '0.1' });
+      await result.current.send({ asset: sparkBtc, to: SPARK_RECIPIENT, amount: '0.1' });
     });
 
     expect(mockSend).toHaveBeenCalledWith(
-      expect.objectContaining({ asset: sparkBtc, to: 'spark:destination' }),
+      expect.objectContaining({ asset: sparkBtc, to: SPARK_RECIPIENT }),
     );
     expect(mockBitcoinSend).not.toHaveBeenCalled();
   });
@@ -368,7 +394,7 @@ describe('useSendFlow — reset', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '1' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
     });
     expect(result.current.txHash).toBe('0xabc');
 

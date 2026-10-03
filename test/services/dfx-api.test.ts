@@ -196,6 +196,68 @@ describe('dfxApi request hardening', () => {
     await pendingRefresh;
   });
 
+  it('keeps an authenticated retry within the original request deadline', async () => {
+    jest.useFakeTimers();
+    dfxApi.setOnUnauthorized(
+      () =>
+        new Promise<string>((resolve) => {
+          setTimeout(() => resolve('NEW_TOKEN'), 24);
+        }),
+    );
+    const unauthorized = {
+      ok: false,
+      status: 401,
+      json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Unauthorized' }),
+    };
+    let retrySignal: AbortSignal | undefined;
+    (globalThis.fetch as jest.Mock)
+      .mockResolvedValueOnce(unauthorized)
+      .mockImplementationOnce(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            retrySignal = init.signal ?? undefined;
+            retrySignal?.addEventListener('abort', () => reject(new Error('retry aborted')), {
+              once: true,
+            });
+          }),
+      );
+
+    const request = dfxApi.get('/v1/user', { timeoutMs: 25 });
+    const assertion = expect(request).rejects.toMatchObject({
+      name: 'DfxApiTimeoutError',
+      timeoutMs: 25,
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(24);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+
+    await jest.advanceTimersByTimeAsync(1);
+
+    expect(retrySignal?.aborted).toBe(true);
+    await assertion;
+  });
+
+  it('does not retry when token refresh exhausts the original request deadline', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(0);
+    dfxApi.setOnUnauthorized(async () => {
+      jest.setSystemTime(25);
+      return 'NEW_TOKEN';
+    });
+    (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Unauthorized' }),
+    });
+
+    await expect(dfxApi.get('/v1/user', { timeoutMs: 25 })).rejects.toMatchObject({
+      name: 'DfxApiTimeoutError',
+      timeoutMs: 25,
+    });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('aborts a request after the configured timeout', async () => {
     (globalThis.fetch as jest.Mock).mockImplementationOnce(
       (_url: string, init: RequestInit) =>
