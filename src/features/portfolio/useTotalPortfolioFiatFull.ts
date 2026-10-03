@@ -139,7 +139,7 @@ export function useTotalPortfolioFiat() {
     for (const wallet of linkedWallets) {
       const entry = linkedDiscovery.get(wallet.address.toLowerCase());
       if (entry?.known) sum += entry.totalFiat;
-      if (!entry?.known || entry.assets.some((asset) => asset.fiatValue == null))
+      if (!entry?.complete || entry.assets.some((asset) => asset.fiatValue == null))
         isIncomplete = true;
     }
     return { totalFiat: sum, isIncomplete };

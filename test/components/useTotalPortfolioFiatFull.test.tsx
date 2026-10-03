@@ -218,6 +218,7 @@ describe('useTotalPortfolioFiat (full)', () => {
   });
 
   it('adds selected linked-wallet fiat and skips the active address', async () => {
+    setCompleteZeroBalances();
     useAuthStore.setState({ isDfxAuthenticated: true });
     mockGetUser.mockResolvedValue({
       addresses: [LINKED_A, LINKED_B, ACTIVE],
@@ -227,23 +228,27 @@ describe('useTotalPortfolioFiat (full)', () => {
       address: LINKED_A.address.toLowerCase(),
       assets: [],
       totalFiat: 10,
+      complete: true,
       known: true,
     });
     mockDiscovery.set(LINKED_B.address.toLowerCase(), {
       address: LINKED_B.address.toLowerCase(),
       assets: [],
       totalFiat: 5,
+      complete: true,
       known: true,
     });
     mockDiscovery.set(ACTIVE.address.toLowerCase(), {
       address: ACTIVE.address.toLowerCase(),
       assets: [],
       totalFiat: 999,
+      complete: true,
       known: true,
     });
 
     const { result } = renderHook(() => useTotalPortfolioFiat());
     await waitFor(() => expect(result.current.totalFiat).toBe(15));
+    expect(result.current.isIncomplete).toBe(false);
   });
 
   it('ignores linked wallets the user has not selected and unknown discovery', async () => {
@@ -257,12 +262,33 @@ describe('useTotalPortfolioFiat (full)', () => {
       address: LINKED_A.address.toLowerCase(),
       assets: [],
       totalFiat: 7,
+      complete: false,
       known: false,
     });
 
     const { result } = renderHook(() => useTotalPortfolioFiat());
     await waitFor(() => expect(result.current.isIncomplete).toBe(true));
     expect(result.current.totalFiat).toBe(0);
+  });
+
+  it('does not persist a linked-wallet total when its discovery is incomplete', async () => {
+    setCompleteZeroBalances();
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    mockGetUser.mockResolvedValue({ addresses: [LINKED_A], activeAddress: null });
+    mockDiscovery.set(LINKED_A.address.toLowerCase(), {
+      address: LINKED_A.address.toLowerCase(),
+      assets: [],
+      totalFiat: 10,
+      complete: false,
+      known: true,
+    });
+
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+
+    await waitFor(() => expect(result.current.totalFiat).toBe(10));
+    expect(result.current.isIncomplete).toBe(true);
+    act(() => useWalletStore.setState({ totalBalanceFiat: '987.65' }));
+    expect(useWalletStore.getState().totalBalanceFiat).toBe('987.65');
   });
 
   it('treats a missing addresses array as empty', async () => {
@@ -280,6 +306,7 @@ describe('useTotalPortfolioFiat (full)', () => {
       address: LINKED_A.address.toLowerCase(),
       assets: [],
       totalFiat: 10,
+      complete: true,
       known: true,
     });
     const { result } = renderHook(() => useTotalPortfolioFiat());

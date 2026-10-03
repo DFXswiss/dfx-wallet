@@ -28,21 +28,25 @@ function createWrapper() {
 }
 
 function mockUnpricedTokenQuery(rawBalance = '12500000') {
+  const contractAddress = '0x0000000000000000000000000000000000000001';
   jest.spyOn(blockscout, 'isBlockscoutSupported').mockReturnValue(true);
   jest.spyOn(blockscout, 'getTokenList').mockResolvedValue({
     ok: true,
     value: [
       {
         balance: rawBalance,
-        contractAddress: '0x0000000000000000000000000000000000000001',
+        contractAddress,
         decimals: 6,
         name: 'Unknown token',
         symbol: 'UNKNOWN',
       },
     ],
   });
-  jest.spyOn(coinList, 'lookupCoinIds').mockResolvedValue(new Map());
-  jest.spyOn(simplePrice, 'fetchSimplePrices').mockResolvedValue(new Map());
+  const lookupCoinIds = jest.spyOn(coinList, 'lookupCoinIds').mockResolvedValue(new Map());
+  const fetchSimplePrices = jest
+    .spyOn(simplePrice, 'fetchSimplePrices')
+    .mockResolvedValue(new Map());
+  return { contractAddress, lookupCoinIds, fetchSimplePrices };
 }
 
 describe('linked-wallet asset pricing', () => {
@@ -98,7 +102,11 @@ describe('linked-wallet asset pricing', () => {
   });
 
   it('keeps placeholder totals only while the fiat currency is unchanged', async () => {
-    mockUnpricedTokenQuery();
+    const { contractAddress, lookupCoinIds, fetchSimplePrices } = mockUnpricedTokenQuery();
+    lookupCoinIds.mockResolvedValue(new Map([[contractAddress, 'unknown-token']]));
+    fetchSimplePrices.mockResolvedValue(
+      new Map([['unknown-token', { [FiatCurrency.CHF]: 2 }]]),
+    );
     const fetchSpy = jest
       .spyOn(EvmBalanceFetcher.prototype, 'fetch')
       .mockImplementationOnce(async (specs) => {
@@ -118,12 +126,58 @@ describe('linked-wallet asset pricing', () => {
       },
     );
     await waitFor(() => expect(result.current.data.get(WALLET.address)?.assets).toHaveLength(1));
+    expect(result.current.data.get(WALLET.address)?.totalFiat).toBe(25);
 
     rerender({ currency: FiatCurrency.CHF, pricingReady: false });
     expect(result.current.data.get(WALLET.address)?.assets).toHaveLength(1);
+    expect(result.current.data.get(WALLET.address)?.totalFiat).toBe(25);
 
     rerender({ currency: FiatCurrency.EUR, pricingReady: false });
     expect(result.current.data.size).toBe(0);
+    expect(result.current.data.get(WALLET.address)?.totalFiat).toBeUndefined();
     expect(fetchSpy).toHaveBeenCalled();
+  });
+
+  it('marks Blockscout-known discovery incomplete when an RPC balance read fails', async () => {
+    jest.spyOn(blockscout, 'isBlockscoutSupported').mockReturnValue(true);
+    jest.spyOn(blockscout, 'getTokenList').mockResolvedValue({ ok: true, value: [] });
+    jest.spyOn(simplePrice, 'fetchSimplePrices').mockResolvedValue(new Map());
+    jest.spyOn(EvmBalanceFetcher.prototype, 'fetch').mockImplementation(async (specs) => {
+      const results = new Map<string, EvmBalanceResult>();
+      for (const spec of specs) {
+        results.set(spec.assetId, { assetId: spec.assetId, error: 'rpc failed' });
+      }
+      return results;
+    });
+
+    const { result } = renderHook(
+      () => useLinkedWalletDiscovery([WALLET], FiatCurrency.CHF, true),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => expect(result.current.data.get(WALLET.address)?.known).toBe(true));
+    expect(result.current.data.get(WALLET.address)?.complete).toBe(false);
+  });
+
+  it('marks discovery complete when every RPC balance read succeeds with a real zero', async () => {
+    jest.spyOn(blockscout, 'isBlockscoutSupported').mockReturnValue(true);
+    jest.spyOn(blockscout, 'getTokenList').mockResolvedValue({ ok: true, value: [] });
+    jest.spyOn(simplePrice, 'fetchSimplePrices').mockResolvedValue(new Map());
+    jest.spyOn(EvmBalanceFetcher.prototype, 'fetch').mockImplementation(async (specs) => {
+      const results = new Map<string, EvmBalanceResult>();
+      for (const spec of specs) {
+        results.set(spec.assetId, { assetId: spec.assetId, rawBalance: '0' });
+      }
+      return results;
+    });
+
+    const { result } = renderHook(
+      () => useLinkedWalletDiscovery([WALLET], FiatCurrency.CHF, true),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => expect(result.current.data.get(WALLET.address)?.complete).toBe(true));
+    expect(result.current.data.get(WALLET.address)?.known).toBe(true);
+    expect(result.current.data.get(WALLET.address)?.totalFiat).toBe(0);
   });
 });
