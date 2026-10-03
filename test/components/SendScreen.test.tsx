@@ -65,7 +65,9 @@ jest.mock('react-native-safe-area-context', () => {
 
 import SendScreen from '../../app/(auth)/send/index';
 
-const RECIPIENT = '0x1234567890123456789012345678901234567890';
+// eslint-disable-next-line no-secrets/no-secrets -- public Bitcoin test vector, not a credential
+const RECIPIENT = 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
+const SPARK_RECIPIENT = `spark1${'q'.repeat(40)}`;
 
 function fillRecipientAndAmount(
   getByPlaceholderText: ReturnType<typeof render>['getByPlaceholderText'],
@@ -121,6 +123,32 @@ describe('SendScreen', () => {
   });
 
   describe('input step', () => {
+    it('enables Continue for a Spark mainnet BTC recipient', () => {
+      const { getByPlaceholderText, getByTestId, getByText } = render(<SendScreen />);
+      fireEvent.press(getByText('BTC'));
+      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).toBe(true);
+      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), SPARK_RECIPIENT);
+      fireEvent.changeText(getByPlaceholderText('0.00'), '1');
+      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).not.toBe(true);
+    });
+
+    it.each([
+      'tb1qfm7d7yv7l4ye7z2k4v3j6u7s2f2z8x5v2w5q4p',
+      // eslint-disable-next-line no-secrets/no-secrets -- public Bitcoin test vector, not a credential
+      'mipcBbFg9gMiCh81Kj8tqqdgoZub1ZJRfn',
+      'n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi',
+      '2N2JD6wb56AfK4tfmM6PwdVmoYk2dCKf4Br',
+    ])('keeps Continue disabled for testnet BTC recipient %s', (address) => {
+      const { getByPlaceholderText, getByTestId, getByText } = render(<SendScreen />);
+      fireEvent.press(getByText('BTC'));
+      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), address);
+      fireEvent.changeText(getByPlaceholderText('0.00'), '1');
+      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).toBe(true);
+
+      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), SPARK_RECIPIENT);
+      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).not.toBe(true);
+    });
+
     it('renders the chain bar with multiple chains when the asset has >1 chain', () => {
       const { getAllByText, getByText } = render(<SendScreen />);
       // CHF has 4 EVM chains — picking it should render the chain bar.
@@ -159,6 +187,7 @@ describe('SendScreen', () => {
 
   describe('confirm step', () => {
     it('transitions to confirm after a successful estimate and shows the formatted fee', async () => {
+      mockEstimate.mockResolvedValueOnce({ success: true, fee: '1234' });
       const { getByText, getByPlaceholderText, findByText } = render(<SendScreen />);
       fireEvent.press(getByText('BTC'));
       fillRecipientAndAmount(getByPlaceholderText);
@@ -170,10 +199,8 @@ describe('SendScreen', () => {
       expect(mockEstimate).toHaveBeenCalledWith(
         expect.objectContaining({ to: RECIPIENT, amount: '1' }),
       );
-      // The fee row is rendered (BTC uses spark which has no paymaster,
-      // so the fee text falls through to `—`). Asserting that the
-      // network-fee label exists is enough to lock the transition.
       expect(getByText('send.networkFee')).toBeTruthy();
+      expect(getByText('0.00001234 BTC')).toBeTruthy();
     });
 
     it('shows the "fee unavailable" copy when the estimate fails', async () => {

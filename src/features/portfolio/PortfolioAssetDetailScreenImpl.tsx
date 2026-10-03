@@ -3,15 +3,8 @@ import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { AppHeader, AssetActions, DarkBackdrop } from '@/components';
-import type { ChainId } from '@/config/chains';
-import {
-  getAssetsForCanonicalSymbol,
-  getAssets,
-  getCanonicalNameForSymbol,
-  WDK_SUPPORTED_CHAINS,
-} from '@/config/tokens';
+import { getAssetsForCanonicalSymbol, getAssets, getCanonicalNameForSymbol } from '@/config/tokens';
 import {
   CHAIN_LABELS,
   computeFiatValue,
@@ -23,6 +16,7 @@ import {
   toNumeric,
 } from '@/config/portfolio-presentation';
 import { useEnabledChains } from './useEnabledChains';
+import { getRawBalance, useBalances } from '@/services/balances';
 import { useWalletStore } from '@/store';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import {
@@ -84,11 +78,7 @@ export default function AssetDetailScreen() {
     [canonicalSymbol, enabledChains],
   );
   const allAssetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const wdkAssets = useMemo(
-    () => allAssetConfigs.filter((a) => WDK_SUPPORTED_CHAINS.includes(a.getNetwork() as ChainId)),
-    [allAssetConfigs],
-  );
-  const { data: balanceResults } = useBalancesForWallet(0, wdkAssets);
+  const { data: balances } = useBalances(allAssetConfigs);
   const [pricingReady, setPricingReady] = useState(pricingService.isReady());
 
   useEffect(() => {
@@ -118,8 +108,7 @@ export default function AssetDetailScreen() {
     };
 
     const list = holdingMetas.map((meta) => {
-      const result = balanceResults?.find((r) => r.assetId === meta.id);
-      const rawBalance = result?.success ? (result.balance ?? '0') : '0';
+      const rawBalance = getRawBalance(balances, meta.id);
       const balanceFormatted = formatBalance(rawBalance, meta.decimals);
       const balanceNum = toNumeric(balanceFormatted);
 
@@ -150,7 +139,7 @@ export default function AssetDetailScreen() {
       if (symbolCmp !== 0) return symbolCmp;
       return (NETWORK_ORDER[a.network] ?? 99) - (NETWORK_ORDER[b.network] ?? 99);
     });
-  }, [holdingMetas, balanceResults, canonicalSymbol, fiatCurrency, pricingReady]);
+  }, [holdingMetas, balances, canonicalSymbol, fiatCurrency, pricingReady]);
 
   const totalBalance = useMemo(
     () => holdings.reduce((sum, h) => sum + h.balanceNum, 0),

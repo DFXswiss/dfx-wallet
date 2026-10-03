@@ -125,6 +125,7 @@ describe('SettingsScreenImpl', () => {
     (dfxUserService.updateUser as jest.Mock).mockResolvedValue(undefined);
     (secureStorage.get as jest.Mock).mockReset();
     (secureStorage.get as jest.Mock).mockResolvedValue(null);
+    (secureStorage.set as jest.Mock).mockReset();
     (secureStorage.set as jest.Mock).mockResolvedValue(undefined);
     deleteWallet.mockReset();
     deleteWallet.mockResolvedValue(undefined);
@@ -201,6 +202,43 @@ describe('SettingsScreenImpl', () => {
     fireEvent.press(getByTestId('settings-language'));
     fireEvent.press(getByTestId('settings-currencies'));
     await waitFor(() => expect(dfxUserService.updateUser).toHaveBeenCalled());
+  });
+
+  it('syncs the language to DFX only after the local language change succeeds', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    let resolveLanguageChange: () => void = () => undefined;
+    __i18n.changeLanguage.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveLanguageChange = resolve;
+      }),
+    );
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-language'));
+    await waitFor(() =>
+      expect(secureStorage.set).toHaveBeenCalledWith(StorageKeys.SELECTED_LANGUAGE, 'de'),
+    );
+    expect(dfxUserService.updateUser).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveLanguageChange();
+    });
+    await waitFor(() =>
+      expect(dfxUserService.updateUser).toHaveBeenCalledWith({ language: { symbol: 'DE' } }),
+    );
+  });
+
+  it('does not sync the language to DFX when the local language change fails', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    __i18n.changeLanguage.mockRejectedValueOnce(new Error('language unavailable'));
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-language'));
+
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('de'));
+    expect(dfxUserService.updateUser).not.toHaveBeenCalled();
   });
 
   it('does not call DFX when flipping language/currency while logged out', async () => {

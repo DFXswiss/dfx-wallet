@@ -1,9 +1,22 @@
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import type { BalanceEntry, BalanceMap, BalanceSourceResult } from '@/services/balances';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { ThemeProvider, useThemeStore } from '@/theme';
 import { useWalletStore } from '@/store';
-import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
+
+let mockBalanceMap: BalanceMap = new Map();
+jest.mock('@/services/balances', () => {
+  const actual = jest.requireActual('@/services/balances');
+  return {
+    ...actual,
+    useBalances: (): BalanceSourceResult => ({
+      data: mockBalanceMap,
+      isLoading: false,
+      error: null,
+    }),
+  };
+});
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -65,6 +78,10 @@ function renderScreen() {
   );
 }
 
+function balanceEntry(assetId: string, rawBalance: string, source: 'wdk' | 'evm'): BalanceEntry {
+  return { assetId, rawBalance, status: 'ok', source };
+}
+
 describe('PortfolioAssetDetailScreenImpl', () => {
   beforeEach(() => {
     mockPush.mockReset();
@@ -73,13 +90,10 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     useWalletStore.getState().reset();
     useWalletStore.setState({ selectedCurrency: 'USD' });
     useThemeStore.setState({ mode: 'light' });
-    (useBalancesForWallet as jest.Mock).mockReturnValue({
-      data: [
-        { assetId: 'bitcoin-native', success: true, balance: '100000000' },
-        { assetId: 'bitcoin-taproot-native', success: false },
-        { assetId: 'spark-native', success: true, balance: undefined },
-      ],
-    });
+    mockBalanceMap = new Map([
+      ['bitcoin-native', balanceEntry('bitcoin-native', '100000000', 'wdk')],
+      ['spark-native', balanceEntry('spark-native', '0', 'wdk')],
+    ]);
     jest.spyOn(pricingService, 'isReady').mockReturnValue(true);
     jest.spyOn(pricingService, 'initialize').mockResolvedValue(undefined);
     jest.spyOn(pricingService, 'getExchangeRate').mockImplementation((ticker, currency) => {
@@ -120,19 +134,13 @@ describe('PortfolioAssetDetailScreenImpl', () => {
 
   it('renders a non-BTC group with the token symbol on top when it differs from the canonical', () => {
     mockParams.symbol = 'USD';
-    (useBalancesForWallet as jest.Mock).mockReturnValue({
-      data: [
-        {
-          assetId: 'ethereum-0xdac17f958d2ee523a2206206994597c13d831ec7',
-          success: true,
-          balance: '2500000',
-        },
-      ],
-    });
+    const assetId = 'ethereum-0xdac17f958d2ee523a2206206994597c13d831ec7';
+    mockBalanceMap = new Map([[assetId, balanceEntry(assetId, '2500000', 'evm')]]);
     const { getByTestId, getAllByText } = renderScreen();
     expect(getAllByText('Dollar').length).toBeGreaterThan(0);
     expect(getByTestId('holding-ethereum-USDT')).toBeTruthy();
     expect(getAllByText('USDT').length).toBeGreaterThan(0);
+    expect(getAllByText('2.50 USDT').length).toBeGreaterThan(0);
   });
 
   it('treats a missing symbol param as an empty canonical group', () => {
@@ -172,8 +180,8 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     expect(getByTestId('asset-detail-back')).toBeTruthy();
   });
 
-  it('treats a missing balanceResults list as zero holdings', () => {
-    (useBalancesForWallet as jest.Mock).mockReturnValue({ data: undefined });
+  it('treats a missing shared balance entry as a zero holding', () => {
+    mockBalanceMap = new Map();
     const { getByTestId } = renderScreen();
     expect(getByTestId('holding-bitcoin-BTC')).toBeTruthy();
   });
