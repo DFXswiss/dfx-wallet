@@ -186,6 +186,8 @@ const FEES = {
   network: 0,
   min: 0,
   dfx: 0.00001,
+  platform: 0,
+  bank: 0,
   total: 0.00001,
 };
 
@@ -225,7 +227,7 @@ describe('SellScreenImpl', () => {
 
     fireEvent.press(getByText('BTC'));
     fireEvent.changeText(getByPlaceholderText('0.00'), '0.001');
-    fireEvent.press(getByText('common.continue'));
+    fireEvent.press(getByText('sell.cta:{"asset":"BTC"}'));
     fireEvent.changeText(
       getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
       'CH9300762011623852957',
@@ -247,7 +249,7 @@ describe('SellScreenImpl', () => {
 
     fireEvent.press(getByText('BTC'));
     fireEvent.changeText(getByPlaceholderText('0.00'), '0.001');
-    fireEvent.press(getByText('common.continue'));
+    fireEvent.press(getByText('sell.cta:{"asset":"BTC"}'));
     fireEvent.changeText(
       getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
       'CH9300762011623852957',
@@ -263,7 +265,7 @@ describe('SellScreenImpl', () => {
     await act(async () => {
       fireEvent.changeText(getByPlaceholderText('0.00'), '0.002');
     });
-    fireEvent.press(getByText('common.continue'));
+    fireEvent.press(getByText('sell.cta:{"asset":"BTC"}'));
 
     await waitFor(() => expect(queryByText(errorMessage)).toBeNull());
   });
@@ -278,7 +280,7 @@ describe('SellScreenImpl', () => {
 
     fireEvent.press(getByText('BTC'));
     fireEvent.changeText(getByPlaceholderText('0.00'), '0.001');
-    fireEvent.press(getByText('common.continue'));
+    fireEvent.press(getByText('sell.cta:{"asset":"BTC"}'));
     fireEvent.changeText(
       getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
       'CH9300762011623852957',
