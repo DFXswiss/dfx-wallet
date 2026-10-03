@@ -14,6 +14,9 @@ jest.mock('../../src/services/storage', () => {
         store.set(key, value);
       }),
       get: jest.fn(async (key: string) => store.get(key) ?? null),
+      remove: jest.fn(async (key: string) => {
+        store.delete(key);
+      }),
       __reset: () => store.clear(),
     },
   };
@@ -22,6 +25,7 @@ jest.mock('../../src/services/storage', () => {
 const mockedStorage = secureStorage as unknown as {
   set: jest.Mock;
   get: jest.Mock;
+  remove: jest.Mock;
   __reset: () => void;
 };
 
@@ -58,29 +62,29 @@ describe('setupPasskeyWallet', () => {
     );
   });
 
-  // Documented invariant: "initializeWallet() runs first so that a failure does
-  // not leave orphaned storage keys." Guard it so a future reorder can't slip in.
-  it('calls initializeWallet BEFORE writing any storage key', async () => {
+  // Red mutation: write pending before reading the origin, move it after initialization, or commit
+  // the origin early.
+  it('reads the origin, writes pending, initializes, persists metadata and commits', async () => {
     const initializeWallet = jest.fn(async () => undefined);
 
     await setupPasskeyWallet(PRF_32, CREDENTIAL_ID, initializeWallet);
 
-    // Use jest's global monotonic invocation counter rather than a custom
-    // order array, so this assertion holds regardless of mock implementations
-    // or test execution order (survives --randomize).
+    const getAt = mockedStorage.get.mock.invocationCallOrder[0]!;
     const initAt = initializeWallet.mock.invocationCallOrder[0]!;
     const setOrder = mockedStorage.set.mock.invocationCallOrder;
-    expect(setOrder.every((n) => n > initAt)).toBe(true);
-
-    // The origin marker is first so any interrupted metadata write remains fail-closed.
-    expect(mockedStorage.set.mock.calls.map((c) => c[0])).toEqual([
-      StorageKeys.WALLET_ORIGIN,
-      StorageKeys.PASSKEY_CREDENTIAL_ID,
-      StorageKeys.PASSKEY_DERIVATION_VERSION,
+    expect(getAt).toBeLessThan(setOrder[0]!);
+    expect(setOrder[0]).toBeLessThan(initAt);
+    expect(initAt).toBeLessThan(setOrder[1]!);
+    expect(mockedStorage.set.mock.calls).toEqual([
+      [StorageKeys.WALLET_ORIGIN, 'passkey-pending'],
+      [StorageKeys.PASSKEY_CREDENTIAL_ID, CREDENTIAL_ID],
+      [StorageKeys.PASSKEY_DERIVATION_VERSION, String(DERIVATION_VERSION)],
+      [StorageKeys.WALLET_ORIGIN, 'passkey'],
     ]);
   });
 
-  it('leaves the passkey origin marker when later metadata persistence fails', async () => {
+  // Red mutation: drop the pending write; the stored origin becomes null after this failure.
+  it('leaves the pending marker when the first post-init metadata write fails', async () => {
     const persist = mockedStorage.set.getMockImplementation() as (
       key: string,
       value: string,
@@ -99,21 +103,108 @@ describe('setupPasskeyWallet', () => {
       StorageKeys.WALLET_ORIGIN,
       StorageKeys.PASSKEY_CREDENTIAL_ID,
     ]);
-    expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBe('passkey');
+    expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBe('passkey-pending');
     expect(await mockedStorage.get(StorageKeys.PASSKEY_CREDENTIAL_ID)).toBeNull();
   });
 
-  it('does not write orphaned storage keys when wallet init fails', async () => {
+  // Red mutation: remove the cleanup call; the pending marker remains stored.
+  it('removes the pending marker when no previous origin existed', async () => {
+    const initError = new Error('WDK init failed');
     const initializeWallet = jest.fn(async () => {
-      throw new Error('WDK init failed');
+      throw initError;
     });
 
-    await expect(setupPasskeyWallet(PRF_32, CREDENTIAL_ID, initializeWallet)).rejects.toThrow(
-      'WDK init failed',
+    await expect(setupPasskeyWallet(PRF_32, CREDENTIAL_ID, initializeWallet)).rejects.toBe(
+      initError,
     );
 
-    expect(mockedStorage.set).not.toHaveBeenCalled();
+    expect(mockedStorage.set).toHaveBeenCalledWith(StorageKeys.WALLET_ORIGIN, 'passkey-pending');
+    expect(mockedStorage.remove).toHaveBeenCalledWith(StorageKeys.WALLET_ORIGIN);
     expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBeNull();
+  });
+
+  // Red mutation: remove instead of restoring when the previous origin is non-null.
+  it('restores the previous origin and propagates the original wallet init failure', async () => {
+    await mockedStorage.set(StorageKeys.WALLET_ORIGIN, 'passkey');
+    mockedStorage.set.mockClear();
+    const initError = new Error('WDK init failed');
+    const initializeWallet = jest.fn(async () => {
+      throw initError;
+    });
+
+    await expect(setupPasskeyWallet(PRF_32, CREDENTIAL_ID, initializeWallet)).rejects.toBe(
+      initError,
+    );
+
+    expect(mockedStorage.set.mock.calls).toEqual([
+      [StorageKeys.WALLET_ORIGIN, 'passkey-pending'],
+      [StorageKeys.WALLET_ORIGIN, 'passkey'],
+    ]);
+    expect(mockedStorage.remove).not.toHaveBeenCalled();
+    expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBe('passkey');
+  });
+
+  // Red mutation: let marker-removal failure replace the initialization error.
+  it('preserves the wallet init failure when pending-marker removal also fails', async () => {
+    const initError = new Error('WDK init failed');
+    mockedStorage.remove.mockImplementationOnce(async () => {
+      throw new Error('keychain cleanup failed');
+    });
+
+    await expect(
+      setupPasskeyWallet(PRF_32, CREDENTIAL_ID, async () => {
+        throw initError;
+      }),
+    ).rejects.toBe(initError);
+
+    expect(mockedStorage.remove).toHaveBeenCalledWith(StorageKeys.WALLET_ORIGIN);
+    expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBe('passkey-pending');
+  });
+
+  // Red mutation: let previous-origin restoration failure replace the initialization error.
+  it('preserves the init failure when restoring the previous origin fails', async () => {
+    await mockedStorage.set(StorageKeys.WALLET_ORIGIN, 'passkey');
+    mockedStorage.set.mockClear();
+    const persist = mockedStorage.set.getMockImplementation() as (
+      key: string,
+      value: string,
+    ) => Promise<void>;
+    const initError = new Error('WDK init failed');
+    mockedStorage.set
+      .mockImplementationOnce((key: string, value: string) => persist(key, value))
+      .mockImplementationOnce(async () => {
+        throw new Error('keychain restoration failed');
+      });
+
+    await expect(
+      setupPasskeyWallet(PRF_32, CREDENTIAL_ID, async () => {
+        throw initError;
+      }),
+    ).rejects.toBe(initError);
+
+    expect(mockedStorage.set.mock.calls).toEqual([
+      [StorageKeys.WALLET_ORIGIN, 'passkey-pending'],
+      [StorageKeys.WALLET_ORIGIN, 'passkey'],
+    ]);
+    expect(mockedStorage.remove).not.toHaveBeenCalled();
+    expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBe('passkey-pending');
+  });
+
+  // Red mutation: catch the origin-read failure and continue setup.
+  it('aborts before writing or initializing when the previous-origin read fails', async () => {
+    const readError = new Error('keychain read failed');
+    const initializeWallet = jest.fn(async () => undefined);
+    mockedStorage.get.mockImplementationOnce(async () => {
+      throw readError;
+    });
+
+    await expect(setupPasskeyWallet(PRF_32, CREDENTIAL_ID, initializeWallet)).rejects.toBe(
+      readError,
+    );
+
+    expect(initializeWallet).not.toHaveBeenCalled();
+    expect(mockedStorage.set).not.toHaveBeenCalled();
+    expect(mockedStorage.remove).not.toHaveBeenCalled();
   });
 
   it('propagates an invalid PRF length before touching the wallet or storage', async () => {
@@ -124,6 +215,8 @@ describe('setupPasskeyWallet', () => {
     ).rejects.toThrow(/32-byte PRF output/);
 
     expect(initializeWallet).not.toHaveBeenCalled();
+    expect(mockedStorage.get).not.toHaveBeenCalled();
     expect(mockedStorage.set).not.toHaveBeenCalled();
+    expect(mockedStorage.remove).not.toHaveBeenCalled();
   });
 });

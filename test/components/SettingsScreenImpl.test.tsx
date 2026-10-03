@@ -373,6 +373,20 @@ describe('SettingsScreenImpl', () => {
     expect(mockReplace).toHaveBeenCalledWith('/');
   });
 
+  // Red mutation: exclude passkey-pending from isPasskeyOrigin.
+  it('treats a pending passkey origin as passkey metadata', async () => {
+    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
+      key === StorageKeys.WALLET_ORIGIN ? 'passkey-pending' : null,
+    );
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const { getByTestId, getByText } = renderScreen();
+    await waitFor(() => expect(getByText('settings.seed')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-delete-wallet'));
+
+    expect(alertSpy.mock.calls[0]![1]).toBe('settings.deleteWalletConfirmPasskey');
+  });
+
   it('leaves the authenticated screen and warns when cleanup is incomplete after deletion', async () => {
     (secureStorage.remove as jest.Mock).mockImplementation(async (key: string) => {
       if (key === StorageKeys.PIN_HASH) throw new Error('keychain unavailable');

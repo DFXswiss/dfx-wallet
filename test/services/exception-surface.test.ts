@@ -16,7 +16,10 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DfxApiError } from '@/features/dfx-backend/services/api';
-import { DfxSignMessageMismatchError } from '@/features/dfx-backend/services/auth-service';
+import {
+  DfxAuthFlowInvalidatedError,
+  DfxSignMessageMismatchError,
+} from '@/features/dfx-backend/services/auth-service';
 import {
   PasskeyCredentialMismatchError,
   PasskeyPrfUnsupportedError,
@@ -63,6 +66,7 @@ describe('exception surface', () => {
     // Register it below AND add identity tests for it in this file.
     const registered = [
       'DfxApiError',
+      'DfxAuthFlowInvalidatedError',
       'DfxSignMessageMismatchError',
       'PasskeyPrfUnsupportedError',
       'PasskeyCredentialMismatchError',
@@ -117,6 +121,16 @@ describe('exception surface', () => {
       expect(err).toBeInstanceOf(DfxSignMessageMismatchError);
       expect(err.name).toBe('DfxSignMessageMismatchError');
       expect(err.message).toBe('DFX sign-message challenge does not match the requested address');
+    });
+  });
+
+  describe('DfxAuthFlowInvalidatedError', () => {
+    it('keeps its identity and fixed message', () => {
+      const err = new DfxAuthFlowInvalidatedError();
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(DfxAuthFlowInvalidatedError);
+      expect(err.name).toBe('DfxAuthFlowInvalidatedError');
+      expect(err.message).toBe('DFX authentication was invalidated by a session change');
     });
   });
 

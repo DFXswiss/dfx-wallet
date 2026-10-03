@@ -57,4 +57,20 @@ describe('WebViewScreenImpl token forwarding', () => {
       expect(dfxAuthService.getAccessToken).not.toHaveBeenCalled();
     },
   );
+
+  it('allows only HTTPS navigations to an allow-listed DFX host', () => {
+    mockParams.url = 'https://app.dfx.swiss';
+    render(<WebViewScreen />);
+    const onShouldStartLoadWithRequest = getWebViewProps().onShouldStartLoadWithRequest as (
+      request: { url: string },
+    ) => boolean;
+
+    expect(onShouldStartLoadWithRequest({ url: 'https://app.dfx.swiss/kyc' })).toBe(true);
+    expect(onShouldStartLoadWithRequest({ url: 'https://evil.example/kyc' })).toBe(false);
+    expect(onShouldStartLoadWithRequest({ url: 'javascript:alert(1)' })).toBe(false);
+    expect(onShouldStartLoadWithRequest({ url: 'data:text/html,<script>alert(1)</script>' })).toBe(
+      false,
+    );
+    expect(onShouldStartLoadWithRequest({ url: 'http://app.dfx.swiss' })).toBe(false);
+  });
 });

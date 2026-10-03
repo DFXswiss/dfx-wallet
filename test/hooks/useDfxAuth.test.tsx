@@ -65,6 +65,7 @@ jest.mock('@/services/storage', () => ({
 
 import { useDfxAuth } from '@/features/dfx-backend/useDfxAuthImpl';
 import { LOCAL_SESSION_ENDED_MESSAGE } from '@/features/dfx-backend/session-guard';
+import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
 import { StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
 
@@ -124,6 +125,31 @@ describe('useDfxAuth', () => {
     expect(mockSecureStorageGet).not.toHaveBeenCalled();
     expect(mockSecureStorageRemove).not.toHaveBeenCalledWith(StorageKeys.DFX_AUTH_TOKEN);
     expect(mockLogout).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().isDfxAuthenticated).toBe(false);
+  });
+
+  it('rejects an invalidated login without persisting or authenticating the DFX session', async () => {
+    const pendingLogin = deferred<string>();
+    const invalidated = new DfxAuthFlowInvalidatedError();
+    mockLogin.mockImplementationOnce(() => pendingLogin.promise);
+    const { result } = renderHook(() => useDfxAuth());
+
+    let authentication!: Promise<string>;
+    act(() => {
+      authentication = result.current.authenticate();
+    });
+    await waitFor(() => expect(mockLogin).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      await useAuthStore.getState().reset();
+    });
+    const rejection = expect(authentication).rejects.toBe(invalidated);
+    await act(async () => {
+      pendingLogin.reject(invalidated);
+      await rejection;
+    });
+
+    expect(mockSecureStorageSet).not.toHaveBeenCalled();
     expect(useAuthStore.getState().isDfxAuthenticated).toBe(false);
   });
 
