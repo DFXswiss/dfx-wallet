@@ -20,6 +20,15 @@ jest.mock('expo-haptics', () => ({
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();
+type MockBeforeRemoveEvent = { preventDefault: jest.Mock };
+const mockBeforeRemoveHandlers = new Set<(event: MockBeforeRemoveEvent) => void>();
+const mockAddListener = jest.fn(
+  (eventName: string, handler: (event: MockBeforeRemoveEvent) => void) => {
+    if (eventName === 'beforeRemove') mockBeforeRemoveHandlers.add(handler);
+    return () => mockBeforeRemoveHandlers.delete(handler);
+  },
+);
+const mockNavigation = { addListener: mockAddListener };
 const mockStackScreenOptions: { current: { gestureEnabled?: boolean } | null } = { current: null };
 jest.mock('expo-router', () => {
   function MockStackScreen({ options }: { options: { gestureEnabled?: boolean } }) {
@@ -28,6 +37,7 @@ jest.mock('expo-router', () => {
   }
 
   return {
+    useNavigation: () => mockNavigation,
     useRouter: () => ({ push: mockPush, back: mockBack, replace: jest.fn(), canGoBack: () => true }),
     Stack: { Screen: MockStackScreen },
   };
@@ -130,6 +140,8 @@ describe('SendScreen', () => {
   beforeEach(() => {
     mockPush.mockReset();
     mockBack.mockReset();
+    mockAddListener.mockClear();
+    mockBeforeRemoveHandlers.clear();
     mockSend.mockReset();
     mockEstimate.mockReset();
     mockEstimate.mockResolvedValue({ success: true, fee: '21000000000000' });
@@ -395,7 +407,7 @@ describe('SendScreen', () => {
       expect(getByText('common.continue')).toBeTruthy();
     });
 
-    it('disables cancel and back and prevents a second transfer while send is in flight', async () => {
+    it('blocks removal, cancel, back, and a second transfer while send is in flight', async () => {
       let resolveSend: ((hash: string | null) => void) | undefined;
       mockSend.mockImplementationOnce(
         () =>
@@ -416,9 +428,17 @@ describe('SendScreen', () => {
 
       const cancelButton = getByTestId('send-cancel-button');
       const backButton = getByLabelText('common.back');
+      const beforeRemoveHandler = [...mockBeforeRemoveHandlers][0];
+      expect(mockAddListener).toHaveBeenCalledWith('beforeRemove', expect.any(Function));
+      expect(beforeRemoveHandler).toBeDefined();
       expect(cancelButton.props.accessibilityState?.disabled).toBe(true);
       expect(backButton.props.accessibilityState?.disabled).toBe(true);
       expect(mockStackScreenOptions.current?.gestureEnabled).toBe(false);
+
+      const inFlightRemoveEvent = { preventDefault: jest.fn() };
+      act(() => beforeRemoveHandler!(inFlightRemoveEvent));
+      expect(inFlightRemoveEvent.preventDefault).toHaveBeenCalledTimes(1);
+
       fireEvent.press(cancelButton);
       fireEvent.press(backButton);
       fireEvent.press(getByTestId('send-confirm-button'));
@@ -433,6 +453,10 @@ describe('SendScreen', () => {
         resolveSend?.(null);
         await Promise.resolve();
       });
+
+      const completedRemoveEvent = { preventDefault: jest.fn() };
+      act(() => beforeRemoveHandler!(completedRemoveEvent));
+      expect(completedRemoveEvent.preventDefault).not.toHaveBeenCalled();
     });
 
     it('ignores a late successful send result after unmount', async () => {

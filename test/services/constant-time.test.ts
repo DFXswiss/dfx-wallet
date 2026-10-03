@@ -1,4 +1,4 @@
-import { constantTimeEqual } from '../../src/services/security/constant-time';
+import { constantTimeEqual } from '@/services/security/constant-time';
 
 describe('constantTimeEqual', () => {
   it('accepts identical strings', () => {

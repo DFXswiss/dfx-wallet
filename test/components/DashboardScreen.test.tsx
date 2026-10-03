@@ -52,6 +52,7 @@ describe('DashboardScreen', () => {
   beforeEach(() => {
     mockPush.mockReset();
     mockAuthenticate.mockClear();
+    mockPortfolioFiat.current = 1234.56;
     mockPortfolioIncomplete.current = false;
     useThemeStore.setState({ mode: 'light' });
     useWalletStore.setState({ selectedCurrency: 'USD' });
@@ -67,18 +68,26 @@ describe('DashboardScreen', () => {
   });
 
   it('renders the total balance in the user-selected currency', () => {
-    const { getByText } = render(<DashboardScreen />);
+    const { getByText, queryByText } = render(<DashboardScreen />);
     // splitBalance("1234.56") → whole "1’234" or "1'234", fraction "56".
     // We only assert the dollar symbol and the fraction; the thousands
     // separator is locale-dependent (see portfolio-presentation test).
     expect(getByText('$')).toBeTruthy();
     expect(getByText('.56')).toBeTruthy();
+    expect(queryByText('—')).toBeNull();
   });
 
-  it('shows a translated hint when the portfolio total is incomplete', () => {
+  it('shows a placeholder and hint instead of a partial incomplete total', () => {
     mockPortfolioIncomplete.current = true;
-    const { getByText } = render(<DashboardScreen />);
+    const { getByTestId, getByText, queryByText } = render(<DashboardScreen />);
+    expect(getByText('—')).toBeTruthy();
     expect(getByText('dashboard.incompleteBalance')).toBeTruthy();
+    expect(queryByText('$')).toBeNull();
+    expect(queryByText('.56')).toBeNull();
+
+    fireEvent.press(getByTestId('dashboard-balance-toggle'));
+    expect(getByText('••••')).toBeTruthy();
+    expect(queryByText('—')).toBeNull();
   });
 
   it('toggles the balance visibility when the eye is pressed', () => {

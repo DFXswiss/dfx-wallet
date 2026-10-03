@@ -107,6 +107,14 @@ function pressConfirm(alertSpy: jest.SpyInstance) {
   return buttons.find((b) => b.onPress)?.onPress?.();
 }
 
+function createDeferred() {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe('SettingsScreenImpl', () => {
   const deleteWallet = jest.fn();
 
@@ -229,6 +237,41 @@ describe('SettingsScreenImpl', () => {
     await waitFor(() =>
       expect(dfxUserService.updateUser).toHaveBeenCalledWith({ language: { symbol: 'DE' } }),
     );
+  });
+
+  it('syncs only the latest language after rapid toggles', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    const firstPersist = createDeferred();
+    const secondPersist = createDeferred();
+    (secureStorage.set as jest.Mock)
+      .mockImplementationOnce(() => firstPersist.promise)
+      .mockImplementationOnce(() => secondPersist.promise);
+    __i18n.changeLanguage.mockImplementation(async (language: string) => {
+      __i18n.language = language;
+    });
+    const screen = renderScreen();
+    await waitFor(() => expect(screen.getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('settings-language'));
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('de'));
+    await waitFor(() => expect(secureStorage.set).toHaveBeenCalledTimes(1));
+
+    screen.rerender(
+      <ThemeProvider>
+        <SettingsScreenImpl />
+      </ThemeProvider>,
+    );
+    fireEvent.press(screen.getByTestId('settings-language'));
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('en'));
+
+    secondPersist.resolve();
+    await act(async () => {
+      firstPersist.resolve();
+    });
+
+    await waitFor(() => expect(secureStorage.set).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(dfxUserService.updateUser).toHaveBeenCalledTimes(1));
+    expect(dfxUserService.updateUser).toHaveBeenCalledWith({ language: { symbol: 'EN' } });
   });
 
   it('does not sync the language to DFX when the local language change fails', async () => {

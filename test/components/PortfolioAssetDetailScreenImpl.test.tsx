@@ -342,8 +342,9 @@ describe('PortfolioAssetDetailScreenImpl', () => {
       '@/config/portfolio-presentation',
     ) as typeof import('@/config/portfolio-presentation');
     jest.spyOn(presentation, 'computeFiatValue').mockReturnValue(Number.NaN);
+    useWalletStore.setState({ selectedCurrency: 'CHF' });
     const { getByTestId } = renderScreen();
     await act(async () => undefined);
-    expect(getByTestId('asset-detail-back')).toBeTruthy();
+    expect(getByTestId('asset-detail-total-fiat').props.children).toBe('CHF 0.00');
   });
 });
