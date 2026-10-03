@@ -30,7 +30,7 @@ describe('persisted app language', () => {
     const changeLanguage = jest.fn(async () => {
       callOrder.push('activate');
     });
-    await setLanguage('de', { changeLanguage });
+    await expect(setLanguage('de', { changeLanguage })).resolves.toBe(true);
     expect(secureStorage.set).toHaveBeenCalledWith(StorageKeys.SELECTED_LANGUAGE, 'de');
     expect(changeLanguage).toHaveBeenCalledWith('de');
     expect(callOrder).toEqual(['activate', 'persist']);
@@ -43,7 +43,7 @@ describe('persisted app language', () => {
     });
     (secureStorage.set as jest.Mock).mockRejectedValueOnce(new Error('storage unavailable'));
 
-    await expect(setLanguage('de', { changeLanguage })).resolves.toBeUndefined();
+    await expect(setLanguage('de', { changeLanguage })).resolves.toBe(false);
 
     expect(activeLanguage).toBe('de');
     expect(secureStorage.set).toHaveBeenCalledWith(StorageKeys.SELECTED_LANGUAGE, 'de');

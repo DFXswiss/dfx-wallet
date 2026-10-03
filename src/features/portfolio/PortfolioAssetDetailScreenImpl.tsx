@@ -55,6 +55,7 @@ type Holding = {
   balanceNum: number;
   balanceFormatted: string;
   fiatValue: number;
+  isQueried: boolean;
   isBalanceComplete: boolean;
 };
 
@@ -86,11 +87,7 @@ export default function AssetDetailScreen() {
     [canonicalSymbol, enabledChains],
   );
   const allAssetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const {
-    data: balances,
-    isLoading: balancesLoading,
-    error: balancesError,
-  } = useBalances(allAssetConfigs);
+  const { data: balances, isLoading: balancesLoading } = useBalances(allAssetConfigs);
   const pricingRevision = usePricingSnapshot();
   const pricingReady = pricingService.isReady();
 
@@ -123,7 +120,7 @@ export default function AssetDetailScreen() {
         ? assetIncludedInWdkBalanceQuery(asset) || assetIncludedInEvmBalanceQuery(asset)
         : false;
       const balanceEntry = balances.get(meta.id);
-      const isBalanceComplete = !isQueried || balanceEntry?.status === 'ok';
+      const isBalanceComplete = isQueried && balanceEntry?.status === 'ok';
       const rawBalance = getRawBalance(balances, meta.id);
       const balanceFormatted = formatBalance(rawBalance, meta.decimals);
       const balanceNum = toNumeric(balanceFormatted);
@@ -147,6 +144,7 @@ export default function AssetDetailScreen() {
         balanceNum,
         balanceFormatted,
         fiatValue,
+        isQueried,
         isBalanceComplete,
       };
     });
@@ -166,13 +164,13 @@ export default function AssetDetailScreen() {
     pricingRevision,
   ]);
 
+  // Never-queried holdings have balanceNum 0, so they neither contribute to nor invalidate totals.
   const balancesIncomplete =
-    balancesLoading ||
-    balancesError !== null ||
-    holdings.some((holding) => !holding.isBalanceComplete);
+    balancesLoading || holdings.some((holding) => holding.isQueried && !holding.isBalanceComplete);
   const balancesPending =
     balancesLoading ||
     holdings.some((holding) => {
+      if (!holding.isQueried) return false;
       const status = balances.get(holding.id)?.status;
       return status === 'idle' || status === 'loading';
     });
