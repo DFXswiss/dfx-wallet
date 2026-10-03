@@ -179,6 +179,57 @@ describe('useSellFlow', () => {
     expect(result.current.paymentInfo).toMatchObject({ id: 12 });
   });
 
+  it('does not replay payment info when authenticated focus returns after a successful call', async () => {
+    mockCreateSellPaymentInfo.mockResolvedValueOnce(validInfo({ id: 12 }));
+    const { result } = renderHook(() => useSellFlow());
+
+    await act(async () => {
+      await result.current.createPaymentInfo(PAYMENT_PARAMS);
+    });
+
+    let retryResult: Awaited<ReturnType<typeof result.current.retryLast>> = null;
+    await act(async () => {
+      retryResult = await result.current.retryLast();
+    });
+
+    expect(retryResult).toBeNull();
+    expect(mockCreateSellPaymentInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not expose a payment-info retry before an auth failure occurs', async () => {
+    const pending = deferred<SellPaymentInfoDto>();
+    mockCreateSellPaymentInfo.mockReturnValueOnce(pending.promise);
+    const { result } = renderHook(() => useSellFlow());
+
+    let paymentCall: Promise<unknown>;
+    act(() => {
+      paymentCall = result.current.createPaymentInfo(PAYMENT_PARAMS);
+    });
+    await act(async () => {
+      await expect(result.current.retryLast()).resolves.toBeNull();
+    });
+    expect(mockCreateSellPaymentInfo).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      pending.resolve(validInfo());
+      await paymentCall;
+    });
+  });
+
+  it('does not replay payment info after a non-authentication failure', async () => {
+    mockCreateSellPaymentInfo.mockRejectedValueOnce(new Error('network down'));
+    const { result } = renderHook(() => useSellFlow());
+
+    await act(async () => {
+      await result.current.createPaymentInfo(PAYMENT_PARAMS);
+    });
+    await act(async () => {
+      await expect(result.current.retryLast()).resolves.toBeNull();
+    });
+
+    expect(mockCreateSellPaymentInfo).toHaveBeenCalledTimes(1);
+  });
+
   it('confirms a sell payment and preserves the successful payment state', async () => {
     mockCreateSellPaymentInfo.mockResolvedValueOnce(validInfo({ id: 13 }));
     mockConfirmSell.mockResolvedValueOnce(undefined);

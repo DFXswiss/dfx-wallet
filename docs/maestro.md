@@ -15,7 +15,7 @@ The wallet ships native modules that are not Expo Go compatible (`react-native-b
 
 - Maestro CLI: `brew tap mobile-dev-inc/tap && brew install maestro` (or `curl -Ls https://get.maestro.mobile.dev | bash`)
 - iOS: Xcode 16, an iOS 18 Simulator (run `xcrun simctl list devices`), and Facebook IDB (`brew tap facebook/fb && brew install idb-companion`) — required by Maestro to drive the simulator
-- Android: Android SDK with an emulator image (API 34+, x86_64)
+- Android: Android SDK with an API 36 emulator image (minSdk 34, x86_64)
 - Built and installed app:
   - iOS: `npx expo run:ios --configuration Release`
   - Android: `npx expo run:android --variant release`

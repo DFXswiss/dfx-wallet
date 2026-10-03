@@ -3,9 +3,7 @@ import { useAccount, type IAsset } from '@tetherto/wdk-react-native-core';
 import { useTranslation } from 'react-i18next';
 import type { ChainId } from '@/config/chains';
 import { parseUnits } from '@/config/portfolio-presentation';
-import { getAssetMeta, getSendAssetForCanonical } from '@/config/tokens';
 import { useRefreshBalances } from '@/services/balances';
-import { isBitcoinOnChainAddress } from '@/services/bitcoin-address';
 
 type SendState = {
   isLoading: boolean;
@@ -17,10 +15,10 @@ type SendState = {
  * Hook for sending an asset (native or ERC-20) via the WDK worklet.
  *
  * The send screen surfaces canonical symbols (USD/CHF/EUR/BTC) so the caller
- * resolves the actual `IAsset` (e.g. USDT-on-Polygon) and passes it in. The
- * user-typed display amount ("1", "0.5") is scaled here by the asset's
- * decimals before being handed to WDK, which expects amounts in the asset's
- * smallest unit.
+ * resolves the effective chain and actual `IAsset` (e.g. USDT-on-Polygon)
+ * before passing them in. The user-typed display amount ("1", "0.5") is scaled
+ * here by the asset's decimals before being handed to WDK, which expects
+ * amounts in the asset's smallest unit.
  */
 export type FeeEstimate = { success: true; fee: string } | { success: false; error: string };
 
@@ -41,11 +39,10 @@ export function sendErrorKey(rawError: string | undefined): string {
 
 export function useSendFlow(chain: ChainId) {
   const { t } = useTranslation();
-  const selectedAccount = useAccount({
+  const account = useAccount({
     network: chain,
     accountIndex: 0,
   });
-  const bitcoinAccount = useAccount({ network: 'bitcoin', accountIndex: 0 });
   const refreshBalances = useRefreshBalances();
   const [state, setState] = useState<SendState>({
     isLoading: false,
@@ -65,15 +62,8 @@ export function useSendFlow(chain: ChainId) {
           return null;
         }
 
-        const isBitcoinOnChain =
-          getAssetMeta(params.asset.getId())?.canonicalSymbol === 'BTC' &&
-          isBitcoinOnChainAddress(params.to);
-        const account = isBitcoinOnChain ? bitcoinAccount : selectedAccount;
-        const asset = isBitcoinOnChain
-          ? (getSendAssetForCanonical('BTC', 'bitcoin') ?? params.asset)
-          : params.asset;
         const result = await account.send({
-          asset,
+          asset: params.asset,
           to: params.to,
           amount: baseAmount,
         });
@@ -96,7 +86,7 @@ export function useSendFlow(chain: ChainId) {
         return null;
       }
     },
-    [bitcoinAccount, selectedAccount, refreshBalances, t],
+    [account, refreshBalances, t],
   );
 
   const estimate = useCallback(
@@ -106,15 +96,8 @@ export function useSendFlow(chain: ChainId) {
         if (baseAmount === '0') {
           return { success: false, error: t('send.error.amountZero') };
         }
-        const isBitcoinOnChain =
-          getAssetMeta(params.asset.getId())?.canonicalSymbol === 'BTC' &&
-          isBitcoinOnChainAddress(params.to);
-        const account = isBitcoinOnChain ? bitcoinAccount : selectedAccount;
-        const asset = isBitcoinOnChain
-          ? (getSendAssetForCanonical('BTC', 'bitcoin') ?? params.asset)
-          : params.asset;
         const result = await account.estimateFee({
-          asset,
+          asset: params.asset,
           to: params.to,
           amount: baseAmount,
         });
@@ -132,7 +115,7 @@ export function useSendFlow(chain: ChainId) {
         };
       }
     },
-    [bitcoinAccount, selectedAccount, t],
+    [account, t],
   );
 
   const reset = useCallback(() => {

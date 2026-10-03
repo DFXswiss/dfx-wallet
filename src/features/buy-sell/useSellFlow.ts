@@ -12,6 +12,9 @@ type QuoteParams = {
   chain: ChainId;
 };
 type PaymentInfoParams = QuoteParams & { iban: string };
+type RetryAction =
+  | { kind: 'quote'; params: QuoteParams }
+  | { kind: 'paymentInfo'; params: PaymentInfoParams };
 
 export type SellStatus = 'idle' | 'loading' | 'success' | 'invalid' | 'authGate' | 'error';
 
@@ -59,11 +62,9 @@ export function useSellFlow() {
     setState({ ...next, status: deriveStatus(next) });
   };
 
-  const lastAction = useRef<
-    | { kind: 'quote'; params: QuoteParams }
-    | { kind: 'paymentInfo'; params: PaymentInfoParams }
-    | null
-  >(null);
+  // Remember only the call that caused an auth gate so focus changes cannot
+  // replay successful or ordinary failed payment requests.
+  const lastAction = useRef<RetryAction | null>(null);
   const quoteAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -72,14 +73,13 @@ export function useSellFlow() {
     };
   }, []);
 
-  const handleError = (err: unknown, fallback: string) => {
+  const handleError = (err: unknown, fallback: string, action?: RetryAction) => {
     if (err instanceof Error && err.name === 'AbortError') return;
     const gate = interpretDfxAuthError(err);
     if (gate) {
+      lastAction.current = action ?? null;
       const enriched: DfxAuthGateState =
-        gate.kind === 'linkChain' && lastAction.current
-          ? { ...gate, chain: lastAction.current.params.chain }
-          : gate;
+        gate.kind === 'linkChain' && action ? { ...gate, chain: action.params.chain } : gate;
       setState((s) => ({
         ...s,
         isLoading: false,
@@ -89,12 +89,14 @@ export function useSellFlow() {
       }));
       return;
     }
+    lastAction.current = null;
     const msg = err instanceof Error ? err.message : fallback;
     setState((s) => ({ ...s, isLoading: false, error: msg, status: 'error' }));
   };
 
   const getQuote = useCallback(async (params: QuoteParams) => {
-    lastAction.current = { kind: 'quote', params };
+    const action: RetryAction = { kind: 'quote', params };
+    lastAction.current = null;
     quoteAbortRef.current?.abort();
     const controller = new AbortController();
     quoteAbortRef.current = controller;
@@ -109,27 +111,30 @@ export function useSellFlow() {
     try {
       const info = await dfxPaymentService.getSellQuote(params, { signal: controller.signal });
       if (quoteAbortRef.current !== controller) return null;
+      lastAction.current = null;
       setSellState({ isLoading: false, paymentInfo: info, error: null, authGate: null });
       return info;
     } catch (err) {
       if (quoteAbortRef.current !== controller) return null;
-      handleError(err, 'Quote failed');
+      handleError(err, 'Quote failed', action);
       return null;
     }
   }, []);
 
   const createPaymentInfo = useCallback(async (params: PaymentInfoParams) => {
-    lastAction.current = { kind: 'paymentInfo', params };
+    const action: RetryAction = { kind: 'paymentInfo', params };
+    lastAction.current = null;
     const controller = new AbortController();
     setState((s) => ({ ...s, isLoading: true, error: null, authGate: null, status: 'loading' }));
     try {
       const info = await dfxPaymentService.createSellPaymentInfo(params, {
         signal: controller.signal,
       });
+      lastAction.current = null;
       setSellState({ isLoading: false, paymentInfo: info, error: null, authGate: null });
       return info;
     } catch (err) {
-      handleError(err, 'Failed to create sell order');
+      handleError(err, 'Failed to create sell order', action);
       return null;
     }
   }, []);

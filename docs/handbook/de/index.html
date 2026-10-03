@@ -881,8 +881,10 @@
             Drei Schritte hat der echte Send-Flow: Asset → Input (Empfänger + Amount + Network-Fee)
             → Confirm. Die MVP-E2E-Suite stoppt am Input-Step — der <em>Confirm</em>-Button auf der
             Bestätigungsseite ruft <code>handleSend()</code> auf und broadcastet eine echte
-            Transaktion, das gehört nicht in einen Smoke-Test. Die Recipient-/Amount-Validierung
-            (mind. 26 Zeichen, &gt; 0 für Continue) ist hingegen ohne Tx-Risiko testbar.
+            Transaktion, das gehört nicht in einen Smoke-Test. Bei BTC wird eine gültige
+            Mainnet-On-Chain- oder Spark-Adresse verlangt; bei anderen Assets sind es mindestens 26
+            Zeichen. Zusätzlich muss der Betrag &gt; 0 sein, damit Continue aktiv wird. Das ist ohne
+            Tx-Risiko testbar.
           </p>
 
           <div class="tests cols-2">

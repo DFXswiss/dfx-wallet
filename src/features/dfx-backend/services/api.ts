@@ -19,6 +19,7 @@ type PendingResponse = {
   response: Response;
   cleanup: () => void;
   didTimeOut: () => boolean;
+  signal: AbortSignal;
   timeoutMs: number;
 };
 
@@ -87,7 +88,7 @@ class DfxApi {
     if (pending.response.status === 401 && this.onUnauthorized && !path.startsWith('/v1/auth')) {
       let newToken: string | null;
       try {
-        newToken = await this.refreshAuthToken();
+        newToken = await this.raceRefreshWithRequest(this.refreshAuthToken(), pending);
       } catch (error) {
         pending.cleanup();
         throw error;
@@ -111,6 +112,39 @@ class DfxApi {
       });
     }
     return this.refreshPromise;
+  }
+
+  private raceRefreshWithRequest(
+    refresh: Promise<string | null>,
+    pending: PendingResponse,
+  ): Promise<string | null> {
+    if (pending.signal.aborted) return Promise.reject(this.requestAbortError(pending));
+
+    return new Promise<string | null>((resolve, reject) => {
+      const onAbort = () => {
+        pending.signal.removeEventListener('abort', onAbort);
+        reject(this.requestAbortError(pending));
+      };
+      pending.signal.addEventListener('abort', onAbort, { once: true });
+      void refresh.then(
+        (token) => {
+          pending.signal.removeEventListener('abort', onAbort);
+          resolve(token);
+        },
+        (error: unknown) => {
+          pending.signal.removeEventListener('abort', onAbort);
+          reject(error);
+        },
+      );
+    });
+  }
+
+  private requestAbortError(pending: PendingResponse): Error {
+    if (pending.didTimeOut()) return new DfxApiTimeoutError(pending.timeoutMs);
+    if (pending.signal.reason instanceof Error) return pending.signal.reason;
+    const error = new Error('The operation was aborted.');
+    error.name = 'AbortError';
+    return error;
   }
 
   private async fetch(
@@ -144,7 +178,13 @@ class DfxApi {
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
         signal: controller.signal,
       });
-      return { response, cleanup, didTimeOut: () => timedOut, timeoutMs };
+      return {
+        response,
+        cleanup,
+        didTimeOut: () => timedOut,
+        signal: controller.signal,
+        timeoutMs,
+      };
     } catch (error) {
       cleanup();
       if (timedOut) throw new DfxApiTimeoutError(timeoutMs);

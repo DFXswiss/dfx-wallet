@@ -119,7 +119,7 @@ describe('useSendFlow', () => {
       expect(result.current.error).toBe('The transaction could not be sent.');
     });
 
-    it('catches a thrown error and exposes its message', async () => {
+    it('maps a thrown network error to the translated network message', async () => {
       mockSend.mockRejectedValueOnce(new Error('network down'));
       const { result } = renderHook(() => useSendFlow('ethereum'), { wrapper: wrap });
 

@@ -283,6 +283,57 @@ describe('useBuyFlow', () => {
     });
   });
 
+  it('does not replay payment info when authenticated focus returns after a successful call', async () => {
+    mockCreateBuyPaymentInfo.mockResolvedValueOnce(validInfo());
+    const { result } = renderHook(() => useBuyFlow());
+
+    await act(async () => {
+      await result.current.createPaymentInfo(QUOTE);
+    });
+
+    let retryResult: Awaited<ReturnType<typeof result.current.retryLast>> = null;
+    await act(async () => {
+      retryResult = await result.current.retryLast();
+    });
+
+    expect(retryResult).toBeNull();
+    expect(mockCreateBuyPaymentInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not expose a payment-info retry before an auth failure occurs', async () => {
+    const pending = deferred<BuyPaymentInfoDto>();
+    mockCreateBuyPaymentInfo.mockReturnValueOnce(pending.promise);
+    const { result } = renderHook(() => useBuyFlow());
+
+    let paymentCall: Promise<unknown>;
+    act(() => {
+      paymentCall = result.current.createPaymentInfo(QUOTE);
+    });
+    await act(async () => {
+      await expect(result.current.retryLast()).resolves.toBeNull();
+    });
+    expect(mockCreateBuyPaymentInfo).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      pending.resolve(validInfo());
+      await paymentCall;
+    });
+  });
+
+  it('does not replay payment info after a non-authentication failure', async () => {
+    mockCreateBuyPaymentInfo.mockRejectedValueOnce(new Error('network down'));
+    const { result } = renderHook(() => useBuyFlow());
+
+    await act(async () => {
+      await result.current.createPaymentInfo(QUOTE);
+    });
+    await act(async () => {
+      await expect(result.current.retryLast()).resolves.toBeNull();
+    });
+
+    expect(mockCreateBuyPaymentInfo).toHaveBeenCalledTimes(1);
+  });
+
   it('confirmPayment returns true and clears loading on success', async () => {
     mockConfirmBuy.mockResolvedValueOnce(undefined);
     const { result } = renderHook(() => useBuyFlow());

@@ -174,6 +174,17 @@ describe('dfxTransactionService.createCsvExport', () => {
     expect(result.downloadUrl).toBe(`${BASE}/v1/transaction/csv?key=a%2Bb%2Fc%3D%26d%3Fe`);
   });
 
+  it('trims the returned file key before exposing or URL-encoding it', async () => {
+    fetchMock.mockResolvedValueOnce(httpResponse(200, '  key-with-padding  '));
+
+    const result = await dfxTransactionService.createCsvExport({ userAddress: '0xabc' });
+
+    expect(result).toEqual({
+      fileKey: 'key-with-padding',
+      downloadUrl: `${BASE}/v1/transaction/csv?key=key-with-padding`,
+    });
+  });
+
   it.each([
     ['an empty body', jsonOk(undefined)],
     ['a whitespace-only key', httpResponse(200, '   ')],

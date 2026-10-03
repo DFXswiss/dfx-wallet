@@ -1,19 +1,28 @@
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { BalanceEntry, BalanceMap, BalanceSourceResult } from '@/services/balances';
+import {
+  assetIncludedInEvmBalanceQuery,
+  assetIncludedInWdkBalanceQuery,
+  getAssetMeta,
+  getAssets,
+} from '@/config/tokens';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { ThemeProvider, useThemeStore } from '@/theme';
 import { useWalletStore } from '@/store';
 
 let mockBalanceMap: BalanceMap = new Map();
+let mockBalancesLoading = false;
+let mockBalancesError: Error | null = null;
+let mockBtcRate = 50_000;
 jest.mock('@/services/balances', () => {
   const actual = jest.requireActual('@/services/balances');
   return {
     ...actual,
     useBalances: (): BalanceSourceResult => ({
       data: mockBalanceMap,
-      isLoading: false,
-      error: null,
+      isLoading: mockBalancesLoading,
+      error: mockBalancesError,
     }),
   };
 });
@@ -82,6 +91,24 @@ function balanceEntry(assetId: string, rawBalance: string, source: 'wdk' | 'evm'
   return { assetId, rawBalance, status: 'ok', source };
 }
 
+function setCompleteBtcBalances() {
+  mockBalanceMap = new Map(
+    getAssets(['ethereum', 'bitcoin', 'bitcoin-taproot', 'spark', 'arbitrum', 'polygon', 'base'])
+      .filter((asset) => {
+        const meta = getAssetMeta(asset.getId());
+        return (
+          meta?.canonicalSymbol === 'BTC' &&
+          (assetIncludedInWdkBalanceQuery(asset) || assetIncludedInEvmBalanceQuery(asset))
+        );
+      })
+      .map((asset) => {
+        const source = getAssetMeta(asset.getId())?.balanceFetchStrategy === 'evm' ? 'evm' : 'wdk';
+        const rawBalance = asset.getId() === 'bitcoin-native' ? '100000000' : '0';
+        return [asset.getId(), balanceEntry(asset.getId(), rawBalance, source)];
+      }),
+  );
+}
+
 describe('PortfolioAssetDetailScreenImpl', () => {
   beforeEach(() => {
     mockPush.mockReset();
@@ -90,15 +117,15 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     useWalletStore.getState().reset();
     useWalletStore.setState({ selectedCurrency: 'USD' });
     useThemeStore.setState({ mode: 'light' });
-    mockBalanceMap = new Map([
-      ['bitcoin-native', balanceEntry('bitcoin-native', '100000000', 'wdk')],
-      ['spark-native', balanceEntry('spark-native', '0', 'wdk')],
-    ]);
+    mockBalancesLoading = false;
+    mockBalancesError = null;
+    mockBtcRate = 50_000;
+    setCompleteBtcBalances();
     jest.spyOn(pricingService, 'isReady').mockReturnValue(true);
     jest.spyOn(pricingService, 'initialize').mockResolvedValue(undefined);
     jest.spyOn(pricingService, 'getExchangeRate').mockImplementation((ticker, currency) => {
       if (currency !== FiatCurrency.USD) return undefined;
-      if (ticker === 'btc') return 50_000;
+      if (ticker === 'btc') return mockBtcRate;
       if (ticker === 'usdt') return 1;
       return undefined;
     });
@@ -180,10 +207,58 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     expect(getByTestId('asset-detail-back')).toBeTruthy();
   });
 
-  it('treats a missing shared balance entry as a zero holding', () => {
+  it('shows an incomplete placeholder when a queried balance entry is missing', () => {
     mockBalanceMap = new Map();
-    const { getByTestId } = renderScreen();
+    const { getByTestId, getByText } = renderScreen();
     expect(getByTestId('holding-bitcoin-BTC')).toBeTruthy();
+    expect(getByTestId('asset-detail-total-crypto').props.children).toBe('—');
+    expect(getByText('portfolio.balanceUnavailable')).toBeTruthy();
+  });
+
+  it('shows a loading placeholder instead of zero while balances load', () => {
+    mockBalanceMap = new Map();
+    mockBalancesLoading = true;
+
+    const { getByTestId, getByText } = renderScreen();
+
+    expect(getByTestId('asset-detail-total-crypto').props.children).toBe('—');
+    expect(getByTestId('asset-detail-total-fiat').props.children).toBe('—');
+    expect(getByText('portfolio.balanceLoading')).toBeTruthy();
+  });
+
+  it('shows an unavailable placeholder instead of zero on a balance-source error', () => {
+    mockBalancesError = new Error('rpc-down');
+
+    const { getByTestId, getByText } = renderScreen();
+
+    expect(getByTestId('asset-detail-total-crypto').props.children).toBe('—');
+    expect(getByText('portfolio.balanceUnavailable')).toBeTruthy();
+  });
+
+  it('shows an unavailable placeholder for a stale balance entry', () => {
+    const bitcoin = mockBalanceMap.get('bitcoin-native');
+    if (!bitcoin) throw new Error('Expected Bitcoin fixture');
+    mockBalanceMap = new Map(mockBalanceMap).set('bitcoin-native', {
+      ...bitcoin,
+      status: 'stale',
+    });
+
+    const { getByTestId, getByText } = renderScreen();
+
+    expect(getByTestId('asset-detail-total-crypto').props.children).toBe('—');
+    expect(getByText('portfolio.balanceUnavailable')).toBeTruthy();
+  });
+
+  it('recomputes fiat values when the pricing service publishes an update', async () => {
+    const { getByTestId } = renderScreen();
+    const fiatDigits = () =>
+      String(getByTestId('asset-detail-total-fiat').props.children).replace(/\D/g, '');
+    expect(fiatDigits()).toBe('5000000');
+
+    mockBtcRate = 60_000;
+    act(() => pricingService.reset());
+
+    await waitFor(() => expect(fiatDigits()).toBe('6000000'));
   });
 
   it('renders the dark backdrop when the theme is dark', () => {
