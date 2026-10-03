@@ -26,7 +26,10 @@ jest.mock('@/config/platform', () => ({
   isPasskeyOsSupported: () => mockOsSupport(),
 }));
 
+// eslint-disable-next-line import/first
 import WelcomeScreen from '../../app/(onboarding)/welcome';
+// eslint-disable-next-line import/first
+import { GlassSurface } from '../../src/components/GlassSurface';
 
 describe('WelcomeScreen', () => {
   beforeEach(() => {
@@ -43,6 +46,11 @@ describe('WelcomeScreen', () => {
     const { getByTestId } = render(<WelcomeScreen />);
     expect(getByTestId('welcome-screen')).toBeTruthy();
     expect(getByTestId('welcome-create-wallet-button')).toBeTruthy();
+  });
+
+  it('renders the back button on a glass surface', () => {
+    const { UNSAFE_queryAllByType } = render(<WelcomeScreen />);
+    expect(UNSAFE_queryAllByType(GlassSurface).length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows the create-passkey CTA when the OS gate + FEATURES.PASSKEY are on', () => {
@@ -125,25 +133,26 @@ describe('WelcomeScreen', () => {
     }
   });
 
-  it('drives the pressed-state style fn on back / restore-passkey / restore-seed buttons', () => {
+  it('drives the pressed "lead" variant on back / restore-passkey / restore-seed buttons', () => {
     mockOsSupport.mockReturnValue(true);
-    const { getByTestId, UNSAFE_root } = render(<WelcomeScreen />);
+    const { getByTestId } = render(<WelcomeScreen />);
     fireEvent.press(getByTestId('welcome-restore-toggle'));
-    // Walk the rendered tree to find each Pressable's style fn and invoke
-    // it with `pressed: true` so the second arm of each
-    // `[base, pressed && styles.pressed]` ternary is exercised.
+    // Each of these is a glass module's own Pressable — firing a real
+    // pressIn/pressOut exercises its `variant={pressed ? 'lead' : ...}`
+    // branch the same way an actual touch would.
     const testIds = [
       'welcome-back-button',
       'welcome-restore-passkey-button',
       'welcome-restore-seed-button',
     ];
     for (const id of testIds) {
-      const node = UNSAFE_root.findByProps({ testID: id });
-      const style = node.props.style;
-      if (typeof style === 'function') {
-        const result = style({ pressed: true });
-        expect(result).toBeTruthy();
-      }
+      expect(getByTestId(id).findByType(GlassSurface).props.variant).not.toBe('lead');
+
+      fireEvent(getByTestId(id), 'pressIn');
+      expect(getByTestId(id).findByType(GlassSurface).props.variant).toBe('lead');
+
+      fireEvent(getByTestId(id), 'pressOut');
+      expect(getByTestId(id).findByType(GlassSurface).props.variant).not.toBe('lead');
     }
   });
 });

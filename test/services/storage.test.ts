@@ -15,6 +15,7 @@ describe('StorageKeys', () => {
     expect(StorageKeys.WALLET_ORIGIN).toBe('walletOrigin');
     expect(StorageKeys.PASSKEY_CREDENTIAL_ID).toBe('passkeyCredentialId');
     expect(StorageKeys.PASSKEY_DERIVATION_VERSION).toBe('passkeyDerivationVersion');
+    expect(StorageKeys.ADDRESS_BOOK).toBe('addressBook');
   });
 
   it('has unique values', () => {

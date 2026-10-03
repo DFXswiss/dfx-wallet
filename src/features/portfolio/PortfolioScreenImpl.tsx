@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ImageBackground,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader, DarkBackdrop, EmptyState, Icon, Skeleton } from '@/components';
+import {
+  AppHeader,
+  DfxMark,
+  GlassCard,
+  GlassSurface,
+  Icon,
+  ScreenBackdrop,
+  Skeleton,
+} from '@/components';
+import { FEATURES } from '@/config/features';
 import { getAssetMeta, getAssets, type TokenCategory } from '@/config/tokens';
 import { getRawBalance, useBalances } from '@/services/balances';
 import {
@@ -25,6 +26,7 @@ import {
   toNumeric,
 } from '@/config/portfolio-presentation';
 import { useEnabledChains } from './useEnabledChains';
+import { WalletActions } from './WalletActions';
 import {
   defaultLinkedWalletName,
   useLinkedWalletNames,
@@ -39,8 +41,8 @@ import {
   BackdropText,
   Card,
   IconTile,
-  Interaction,
   Layout,
+  Radius,
   Spacing,
   Typography,
   useColors,
@@ -55,10 +57,6 @@ type PortfolioGroup = {
   category: TokenCategory;
   totalBalanceNum: number;
   totalFiat: number;
-  // Distinct networks the canonical asset is held on. USDC + USDT on
-  // Ethereum still counts as one network — the user cares about chains, not
-  // token variants on the same chain.
-  networks: Set<string>;
 };
 
 export default function PortfolioScreen() {
@@ -178,7 +176,6 @@ export default function PortfolioScreen() {
       if (existing) {
         existing.totalBalanceNum += balanceNum;
         existing.totalFiat += fiatValue;
-        existing.networks.add(meta.network);
       } else {
         byCanonical.set(meta.canonicalSymbol, {
           canonicalSymbol: meta.canonicalSymbol,
@@ -186,7 +183,6 @@ export default function PortfolioScreen() {
           category: meta.category,
           totalBalanceNum: balanceNum,
           totalFiat: fiatValue,
-          networks: new Set([meta.network]),
         });
       }
     }
@@ -229,6 +225,11 @@ export default function PortfolioScreen() {
     () => groups.reduce((sum, g) => sum + g.totalFiat, 0) + linkedWalletsFiat,
     [groups, linkedWalletsFiat],
   );
+  const hasHoldings = groups.some((group) => group.totalBalanceNum > 0);
+  const showEmptyState = !hasHoldings;
+  const visibleGroups = showEmptyState
+    ? groups
+    : groups.filter((group) => group.totalBalanceNum > 0);
 
   // Pull-to-refresh: invalidates every balance + pricing source so the
   // user gets a fresh round-trip rather than the staleTime-cached view.
@@ -309,7 +310,7 @@ export default function PortfolioScreen() {
           // when data lands.
           <View style={styles.assetList}>
             {[0, 1, 2, 3].map((i) => (
-              <View key={i} style={styles.skeletonRow}>
+              <GlassCard key={i} style={styles.skeletonRow}>
                 <Skeleton
                   width={IconTile.md.size}
                   height={IconTile.md.size}
@@ -320,32 +321,72 @@ export default function PortfolioScreen() {
                   <Skeleton width={'40%'} height={11} radius={6} />
                 </View>
                 <Skeleton width={84} height={16} radius={6} />
-              </View>
-            ))}
-          </View>
-        ) : groups.length > 0 ? (
-          <View style={styles.assetList}>
-            {groups.map((group) => (
-              <PortfolioGroupCard
-                key={group.canonicalSymbol}
-                group={group}
-                currencySymbol={currencySymbol}
-                onPress={() =>
-                  router.push({
-                    pathname: '/(auth)/portfolio/[symbol]',
-                    params: { symbol: group.canonicalSymbol },
-                  })
-                }
-              />
+              </GlassCard>
             ))}
           </View>
         ) : (
-          <EmptyState
-            icon="wallet"
-            title={t('portfolio.empty')}
-            description={t('portfolio.emptyDescription')}
-            testID="portfolio-empty"
-          />
+          <>
+            {!showEmptyState ? (
+              <View style={styles.actionsSection}>
+                <WalletActions />
+              </View>
+            ) : (
+              <GlassCard contentStyle={styles.emptyCard} testID="portfolio-empty">
+                <Text style={styles.emptyTitle}>{t('portfolio.emptyTitle')}</Text>
+                <Text style={styles.emptyText}>{t('portfolio.emptyText')}</Text>
+                <View style={styles.emptyActions}>
+                  {FEATURES.BUY_SELL ? (
+                    <Pressable
+                      accessibilityLabel={t('portfolio.actionBuy')}
+                      accessibilityRole="button"
+                      onPress={() => router.push('/(auth)/buy')}
+                      style={({ pressed }) => [
+                        styles.emptyButton,
+                        styles.emptyBuyButton,
+                        pressed && styles.emptyButtonPressed,
+                      ]}
+                      testID="portfolio-empty-buy"
+                    >
+                      <View style={styles.emptyDfxMark}>
+                        <DfxMark size={15} />
+                      </View>
+                      <Text style={styles.emptyBuyLabel}>{t('portfolio.actionBuy')}</Text>
+                    </Pressable>
+                  ) : null}
+                  <Pressable
+                    accessibilityLabel={t('portfolio.actionReceive')}
+                    accessibilityRole="button"
+                    onPress={() => router.push('/(auth)/receive')}
+                    style={({ pressed }) => [
+                      styles.emptyActionSlot,
+                      pressed && styles.emptyButtonPressed,
+                    ]}
+                    testID="portfolio-empty-receive"
+                  >
+                    <GlassSurface radius={12} style={styles.emptyButton} variant="quiet">
+                      <Text style={styles.emptyReceiveLabel}>{t('portfolio.actionReceive')}</Text>
+                    </GlassSurface>
+                  </Pressable>
+                </View>
+              </GlassCard>
+            )}
+
+            <View style={styles.assetList}>
+              {visibleGroups.map((group) => (
+                <PortfolioGroupCard
+                  key={group.canonicalSymbol}
+                  group={group}
+                  currencySymbol={currencySymbol}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(auth)/portfolio/[symbol]',
+                      params: { symbol: group.canonicalSymbol },
+                    })
+                  }
+                />
+              ))}
+            </View>
+          </>
         )}
 
         {linkedWallets.length > 0 ? (
@@ -384,15 +425,7 @@ export default function PortfolioScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>
@@ -439,9 +472,9 @@ function LinkedWalletCard({
       })}`
     : '—';
   return (
-    <Pressable
+    <GlassCard
+      contentStyle={styles.linkedCard}
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       testID={`portfolio-linked-wallet-${address.slice(0, 8)}`}
       accessibilityRole="button"
       accessibilityLabel={t('portfolio.linkedWalletA11y', { address: truncated })}
@@ -465,7 +498,7 @@ function LinkedWalletCard({
           {truncated}
         </Text>
       </View>
-    </Pressable>
+    </GlassCard>
   );
 }
 
@@ -476,17 +509,21 @@ function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) 
   const styles = useMemo(() => makeStyles(colors, scheme), [colors, scheme]);
   const color = SYMBOL_COLORS.get(group.canonicalSymbol) ?? colors.primary;
   const glyph = SYMBOL_GLYPH.get(group.canonicalSymbol) ?? group.canonicalSymbol.slice(0, 1);
-  const networkLabel =
-    group.networks.size === 1
-      ? t('portfolio.networkCount_one', { count: group.networks.size })
-      : t('portfolio.networkCount_other', { count: group.networks.size });
+  const name =
+    group.category === 'stablecoin'
+      ? t(`portfolio.assetName.${group.canonicalSymbol}`)
+      : group.canonicalName;
+  const subtitle =
+    group.category === 'stablecoin'
+      ? t('portfolio.stablecoinHint', { currency: group.canonicalSymbol })
+      : null;
   return (
-    <Pressable
+    <GlassCard
+      contentStyle={styles.card}
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       testID={`portfolio-asset-${group.canonicalSymbol}`}
       accessibilityRole="button"
-      accessibilityLabel={group.canonicalName}
+      accessibilityLabel={name}
     >
       <View
         style={[styles.iconBubble, { backgroundColor: color }]}
@@ -496,29 +533,23 @@ function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) 
       </View>
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>
-          {group.canonicalName}
+          {name}
         </Text>
-        <Text style={styles.chainCountText}>{networkLabel}</Text>
+        {subtitle ? <Text style={styles.chainCountText}>{subtitle}</Text> : null}
       </View>
       <View style={styles.balanceColumn}>
         <Text style={styles.fiatValue} numberOfLines={1}>
           {currencySymbol} {group.totalFiat.toFixed(2)}
         </Text>
-        <Text style={styles.cryptoBalance} numberOfLines={1}>
-          {formatNumber(group.totalBalanceNum)} {group.canonicalSymbol}
-        </Text>
+        {group.category === 'btc' ? (
+          <Text style={styles.cryptoBalance} numberOfLines={1}>
+            {formatNumber(group.totalBalanceNum)} {group.canonicalSymbol}
+          </Text>
+        ) : null}
       </View>
-    </Pressable>
+    </GlassCard>
   );
 }
-
-const cardElevation = (colors: ThemeColors) => ({
-  shadowColor: colors.shadow,
-  shadowOpacity: 0.07,
-  shadowRadius: 12,
-  shadowOffset: { width: 0, height: 5 },
-  elevation: 2,
-});
 
 const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
   const onBackdrop =
@@ -561,7 +592,7 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
       gap: Spacing.xs,
     },
     totalCurrency: {
-      fontSize: 20,
+      fontSize: Typography.headlineSmall.fontSize,
       color: colors.textTertiary,
       fontWeight: '500',
       ...onBackdrop,
@@ -574,20 +605,76 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
       flexShrink: 1,
       ...onBackdrop,
     },
+    actionsSection: {
+      marginTop: Spacing.base,
+    },
+    emptyCard: {
+      alignItems: 'center',
+      gap: Spacing.md,
+      marginTop: Spacing.base,
+    },
+    emptyTitle: {
+      ...Typography.bodyLarge,
+      color: colors.text,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    emptyText: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      fontWeight: '500',
+      textAlign: 'center',
+      marginTop: -10,
+    },
+    emptyActions: {
+      flexDirection: 'row',
+      gap: Spacing.sm,
+      alignSelf: 'stretch',
+    },
+    emptyActionSlot: {
+      flex: 1,
+    },
+    emptyButton: {
+      flex: 1,
+      minHeight: 46,
+      borderRadius: Radius.sm,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+    },
+    emptyBuyButton: {
+      backgroundColor: colors.primary,
+    },
+    emptyButtonPressed: {
+      opacity: 0.85,
+    },
+    emptyDfxMark: {
+      width: 22,
+      height: 22,
+      borderRadius: Radius.xs,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.white,
+    },
+    emptyBuyLabel: {
+      ...Typography.bodyMedium,
+      color: colors.white,
+      fontWeight: '700',
+    },
+    emptyReceiveLabel: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      fontWeight: '700',
+    },
     assetList: {
       gap: Layout.listGap,
-      marginTop: Spacing.xl,
+      marginTop: Spacing.base,
     },
     skeletonRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: Card.radius,
-      borderWidth: Card.borderWidth,
-      borderColor: colors.cardOverlayBorder,
-      padding: Card.padding,
       gap: Card.gap,
-      ...cardElevation(colors),
     },
     skeletonCopy: {
       flex: 1,
@@ -596,16 +683,12 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
     card: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: Card.radius,
-      borderWidth: Card.borderWidth,
-      borderColor: colors.cardOverlayBorder,
-      padding: Card.padding,
       gap: Card.gap,
-      ...cardElevation(colors),
     },
-    cardPressed: {
-      opacity: Interaction.pressedCardOpacity,
+    linkedCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Card.gap,
     },
     iconBubble: {
       width: IconTile.md.size,

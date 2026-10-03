@@ -2,7 +2,14 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { BrandLogo, DfxBackgroundScreen, Icon, PrimaryButton } from '@/components';
+import {
+  BrandLogo,
+  DfxBackgroundScreen,
+  GlassCard,
+  GlassIconButton,
+  Icon,
+  PrimaryButton,
+} from '@/components';
 import { FEATURES } from '@/config/features';
 import { isPasskeyOsSupported } from '@/config/platform';
 import { Typography, useColors, type ThemeColors } from '@/theme';
@@ -29,16 +36,12 @@ export default function WelcomeScreen() {
   return (
     <DfxBackgroundScreen contentStyle={styles.content} testID="welcome-screen">
       <View style={styles.topBar}>
-        <Pressable
+        <GlassIconButton
+          icon={<Icon name="arrow-left" size={24} color={colors.text} />}
           onPress={handleBack}
-          hitSlop={12}
-          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
-          accessibilityRole="button"
           accessibilityLabel="Back"
           testID="welcome-back-button"
-        >
-          <Icon name="arrow-left" size={24} color={colors.text} />
-        </Pressable>
+        />
       </View>
 
       <View style={styles.header}>
@@ -71,22 +74,22 @@ export default function WelcomeScreen() {
             {showRestore && (
               <View style={styles.restoreOptions}>
                 {passkeySupported && (
-                  <Pressable
+                  <GlassCard
                     testID="welcome-restore-passkey-button"
-                    style={({ pressed }) => [styles.restoreOption, pressed && styles.pressed]}
+                    radius={12}
                     onPress={() => router.push('/(onboarding)/restore-passkey')}
                   >
                     <Text style={styles.restoreOptionText}>{t('onboarding.restorePasskey')}</Text>
-                  </Pressable>
+                  </GlassCard>
                 )}
                 {FEATURES.RESTORE && (
-                  <Pressable
+                  <GlassCard
                     testID="welcome-restore-seed-button"
-                    style={({ pressed }) => [styles.restoreOption, pressed && styles.pressed]}
+                    radius={12}
                     onPress={() => router.push('/(onboarding)/restore-wallet')}
                   >
                     <Text style={styles.restoreOptionText}>{t('onboarding.restoreSeed')}</Text>
-                  </Pressable>
+                  </GlassCard>
                 )}
               </View>
             )}
@@ -107,16 +110,6 @@ const makeStyles = (colors: ThemeColors) =>
     topBar: {
       height: 44,
       justifyContent: 'center',
-    },
-    backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderWidth: 1,
-      borderColor: colors.border,
     },
     header: {
       flex: 1,
@@ -150,17 +143,6 @@ const makeStyles = (colors: ThemeColors) =>
     },
     restoreOptions: {
       gap: 8,
-    },
-    restoreOption: {
-      paddingVertical: 16,
-      paddingHorizontal: 16,
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    pressed: {
-      opacity: 0.7,
     },
     restoreOptionText: {
       ...Typography.bodyLarge,

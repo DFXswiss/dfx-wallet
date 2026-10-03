@@ -5,10 +5,14 @@ tags:
   - dashboard
   - mvp
 ---
-# Tests the chain selector on the Send screen. CHF/EUR/USD each have
-# four EVM chains (Ethereum, Arbitrum, Polygon, Base); BTC ships with
-# a single chain (spark / Lightning) and the chain bar is hidden in
-# that case. CHF is the canonical multi-chain MVP asset.
+# Tests the chain selector on the Send amount step. An EVM address only
+# fits the stablecoins (CHF/EUR/USD), which each have four EVM chains
+# (Ethereum, Arbitrum, Polygon, Base); a Bitcoin address only fits BTC,
+# which ships with a single chain (spark / Lightning) — the chain bar is
+# hidden in that case. A fresh wallet has no balance, so the amount step
+# preselects the first stablecoin (CHF).
+# Both addresses are placeholders that belong to nobody: the all-zero EVM
+# address ending in 1 and the public BIP-173 reference address.
 - launchApp:
     clearState: true
     clearKeychain: true
@@ -39,7 +43,7 @@ tags:
 - tapOn:
     id: "create-wallet-continue-button"
 
-# Dashboard -> Send -> CHF -> Input step with chain selector
+# Dashboard -> Send -> EVM address -> amount step with chain selector
 - extendedWaitUntil:
     visible:
       id: "dashboard-screen"
@@ -49,10 +53,13 @@ tags:
 - assertVisible:
     id: "send-screen"
 - tapOn:
-    id: "send-asset-chf"
+    id: "send-recipient-input"
+- inputText: "0x0000000000000000000000000000000000000001"
+- tapOn:
+    id: "send-recipient-continue"
 
 - assertVisible:
-    id: "send-input-step"
+    id: "send-amount-step"
 - assertVisible:
     id: "send-chain-bar"
 - assertVisible:
@@ -69,21 +76,25 @@ tags:
 - tapOn:
     id: "send-chain-arbitrum"
 - assertVisible:
-    id: "send-recipient-input"
+    id: "send-amount-step"
 
 - tapOn:
     id: "send-chain-polygon"
 - assertVisible:
-    id: "send-recipient-input"
+    id: "send-amount-step"
 
-# BTC has a single chain (spark / Lightning) — chain bar is hidden
+# Bitcoin address has a single chain (spark / Lightning) — chain bar is hidden
 - tapOn:
-    id: "send-selected-asset-pill"
+    id: "send-screen-back"
 - assertVisible:
-    id: "send-asset-list"
+    id: "send-overview-step"
 - tapOn:
-    id: "send-asset-btc"
+    id: "send-recipient-input"
+- eraseText: 60
+- inputText: "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"
+- tapOn:
+    id: "send-recipient-continue"
 - assertVisible:
-    id: "send-input-step"
+    id: "send-amount-step"
 - assertNotVisible:
     id: "send-chain-bar"

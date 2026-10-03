@@ -7,6 +7,7 @@ import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import {
   AppHeader,
   DfxBackgroundScreen,
+  GlassCard,
   OnboardingStepIndicator,
   PrimaryButton,
 } from '@/components';
@@ -68,23 +69,23 @@ export default function CreatePasskeyScreen() {
       <Text style={styles.description}>{t('passkey.createDescription')}</Text>
 
       <View style={styles.infoContainer}>
-        <View style={styles.infoItem}>
+        <GlassCard style={styles.infoItem}>
           <Text style={styles.infoIcon}>1</Text>
           <Text style={styles.infoText}>{t('passkey.step1')}</Text>
-        </View>
-        <View style={styles.infoItem}>
+        </GlassCard>
+        <GlassCard style={styles.infoItem}>
           <Text style={styles.infoIcon}>2</Text>
           <Text style={styles.infoText}>{t('passkey.step2')}</Text>
-        </View>
-        <View style={styles.infoItem}>
+        </GlassCard>
+        <GlassCard style={styles.infoItem}>
           <Text style={styles.infoIcon}>3</Text>
           <Text style={styles.infoText}>{t('passkey.step3')}</Text>
-        </View>
+        </GlassCard>
       </View>
 
-      <View style={styles.warningContainer}>
+      <GlassCard tone="warning" style={styles.warningContainer}>
         <Text style={styles.warningText}>{t('passkey.backupWarning')}</Text>
-      </View>
+      </GlassCard>
 
       <View style={styles.spacer} />
 
@@ -116,11 +117,6 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 14,
     },
     infoIcon: {
       ...Typography.headlineSmall,
@@ -139,10 +135,6 @@ const makeStyles = (colors: ThemeColors) =>
       flex: 1,
     },
     warningContainer: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.warning,
       padding: 16,
     },
     warningText: {
