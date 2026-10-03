@@ -192,10 +192,19 @@ jobs:
           cache: npm
       # Blocking since the test-gates overhaul — a known-high vuln in the
       # dependency tree of a wallet is a merge blocker, not a yellow badge.
-      # image-size GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq: no published
-      # patched release (latest 2.0.2, repo archived) — allowlist only those.
+      # image-size GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq: patched only in 2.0.3 (repo archived); metro 0.83
+      # (Expo SDK 54) needs ^1 and passes file paths, which the 2.x API rejects — allowlist only those.
       # node-forge GHSA-86w9-cpqp-85rv: no published patched release (affects <=1.4.0, latest 1.4.0);
       # only reached through expo -> @expo/cli build tooling, not the app bundle — allowlist only that ID.
+      # braces GHSA-vfj7-8cjw-p6xm: no published patched release (affects <=3.0.3, latest 3.0.3);
+      # only reached through micromatch in jest, metro, @expo/cli and patch-package tooling
+      # (patch-package -> find-yarn-workspace-root -> micromatch -> braces), not the app bundle.
+      # stream-json GHSA-528h-pc64-c93x: moderate, patched in 3.5.0, but detox's ^1.7.4 range resolves
+      # to 1.9.1 in the lockfile, so an override would be a two-major jump inside E2E tooling;
+      # only reached through detox, not the app bundle.
+      # npm audit reports @wix-pilot/detox (a dependency of detox that peer-depends on it) as high
+      # due to braces and collects the stream-json ID in that entry too, so it must be allowlisted here.
+      # Unidentified advisories, unresolved package references and unknown via types fail closed.
       - name: npm audit (high+)
         run: |
           set +e
@@ -207,6 +216,8 @@ jobs:
               "GHSA-86W9-CPQP-85RV",
               "GHSA-W3RX-R6R6-PGPR",
               "GHSA-5P2G-FCMC-QVQQ",
+              "GHSA-VFJ7-8CJW-P6XM",
+              "GHSA-528H-PC64-C93X",
           }
           GHSA_RE = re.compile(r"GHSA-[a-z0-9]+-[a-z0-9]+-[a-z0-9]+", re.I)
           try:
@@ -232,13 +243,19 @@ jobs:
               found = set()
               for via in vulns[name].get("via") or []:
                   if isinstance(via, dict):
+                      advisory_ghsas = set()
                       for key in ("url", "source"):
                           val = via.get(key)
                           if isinstance(val, str):
-                              found.update(m.upper() for m in GHSA_RE.findall(val))
+                              advisory_ghsas.update(m.upper() for m in GHSA_RE.findall(val))
+                      found |= advisory_ghsas or {"UNIDENTIFIED-ADVISORY"}
                   elif isinstance(via, str):
-                      found.update(m.upper() for m in GHSA_RE.findall(via))
-                      found |= collect_ghsas(via, seen)
+                      if via not in vulns:
+                          found.add("UNIDENTIFIED-ADVISORY")
+                      elif via not in seen:
+                          found |= collect_ghsas(via, seen)
+                  else:
+                      found.add("UNIDENTIFIED-ADVISORY")
               return found
 
           blockers = []
