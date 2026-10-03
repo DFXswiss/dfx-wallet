@@ -1,4 +1,5 @@
 import { env } from '@/config/env';
+import { constantTimeEqual } from '@/services/security/constant-time';
 
 export type ApiError = {
   statusCode: number;
@@ -23,14 +24,22 @@ type PendingResponse = {
   timeoutMs: number;
 };
 
+type AuthRefreshResult = {
+  generation: number;
+  token: string | null;
+};
+
 class DfxApi {
   private baseUrl = env.dfxApiUrl;
   private authToken: string | null = null;
-  private onUnauthorized: (() => Promise<string | null>) | null = null;
-  private refreshPromise: Promise<string | null> | null = null;
+  private authGeneration = 0;
+  private onUnauthorized: ((authGeneration: number) => Promise<string | null>) | null = null;
+  private refreshPromise: Promise<AuthRefreshResult> | null = null;
 
   setAuthToken(token: string) {
+    if (this.authToken !== null && constantTimeEqual(this.authToken, token)) return;
     this.authToken = token;
+    this.authGeneration += 1;
   }
 
   /** Base URL exposed for code that needs to construct unauth GET URLs
@@ -42,10 +51,29 @@ class DfxApi {
 
   clearAuthToken() {
     this.authToken = null;
+    this.authGeneration += 1;
+    this.refreshPromise = null;
+  }
+
+  /**
+   * The 401 refresh flow must clear and replace its own token without changing
+   * the generation it is validating. External auth changes use the public
+   * setters above and therefore invalidate this generation-bound path.
+   */
+  clearAuthTokenForRefresh(authGeneration: number): boolean {
+    if (authGeneration !== this.authGeneration) return false;
+    this.authToken = null;
+    return true;
+  }
+
+  setAuthTokenForRefresh(token: string, authGeneration: number): boolean {
+    if (authGeneration !== this.authGeneration) return false;
+    this.authToken = token;
+    return true;
   }
 
   /** Register a callback to refresh the token on 401 */
-  setOnUnauthorized(handler: () => Promise<string | null>) {
+  setOnUnauthorized(handler: (authGeneration: number) => Promise<string | null>) {
     this.onUnauthorized = handler;
   }
 
@@ -88,15 +116,23 @@ class DfxApi {
 
     // Handle 401 — attempt token refresh once
     if (pending.response.status === 401 && this.onUnauthorized && !path.startsWith('/v1/auth')) {
-      let newToken: string | null;
+      let refreshResult: AuthRefreshResult;
       try {
-        newToken = await this.raceRefreshWithRequest(this.refreshAuthToken(), pending);
+        refreshResult = await this.raceRefreshWithRequest(this.refreshAuthToken(), pending);
       } catch (error) {
         pending.cleanup();
         throw error;
       }
-      if (newToken) {
-        this.authToken = newToken;
+      const refreshTokenIsCurrent =
+        refreshResult.token !== null &&
+        this.authToken !== null &&
+        constantTimeEqual(this.authToken, refreshResult.token);
+      // Legacy refresh handlers may install their own result through the public setter.
+      if (refreshResult.generation !== this.authGeneration && !refreshTokenIsCurrent) {
+        return this.consumeResponse<T>(pending, options?.responseType);
+      }
+      if (refreshResult.token) {
+        this.authToken = refreshResult.token;
         pending.cleanup();
         const remainingTimeoutMs = deadline - Date.now();
         if (remainingTimeoutMs <= 0) throw new DfxApiTimeoutError(timeoutMs);
@@ -117,23 +153,28 @@ class DfxApi {
     return this.consumeResponse<T>(pending, options?.responseType);
   }
 
-  private refreshAuthToken(): Promise<string | null> {
-    if (!this.onUnauthorized) return Promise.resolve(null);
+  private refreshAuthToken(): Promise<AuthRefreshResult> {
+    if (!this.onUnauthorized) {
+      return Promise.resolve({ generation: this.authGeneration, token: null });
+    }
     if (!this.refreshPromise) {
-      this.refreshPromise = this.onUnauthorized().finally(() => {
-        this.refreshPromise = null;
+      const generation = this.authGeneration;
+      const refresh = this.onUnauthorized(generation).then((token) => ({ generation, token }));
+      const sharedRefresh = refresh.finally(() => {
+        if (this.refreshPromise === sharedRefresh) this.refreshPromise = null;
       });
+      this.refreshPromise = sharedRefresh;
     }
     return this.refreshPromise;
   }
 
   private raceRefreshWithRequest(
-    refresh: Promise<string | null>,
+    refresh: Promise<AuthRefreshResult>,
     pending: PendingResponse,
-  ): Promise<string | null> {
+  ): Promise<AuthRefreshResult> {
     if (pending.signal.aborted) return Promise.reject(this.requestAbortError(pending));
 
-    return new Promise<string | null>((resolve, reject) => {
+    return new Promise<AuthRefreshResult>((resolve, reject) => {
       const onAbort = () => {
         pending.signal.removeEventListener('abort', onAbort);
         reject(this.requestAbortError(pending));

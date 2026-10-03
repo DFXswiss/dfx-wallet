@@ -36,6 +36,7 @@ jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
       ({
+        'send.error.amountPrecision': 'The amount has too many decimal places.',
         'send.error.amountZero': 'Amount must be greater than zero.',
         'send.error.feeTooHigh': 'The network fee is too high.',
         'send.error.generic': 'The transaction could not be sent.',
@@ -60,10 +61,19 @@ const assetWithDecimals = (decimals: number, id = 'asset'): Asset =>
 const usdt = assetWithDecimals(6, 'usdt-eth');
 const eth = assetWithDecimals(18, 'eth');
 const sparkBtc = assetWithDecimals(8, 'spark-native');
- 
 const EVM_RECIPIENT = '0x52908400098527886E0F7030069857D2E4169EE7';
-const SPARK_PAYLOAD = new Uint8Array(33).map((_, index) => index);
-const SPARK_RECIPIENT = bech32m.encode('spark', bech32m.toWords(SPARK_PAYLOAD), 1023);
+const SPARK_IDENTITY_PUBLIC_KEY_HEX =
+  '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798';
+const SPARK_IDENTITY_PUBLIC_KEY = Uint8Array.from(
+  { length: SPARK_IDENTITY_PUBLIC_KEY_HEX.length / 2 },
+  (_, index) =>
+    Number.parseInt(SPARK_IDENTITY_PUBLIC_KEY_HEX.slice(index * 2, index * 2 + 2), 16),
+);
+const SPARK_RECIPIENT = bech32m.encode(
+  'spark',
+  bech32m.toWords(Uint8Array.from([0x0a, 0x21, ...SPARK_IDENTITY_PUBLIC_KEY])),
+  1023,
+);
 
 function wrap({ children }: { children: React.ReactNode }) {
   const client = new QueryClient({
@@ -84,10 +94,9 @@ beforeEach(() => {
 });
 
 describe('useSendFlow — amount parsing / precision (send path)', () => {
-  // Each of these display strings scales to base-unit "0" via parseUnits, so
-  // the send must short-circuit as "greater than zero" WITHOUT calling WDK.
+  // Each of these display strings is invalid or zero, so the send must
+  // short-circuit as "greater than zero" WITHOUT calling WDK.
   it.each([
-    ['dust truncated below one base unit', '0.0000001', 6],
     ['exact zero', '0', 6],
     ['zero with fraction', '0.0', 18],
     ['empty string', '', 6],
@@ -126,23 +135,25 @@ describe('useSendFlow — amount parsing / precision (send path)', () => {
     });
   });
 
-  it('truncates fractional digits beyond the asset decimals (no rounding)', async () => {
-    mockSend.mockResolvedValueOnce({ success: true, hash: '0x1' });
+  it('rejects fractional digits beyond the asset decimals without calling WDK', async () => {
     const { result } = render();
 
+    let txHash: string | null = 'sentinel';
     await act(async () => {
-      // 1.2345678 at 6 decimals → drops the 8th digit → 1234567 base units.
-      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1.2345678' });
+      txHash = await result.current.send({
+        asset: usdt,
+        to: EVM_RECIPIENT,
+        amount: '1.2345678',
+      });
     });
 
-    expect(mockSend).toHaveBeenCalledWith({
-      asset: usdt,
-      to: EVM_RECIPIENT,
-      amount: '1234567',
-    });
+    expect(txHash).toBeNull();
+    expect(result.current.error).toBe('The amount has too many decimal places.');
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockRefreshWdkMutate).not.toHaveBeenCalled();
   });
 
-  it('sends the smallest representable unit (1 wei-equivalent) when it survives truncation', async () => {
+  it('sends the smallest representable unit at the asset precision boundary', async () => {
     mockSend.mockResolvedValueOnce({ success: true, hash: '0x1' });
     const { result } = render();
 
@@ -289,7 +300,7 @@ describe('useSendFlow — estimate path shares scaling + parsing', () => {
     });
   });
 
-  it('returns a translated amount error for dust that truncates to zero', async () => {
+  it('returns a precision error for excess comma decimals without estimating', async () => {
     const { result } = render();
 
     let fee: Awaited<ReturnType<typeof result.current.estimate>> | undefined;
@@ -297,10 +308,13 @@ describe('useSendFlow — estimate path shares scaling + parsing', () => {
       fee = await result.current.estimate({
         asset: usdt,
         to: EVM_RECIPIENT,
-        amount: '0.0000001',
+        amount: '1,2345678',
       });
     });
-    expect(fee).toEqual({ success: false, error: 'Amount must be greater than zero.' });
+    expect(fee).toEqual({
+      success: false,
+      error: 'The amount has too many decimal places.',
+    });
     expect(mockEstimateFee).not.toHaveBeenCalled();
   });
 
