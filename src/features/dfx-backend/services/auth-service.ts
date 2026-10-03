@@ -42,17 +42,54 @@ export function assertBackendSignMessage(message: string, address: string): void
 
 export class DfxAuthService {
   private accessToken: string | null = null;
+  private generation = 0;
   private signatureCache: Map<string, SignatureCacheEntry> = new Map();
+
+  /**
+   * Capture the current session generation for an authentication flow. Only
+   * `logout` and `adoptStoredToken` bump the generation because they replace
+   * the session from outside a flow. Clearing a Bearer for a fresh login stays
+   * within the same session so concurrent flows remain eligible to finish.
+   */
+  private beginFlow(clearToken = false): number {
+    if (clearToken) {
+      this.accessToken = null;
+      dfxApi.clearAuthToken();
+    }
+    return this.generation;
+  }
+
+  /** Install a token unless an external session replacement interrupted the flow. */
+  private installToken(token: string, flowGeneration: number): boolean {
+    if (flowGeneration !== this.generation) return false;
+    this.accessToken = token;
+    dfxApi.setAuthToken(token);
+    return true;
+  }
+
+  /** Restore a token unless an external session replacement interrupted the flow. */
+  private rollbackToken(previousToken: string | null, flowGeneration: number): void {
+    if (flowGeneration !== this.generation) return;
+    this.accessToken = previousToken;
+    if (previousToken) dfxApi.setAuthToken(previousToken);
+  }
+
+  private async requestAuthToken(request: AuthRequestDto): Promise<string> {
+    const response = await dfxApi.post<AuthResponseDto>('/v1/auth', request);
+    return response.accessToken;
+  }
 
   /**
    * Adopt a JWT that was rehydrated from secure storage on cold start. The
    * boot path stores the token in `dfxApi` directly to keep authenticated
    * requests working, but `linkAddress` and `isAuthenticated` rely on this
    * service's own copy of the token. Without this sync the very first
-   * post-boot link attempt threw "Not authenticated".
+   * post-boot link attempt threw "Not authenticated". This external token
+   * replacement bumps the generation so older flows cannot overwrite it.
    */
   adoptStoredToken(token: string | null): void {
     this.accessToken = token;
+    this.generation += 1;
   }
 
   /** Get the sign message challenge for an address */
@@ -64,10 +101,10 @@ export class DfxAuthService {
 
   /** Authenticate with a signed message and get a JWT */
   async authenticate(request: AuthRequestDto): Promise<string> {
-    const response = await dfxApi.post<AuthResponseDto>('/v1/auth', request);
-    this.accessToken = response.accessToken;
-    dfxApi.setAuthToken(response.accessToken);
-    return response.accessToken;
+    const flowGeneration = this.beginFlow();
+    const token = await this.requestAuthToken(request);
+    this.installToken(token, flowGeneration);
+    return token;
   }
 
   /**
@@ -97,24 +134,24 @@ export class DfxAuthService {
     options?: { wallet?: string; blockchain?: string; usedRef?: string },
   ): Promise<string> {
     const previousToken = this.accessToken;
-    this.accessToken = null;
-    dfxApi.clearAuthToken();
+    const flowGeneration = this.beginFlow(true);
 
     try {
       const { message } = await this.getSignMessage(address);
       assertBackendSignMessage(message, address);
       const signature = await this.signWithCache(address, message, signFn);
 
-      return await this.authenticate({
+      const token = await this.requestAuthToken({
         address,
         signature,
         wallet: options?.wallet ?? 'DFX Wallet',
         ...(options?.blockchain !== undefined ? { blockchain: options.blockchain } : {}),
         ...(options?.usedRef !== undefined ? { usedRef: options.usedRef } : {}),
       });
+      this.installToken(token, flowGeneration);
+      return token;
     } catch (err) {
-      this.accessToken = previousToken;
-      if (previousToken) dfxApi.setAuthToken(previousToken);
+      this.rollbackToken(previousToken, flowGeneration);
       throw err;
     }
   }
@@ -171,14 +208,13 @@ export class DfxAuthService {
     if (!previousToken) {
       throw new Error('Not authenticated — sign in before switching addresses.');
     }
+    const flowGeneration = this.beginFlow();
     try {
       const response = await dfxApi.post<AuthResponseDto>('/v2/user/change', { address });
-      this.accessToken = response.accessToken;
-      dfxApi.setAuthToken(response.accessToken);
+      this.installToken(response.accessToken, flowGeneration);
       return response.accessToken;
     } catch (err) {
-      this.accessToken = previousToken;
-      dfxApi.setAuthToken(previousToken);
+      this.rollbackToken(previousToken, flowGeneration);
       throw err;
     }
   }
@@ -195,8 +231,7 @@ export class DfxAuthService {
     options?: { wallet?: string; blockchain?: string },
   ): Promise<string> {
     const previousToken = this.accessToken;
-    this.accessToken = null;
-    dfxApi.clearAuthToken();
+    const flowGeneration = this.beginFlow(true);
     try {
       const response = await dfxApi.post<AuthResponseDto>('/v1/auth', {
         address: lnurl.toUpperCase(),
@@ -204,12 +239,10 @@ export class DfxAuthService {
         wallet: options?.wallet ?? 'DFX Bitcoin',
         ...(options?.blockchain !== undefined ? { blockchain: options.blockchain } : {}),
       });
-      this.accessToken = response.accessToken;
-      dfxApi.setAuthToken(response.accessToken);
+      this.installToken(response.accessToken, flowGeneration);
       return response.accessToken;
     } catch (err) {
-      this.accessToken = previousToken;
-      if (previousToken) dfxApi.setAuthToken(previousToken);
+      this.rollbackToken(previousToken, flowGeneration);
       throw err;
     }
   }
@@ -241,11 +274,11 @@ export class DfxAuthService {
    * client to use the new token and returns it.
    */
   async confirmMailLogin(otp: string): Promise<string> {
+    const flowGeneration = this.beginFlow();
     const response = await dfxApi.get<{ accessToken: string; kycHash?: string }>(
       `/v1/auth/mail/confirm?code=${encodeURIComponent(otp)}`,
     );
-    this.accessToken = response.accessToken;
-    dfxApi.setAuthToken(response.accessToken);
+    this.installToken(response.accessToken, flowGeneration);
     return response.accessToken;
   }
 
@@ -269,6 +302,7 @@ export class DfxAuthService {
     if (!previousToken) {
       throw new Error('Not authenticated — sign in before linking another address.');
     }
+    const flowGeneration = this.beginFlow();
     try {
       // DFX address validator requires uppercase LNURL: `(LNURL|LNDHUB)[A-Z0-9]{25,250}`.
       // LDS hands us the lowercase `lnurl1…` form, so without this the DTO
@@ -281,12 +315,10 @@ export class DfxAuthService {
         wallet: options?.wallet ?? 'DFX Bitcoin',
         ...(options?.blockchain !== undefined ? { blockchain: options.blockchain } : {}),
       });
-      this.accessToken = response.accessToken;
-      dfxApi.setAuthToken(response.accessToken);
+      this.installToken(response.accessToken, flowGeneration);
       return response.accessToken;
     } catch (err) {
-      this.accessToken = previousToken;
-      dfxApi.setAuthToken(previousToken);
+      this.rollbackToken(previousToken, flowGeneration);
       throw err;
     }
   }
@@ -314,6 +346,7 @@ export class DfxAuthService {
     if (!previousToken) {
       throw new Error('Not authenticated — sign in before linking another address.');
     }
+    const flowGeneration = this.beginFlow();
 
     const { message } = await this.getSignMessage(address);
     assertBackendSignMessage(message, address);
@@ -326,19 +359,18 @@ export class DfxAuthService {
         wallet: options?.wallet ?? 'DFX Wallet',
         ...(options?.blockchain !== undefined ? { blockchain: options.blockchain } : {}),
       });
-      this.accessToken = response.accessToken;
-      dfxApi.setAuthToken(response.accessToken);
+      this.installToken(response.accessToken, flowGeneration);
       return response.accessToken;
     } catch (err) {
-      this.accessToken = previousToken;
-      dfxApi.setAuthToken(previousToken);
+      this.rollbackToken(previousToken, flowGeneration);
       throw err;
     }
   }
 
-  /** Clear auth state and forget any cached signatures. */
+  /** Clear auth state, invalidate older flows, and forget any cached signatures. */
   logout(): void {
     this.accessToken = null;
+    this.generation += 1;
     this.signatureCache.clear();
     dfxApi.clearAuthToken();
   }

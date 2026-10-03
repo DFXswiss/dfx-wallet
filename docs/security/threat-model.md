@@ -34,6 +34,7 @@ We design against, in increasing capability:
 4. **Network attacker** — can MITM any plaintext or unauthenticated channel.
    Defeated by TLS, certificate pinning for `api.dfx.swiss` (planned), Noise
    handshake on BitBox transports.
+   The Electrum client disables certificate validation, so TLS protects against passive eavesdropping, not an active MITM.
 5. **Supply-chain attacker** — compromises an npm package, GitHub Action, or
    build artifact. Defeated by lockfile integrity, audit gates, pinned action
    SHAs, signed releases (planned), reproducible builds (planned).
@@ -53,7 +54,7 @@ We design against, in increasing capability:
 | Local storage                        | Wrong storage class (MMKV vs. SecureStore), stale data after uninstall, plaintext spillover |
 | PIN entry & biometric                | Shoulder-surfing, screen recording, screenshots, fault injection on retry counter           |
 | Clipboard                            | Other apps reading recipient addresses, mnemonic copies left behind                         |
-| Deep links                           | Malicious `dfx://` URLs that pre-fill send forms, hijack KYC callbacks                      |
+| Deep links                           | Malicious `dfxwallet://` URLs that pre-fill send forms, hijack KYC callbacks                |
 | WebView (KYC iframe, embedded flows) | JS injection, file access, third-party cookie leakage                                       |
 | BitBox transport                     | BLE MITM during pairing, USB driver vulnerabilities, fake pairing UI                        |
 | WDK Bare worklet                     | Worklet bundle tampering at build time, IPC boundary errors                                 |

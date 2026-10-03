@@ -10,14 +10,11 @@ import {
   OnboardingStepIndicator,
   PrimaryButton,
 } from '@/components';
+import { isWalletAlreadyExistsError } from '@/features/restore/services/restore-wallet';
 import { useScreenCaptureProtection } from '@/hooks/useScreenCaptureProtection';
 import { copySensitive } from '@/services/clipboard';
 import { generateSeedPhrase, wordsToSeed } from '@/services/wallet';
 import { Typography, useColors, type ThemeColors } from '@/theme';
-
-function isWalletAlreadyExistsError(err: unknown): boolean {
-  return err instanceof Error && err.message.toLowerCase().includes('already exists');
-}
 
 export default function CreateWalletScreen() {
   const router = useRouter();
