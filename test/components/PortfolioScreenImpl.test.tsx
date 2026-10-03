@@ -328,17 +328,55 @@ describe('PortfolioScreenImpl', () => {
     });
     setBalances({ [USDT_ETH_ID]: '1000000' });
 
-    const { getByTestId, getByText } = renderScreen();
+    const { getAllByText, getByTestId, getByText } = renderScreen();
     await waitFor(() => expect(getByTestId(`portfolio-linked-wallet-${LONG_ADDR.slice(0, 8)}`)).toBeTruthy());
     expect(getByTestId(`portfolio-linked-wallet-${SHORT_ADDR.slice(0, 8)}`)).toBeTruthy();
     expect(getByText('Office cold')).toBeTruthy();
-    expect(getByText('—')).toBeTruthy();
+    expect(getAllByText('—')).toHaveLength(2);
 
     fireEvent.press(getByTestId(`portfolio-linked-wallet-${LONG_ADDR.slice(0, 8)}`));
     expect(mockPush).toHaveBeenCalledWith({
       pathname: '/(auth)/linked-wallet/[address]',
       params: { address: LONG_ADDR },
     });
+  });
+
+  it('shows placeholders and the incomplete hint until linked-wallet fiat is exact', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    mockGetUser.mockResolvedValue({ addresses: [WALLET_LONG], activeAddress: null });
+    mockDiscovery.set(LONG_ADDR.toLowerCase(), {
+      address: LONG_ADDR.toLowerCase(),
+      assets: [],
+      totalFiat: 42.5,
+      complete: false,
+      known: true,
+    });
+    setBalances({ [USDT_ETH_ID]: '1000000' });
+
+    const incomplete = renderScreen();
+    await waitFor(() =>
+      expect(
+        incomplete.getByTestId(`portfolio-linked-wallet-${LONG_ADDR.slice(0, 8)}`),
+      ).toBeTruthy(),
+    );
+    expect(incomplete.getByTestId('portfolio-total-value').props.children).toBe('—');
+    expect(incomplete.getAllByText('—')).toHaveLength(2);
+    expect(incomplete.getByText('dashboard.incompleteBalance')).toBeTruthy();
+    expect(incomplete.queryByText('$ 42.50')).toBeNull();
+    incomplete.unmount();
+
+    mockDiscovery.set(LONG_ADDR.toLowerCase(), {
+      address: LONG_ADDR.toLowerCase(),
+      assets: [],
+      totalFiat: 42.5,
+      complete: true,
+      known: true,
+    });
+
+    const complete = renderScreen();
+    await waitFor(() => expect(complete.getByText('$ 42.50')).toBeTruthy());
+    expect(complete.getByTestId('portfolio-total-value').props.children).toBe('43.50');
+    expect(complete.queryByText('dashboard.incompleteBalance')).toBeNull();
   });
 
   it('drops unselected linked wallets and clears them when getUser fails', async () => {

@@ -16,6 +16,7 @@ import {
   computeFiatValue,
   formatBalance,
   formatNumber,
+  isFiatPriceAvailable,
   resolveFiatCurrency,
   SYMBOL_COLORS,
   SYMBOL_GLYPH,
@@ -55,6 +56,7 @@ type Holding = {
   balanceNum: number;
   balanceFormatted: string;
   fiatValue: number;
+  isFiatAvailable: boolean;
   isQueried: boolean;
   isBalanceComplete: boolean;
 };
@@ -126,6 +128,10 @@ export default function AssetDetailScreen() {
       const balanceNum = toNumeric(balanceFormatted);
 
       const fiatValue = computeFiatValue(balanceNum, canonicalSymbol, fiatCurrency, pricingReady);
+      const isFiatAvailable =
+        balanceNum <= 0 ||
+        (isFiatPriceAvailable(balanceNum, canonicalSymbol, fiatCurrency, pricingReady) &&
+          Number.isFinite(fiatValue));
 
       const chainLabel = CHAIN_LABELS.get(meta.network) ?? meta.network;
       const isBtc = meta.canonicalSymbol === 'BTC';
@@ -144,6 +150,7 @@ export default function AssetDetailScreen() {
         balanceNum,
         balanceFormatted,
         fiatValue,
+        isFiatAvailable,
         isQueried,
         isBalanceComplete,
       };
@@ -167,6 +174,8 @@ export default function AssetDetailScreen() {
   // Never-queried holdings have balanceNum 0, so they neither contribute to nor invalidate totals.
   const balancesIncomplete =
     balancesLoading || holdings.some((holding) => holding.isQueried && !holding.isBalanceComplete);
+  const pricesIncomplete = holdings.some((holding) => !holding.isFiatAvailable);
+  const detailIncomplete = balancesIncomplete || pricesIncomplete;
   const balancesPending =
     balancesLoading ||
     holdings.some((holding) => {
@@ -201,7 +210,7 @@ export default function AssetDetailScreen() {
             {balancesIncomplete ? '—' : `${formatNumber(totalBalance)} ${canonicalSymbol}`}
           </Text>
           <Text style={styles.totalFiat} testID="asset-detail-total-fiat">
-            {balancesIncomplete
+            {detailIncomplete
               ? '—'
               : `${currencySymbol} ${
                   Number.isFinite(totalFiat)
@@ -212,9 +221,15 @@ export default function AssetDetailScreen() {
                     : '0.00'
                 }`}
           </Text>
-          {balancesIncomplete ? (
+          {detailIncomplete ? (
             <Text style={styles.balanceStatus} testID="asset-detail-balance-incomplete">
-              {t(balancesPending ? 'portfolio.balanceLoading' : 'portfolio.balanceUnavailable')}
+              {t(
+                balancesIncomplete
+                  ? balancesPending
+                    ? 'portfolio.balanceLoading'
+                    : 'portfolio.balanceUnavailable'
+                  : 'dashboard.incompleteBalance',
+              )}
             </Text>
           ) : null}
           <View style={styles.actionsRow}>
@@ -252,7 +267,7 @@ export default function AssetDetailScreen() {
               </View>
               <View style={styles.holdingBalance}>
                 <Text style={styles.holdingValue}>
-                  {holding.isBalanceComplete
+                  {holding.isBalanceComplete && holding.isFiatAvailable
                     ? `${currencySymbol} ${
                         Number.isFinite(holding.fiatValue)
                           ? (Math.round(holding.fiatValue * 100) / 100).toLocaleString('de-CH', {
