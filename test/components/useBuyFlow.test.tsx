@@ -1,4 +1,5 @@
 import { renderHook, act } from '@testing-library/react-native';
+import { DfxApiTimeoutError } from '@/features/dfx-backend/services/api';
 import type { BuyPaymentInfoDto } from '../../src/features/dfx-backend/services/dto';
 
 // Mock the DFX service barrel the hook imports from. We drive every branch
@@ -8,6 +9,10 @@ const mockGetBuyQuote = jest.fn();
 const mockCreateBuyPaymentInfo = jest.fn();
 const mockConfirmBuy = jest.fn();
 const mockInterpretDfxAuthError = jest.fn();
+
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 
 jest.mock('@/features/dfx-backend/services', () => ({
   dfxPaymentService: {
@@ -157,6 +162,20 @@ describe('useBuyFlow', () => {
     expect(result.current.isLoading).toBe(false);
   });
 
+  it('translates a DFX API timeout instead of exposing its raw message', async () => {
+    const timeout = new DfxApiTimeoutError(15_000);
+    mockGetBuyQuote.mockRejectedValueOnce(timeout);
+    const { result } = renderHook(() => useBuyFlow());
+
+    await act(async () => {
+      await result.current.getQuote(QUOTE);
+    });
+
+    expect(result.current.status).toBe('error');
+    expect(result.current.error).toBe('common.requestTimeout');
+    expect(result.current.error).not.toBe(timeout.message);
+  });
+
   it('does not enter error state when the quote is aborted', async () => {
     const abortErr = new Error('aborted');
     abortErr.name = 'AbortError';
@@ -226,6 +245,49 @@ describe('useBuyFlow', () => {
     expect(result.current.authGate).toBeNull();
     expect(result.current.status).toBe('success');
     expect(result.current.paymentInfo).toMatchObject({ id: 7 });
+  });
+
+  it('dismisses only the identified auth gate while preserving no-argument behavior', async () => {
+    const staleGate = { kind: 'kyc' as const, message: 'finish KYC' };
+    const currentGate = { kind: 'login' as const, message: 'sign in' };
+    const noArgumentGate = { kind: 'registration' as const, message: 'register' };
+    mockGetBuyQuote
+      .mockRejectedValueOnce(new Error('kyc'))
+      .mockRejectedValueOnce(new Error('login'))
+      .mockRejectedValueOnce(new Error('registration'));
+    mockInterpretDfxAuthError
+      .mockReturnValueOnce(staleGate)
+      .mockReturnValueOnce(currentGate)
+      .mockReturnValueOnce(noArgumentGate);
+    const { result } = renderHook(() => useBuyFlow());
+
+    await act(async () => {
+      await result.current.getQuote(QUOTE);
+    });
+    await act(async () => {
+      await result.current.getQuote(QUOTE);
+    });
+
+    act(() => {
+      result.current.dismissAuthGate(staleGate);
+    });
+    expect(result.current.authGate).toBe(currentGate);
+    expect(result.current.status).toBe('authGate');
+
+    act(() => {
+      result.current.dismissAuthGate(currentGate);
+    });
+    expect(result.current.authGate).toBeNull();
+    expect(result.current.status).toBe('idle');
+
+    await act(async () => {
+      await result.current.getQuote(QUOTE);
+    });
+    act(() => {
+      result.current.dismissAuthGate();
+    });
+    expect(result.current.authGate).toBeNull();
+    expect(result.current.status).toBe('idle');
   });
 
   it('retryLast replays the last quote with the original params', async () => {

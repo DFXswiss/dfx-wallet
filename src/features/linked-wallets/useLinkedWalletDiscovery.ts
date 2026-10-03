@@ -60,6 +60,8 @@ export type WalletDiscovery = {
   address: string;
   assets: DiscoveredAsset[];
   totalFiat: number;
+  /** True when every supported chain and asset balance query succeeded. */
+  complete: boolean;
   /** True when at least one chain scan succeeded, false when every scan
    *  errored — drives the `—` placeholder on the Portfolio card. */
   known: boolean;
@@ -167,6 +169,7 @@ export function useLinkedWalletDiscovery(
 
         const assets: DiscoveredAsset[] = [];
         let anyKnown = false;
+        let complete = true;
 
         for (const chain of chains) {
           if (chain === 'bitcoin') {
@@ -196,6 +199,8 @@ export function useLinkedWalletDiscovery(
                 });
                 if (asset) assets.push(asset);
               }
+            } else {
+              complete = false;
             }
             continue;
           }
@@ -259,9 +264,12 @@ export function useLinkedWalletDiscovery(
                 // "known" — drives the `—` placeholder semantics on the
                 // Portfolio card. Empty result is still a known-empty.
                 anyKnown = true;
+              } else {
+                complete = false;
               }
             } catch {
               // Blockscout errored — fall through to the curated path.
+              complete = false;
             }
           }
 
@@ -336,8 +344,10 @@ export function useLinkedWalletDiscovery(
 
             for (const spec of specs) {
               const r = result.get(spec.assetId);
-              if (!r) continue;
-              if (!('rawBalance' in r)) continue;
+              if (!r || !('rawBalance' in r)) {
+                complete = false;
+                continue;
+              }
               anyKnown = true;
 
               if (spec.isNative && native) {
@@ -373,11 +383,12 @@ export function useLinkedWalletDiscovery(
             // Per-chain failure is contained — other chains for this
             // wallet still report. Pricing-only tokens with no fetch
             // result fall through as missing.
+            complete = false;
           }
         }
 
         const totalFiat = assets.reduce((sum, a) => sum + (a.fiatValue ?? 0), 0);
-        out.set(lc, { address: lc, assets, totalFiat, known: anyKnown });
+        out.set(lc, { address: lc, assets, totalFiat, complete, known: anyKnown });
       });
 
       await Promise.all(tasks);

@@ -73,6 +73,7 @@
     "next": "Next",
     "noData": "No data",
     "ok": "OK",
+    "requestTimeout": "The request took too long. Please try again.",
     "retry": "Retry",
     "save": "Save",
     "submit": "Submit"
@@ -605,7 +606,7 @@
     "youSell": "You sell"
   },
   "send": {
-    "addressPlaceholder": "Address or ENS name",
+    "addressPlaceholder": "Address",
     "amount": "Amount",
     "confirmTransaction": "Confirm Transaction",
     "done": "Done",

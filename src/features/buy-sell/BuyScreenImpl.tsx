@@ -328,6 +328,14 @@ export default function BuyScreen() {
 
   const linkChainToDfx = useCallback(
     async (chain: ChainId) => {
+      const retryAfterSuccessfulLink = async () => {
+        try {
+          await retryPaymentInfoAfterLink();
+        } catch {
+          // The flow owns retry errors; do not surface them as link failures.
+        }
+      };
+
       // Taproot + Lightning both ride the same DFX Lightning Network rails
       // (lightning.space-managed LDS user). The deposit address is a Lightning
       // Address (`name@dfx.swiss`) and we hand DFX the LNURL form plus the
@@ -345,7 +353,7 @@ export default function BuyScreen() {
           );
           await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ldsToken);
           await markChainLinkedInAutoLinkCache('lightning');
-          await retryPaymentInfoAfterLink();
+          await retryAfterSuccessfulLink();
         } catch (err) {
           // 409 → the LDS LNURL is on another DFX user. Mirror the EVM/BTC
           // recovery: drop the current JWT and re-auth as the LNURL owner
@@ -359,7 +367,7 @@ export default function BuyScreen() {
             );
             await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
             await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
-            await retryPaymentInfoAfterLink();
+            await retryAfterSuccessfulLink();
             return;
           }
           throw err;
@@ -403,7 +411,7 @@ export default function BuyScreen() {
         // entry needed).
         if (chain === 'bitcoin' || chain === 'arbitrum' || chain === 'polygon' || chain === 'base')
           await markChainLinkedInAutoLinkCache(chain);
-        await retryPaymentInfoAfterLink();
+        await retryAfterSuccessfulLink();
       } catch (err) {
         // 409 means the address belongs to a *different* DFX user. The user's
         // mental model is "this is MY wallet" — so re-auth as the owner of
@@ -420,7 +428,7 @@ export default function BuyScreen() {
           // Wipe the per-chain link cache: a different user means different
           // already-linked chains, so auto-link should re-evaluate from scratch.
           await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
-          await retryPaymentInfoAfterLink();
+          await retryAfterSuccessfulLink();
           return;
         }
         throw err;
@@ -962,7 +970,11 @@ export default function BuyScreen() {
         )}
         {body}
       </View>
-      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} onLinkChain={linkChainToDfx} />
+      <DfxAuthGate
+        gate={authGate}
+        onClose={() => dismissAuthGate(authGate ?? undefined)}
+        onLinkChain={linkChainToDfx}
+      />
       <ConfirmTargetWalletModal
         visible={confirmOpen}
         flow="buy"

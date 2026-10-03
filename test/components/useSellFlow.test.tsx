@@ -1,10 +1,15 @@
 import { renderHook, act } from '@testing-library/react-native';
+import { DfxApiTimeoutError } from '@/features/dfx-backend/services/api';
 import type { SellPaymentInfoDto } from '../../src/features/dfx-backend/services/dto';
 
 const mockGetSellQuote = jest.fn();
 const mockCreateSellPaymentInfo = jest.fn();
 const mockConfirmSell = jest.fn();
 const mockInterpretDfxAuthError = jest.fn();
+
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 
 jest.mock('@/features/dfx-backend/services', () => ({
   dfxPaymentService: {
@@ -120,6 +125,63 @@ describe('useSellFlow', () => {
     expect(result.current.status).toBe('authGate');
     expect(result.current.authGate).toMatchObject({ kind: 'linkChain', chain: 'bitcoin' });
     expect(result.current.error).toBeNull();
+  });
+
+  it('translates a DFX API timeout instead of exposing its raw message', async () => {
+    const timeout = new DfxApiTimeoutError(15_000);
+    mockCreateSellPaymentInfo.mockRejectedValueOnce(timeout);
+    const { result } = renderHook(() => useSellFlow());
+
+    await act(async () => {
+      await result.current.createPaymentInfo(PAYMENT_PARAMS);
+    });
+
+    expect(result.current.status).toBe('error');
+    expect(result.current.error).toBe('common.requestTimeout');
+    expect(result.current.error).not.toBe(timeout.message);
+  });
+
+  it('dismisses only the identified auth gate while preserving no-argument behavior', async () => {
+    const staleGate = { kind: 'kyc' as const, message: 'finish KYC' };
+    const currentGate = { kind: 'login' as const, message: 'sign in' };
+    const noArgumentGate = { kind: 'registration' as const, message: 'register' };
+    mockGetSellQuote
+      .mockRejectedValueOnce(new Error('kyc'))
+      .mockRejectedValueOnce(new Error('login'))
+      .mockRejectedValueOnce(new Error('registration'));
+    mockInterpretDfxAuthError
+      .mockReturnValueOnce(staleGate)
+      .mockReturnValueOnce(currentGate)
+      .mockReturnValueOnce(noArgumentGate);
+    const { result } = renderHook(() => useSellFlow());
+
+    await act(async () => {
+      await result.current.getQuote(QUOTE);
+    });
+    await act(async () => {
+      await result.current.getQuote(QUOTE);
+    });
+
+    act(() => {
+      result.current.dismissAuthGate(staleGate);
+    });
+    expect(result.current.authGate).toBe(currentGate);
+    expect(result.current.status).toBe('authGate');
+
+    act(() => {
+      result.current.dismissAuthGate(currentGate);
+    });
+    expect(result.current.authGate).toBeNull();
+    expect(result.current.status).toBe('idle');
+
+    await act(async () => {
+      await result.current.getQuote(QUOTE);
+    });
+    act(() => {
+      result.current.dismissAuthGate();
+    });
+    expect(result.current.authGate).toBeNull();
+    expect(result.current.status).toBe('idle');
   });
 
   it('retries the last sell quote and identifies the result as a quote', async () => {

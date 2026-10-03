@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ChainId } from '@/config/chains';
 import { dfxPaymentService, interpretDfxAuthError } from '@/features/dfx-backend/services';
 import type { DfxAuthGateState } from '@/features/dfx-backend/services';
+import { DfxApiTimeoutError } from '@/features/dfx-backend/services/api';
 import type { SellPaymentInfoDto } from '@/features/dfx-backend/services/dto';
 
 type QuoteParams = {
@@ -56,6 +58,7 @@ function deriveStatus(s: Omit<SellState, 'status'>): SellStatus {
  * fast-typing user never sees a stale fee number flash in.
  */
 export function useSellFlow() {
+  const { t } = useTranslation();
   const [state, setState] = useState<SellState>(INITIAL_STATE);
 
   const setSellState = (next: Omit<SellState, 'status'>) => {
@@ -73,90 +76,108 @@ export function useSellFlow() {
     };
   }, []);
 
-  const handleError = (err: unknown, fallback: string, action?: RetryAction) => {
-    if (err instanceof Error && err.name === 'AbortError') return;
-    const gate = interpretDfxAuthError(err);
-    if (gate) {
-      lastAction.current = action ?? null;
-      const enriched: DfxAuthGateState =
-        gate.kind === 'linkChain' && action ? { ...gate, chain: action.params.chain } : gate;
+  const handleError = useCallback(
+    (err: unknown, fallback: string, action?: RetryAction) => {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      const gate = interpretDfxAuthError(err);
+      if (gate) {
+        lastAction.current = action ?? null;
+        const enriched: DfxAuthGateState =
+          gate.kind === 'linkChain' && action ? { ...gate, chain: action.params.chain } : gate;
+        setState((s) => ({
+          ...s,
+          isLoading: false,
+          authGate: enriched,
+          error: null,
+          status: 'authGate',
+        }));
+        return;
+      }
+      lastAction.current = null;
+      const msg =
+        err instanceof DfxApiTimeoutError
+          ? t('common.requestTimeout')
+          : err instanceof Error
+            ? err.message
+            : fallback;
+      setState((s) => ({ ...s, isLoading: false, error: msg, status: 'error' }));
+    },
+    [t],
+  );
+
+  const getQuote = useCallback(
+    async (params: QuoteParams) => {
+      const action: RetryAction = { kind: 'quote', params };
+      lastAction.current = null;
+      quoteAbortRef.current?.abort();
+      const controller = new AbortController();
+      quoteAbortRef.current = controller;
+
       setState((s) => ({
         ...s,
-        isLoading: false,
-        authGate: enriched,
+        isLoading: true,
         error: null,
-        status: 'authGate',
+        authGate: null,
+        status: 'loading',
       }));
-      return;
-    }
-    lastAction.current = null;
-    const msg = err instanceof Error ? err.message : fallback;
-    setState((s) => ({ ...s, isLoading: false, error: msg, status: 'error' }));
-  };
+      try {
+        const info = await dfxPaymentService.getSellQuote(params, { signal: controller.signal });
+        if (quoteAbortRef.current !== controller) return null;
+        lastAction.current = null;
+        setSellState({ isLoading: false, paymentInfo: info, error: null, authGate: null });
+        return info;
+      } catch (err) {
+        if (quoteAbortRef.current !== controller) return null;
+        handleError(err, 'Quote failed', action);
+        return null;
+      }
+    },
+    [handleError],
+  );
 
-  const getQuote = useCallback(async (params: QuoteParams) => {
-    const action: RetryAction = { kind: 'quote', params };
-    lastAction.current = null;
-    quoteAbortRef.current?.abort();
-    const controller = new AbortController();
-    quoteAbortRef.current = controller;
-
-    setState((s) => ({
-      ...s,
-      isLoading: true,
-      error: null,
-      authGate: null,
-      status: 'loading',
-    }));
-    try {
-      const info = await dfxPaymentService.getSellQuote(params, { signal: controller.signal });
-      if (quoteAbortRef.current !== controller) return null;
+  const createPaymentInfo = useCallback(
+    async (params: PaymentInfoParams) => {
+      const action: RetryAction = { kind: 'paymentInfo', params };
       lastAction.current = null;
-      setSellState({ isLoading: false, paymentInfo: info, error: null, authGate: null });
-      return info;
-    } catch (err) {
-      if (quoteAbortRef.current !== controller) return null;
-      handleError(err, 'Quote failed', action);
-      return null;
-    }
-  }, []);
+      const controller = new AbortController();
+      setState((s) => ({ ...s, isLoading: true, error: null, authGate: null, status: 'loading' }));
+      try {
+        const info = await dfxPaymentService.createSellPaymentInfo(params, {
+          signal: controller.signal,
+        });
+        lastAction.current = null;
+        setSellState({ isLoading: false, paymentInfo: info, error: null, authGate: null });
+        return info;
+      } catch (err) {
+        handleError(err, 'Failed to create sell order', action);
+        return null;
+      }
+    },
+    [handleError],
+  );
 
-  const createPaymentInfo = useCallback(async (params: PaymentInfoParams) => {
-    const action: RetryAction = { kind: 'paymentInfo', params };
-    lastAction.current = null;
-    const controller = new AbortController();
-    setState((s) => ({ ...s, isLoading: true, error: null, authGate: null, status: 'loading' }));
-    try {
-      const info = await dfxPaymentService.createSellPaymentInfo(params, {
-        signal: controller.signal,
-      });
-      lastAction.current = null;
-      setSellState({ isLoading: false, paymentInfo: info, error: null, authGate: null });
-      return info;
-    } catch (err) {
-      handleError(err, 'Failed to create sell order', action);
-      return null;
-    }
-  }, []);
+  const confirmSell = useCallback(
+    async (id: number) => {
+      setState((s) => ({ ...s, isLoading: true, error: null, authGate: null, status: 'loading' }));
+      try {
+        await dfxPaymentService.confirmSell(id);
+        setState((s) => ({
+          ...s,
+          isLoading: false,
+          status: deriveStatus({ ...s, isLoading: false }),
+        }));
+        return true;
+      } catch (err) {
+        handleError(err, 'Confirmation failed');
+        return false;
+      }
+    },
+    [handleError],
+  );
 
-  const confirmSell = useCallback(async (id: number) => {
-    setState((s) => ({ ...s, isLoading: true, error: null, authGate: null, status: 'loading' }));
-    try {
-      await dfxPaymentService.confirmSell(id);
-      setState((s) => ({
-        ...s,
-        isLoading: false,
-        status: deriveStatus({ ...s, isLoading: false }),
-      }));
-      return true;
-    } catch (err) {
-      handleError(err, 'Confirmation failed');
-      return false;
-    }
-  }, []);
-
-  const dismissAuthGate = useCallback(() => {
+  const dismissAuthGate = useCallback((gate?: DfxAuthGateState) => {
     setState((s) => {
+      if (gate !== undefined && s.authGate !== gate) return s;
       const next = { ...s, authGate: null };
       return { ...next, status: deriveStatus(next) };
     });
