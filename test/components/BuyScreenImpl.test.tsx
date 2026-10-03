@@ -381,11 +381,13 @@ describe('BuyScreenImpl', () => {
     fireEvent.press(getByText('BTC'));
     fireEvent.changeText(getByPlaceholderText('0.00'), '100');
 
-    expect(getByText('buy.continueHint')).toBeTruthy();
+    expect(
+      getByText('buy.continueHint:{"action":"buy.cta:{\\"asset\\":\\"BTC\\"}"}'),
+    ).toBeTruthy();
     expect(queryByText(/^buy\.quoteError\.generic/)).toBeNull();
 
     await act(async () => {
-      fireEvent.press(getByText('common.continue'));
+      fireEvent.press(getByText('buy.cta:{"asset":"BTC"}'));
     });
 
     expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
@@ -408,7 +410,7 @@ describe('BuyScreenImpl', () => {
       fireEvent.press(getByText('BTC'));
       fireEvent.changeText(getByPlaceholderText('0.00'), '100');
       await act(async () => {
-        fireEvent.press(getByText('common.continue'));
+        fireEvent.press(getByText('buy.cta:{"asset":"BTC"}'));
       });
 
       expect(queryByText('buy.paymentInfo')).toBeNull();
@@ -424,7 +426,7 @@ describe('BuyScreenImpl', () => {
     fireEvent.press(getByText('BTC'));
     fireEvent.changeText(getByPlaceholderText('0.00'), '100');
     await act(async () => {
-      fireEvent.press(getByText('common.continue'));
+      fireEvent.press(getByText('buy.cta:{"asset":"BTC"}'));
     });
 
     const errorMessage = 'buy.quoteError.KycRequired:{"code":"KycRequired"}';
@@ -445,7 +447,7 @@ describe('BuyScreenImpl', () => {
     fireEvent.press(getByText('BTC'));
     fireEvent.changeText(getByPlaceholderText('0.00'), '100');
     await act(async () => {
-      fireEvent.press(getByText('common.continue'));
+      fireEvent.press(getByText('buy.cta:{"asset":"BTC"}'));
     });
 
     const errorMessage = 'buy.quoteError.KycRequired:{"code":"KycRequired"}';
