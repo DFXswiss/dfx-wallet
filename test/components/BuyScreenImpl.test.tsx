@@ -5,6 +5,8 @@ import type {
   BuyPaymentInfoDto,
   SellPaymentInfoDto,
 } from '@/features/dfx-backend/services/dto/payment';
+import type { ChainId } from '@/config/chains';
+import type { DfxAuthGateState } from '@/features/dfx-backend/services';
 import { darkColors, ThemeProvider, useThemeStore } from '@/theme';
 import BuyScreenImpl from '../../src/features/buy-sell/BuyScreenImpl';
 import SellScreenImpl from '../../src/features/buy-sell/SellScreenImpl';
@@ -89,25 +91,34 @@ jest.mock('@/features/linked-wallets/useLinkedWalletReauth', () => ({
   }),
 }));
 
-jest.mock('@/features/dfx-backend/DfxAuthGate', () => ({
-  DfxAuthGate: ({
-    gate,
-    onLinkChain,
-  }: {
-    gate: { chain?: 'bitcoin' } | null;
-    onLinkChain?: (chain: 'bitcoin') => Promise<void>;
-  }) => {
+let mockUseRealDfxAuthGate = false;
+jest.mock('@/features/dfx-backend/DfxAuthGate', () => {
+  const actual = jest.requireActual<typeof import('@/features/dfx-backend/DfxAuthGate')>(
+    '@/features/dfx-backend/DfxAuthGate',
+  );
+  const ReactActual = jest.requireActual('react');
+
+  function MockDfxAuthGate(props: {
+    gate: (DfxAuthGateState & { chain?: ChainId }) | null;
+    onClose: () => void;
+    onLinkChain?: (chain: ChainId) => Promise<void>;
+  }) {
+    if (mockUseRealDfxAuthGate) {
+      return ReactActual.createElement(actual.DfxAuthGate, props);
+    }
+    const { gate, onLinkChain } = props;
     const chain = gate?.chain;
     if (!chain || !onLinkChain) return null;
-    const ReactActual = jest.requireActual('react');
     const { Pressable, Text } = jest.requireActual('react-native');
     return ReactActual.createElement(
       Pressable,
       { onPress: () => onLinkChain(chain), testID: 'mock-link-chain' },
       ReactActual.createElement(Text, null, 'link-chain'),
     );
-  },
-}));
+  }
+
+  return { DfxAuthGate: MockDfxAuthGate };
+});
 
 jest.mock('@/features/dfx-backend/useDfxAutoLinkImpl', () => ({
   markChainLinkedInAutoLinkCache: jest.fn(),
@@ -220,7 +231,7 @@ const mockSellRetryLast = jest.fn();
 const flowState = {
   isLoading: false,
   error: null as string | null,
-  authGate: null as { kind: 'linkChain'; chain: 'bitcoin'; message: string } | null,
+  authGate: null as DfxAuthGateState | null,
   paymentInfo: null as Record<string, unknown> | null,
 };
 
@@ -357,12 +368,13 @@ const SELL_PAYMENT_INFO: SellPaymentInfoDto = {
 const mockSellFlowState = {
   isLoading: false,
   error: null as string | null,
-  authGate: null,
+  authGate: null as DfxAuthGateState | null,
   paymentInfo: SELL_PAYMENT_INFO as Record<string, unknown> | null,
 };
 
 beforeEach(() => {
   mockIsDfxAuthenticated = false;
+  mockUseRealDfxAuthGate = false;
   useThemeStore.setState({ mode: 'light' });
   mockBack.mockReset();
   mockGetQuote.mockReset();
@@ -475,6 +487,70 @@ describe('BuyScreenImpl', () => {
 
     await waitFor(() => expect(getByText('buy.paymentInfo')).toBeTruthy());
     expect(mockRetryLast).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a newer auth gate visible after the linked-chain retry', async () => {
+    mockUseRealDfxAuthGate = true;
+    const linkGate: DfxAuthGateState = {
+      kind: 'linkChain',
+      chain: 'bitcoin',
+      message: 'link Bitcoin',
+    };
+    const kycGate: DfxAuthGateState = { kind: 'kyc', message: 'finish KYC' };
+    flowState.authGate = linkGate;
+    mockDismissAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
+      if (gate === undefined || flowState.authGate === gate) flowState.authGate = null;
+    });
+    mockRetryLast.mockImplementationOnce(async () => {
+      flowState.authGate = kycGate;
+      return null;
+    });
+
+    const view = render(
+      <ThemeProvider>
+        <BuyScreenImpl />
+      </ThemeProvider>,
+    );
+
+    fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
+    await waitFor(() => expect(mockDismissAuthGate).toHaveBeenCalledWith(linkGate));
+
+    view.rerender(
+      <ThemeProvider>
+        <BuyScreenImpl />
+      </ThemeProvider>,
+    );
+    expect(view.getByText('dfxAuthGate.kyc.title:{"chain":""}')).toBeTruthy();
+  });
+
+  it('does not report an unexpected payment retry error as a link failure', async () => {
+    mockUseRealDfxAuthGate = true;
+    const linkGate: DfxAuthGateState = {
+      kind: 'linkChain',
+      chain: 'bitcoin',
+      message: 'link Bitcoin',
+    };
+    flowState.authGate = linkGate;
+    mockDismissAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
+      if (gate === undefined || flowState.authGate === gate) flowState.authGate = null;
+    });
+    mockRetryLast.mockRejectedValueOnce(new Error('buy retry exploded'));
+
+    const view = render(
+      <ThemeProvider>
+        <BuyScreenImpl />
+      </ThemeProvider>,
+    );
+
+    fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
+    await waitFor(() => expect(mockDismissAuthGate).toHaveBeenCalledWith(linkGate));
+    view.rerender(
+      <ThemeProvider>
+        <BuyScreenImpl />
+      </ThemeProvider>,
+    );
+    expect(view.queryByTestId('dfx-auth-gate')).toBeNull();
+    expect(view.queryByText('buy retry exploded')).toBeNull();
   });
 
   it('keeps an invalid quote without an error code eligible for the link flow', async () => {
@@ -675,6 +751,77 @@ describe('SellScreenImpl', () => {
     expect(inactiveCurrencyColor).not.toBe(darkColors.onPrimary);
     expect(iconColor).toBe(darkColors.onPrimary);
     expect(iconColor).not.toBe(darkColors.white);
+  });
+
+  it('keeps a newer auth gate visible after the linked-chain retry', async () => {
+    mockUseRealDfxAuthGate = true;
+    const linkGate: DfxAuthGateState = {
+      kind: 'linkChain',
+      chain: 'bitcoin',
+      message: 'link Bitcoin',
+    };
+    const registrationGate: DfxAuthGateState = {
+      kind: 'registration',
+      message: 'register first',
+    };
+    mockSellFlowState.authGate = linkGate;
+    mockSellDismissAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
+      if (gate === undefined || mockSellFlowState.authGate === gate) {
+        mockSellFlowState.authGate = null;
+      }
+    });
+    mockSellRetryLast.mockImplementationOnce(async () => {
+      mockSellFlowState.authGate = registrationGate;
+      return null;
+    });
+
+    const view = render(
+      <ThemeProvider>
+        <SellScreenImpl />
+      </ThemeProvider>,
+    );
+
+    fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
+    await waitFor(() => expect(mockSellDismissAuthGate).toHaveBeenCalledWith(linkGate));
+
+    view.rerender(
+      <ThemeProvider>
+        <SellScreenImpl />
+      </ThemeProvider>,
+    );
+    expect(view.getByText('dfxAuthGate.registration.title:{"chain":""}')).toBeTruthy();
+  });
+
+  it('does not report an unexpected payment retry error as a link failure', async () => {
+    mockUseRealDfxAuthGate = true;
+    const linkGate: DfxAuthGateState = {
+      kind: 'linkChain',
+      chain: 'bitcoin',
+      message: 'link Bitcoin',
+    };
+    mockSellFlowState.authGate = linkGate;
+    mockSellDismissAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
+      if (gate === undefined || mockSellFlowState.authGate === gate) {
+        mockSellFlowState.authGate = null;
+      }
+    });
+    mockSellRetryLast.mockRejectedValueOnce(new Error('sell retry exploded'));
+
+    const view = render(
+      <ThemeProvider>
+        <SellScreenImpl />
+      </ThemeProvider>,
+    );
+
+    fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
+    await waitFor(() => expect(mockSellDismissAuthGate).toHaveBeenCalledWith(linkGate));
+    view.rerender(
+      <ThemeProvider>
+        <SellScreenImpl />
+      </ThemeProvider>,
+    );
+    expect(view.queryByTestId('dfx-auth-gate')).toBeNull();
+    expect(view.queryByText('sell retry exploded')).toBeNull();
   });
 
   it('shows the inverse fee-inclusive rate and target-currency fee badge', () => {

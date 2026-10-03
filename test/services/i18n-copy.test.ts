@@ -25,4 +25,9 @@ describe('localised product terminology', () => {
     expect(en.wallets.intro).toContain('DFX account');
     expect(en.wallets.loadError).toContain('DFX account');
   });
+
+  it('asks for an address without advertising unsupported ENS resolution', () => {
+    expect(de.send.addressPlaceholder).toBe('Adresse');
+    expect(en.send.addressPlaceholder).toBe('Address');
+  });
 });

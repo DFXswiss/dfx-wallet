@@ -304,6 +304,14 @@ export default function SellScreen() {
 
   const linkChainToDfx = useCallback(
     async (chain: ChainId) => {
+      const retryAfterSuccessfulLink = async () => {
+        try {
+          await retryPaymentInfoAfterLink();
+        } catch {
+          // The flow owns retry errors; do not surface them as link failures.
+        }
+      };
+
       if (chain === 'bitcoin-taproot' || chain === 'bitcoin-lightning') {
         const user = lds.user ?? (await lds.signIn());
         if (!user) {
@@ -317,7 +325,7 @@ export default function SellScreen() {
           );
           await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ldsToken);
           await markChainLinkedInAutoLinkCache('lightning');
-          await retryPaymentInfoAfterLink();
+          await retryAfterSuccessfulLink();
         } catch (err) {
           if (err instanceof DfxApiError && err.statusCode === 409) {
             const ownerToken = await dfxAuthService.loginAsLnurlAddressOwner(
@@ -327,7 +335,7 @@ export default function SellScreen() {
             );
             await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
             await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
-            await retryPaymentInfoAfterLink();
+            await retryAfterSuccessfulLink();
             return;
           }
           throw err;
@@ -367,7 +375,7 @@ export default function SellScreen() {
         await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, newToken);
         if (chain === 'bitcoin' || chain === 'arbitrum' || chain === 'polygon' || chain === 'base')
           await markChainLinkedInAutoLinkCache(chain);
-        await retryPaymentInfoAfterLink();
+        await retryAfterSuccessfulLink();
       } catch (err) {
         // 409 → address belongs to another DFX user. Re-auth as that user
         // (drop the prior session) so the rest of the flow runs against the
@@ -380,7 +388,7 @@ export default function SellScreen() {
           });
           await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
           await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
-          await retryPaymentInfoAfterLink();
+          await retryAfterSuccessfulLink();
           return;
         }
         throw err;
@@ -957,7 +965,11 @@ export default function SellScreen() {
         )}
         {body}
       </View>
-      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} onLinkChain={linkChainToDfx} />
+      <DfxAuthGate
+        gate={authGate}
+        onClose={() => dismissAuthGate(authGate ?? undefined)}
+        onLinkChain={linkChainToDfx}
+      />
       <ConfirmTargetWalletModal
         visible={confirmOpen}
         flow="sell"

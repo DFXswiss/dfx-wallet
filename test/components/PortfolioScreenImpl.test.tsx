@@ -316,12 +316,14 @@ describe('PortfolioScreenImpl', () => {
       address: LONG_ADDR.toLowerCase(),
       assets: [],
       totalFiat: 42.5,
+      complete: true,
       known: true,
     });
     mockDiscovery.set(SHORT_ADDR.toLowerCase(), {
       address: SHORT_ADDR.toLowerCase(),
       assets: [],
       totalFiat: 1,
+      complete: false,
       known: false,
     });
     setBalances({ [USDT_ETH_ID]: '1000000' });

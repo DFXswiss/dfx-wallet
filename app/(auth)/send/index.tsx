@@ -9,7 +9,8 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Stack, useNavigation, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import { usePreventRemove } from '@react-navigation/native';
 import { isAddress } from 'ethers';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -73,7 +74,6 @@ const SEND_ASSETS: AssetOption[] = [
 
 export default function SendScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { t } = useTranslation();
   const colors = useColors();
   const scheme = useResolvedScheme();
@@ -98,14 +98,9 @@ export default function SendScreen() {
   const sendAttemptRef = useRef(0);
   const sendingRef = useRef(false);
 
-  useEffect(
-    () =>
-      navigation.addListener('beforeRemove', (event) => {
-        if (!sendingRef.current) return;
-        event.preventDefault();
-      }),
-    [navigation],
-  );
+  usePreventRemove(isSending, () => {
+    // The screen blocks navigation during a send without showing a confirmation dialog.
+  });
 
   useEffect(
     () => () => {
