@@ -22,7 +22,8 @@ export default function SetupPinScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { isOnboarded, setPin, setAuthenticated, setOnboarded } = useAuthStore();
-  const { unlock } = useWalletManager();
+  const { status, unlock } = useWalletManager();
+  const [shouldUnlockWallet] = useState(() => status !== 'UNLOCKED');
   const [pin, setPinValue] = useState('');
   const [step, setStep] = useState<'create' | 'confirm'>('create');
   const [firstPin, setFirstPin] = useState('');
@@ -56,7 +57,7 @@ export default function SetupPinScreen() {
     try {
       setProcessing(true);
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      if (isOnboarded) {
+      if (shouldUnlockWallet) {
         try {
           await unlock('default');
         } catch (err) {
