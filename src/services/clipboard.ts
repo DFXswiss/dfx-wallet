@@ -4,9 +4,13 @@ import * as Clipboard from 'expo-clipboard';
 type PendingClipboardCleanup = {
   value: string;
   deadline: number;
+  attempts: number;
+  isClearing: boolean;
   timeout: ReturnType<typeof setTimeout> | null;
   subscription: NativeEventSubscription | null;
 };
+
+const MAX_CLEAR_ATTEMPTS = 3;
 
 let pendingCleanup: PendingClipboardCleanup | null = null;
 
@@ -18,15 +22,22 @@ function cancelPendingCleanup(): void {
 }
 
 async function clearClipboardIfUnchanged(cleanup: PendingClipboardCleanup): Promise<void> {
+  if (pendingCleanup !== cleanup || cleanup.isClearing) return;
+  cleanup.isClearing = true;
   try {
     const currentValue = await Clipboard.getStringAsync();
-    if (pendingCleanup === cleanup && currentValue === cleanup.value) {
-      await Clipboard.setStringAsync('');
-    }
+    if (pendingCleanup !== cleanup) return;
+    if (currentValue !== cleanup.value) return cancelPendingCleanup();
+    await Clipboard.setStringAsync('');
+    if (pendingCleanup === cleanup) cancelPendingCleanup();
   } catch {
     // Clipboard access can be denied after the app is backgrounded.
+    if (pendingCleanup === cleanup) {
+      cleanup.attempts += 1;
+      if (cleanup.attempts >= MAX_CLEAR_ATTEMPTS) cancelPendingCleanup();
+    }
   } finally {
-    if (pendingCleanup === cleanup) cancelPendingCleanup();
+    cleanup.isClearing = false;
   }
 }
 
@@ -38,6 +49,8 @@ export async function copySensitive(value: string, clearAfterMs = 60_000): Promi
   const cleanup: PendingClipboardCleanup = {
     value,
     deadline,
+    attempts: 0,
+    isClearing: false,
     timeout: null,
     subscription: null,
   };

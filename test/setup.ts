@@ -6,7 +6,6 @@ jest.mock('react-native-mmkv', () => ({
 }));
 
 jest.mock('expo-secure-store', () => ({
-  WHEN_UNLOCKED_THIS_DEVICE_ONLY: 6,
   setItemAsync: jest.fn(),
   getItemAsync: jest.fn(),
   deleteItemAsync: jest.fn(),

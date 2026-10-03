@@ -1,32 +1,10 @@
-import { useEffect, useRef } from 'react';
-import { AppState, type AppStateStatus } from 'react-native';
 import { FEATURES } from '@/config/features';
-import { useAuthStore } from '@/store/auth';
+import { AUTO_LOCK_AFTER_MS } from '@/hooks/useAutoLockConstants';
 
-export const AUTO_LOCK_AFTER_MS = 60_000;
+const useAutoLock: () => void = FEATURES.PIN
+  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('@/hooks/useAutoLockImpl').useAutoLock
+  : // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('@/hooks/useAutoLockDisabled').useAutoLock;
 
-export function useAutoLock(): void {
-  const backgroundedAt = useRef<number | null>(null);
-  const setAuthenticated = useAuthStore((state) => state.setAuthenticated);
-
-  useEffect(() => {
-    if (!FEATURES.PIN) return;
-    const handleChange = (nextState: AppStateStatus) => {
-      if (nextState === 'background') {
-        backgroundedAt.current = Date.now();
-        return;
-      }
-      if (
-        nextState === 'active' &&
-        backgroundedAt.current !== null &&
-        Date.now() - backgroundedAt.current > AUTO_LOCK_AFTER_MS
-      ) {
-        setAuthenticated(false);
-      }
-      if (nextState === 'active') backgroundedAt.current = null;
-    };
-
-    const subscription = AppState.addEventListener('change', handleChange);
-    return () => subscription.remove();
-  }, [setAuthenticated]);
-}
+export { AUTO_LOCK_AFTER_MS, useAutoLock };

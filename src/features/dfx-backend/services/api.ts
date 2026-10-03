@@ -32,7 +32,7 @@ class DfxApi {
   }
 
   /** Register a callback to refresh the token on 401 */
-  setOnUnauthorized(handler: () => Promise<string | null>) {
+  setOnUnauthorized(handler: (() => Promise<string | null>) | null) {
     this.onUnauthorized = handler;
   }
 

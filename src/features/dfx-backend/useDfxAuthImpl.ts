@@ -13,6 +13,25 @@ type EvmAuthAddressCache = {
   signerAddress: string;
 };
 
+const LOCAL_SESSION_ENDED_MESSAGE = 'Local wallet session ended during DFX authentication';
+
+function hasActiveLocalSession(): boolean {
+  const { isAuthenticated, isOnboarded } = useAuthStore.getState();
+  return isAuthenticated && isOnboarded;
+}
+
+function requireActiveLocalSession(): void {
+  if (hasActiveLocalSession()) return;
+  dfxAuthService.logout();
+  throw new Error(LOCAL_SESSION_ENDED_MESSAGE);
+}
+
+async function discardPersistedToken(): Promise<never> {
+  dfxAuthService.logout();
+  await secureStorage.remove(StorageKeys.DFX_AUTH_TOKEN);
+  throw new Error(LOCAL_SESSION_ENDED_MESSAGE);
+}
+
 /**
  * Hook for DFX API authentication via wallet signature.
  *
@@ -74,11 +93,14 @@ export function useDfxAuth() {
 
       try {
         const walletAddress = await resolveAuthAddress();
+        requireActiveLocalSession();
         const token = await dfxAuthService.login(walletAddress, signMessage, {
           wallet: options?.wallet ?? 'DFX Wallet',
         });
+        requireActiveLocalSession();
 
         await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
+        if (!hasActiveLocalSession()) await discardPersistedToken();
         setDfxAuthenticated(true);
         return token;
       } catch (err) {
@@ -115,14 +137,18 @@ export function useDfxAuth() {
 
     try {
       const walletAddress = await resolveAuthAddress();
+      requireActiveLocalSession();
       const token = await dfxAuthService.loginAsAddressOwner(walletAddress, signMessage, {
         wallet: 'DFX Wallet',
       });
+      requireActiveLocalSession();
 
       await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
+      if (!hasActiveLocalSession()) await discardPersistedToken();
       // Different user → invalidate per-chain link cache so auto-link
       // re-evaluates against the new JWT.
       await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
+      if (!hasActiveLocalSession()) await discardPersistedToken();
       setDfxAuthenticated(true);
       return token;
     } catch (err) {

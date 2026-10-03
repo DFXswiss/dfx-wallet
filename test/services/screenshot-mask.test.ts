@@ -1,4 +1,5 @@
 import { PNG } from 'pngjs';
+import { maskArtifactInPlace } from '../../e2e/utils/mask-artifact';
 import {
   elementFramesFromAttributes,
   maskPngBuffer,
@@ -16,6 +17,14 @@ function createPng(width: number, height: number, fill = 0): MaskablePng {
 function pixelAt(png: MaskablePng, x: number, y: number): number[] {
   const offset = (y * png.width + x) * 4;
   return Array.from(png.data.slice(offset, offset + 4));
+}
+
+function createFsApi(source: Buffer) {
+  return {
+    readFileSync: jest.fn((_path: string) => source),
+    writeFileSync: jest.fn((_path: string, _data: Buffer) => undefined),
+    rmSync: jest.fn((_path: string, _options: { force: true }) => undefined),
+  };
 }
 
 describe('screenshot masking', () => {
@@ -80,5 +89,42 @@ describe('screenshot masking', () => {
     expect(() => elementFramesFromAttributes({ elements: [] }, 'seed')).toThrow(
       'seed returned no element attributes',
     );
+  });
+
+  it('overwrites a raw artifact with the masked buffer', () => {
+    const source = Buffer.from('raw screenshot');
+    const masked = Buffer.from('masked screenshot');
+    const fsApi = createFsApi(source);
+    const mask = jest.fn(() => masked);
+
+    expect(maskArtifactInPlace('/tmp/artifact.png', [], 390, fsApi, mask)).toBe(masked);
+    expect(mask).toHaveBeenCalledWith(source, [], 390);
+    expect(fsApi.writeFileSync).toHaveBeenCalledWith('/tmp/artifact.png', masked);
+    expect(fsApi.rmSync).not.toHaveBeenCalled();
+  });
+
+  it('removes the raw artifact and rethrows when masking fails', () => {
+    const error = new Error('mask failed');
+    const fsApi = createFsApi(Buffer.from('raw screenshot'));
+    const mask = jest.fn(() => {
+      throw error;
+    });
+
+    expect(() => maskArtifactInPlace('/tmp/artifact.png', [], 390, fsApi, mask)).toThrow(error);
+    expect(fsApi.writeFileSync).not.toHaveBeenCalled();
+    expect(fsApi.rmSync).toHaveBeenCalledWith('/tmp/artifact.png', { force: true });
+  });
+
+  it('removes the raw artifact and rethrows the original write failure', () => {
+    const error = new Error('write failed');
+    const fsApi = createFsApi(Buffer.from('raw screenshot'));
+    fsApi.writeFileSync.mockImplementationOnce(() => {
+      throw error;
+    });
+
+    expect(() =>
+      maskArtifactInPlace('/tmp/artifact.png', [], 390, fsApi, (screenshot) => screenshot),
+    ).toThrow(error);
+    expect(fsApi.rmSync).toHaveBeenCalledWith('/tmp/artifact.png', { force: true });
   });
 });

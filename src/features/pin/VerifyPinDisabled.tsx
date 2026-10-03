@@ -4,13 +4,15 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import { PrimaryButton } from '@/components';
+import { FEATURES } from '@/config/features';
 import { useAuthStore } from '@/store';
+import { getPostPinDestination } from '@/store/auth';
 import { Typography, useColors } from '@/theme';
 
 /**
  * Stand-in for the PIN-unlock screen when `EXPO_PUBLIC_ENABLE_PIN` is
- * off. Unlocks the WDK wallet, flips `isAuthenticated` and bounces
- * back to the dashboard.
+ * off. Unlocks the WDK wallet, flips `isAuthenticated` and continues
+ * to the post-PIN destination.
  *
  * Without this, the auth-layout's "redirect to /(pin)/verify when
  * `isAuthenticated` is false" gate would never resolve: an MVP build
@@ -25,7 +27,7 @@ import { Typography, useColors } from '@/theme';
 export default function VerifyPinDisabled() {
   const { replace } = useRouter();
   const { t } = useTranslation();
-  const { setAuthenticated } = useAuthStore();
+  const { isOnboarded, setAuthenticated, setOnboarded } = useAuthStore();
   const { unlock } = useWalletManager();
   const colors = useColors();
   const [unlockFailed, setUnlockFailed] = useState(false);
@@ -40,19 +42,21 @@ export default function VerifyPinDisabled() {
     void (async () => {
       try {
         await unlock('default');
+        if (cancelled) return;
+        const destination = getPostPinDestination(isOnboarded, FEATURES.LEGAL);
+        if (destination.shouldSetOnboarded) await setOnboarded(true);
+        if (cancelled) return;
+        setAuthenticated(true);
+        replace(destination.route);
       } catch (err) {
-        console.warn('verify-disabled: wallet unlock failed', err);
+        console.warn('verify-disabled: authentication failed', err);
         if (!cancelled) setUnlockFailed(true);
-        return;
       }
-      if (cancelled) return;
-      setAuthenticated(true);
-      replace('/(auth)/(tabs)/dashboard');
     })();
     return () => {
       cancelled = true;
     };
-  }, [replace, setAuthenticated, unlock, unlockFailed]);
+  }, [isOnboarded, replace, setAuthenticated, setOnboarded, unlock, unlockFailed]);
 
   if (!unlockFailed) return null;
 
