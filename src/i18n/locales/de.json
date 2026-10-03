@@ -526,7 +526,7 @@
     "totalValue": "Gesamtwert"
   },
   "reauth": {
-    "description": "Bestätige deine Identität mit deiner 6-stelligen PIN.",
+    "description": "Bestätige deine Identität mit deiner PIN.",
     "pinLabel": "PIN zur Bestätigung",
     "title": "Identität bestätigen"
   },
