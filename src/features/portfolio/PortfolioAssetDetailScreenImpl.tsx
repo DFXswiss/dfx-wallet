@@ -4,25 +4,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, AssetActions, DarkBackdrop } from '@/components';
-import {
-  assetIncludedInEvmBalanceQuery,
-  assetIncludedInWdkBalanceQuery,
-  getAssetsForCanonicalSymbol,
-  getAssets,
-  getCanonicalNameForSymbol,
-} from '@/config/tokens';
+import { getAssetsForCanonicalSymbol, getAssets, getCanonicalNameForSymbol } from '@/config/tokens';
 import {
   CHAIN_LABELS,
   computeFiatValue,
   formatBalance,
   formatNumber,
-  isFiatPriceAvailable,
   resolveFiatCurrency,
   SYMBOL_COLORS,
   SYMBOL_GLYPH,
   toNumeric,
 } from '@/config/portfolio-presentation';
-import { useEnabledChains } from './useEnabledChains';
+import { getPortfolioAssetCompleteness } from '@/features/portfolio/portfolio-completeness';
+import { useEnabledChains } from '@/features/portfolio/useEnabledChains';
 import { getRawBalance, useBalances } from '@/services/balances';
 import { useWalletStore } from '@/store';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
@@ -118,20 +112,22 @@ export default function AssetDetailScreen() {
 
     const list = holdingMetas.map((meta) => {
       const asset = allAssetConfigs.find((candidate) => candidate.getId() === meta.id);
-      const isQueried = asset
-        ? assetIncludedInWdkBalanceQuery(asset) || assetIncludedInEvmBalanceQuery(asset)
-        : false;
       const balanceEntry = balances.get(meta.id);
-      const isBalanceComplete = isQueried && balanceEntry?.status === 'ok';
       const rawBalance = getRawBalance(balances, meta.id);
       const balanceFormatted = formatBalance(rawBalance, meta.decimals);
       const balanceNum = toNumeric(balanceFormatted);
 
       const fiatValue = computeFiatValue(balanceNum, canonicalSymbol, fiatCurrency, pricingReady);
+      const completeness = getPortfolioAssetCompleteness({
+        asset,
+        balanceEntry,
+        balance: balanceNum,
+        canonicalSymbol,
+        fiatCurrency,
+        pricingReady,
+      });
       const isFiatAvailable =
-        balanceNum <= 0 ||
-        (isFiatPriceAvailable(balanceNum, canonicalSymbol, fiatCurrency, pricingReady) &&
-          Number.isFinite(fiatValue));
+        completeness.isFiatAvailable && (balanceNum <= 0 || Number.isFinite(fiatValue));
 
       const chainLabel = CHAIN_LABELS.get(meta.network) ?? meta.network;
       const isBtc = meta.canonicalSymbol === 'BTC';
@@ -151,8 +147,8 @@ export default function AssetDetailScreen() {
         balanceFormatted,
         fiatValue,
         isFiatAvailable,
-        isQueried,
-        isBalanceComplete,
+        isQueried: completeness.isQueried,
+        isBalanceComplete: completeness.isBalanceComplete,
       };
     });
 

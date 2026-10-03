@@ -2,16 +2,14 @@ import { useEffect, useMemo } from 'react';
 import {
   computeFiatValue,
   formatBalance,
-  isFiatPriceAvailable,
   resolveFiatCurrency,
   toNumeric,
 } from '@/config/portfolio-presentation';
+import { getAssetMeta, getAssets } from '@/config/tokens';
 import {
-  assetIncludedInEvmBalanceQuery,
-  assetIncludedInWdkBalanceQuery,
-  getAssetMeta,
-  getAssets,
-} from '@/config/tokens';
+  areLocalPortfolioBalancesComplete,
+  getPortfolioAssetCompleteness,
+} from '@/features/portfolio/portfolio-completeness';
 import { usePricingSnapshot } from '@/hooks/usePricingSnapshot';
 import { getRawBalance, useBalances } from '@/services/balances';
 import { pricingService } from '@/services/pricing-service';
@@ -56,30 +54,30 @@ export function useTotalPortfolioFiat(): PortfolioFiatResult {
   const result = useMemo<PortfolioFiatResult>(() => {
     void pricingRevision;
     let sum = 0;
-    let isIncomplete = balancesLoading;
+    const isComplete = areLocalPortfolioBalancesComplete({
+      assets: assetConfigs,
+      balances,
+      isLoading: balancesLoading,
+      pricingReady,
+      fiatCurrency,
+    });
     for (const asset of assetConfigs) {
       const meta = getAssetMeta(asset.getId());
       if (!meta || meta.category === 'native') continue;
-      const balanceEntry = balances.get(asset.getId());
-      const isQueried =
-        assetIncludedInWdkBalanceQuery(asset) || assetIncludedInEvmBalanceQuery(asset);
-      if (
-        isQueried &&
-        (!balanceEntry ||
-          balanceEntry.status === 'idle' ||
-          balanceEntry.status === 'loading' ||
-          balanceEntry.status === 'error' ||
-          balanceEntry.status === 'stale')
-      )
-        isIncomplete = true;
       const rawBalance = getRawBalance(balances, asset.getId());
       const balanceNum = toNumeric(formatBalance(rawBalance, asset.getDecimals()));
-      if (!isFiatPriceAvailable(balanceNum, meta.canonicalSymbol, fiatCurrency, pricingReady)) {
-        isIncomplete = true;
-      }
+      const completeness = getPortfolioAssetCompleteness({
+        asset,
+        balanceEntry: balances.get(asset.getId()),
+        balance: balanceNum,
+        canonicalSymbol: meta.canonicalSymbol,
+        fiatCurrency,
+        pricingReady,
+      });
+      if (!completeness.isQueried) continue;
       sum += computeFiatValue(balanceNum, meta.canonicalSymbol, fiatCurrency, pricingReady);
     }
-    return { totalFiat: sum, isIncomplete };
+    return { totalFiat: sum, isIncomplete: !isComplete };
   }, [assetConfigs, balances, balancesLoading, fiatCurrency, pricingReady, pricingRevision]);
 
   useEffect(() => {

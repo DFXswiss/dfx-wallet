@@ -59,6 +59,7 @@ function makeEntry(assetId: string, rawBalance: string): BalanceEntry {
 // that goes through the pricing-service rate path.
 const USDT_ETH_ID = 'ethereum-0xdac17f958d2ee523a2206206994597c13d831ec7';
 const WBTC_ETH_ID = 'ethereum-0x2260fac5e5542a773aa44fbcfedf7c193bc2c599';
+const BTC_TAPROOT_ID = 'bitcoin-taproot-native';
 
 function setBalances(entries: Record<string, string>) {
   mockBalanceMap = new Map(Object.entries(entries).map(([k, v]) => [k, makeEntry(k, v)]));
@@ -181,6 +182,16 @@ describe('useTotalPortfolioFiat (local / MVP variant)', () => {
     const { result } = renderHook(() => useTotalPortfolioFiat());
 
     await waitFor(() => expect(result.current.isIncomplete).toBe(false));
+  });
+
+  it('does not sum a retained entry for an asset that neither balance source queries', async () => {
+    setCompleteZeroBalances();
+    mockBalanceMap.set(BTC_TAPROOT_ID, makeEntry(BTC_TAPROOT_ID, '100000000'));
+
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+
+    await waitFor(() => expect(result.current.isIncomplete).toBe(false));
+    expect(result.current.totalFiat).toBe(0);
   });
 
   it('recomputes the total when the pricing service publishes an update', async () => {
