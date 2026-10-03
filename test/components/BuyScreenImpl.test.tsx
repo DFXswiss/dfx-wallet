@@ -1,5 +1,8 @@
 import React from 'react';
+import { Alert } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { LOCAL_SESSION_ENDED_MESSAGE } from '@/features/dfx-backend/session-guard';
+import type { DfxAuthGateState } from '@/features/dfx-backend/services';
 import type {
   BuyPaymentInfoDto,
   SellPaymentInfoDto,
@@ -74,20 +77,18 @@ jest.mock('@/features/linked-wallets/useLinkedWalletReauth', () => ({
   }),
 }));
 
-jest.mock('@/features/dfx-backend/DfxAuthGate', () => ({
-  DfxAuthGate: () => null,
-}));
-
 jest.mock('@/features/dfx-backend/useDfxAutoLinkImpl', () => ({
   markChainLinkedInAutoLinkCache: jest.fn(),
 }));
 
 jest.mock('@/features/dfx-backend/services', () => ({
   dfxAuthService: {
+    getAccessToken: jest.fn(),
     linkAddress: jest.fn(),
     linkLnurlAddress: jest.fn(),
     loginAsAddressOwner: jest.fn(),
     loginAsLnurlAddressOwner: jest.fn(),
+    logout: jest.fn(),
   },
   DfxApiError: class DfxApiError extends Error {
     statusCode: number;
@@ -101,6 +102,7 @@ jest.mock('@/features/dfx-backend/services', () => ({
 
 jest.mock('@/services/storage', () => ({
   secureStorage: {
+    get: jest.fn(),
     set: jest.fn(),
     remove: jest.fn(),
   },
@@ -110,9 +112,18 @@ jest.mock('@/services/storage', () => ({
   },
 }));
 
+const mockAuthState = {
+  isAuthenticated: true,
+  isDfxAuthenticated: false,
+  isOnboarded: true,
+  sessionEpoch: 1,
+};
+
 jest.mock('@/store', () => ({
-  useAuthStore: (selector: (state: { isDfxAuthenticated: boolean }) => unknown) =>
-    selector({ isDfxAuthenticated: false }),
+  useAuthStore: Object.assign(
+    (selector: (state: typeof mockAuthState) => unknown) => selector(mockAuthState),
+    { getState: () => mockAuthState },
+  ),
 }));
 
 jest.mock('@/components', () => ({
@@ -163,10 +174,40 @@ const mockSellConfirmPayment = jest.fn();
 const mockSellDismissAuthGate = jest.fn();
 const mockSellRetryLast = jest.fn();
 
+const mockDfxAuthService = (
+  jest.requireMock('@/features/dfx-backend/services') as {
+    dfxAuthService: {
+      getAccessToken: jest.Mock;
+      linkAddress: jest.Mock;
+      linkLnurlAddress: jest.Mock;
+      loginAsAddressOwner: jest.Mock;
+      loginAsLnurlAddressOwner: jest.Mock;
+      logout: jest.Mock;
+    };
+  }
+).dfxAuthService;
+const mockSecureStorage = (
+  jest.requireMock('@/services/storage') as {
+    secureStorage: { get: jest.Mock; remove: jest.Mock; set: jest.Mock };
+  }
+).secureStorage;
+const mockAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+
+function createDeferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+} {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 const flowState = {
   isLoading: false,
   error: null as string | null,
-  authGate: null,
+  authGate: null as DfxAuthGateState | null,
   paymentInfo: null as Record<string, unknown> | null,
 };
 
@@ -303,12 +344,27 @@ const SELL_PAYMENT_INFO: SellPaymentInfoDto = {
 const mockSellFlowState = {
   isLoading: false,
   error: null as string | null,
-  authGate: null,
+  authGate: null as DfxAuthGateState | null,
   paymentInfo: SELL_PAYMENT_INFO as Record<string, unknown> | null,
 };
 
 beforeEach(() => {
+  mockAuthState.isAuthenticated = true;
+  mockAuthState.isDfxAuthenticated = false;
+  mockAuthState.isOnboarded = true;
+  mockAuthState.sessionEpoch = 1;
   mockBack.mockReset();
+  mockDfxAuthService.linkAddress.mockReset();
+  mockDfxAuthService.linkLnurlAddress.mockReset();
+  mockDfxAuthService.getAccessToken.mockReset();
+  mockDfxAuthService.getAccessToken.mockReturnValue(null);
+  mockDfxAuthService.loginAsAddressOwner.mockReset();
+  mockDfxAuthService.loginAsLnurlAddressOwner.mockReset();
+  mockDfxAuthService.logout.mockReset();
+  mockSecureStorage.get.mockReset();
+  mockSecureStorage.get.mockResolvedValue(null);
+  mockSecureStorage.remove.mockReset();
+  mockSecureStorage.set.mockReset();
   mockGetQuote.mockReset();
   mockCreatePaymentInfo.mockReset();
   mockConfirmPayment.mockReset();
@@ -327,6 +383,7 @@ beforeEach(() => {
   mockSellConfirmPayment.mockReset();
   mockSellDismissAuthGate.mockReset();
   mockSellRetryLast.mockReset();
+  mockAlert.mockClear();
 });
 
 describe('BuyScreenImpl', () => {
@@ -410,6 +467,30 @@ describe('BuyScreenImpl', () => {
     expect(getByText('SEPA bank transfer')).toBeTruthy();
     expect(getByText('0–1 business day')).toBeTruthy();
   });
+
+  it('discards a linked token and clears link loading when the local session ends', async () => {
+    const request = createDeferred<string>();
+    mockDfxAuthService.linkAddress.mockImplementationOnce(() => request.promise);
+    flowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'Link Bitcoin' };
+    const { getByTestId, queryByText } = render(<BuyScreenImpl />);
+
+    fireEvent.press(getByTestId('dfx-auth-gate-primary'));
+    await waitFor(() => expect(mockDfxAuthService.linkAddress).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled).toBe(true));
+
+    mockAuthState.isAuthenticated = false;
+    mockAuthState.sessionEpoch += 1;
+    mockDfxAuthService.getAccessToken.mockReturnValue('stale-buy-token');
+    request.resolve('stale-buy-token');
+
+    await waitFor(() => expect(mockDfxAuthService.logout).toHaveBeenCalled());
+    await waitFor(() => expect(getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled).toBe(false));
+    expect(mockSecureStorage.remove).not.toHaveBeenCalled();
+    expect(mockSecureStorage.set).not.toHaveBeenCalledWith('dfx-auth-token', 'stale-buy-token');
+    expect(mockRetryLast).not.toHaveBeenCalled();
+    expect(queryByText(LOCAL_SESSION_ENDED_MESSAGE)).toBeNull();
+    expect(mockAlert).not.toHaveBeenCalled();
+  });
 });
 
 describe('SellScreenImpl', () => {
@@ -492,5 +573,29 @@ describe('SellScreenImpl', () => {
     expect(getByText(/sell\.quoteError\.KycRequired/).props.children).toContain(
       'sell.quoteError.KycRequired',
     );
+  });
+
+  it('discards a linked token and clears link loading when the local session ends', async () => {
+    const request = createDeferred<string>();
+    mockDfxAuthService.linkAddress.mockImplementationOnce(() => request.promise);
+    mockSellFlowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'Link Bitcoin' };
+    const { getByTestId, queryByText } = render(<SellScreenImpl />);
+
+    fireEvent.press(getByTestId('dfx-auth-gate-primary'));
+    await waitFor(() => expect(mockDfxAuthService.linkAddress).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled).toBe(true));
+
+    mockAuthState.isAuthenticated = false;
+    mockAuthState.sessionEpoch += 1;
+    mockDfxAuthService.getAccessToken.mockReturnValue('stale-sell-token');
+    request.resolve('stale-sell-token');
+
+    await waitFor(() => expect(mockDfxAuthService.logout).toHaveBeenCalled());
+    await waitFor(() => expect(getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled).toBe(false));
+    expect(mockSecureStorage.remove).not.toHaveBeenCalled();
+    expect(mockSecureStorage.set).not.toHaveBeenCalledWith('dfx-auth-token', 'stale-sell-token');
+    expect(mockSellRetryLast).not.toHaveBeenCalled();
+    expect(queryByText(LOCAL_SESSION_ENDED_MESSAGE)).toBeNull();
+    expect(mockAlert).not.toHaveBeenCalled();
   });
 });

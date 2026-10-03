@@ -9,10 +9,8 @@ import { BrandLogo, DarkBackdrop, Icon, PinProcessingOverlay, PrimaryButton } fr
 import { FEATURES } from '@/config/features';
 import { needsPinRehash } from '@/services/pin';
 import { useAuthStore } from '@/store';
-import { getPostPinDestination } from '@/store/auth';
+import { FIRST_LOCKOUT_ATTEMPT, getPostPinDestination } from '@/store/auth';
 import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
-
-const FIRST_LOCKOUT_ATTEMPT = 5;
 
 /**
  * PIN-unlock screen for the cold-start path.
@@ -47,8 +45,8 @@ export default function VerifyPinScreen() {
   const [biometricInFlight, setBiometricInFlight] = useState(false);
   const [processing, setProcessing] = useState(false);
   const unlockedRef = useRef(false);
-  const legacyCheckPromises = useRef<Set<Promise<void>>>(new Set());
   const isLocked = lockedUntil !== null && lockedUntil > now;
+  const isLegacyPin = pinHash !== null && needsPinRehash(pinHash);
   const remainingSeconds = isLocked ? Math.max(1, Math.ceil((lockedUntil - now) / 1000)) : 0;
 
   const finishAuthentication = useCallback(async () => {
@@ -114,46 +112,24 @@ export default function VerifyPinScreen() {
     if (newPin.length > 6) return;
     setPinValue(newPin);
 
-    if (pinHash && needsPinRehash(pinHash) && newPin.length >= 4 && newPin.length < 6) {
-      const check = checkPin(newPin, { showInvalid: false });
-      legacyCheckPromises.current.add(check);
-      void check.finally(() => legacyCheckPromises.current.delete(check));
-    }
-
     if (newPin.length === 6) {
-      void checkPin(newPin, { showInvalid: true });
+      void checkPin(newPin);
     }
   };
 
-  const checkPin = async (pinValue: string, { showInvalid }: { showInvalid: boolean }) => {
+  const checkPin = async (pinValue: string) => {
     if (unlockedRef.current) return;
-    const defersFailure = showInvalid && pinHash !== null && needsPinRehash(pinHash);
-    if (showInvalid) {
-      setProcessing(true);
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      if (unlockedRef.current) return;
-    }
+    setProcessing(true);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    if (unlockedRef.current) return;
 
     let isValid = false;
     try {
-      isValid =
-        showInvalid && !defersFailure
-          ? await verifyPin(pinValue)
-          : await verifyPin(pinValue, { recordFailure: false });
+      isValid = await verifyPin(pinValue);
     } catch (err) {
       console.warn('verify: PIN verification threw', err);
     }
     if (unlockedRef.current) return;
-    if (!isValid && defersFailure) {
-      await Promise.all(legacyCheckPromises.current);
-      if (unlockedRef.current) return;
-      try {
-        isValid = await verifyPin(pinValue);
-      } catch (err) {
-        console.warn('verify: PIN verification threw', err);
-      }
-      if (unlockedRef.current) return;
-    }
     if (isValid) {
       unlockedRef.current = true;
       try {
@@ -170,11 +146,15 @@ export default function VerifyPinScreen() {
       await finishAuthentication();
       return;
     }
-    if (!showInvalid) return;
     setProcessing(false);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     setError('incorrect');
     setPinValue('');
+  };
+
+  const handleSubmit = () => {
+    if (unlockedRef.current || processing || isLocked || !isLegacyPin || pin.length < 4) return;
+    void checkPin(pin);
   };
 
   const handleDelete = () => {
@@ -276,6 +256,15 @@ export default function VerifyPinScreen() {
             );
           })}
         </View>
+
+        {isLegacyPin && (
+          <PrimaryButton
+            testID="verify-pin-submit"
+            title={t('common.confirm')}
+            onPress={handleSubmit}
+            disabled={pin.length < 4 || processing || isLocked}
+          />
+        )}
       </View>
     </SafeAreaView>
   );

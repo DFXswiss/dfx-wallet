@@ -77,6 +77,30 @@ describe('SetupPinDisabled', () => {
     useAuthStore.setState({ setOnboarded: originalSetOnboarded });
     warn.mockRestore();
   });
+
+  it('retries finishing authentication and navigates after the retry succeeds', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockFeatures.LEGAL = false;
+    const originalSetOnboarded = useAuthStore.getState().setOnboarded;
+    const setOnboarded = jest.fn(originalSetOnboarded);
+    setOnboarded.mockImplementationOnce(async () => {
+      throw new Error('keychain unavailable');
+    });
+    useAuthStore.setState({ setOnboarded });
+    const view = render(<SetupPinDisabled />);
+
+    await waitFor(() => expect(view.getByTestId('setup-pin-disabled-retry')).toBeTruthy());
+    await act(async () => {
+      fireEvent.press(view.getByTestId('setup-pin-disabled-retry'));
+    });
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledTimes(1));
+    expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard');
+    expect(setOnboarded).toHaveBeenCalledTimes(2);
+    expect(view.queryByTestId('setup-pin-disabled-error')).toBeNull();
+    useAuthStore.setState({ setOnboarded: originalSetOnboarded });
+    warn.mockRestore();
+  });
 });
 
 describe('VerifyPinDisabled', () => {

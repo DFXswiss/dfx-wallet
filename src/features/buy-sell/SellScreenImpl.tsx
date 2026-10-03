@@ -23,6 +23,10 @@ import {
   PrimaryButton,
 } from '@/components';
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
+import {
+  createDfxSessionGuard,
+  LOCAL_SESSION_ENDED_MESSAGE,
+} from '@/features/dfx-backend/session-guard';
 import type { ChainId } from '@/config/chains';
 import {
   formatBalance,
@@ -260,8 +264,14 @@ export default function SellScreen() {
 
   const linkChainToDfx = useCallback(
     async (chain: ChainId) => {
+      const guard = createDfxSessionGuard();
+      let latestToken: string | undefined;
+      const assertFlowActive = () =>
+        latestToken === undefined ? guard.assertActive() : guard.assertActive(latestToken);
+      await guard.assertActive();
       if (chain === 'bitcoin-taproot' || chain === 'bitcoin-lightning') {
         const user = lds.user ?? (await lds.signIn());
+        await guard.assertActive();
         if (!user) {
           throw new Error('DFX Lightning wallet not ready — please retry.');
         }
@@ -271,18 +281,23 @@ export default function SellScreen() {
             user.lightning.addressOwnershipProof,
             { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
           );
-          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ldsToken);
+          latestToken = ldsToken;
+          await guard.persistToken(ldsToken);
           await markChainLinkedInAutoLinkCache('lightning');
+          await guard.assertActive(ldsToken);
           void retryLast();
         } catch (err) {
+          if (err instanceof Error && err.message === LOCAL_SESSION_ENDED_MESSAGE) throw err;
+          await assertFlowActive();
           if (err instanceof DfxApiError && err.statusCode === 409) {
             const ownerToken = await dfxAuthService.loginAsLnurlAddressOwner(
               user.lightning.addressLnurl,
               user.lightning.addressOwnershipProof,
               { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
             );
-            await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
+            await guard.persistToken(ownerToken);
             await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
+            await guard.assertActive(ownerToken);
             void retryLast();
             return;
           }
@@ -320,11 +335,15 @@ export default function SellScreen() {
           wallet: 'DFX Wallet',
           blockchain: blockchainName,
         });
-        await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, newToken);
+        latestToken = newToken;
+        await guard.persistToken(newToken);
         if (chain === 'bitcoin' || chain === 'arbitrum' || chain === 'polygon' || chain === 'base')
           await markChainLinkedInAutoLinkCache(chain);
+        await guard.assertActive(newToken);
         void retryLast();
       } catch (err) {
+        if (err instanceof Error && err.message === LOCAL_SESSION_ENDED_MESSAGE) throw err;
+        await assertFlowActive();
         // 409 → address belongs to another DFX user. Re-auth as that user
         // (drop the prior session) so the rest of the flow runs against the
         // account that already owns this wallet. See buy/index.tsx for full
@@ -334,8 +353,9 @@ export default function SellScreen() {
             wallet: 'DFX Wallet',
             blockchain: blockchainName,
           });
-          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
+          await guard.persistToken(ownerToken);
           await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
+          await guard.assertActive(ownerToken);
           void retryLast();
           return;
         }
@@ -343,6 +363,18 @@ export default function SellScreen() {
       }
     },
     [btcAccount, sparkAccount, ethAccount, lds, retryLast],
+  );
+
+  const handleLinkChainToDfx = useCallback(
+    async (chain: ChainId) => {
+      try {
+        await linkChainToDfx(chain);
+      } catch (error) {
+        if (error instanceof Error && error.message === LOCAL_SESSION_ENDED_MESSAGE) return;
+        throw error;
+      }
+    },
+    [linkChainToDfx],
   );
 
   // Wallet balances — drive the chain/token chip filter so users only see
@@ -867,7 +899,7 @@ export default function SellScreen() {
         )}
         {body}
       </View>
-      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} onLinkChain={linkChainToDfx} />
+      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} onLinkChain={handleLinkChainToDfx} />
       <ConfirmTargetWalletModal
         visible={confirmOpen}
         flow="sell"

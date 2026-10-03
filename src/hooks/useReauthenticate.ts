@@ -2,9 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ReauthPinModalProps } from '@/components/ReauthPinModal';
 import { FEATURES } from '@/config/features';
-import { useAuthStore } from '@/store/auth';
-
-const FIRST_LOCKOUT_ATTEMPT = 5;
+import { FIRST_LOCKOUT_ATTEMPT, useAuthStore } from '@/store/auth';
 
 type PendingRequest = {
   id: number;
