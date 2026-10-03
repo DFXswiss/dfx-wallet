@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import type { BalanceEntry, BalanceMap, BalanceSourceResult } from '@/services/balances';
 import type { ChainId } from '@/config/chains';
@@ -9,7 +10,7 @@ import {
   getAssets,
 } from '@/config/tokens';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
-import { ThemeProvider, useThemeStore } from '@/theme';
+import { lightColors, ThemeProvider, useThemeStore } from '@/theme';
 import { useWalletStore } from '@/store';
 
 let mockBalanceMap: BalanceMap = new Map();
@@ -224,6 +225,17 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     expect(within(getByTestId('holding-bitcoin-BTC')).getAllByText('—')).toHaveLength(2);
     expect(getByTestId('asset-detail-total-crypto').props.children).toBe('—');
     expect(getByText('portfolio.balanceUnavailable')).toBeTruthy();
+  });
+
+  it('uses warningText for the incomplete balance status', () => {
+    mockBalanceMap = new Map();
+    const { getByTestId } = renderScreen();
+    const statusStyle = StyleSheet.flatten(
+      getByTestId('asset-detail-balance-incomplete').props.style,
+    );
+
+    expect(statusStyle.color).toBe(lightColors.warningText);
+    expect(statusStyle.color).not.toBe(lightColors.warning);
   });
 
   it('does not let a never-queried holding mask complete group totals', () => {

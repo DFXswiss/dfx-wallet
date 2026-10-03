@@ -8,6 +8,7 @@ import { Header, Typography, useColors, type ThemeColors } from '@/theme';
 type Props = {
   title: string;
   onBack?: () => void;
+  backDisabled?: boolean;
   /**
    * Hide the back button entirely (e.g. consent screens that may only be
    * left forwards via an explicit action). The left slot keeps its width
@@ -34,6 +35,7 @@ type Props = {
 export function AppHeader({
   title,
   onBack,
+  backDisabled = false,
   hideBack = false,
   rightAction,
   rightActionPlain = false,
@@ -61,10 +63,12 @@ export function AppHeader({
     <View style={styles.sideSlot}>
       <Pressable
         onPress={handleBack}
+        disabled={backDisabled}
         hitSlop={12}
-        style={[styles.iconSlot, styles.iconButton]}
+        style={[styles.iconSlot, styles.iconButton, backDisabled && styles.disabled]}
         accessibilityRole="button"
         accessibilityLabel={t('common.back')}
+        accessibilityState={{ disabled: backDisabled }}
         testID={testID ? `${testID}-back` : undefined}
       >
         <Icon name="arrow-left" size={26} color={colors.text} />
@@ -125,6 +129,9 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.cardOverlay,
       borderWidth: 1,
       borderColor: colors.cardOverlayBorder,
+    },
+    disabled: {
+      opacity: 0.5,
     },
     title: {
       flexShrink: 1,

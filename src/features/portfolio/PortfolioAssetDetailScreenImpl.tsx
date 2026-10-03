@@ -366,7 +366,7 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
     },
     balanceStatus: {
       ...Typography.bodySmall,
-      color: colors.warning,
+      color: colors.warningText,
       textAlign: 'center',
       ...onBackdrop,
     },

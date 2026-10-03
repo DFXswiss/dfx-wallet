@@ -610,6 +610,7 @@
     "confirmTransaction": "Transaktion bestätigen",
     "done": "Fertig",
     "error": {
+      "amountPrecision": "Der Betrag hat zu viele Nachkommastellen.",
       "amountZero": "Der Betrag muss grösser als null sein.",
       "feeTooHigh": "Die Netzwerkgebühr ist zu hoch.",
       "generic": "Die Transaktion konnte nicht gesendet werden.",

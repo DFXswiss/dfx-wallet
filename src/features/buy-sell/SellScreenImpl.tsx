@@ -639,6 +639,7 @@ export default function SellScreen() {
               {FIAT_CURRENCIES.map((cur) => (
                 <Pressable
                   key={cur}
+                  testID={`sell-currency-${cur}`}
                   style={[styles.currencyChip, payoutCurrency === cur && styles.currencyChipActive]}
                   onPress={() => setPayoutCurrency(cur)}
                 >
@@ -764,7 +765,7 @@ export default function SellScreen() {
 
           <PrimaryButton
             title={sellAction}
-            icon={<Icon name="arrow-right" size={18} color={colors.white} />}
+            icon={<Icon name="arrow-right" size={18} color={colors.onPrimary} />}
             onPress={() => {
               if (hasTargetWallet) {
                 setConfirmError(null);
@@ -1231,7 +1232,7 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '600',
       color: colors.textSecondary,
     },
-    currencyTextActive: { color: colors.white },
+    currencyTextActive: { color: colors.onPrimary },
     quoteCard: {
       backgroundColor: colors.cardOverlay,
       borderRadius: 12,

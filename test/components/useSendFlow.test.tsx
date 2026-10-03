@@ -15,6 +15,7 @@ jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
       ({
+        'send.error.amountPrecision': 'The amount has too many decimal places.',
         'send.error.amountZero': 'Amount must be greater than zero.',
         'send.error.feeTooHigh': 'The network fee is too high.',
         'send.error.generic': 'The transaction could not be sent.',
@@ -41,7 +42,6 @@ const fakeAsset = {
   getId: () => 'usdt-eth',
   getDecimals: () => 6,
 } as unknown as Parameters<ReturnType<typeof useSendFlow>['send']>[0]['asset'];
- 
 const EVM_RECIPIENT = '0x52908400098527886E0F7030069857D2E4169EE7';
 
 function wrap({ children }: { children: React.ReactNode }) {

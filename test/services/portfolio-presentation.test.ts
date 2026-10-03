@@ -4,6 +4,7 @@ import {
   formatCryptoAmount,
   formatFiat,
   formatNumber,
+  hasExcessPrecision,
   normalizeDecimalAmount,
   parseUnits,
   resolveFiatCurrency,
@@ -113,9 +114,18 @@ describe('parseUnits', () => {
     expect(parseUnits('1.000001', 6)).toBe('1000001');
   });
 
-  it('truncates fractional digits past the asset decimals (never sends more than the user typed)', () => {
-    // 1.0000001 with 6 decimals → 1.000000 in base units → "1000000".
-    expect(parseUnits('1.0000001', 6)).toBe('1000000');
+  it.each([
+    ['1.000001', false],
+    ['1,000001', false],
+    ['1.0000001', true],
+    ['1,0000001', true],
+  ])('detects whether %s has excess precision', (amount, expected) => {
+    expect(hasExcessPrecision(amount, 6)).toBe(expected);
+  });
+
+  it('rejects fractional digits past the asset decimals instead of truncating', () => {
+    expect(parseUnits('1.0000001', 6)).toBe('0');
+    expect(parseUnits('1,0000001', 6)).toBe('0');
   });
 
   it('returns "0" for empty / nonsense / dot-only input', () => {
