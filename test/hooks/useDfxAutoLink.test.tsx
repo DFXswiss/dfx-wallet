@@ -1,5 +1,6 @@
 import { renderHook, waitFor } from '@testing-library/react-native';
 import { useDfxAutoLink } from '@/features/dfx-backend/useDfxAutoLinkImpl';
+import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
 
 const mockJwtCoversBlockchain = jest.fn();
 const mockLinkAddress = jest.fn();
@@ -137,4 +138,14 @@ describe('useDfxAutoLink', () => {
       expect(mockLinkAddress).toHaveBeenCalledTimes(1);
     },
   );
+
+  it('stops auto-linking when the auth flow is invalidated', async () => {
+    mockLinkAddress.mockRejectedValueOnce(new DfxAuthFlowInvalidatedError());
+
+    renderHook(() => useDfxAutoLink());
+
+    await waitFor(() => expect(mockLinkAddress).toHaveBeenCalledTimes(1));
+    expect(mockLinkLnurlAddress).not.toHaveBeenCalled();
+    expect(mockStorageSet).not.toHaveBeenCalled();
+  });
 });

@@ -3,7 +3,7 @@ import { useAccount } from '@tetherto/wdk-react-native-core';
 import { dfxAuthService, jwtCoversBlockchain } from '@/features/dfx-backend/services';
 import {
   createDfxSessionGuard,
-  LOCAL_SESSION_ENDED_MESSAGE,
+  isLocalSessionEndedError,
 } from '@/features/dfx-backend/session-guard';
 import {
   EVM_AUTH_ADDRESS_PROBE_MESSAGE,
@@ -198,7 +198,7 @@ export function useDfxAutoLink() {
               cacheChanged = true;
             }
           } catch (error) {
-            if (error instanceof Error && error.message === LOCAL_SESSION_ENDED_MESSAGE) {
+            if (isLocalSessionEndedError(error)) {
               throw error;
             }
             await assertFlowActive();
@@ -211,7 +211,7 @@ export function useDfxAutoLink() {
           await secureStorage.set(StorageKeys.DFX_LINKED_CHAINS, JSON.stringify(linked));
         }
       } catch (error) {
-        if (error instanceof Error && error.message === LOCAL_SESSION_ENDED_MESSAGE) return;
+        if (isLocalSessionEndedError(error)) return;
         throw error;
       } finally {
         inFlight.current = false;

@@ -419,6 +419,27 @@ describe('SeedExportScreenImpl', () => {
     expect(queryAllByText('abandon')).toHaveLength(0);
   });
 
+  // Red mutation: classify passkey-pending as seed; the mnemonic is then revealed after PIN only.
+  it('fails closed for a pending passkey marker without credential metadata', async () => {
+    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
+      key === StorageKeys.WALLET_ORIGIN ? 'passkey-pending' : null,
+    );
+    const { getByText, queryAllByText } = render(<SeedExportScreenImpl />);
+    await waitFor(() => expect(getByText('seedExport.revealPasskey')).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.press(getByText('seedExport.revealPasskey'));
+    });
+
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'common.error',
+      'seedExport.passkeyVerificationUnavailable',
+    );
+    expect(authenticatePasskey).not.toHaveBeenCalled();
+    expect(getMnemonic).not.toHaveBeenCalled();
+    expect(queryAllByText('abandon')).toHaveLength(0);
+  });
+
   it.each([
     ['credential ID only', StorageKeys.PASSKEY_CREDENTIAL_ID, 'stored-credential'],
     ['derivation version only', StorageKeys.PASSKEY_DERIVATION_VERSION, '1'],

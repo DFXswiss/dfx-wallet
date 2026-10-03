@@ -25,7 +25,7 @@ import {
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
 import {
   createDfxSessionGuard,
-  LOCAL_SESSION_ENDED_MESSAGE,
+  isLocalSessionEndedError,
 } from '@/features/dfx-backend/session-guard';
 import type { ChainId } from '@/config/chains';
 import {
@@ -323,7 +323,7 @@ export default function BuyScreen() {
           await guard.assertActive(ldsToken);
           void retryLast();
         } catch (err) {
-          if (err instanceof Error && err.message === LOCAL_SESSION_ENDED_MESSAGE) throw err;
+          if (isLocalSessionEndedError(err)) throw err;
           await assertFlowActive();
           // 409 → the LDS LNURL is on another DFX user. Mirror the EVM/BTC
           // recovery: drop the current JWT and re-auth as the LNURL owner
@@ -386,7 +386,7 @@ export default function BuyScreen() {
         await guard.assertActive(newToken);
         void retryLast();
       } catch (err) {
-        if (err instanceof Error && err.message === LOCAL_SESSION_ENDED_MESSAGE) throw err;
+        if (isLocalSessionEndedError(err)) throw err;
         await assertFlowActive();
         // 409 means the address belongs to a *different* DFX user. The user's
         // mental model is "this is MY wallet" — so re-auth as the owner of
@@ -418,7 +418,7 @@ export default function BuyScreen() {
       try {
         await linkChainToDfx(chain);
       } catch (error) {
-        if (error instanceof Error && error.message === LOCAL_SESSION_ENDED_MESSAGE) return;
+        if (isLocalSessionEndedError(error)) return;
         throw error;
       }
     },

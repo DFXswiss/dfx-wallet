@@ -41,7 +41,10 @@ async function readWalletMetadata(): Promise<WalletMetadata> {
     secureStorage.get(StorageKeys.PASSKEY_DERIVATION_VERSION),
   ]);
   const state: WalletMetadata['state'] =
-    origin === 'passkey' || credentialId !== null || derivationVersion !== null
+    origin === 'passkey' ||
+    origin === 'passkey-pending' ||
+    credentialId !== null ||
+    derivationVersion !== null
       ? 'passkey'
       : origin === null
         ? 'seed'

@@ -11,6 +11,7 @@ import {
   PrimaryButton,
 } from '@/components';
 import { restoreWalletFlow } from '@/features/restore/services/restore-wallet';
+import { useScreenCaptureProtection } from '@/hooks/useScreenCaptureProtection';
 import { validateSeedPhrase, seedToWords, wordsToSeed } from '@/services/wallet';
 import { useAuthStore } from '@/store';
 import { Typography, useColors, type ThemeColors } from '@/theme';
@@ -25,6 +26,7 @@ export default function RestoreWalletScreen() {
   const [seedPhrase, setSeedPhrase] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
+  const captureProtection = useScreenCaptureProtection(true, 'restore-wallet-mnemonic');
 
   const words = seedToWords(seedPhrase);
   const isValid = validateSeedPhrase(words);
@@ -99,6 +101,11 @@ export default function RestoreWalletScreen() {
       </View>
 
       <View style={styles.inputCard}>
+        {captureProtection === 'unavailable' && (
+          <View style={styles.captureWarning} testID="restore-wallet-capture-warning">
+            <Text style={styles.captureWarningText}>{t('common.screenCaptureUnavailable')}</Text>
+          </View>
+        )}
         <TextInput
           testID="restore-wallet-seed-input"
           style={styles.input}
@@ -167,6 +174,17 @@ const makeStyles = (colors: ThemeColors) =>
       borderColor: colors.border,
       padding: 14,
       gap: 10,
+    },
+    captureWarning: {
+      backgroundColor: colors.surfaceLight,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.warning,
+      padding: 12,
+    },
+    captureWarningText: {
+      ...Typography.bodyMedium,
+      color: colors.warning,
     },
     input: {
       backgroundColor: colors.surfaceLight,

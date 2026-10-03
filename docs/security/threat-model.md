@@ -11,7 +11,7 @@ In rough order of value to an attacker.
 
 | Asset                                         | Where it lives                                                         | Loss impact                                          |
 | --------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------- |
-| Seed / mnemonic                               | `expo-secure-store` (Keychain / Keystore), JS heap during signing      | Total loss of all funds across all chains            |
+| Seed / mnemonic                               | WDK secure storage (encrypted; Keychain / Keystore), JS heap on export | Total loss of all funds across all chains            |
 | PIN                                           | Hashed in `expo-secure-store`; PIN itself only in JS heap during entry | Bypass of app-level auth → seed access               |
 | Signing context (PSBT, EIP-712, etc.)         | JS heap, briefly in WDK Bare worklet                                   | Funds stolen via swapped recipient/amount            |
 | BitBox pairing state (Noise XX static pubkey) | `expo-secure-store` (planned)                                          | MITM on hardware-wallet channel                      |
@@ -72,10 +72,10 @@ from `~`/`✗` to `✓`.
 | -------------------------------------------------------------------------------------------------------- | ---------- |
 | Strict TypeScript (incl. `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`) | ✓          |
 | Lint guardrails (`no-floating-promises`, `security`, `no-secrets`, `no-console`)                         | ✓ (PR #12) |
-| Seed/PIN in `expo-secure-store` only, never MMKV                                                         | ✓          |
+| WDK encrypted seed/entropy in Keychain / Keystore; PIN in `expo-secure-store`; never MMKV                | ✓          |
 | Persistent PIN brute-force backoff (no wallet wipe)                                                      | ~          |
 | Biometric re-auth before signing operations                                                              | ✗          |
-| Screen-capture / FLAG_SECURE on seed creation and export (PIN and balance pending)                       | ~          |
+| Screen-capture / FLAG_SECURE on seed creation, restore entry and export (PIN and balance pending)        | ~          |
 | Global app-backgrounding blur (device task-switcher verification pending)                                | ~          |
 | Auto-lock after more than 60 seconds in the background (PIN builds only)                                 | ~          |
 | Clipboard auto-clear after mnemonic copy (address copy and confirmation UI pending)                      | ~          |
