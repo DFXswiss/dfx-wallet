@@ -274,6 +274,35 @@ describe('SettingsScreenImpl', () => {
     expect(dfxUserService.updateUser).toHaveBeenCalledWith({ language: { symbol: 'EN' } });
   });
 
+  it('serializes currency syncs and skips superseded selections', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    const firstSync = createDeferred();
+    const latestSync = createDeferred();
+    (dfxUserService.updateUser as jest.Mock)
+      .mockImplementationOnce(() => firstSync.promise)
+      .mockImplementationOnce(() => latestSync.promise);
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-currencies')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-currencies'));
+    await waitFor(() =>
+      expect(dfxUserService.updateUser).toHaveBeenCalledWith({ currency: { name: 'EUR' } }),
+    );
+
+    fireEvent.press(getByTestId('settings-currencies'));
+    fireEvent.press(getByTestId('settings-currencies'));
+    expect(useWalletStore.getState().selectedCurrency).toBe('CHF');
+    expect(dfxUserService.updateUser).toHaveBeenCalledTimes(1);
+
+    latestSync.resolve();
+    await act(async () => {
+      firstSync.resolve();
+    });
+
+    await waitFor(() => expect(dfxUserService.updateUser).toHaveBeenCalledTimes(2));
+    expect(dfxUserService.updateUser).toHaveBeenLastCalledWith({ currency: { name: 'CHF' } });
+  });
+
   it('does not sync the language to DFX when the local language change fails', async () => {
     useAuthStore.setState({ isDfxAuthenticated: true });
     __i18n.changeLanguage.mockRejectedValueOnce(new Error('language unavailable'));
