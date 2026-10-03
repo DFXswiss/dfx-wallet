@@ -1,3 +1,8 @@
+import {
+  decodeSparkAddress,
+  encodeSparkAddress,
+  type NetworkType,
+} from '@buildonspark/spark-sdk';
 import { bech32, bech32m, type BechLib } from 'bech32';
 import bs58check from 'bs58check';
 
@@ -5,17 +10,39 @@ import { isBitcoinOnChainAddress, isSparkMainnetAddress } from '@/services/bitco
 
 // eslint-disable-next-line no-secrets/no-secrets -- public BIP-173 test vector, not a credential
 const BITCOIN_V0 = 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4';
- 
-const BITCOIN_V1 =
-  'bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y';
+const BITCOIN_V1 = 'bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y';
 // eslint-disable-next-line no-secrets/no-secrets -- public Bitcoin address, not a credential
 const MAINNET_P2PKH = '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2';
 // eslint-disable-next-line no-secrets/no-secrets -- public Bitcoin address, not a credential
 const MAINNET_P2SH = '3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy';
 
-const SPARK_PAYLOAD = new Uint8Array(33).map((_, index) => index);
-const SPARK_ADDRESS = bech32m.encode('spark', bech32m.toWords(SPARK_PAYLOAD), 1023);
-const SHORT_SPARK_ADDRESS = bech32m.encode('sp', bech32m.toWords(SPARK_PAYLOAD), 1023);
+const SPARK_MAINNET_NETWORK: NetworkType = 'MAINNET';
+const SPARK_G =
+  '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798';
+const SPARK_2G =
+  '02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5';
+const SPARK_3G =
+  '02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9';
+const SPARK_NEGATIVE_G =
+  '0379be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798';
+const SPARK_NEGATIVE_2G =
+  '03c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5';
+const SPARK_PUBLIC_KEY_VECTORS = [
+  ['G (even)', SPARK_G],
+  ['2G (even)', SPARK_2G],
+  ['3G (even)', SPARK_3G],
+  ['-G (odd)', SPARK_NEGATIVE_G],
+  ['-2G (odd)', SPARK_NEGATIVE_2G],
+] as const;
+const SPARK_ADDRESS = encodeSparkAddress({
+  identityPublicKey: SPARK_G,
+  network: SPARK_MAINNET_NETWORK,
+});
+const SHORT_SPARK_ADDRESS = bech32m.encode(
+  'sp',
+  bech32m.decode(SPARK_ADDRESS, 1023).words,
+  1023,
+);
 
 function encodeWitness(encoding: BechLib, version: number, programLength: number): string {
   const program = new Uint8Array(programLength).map((_, index) => index + 1);
@@ -25,6 +52,17 @@ function encodeWitness(encoding: BechLib, version: number, programLength: number
 function changeLastCharacter(value: string): string {
   const replacement = value.endsWith('q') ? 'p' : 'q';
   return `${value.slice(0, -1)}${replacement}`;
+}
+
+function hexToBytes(value: string): Uint8Array {
+  return Uint8Array.from({ length: value.length / 2 }, (_, index) =>
+    Number.parseInt(value.slice(index * 2, index * 2 + 2), 16),
+  );
+}
+
+function encodeSparkPayload(identityPublicKey: Uint8Array, trailingBytes: number[] = []): string {
+  const payload = Uint8Array.from([0x0a, 0x21, ...identityPublicKey, ...trailingBytes]);
+  return bech32m.encode('spark', bech32m.toWords(payload), 1023);
 }
 
 describe('isBitcoinOnChainAddress', () => {
@@ -82,7 +120,6 @@ describe('isBitcoinOnChainAddress', () => {
   });
 
   it.each([
-     
     'tb1qw508d6qejxtdg4y5r3zarvary0c5xw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx',
     // eslint-disable-next-line no-secrets/no-secrets -- public BIP-173 invalid test vector, not a credential
     'bc1zw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
@@ -90,9 +127,7 @@ describe('isBitcoinOnChainAddress', () => {
     'bc1qr508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
     // eslint-disable-next-line no-secrets/no-secrets -- public Bitcoin testnet address, not a credential
     'mipcBbFg9gMiCh81Kj8tqqdgoZub1ZJRfn',
-     
     'n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi',
-     
     '2N2JD6wb56AfK4tfmM6PwdVmoYk2dCKf4Br',
   ])('rejects public invalid or testnet vector %s', (address) => {
     expect(isBitcoinOnChainAddress(address)).toBe(false);
@@ -115,32 +150,108 @@ describe('isBitcoinOnChainAddress', () => {
 });
 
 describe('isSparkMainnetAddress', () => {
-  it.each([SPARK_ADDRESS, SPARK_ADDRESS.toUpperCase(), SHORT_SPARK_ADDRESS])(
-    'accepts checksum-valid Spark mainnet address %s',
+  it.each(SPARK_PUBLIC_KEY_VECTORS)(
+    'accepts an SDK-encoded address for public key %s',
+    (_label, identityPublicKey) => {
+      const address = encodeSparkAddress({
+        identityPublicKey,
+        network: SPARK_MAINNET_NETWORK,
+      });
+
+      expect(isSparkMainnetAddress(address)).toBe(true);
+    },
+  );
+
+  it.each(SPARK_PUBLIC_KEY_VECTORS)(
+    'matches the SDK plain-address decoder for public key %s',
+    (_label, identityPublicKey) => {
+      const address = encodeSparkAddress({
+        identityPublicKey,
+        network: SPARK_MAINNET_NETWORK,
+      });
+      let sdkAcceptsPlainAddress = false;
+      try {
+        const decoded = decodeSparkAddress(address, SPARK_MAINNET_NETWORK);
+        sdkAcceptsPlainAddress = decoded.sparkInvoiceFields === undefined;
+      } catch {
+        sdkAcceptsPlainAddress = false;
+      }
+
+      expect(isSparkMainnetAddress(address)).toBe(sdkAcceptsPlainAddress);
+    },
+  );
+
+  it.each([SPARK_ADDRESS.toUpperCase(), SHORT_SPARK_ADDRESS])(
+    'accepts valid Spark mainnet address %s',
     (address) => {
       expect(isSparkMainnetAddress(address)).toBe(true);
     },
   );
 
-  it('accepts a checksum-valid Spark address beyond the default Bech32 length limit', () => {
-    const longPayload = new Uint8Array(100).map((_, index) => index);
-    const longAddress = bech32m.encode('spark', bech32m.toWords(longPayload), 1023);
+  it('rejects a checksum-valid Spark payload whose x-coordinate is outside the field', () => {
+    // A secp256k1 x-coordinate must satisfy 0 <= x < p, so x = p is not a point.
+    const fieldModulus =
+      'fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f';
+    const invalidAddress = encodeSparkPayload(
+      Uint8Array.from([0x02, ...hexToBytes(fieldModulus)]),
+    );
 
-    expect(isSparkMainnetAddress(longAddress)).toBe(true);
+    expect(isSparkMainnetAddress(invalidAddress)).toBe(false);
+  });
+
+  it('rejects a checksum-valid Spark payload with a trailing signature field', () => {
+    const addressWithSignature = encodeSparkPayload(hexToBytes(SPARK_G), [0x1a, 0x01, 0x00]);
+
+    expect(isSparkMainnetAddress(addressWithSignature)).toBe(false);
+  });
+
+  it.each<[string, number, number]>([
+    ['invoice-field tag', 0x12, 0x21],
+    ['signature-field tag', 0x1a, 0x21],
+    ['wrong identity-key length', 0x0a, 0x20],
+  ])('rejects a checksum-valid payload with %s', (_label, tag, length) => {
+    const payload = Uint8Array.from([tag, length, ...hexToBytes(SPARK_G)]);
+    const address = bech32m.encode('spark', bech32m.toWords(payload), 1023);
+
+    expect(isSparkMainnetAddress(address)).toBe(false);
+  });
+
+  it('rejects a Spark invoice address for a plain transfer', () => {
+    const invoiceAddress = encodeSparkAddress({
+      identityPublicKey: SPARK_G,
+      network: SPARK_MAINNET_NETWORK,
+      sparkInvoiceFields: {
+        version: 1,
+        id: new Uint8Array(16),
+        paymentType: { $case: 'satsPayment', satsPayment: { amount: 1_000 } },
+      },
+    });
+
+    expect(isSparkMainnetAddress(invoiceAddress)).toBe(false);
   });
 
   it('rejects a one-character checksum mutation', () => {
     expect(isSparkMainnetAddress(changeLastCharacter(SPARK_ADDRESS))).toBe(false);
   });
 
-  it('rejects a checksum-valid address with the wrong HRP', () => {
-    const wrongHrp = bech32m.encode('sparkt', bech32m.toWords(SPARK_PAYLOAD), 1023);
+  it.each<NetworkType>(['TESTNET', 'REGTEST', 'SIGNET', 'LOCAL'])(
+    'rejects an SDK-encoded %s Spark address',
+    (network) => {
+      const nonMainnetAddress = encodeSparkAddress({
+        identityPublicKey: SPARK_G,
+        network,
+      });
 
-    expect(isSparkMainnetAddress(wrongHrp)).toBe(false);
-  });
+      expect(isSparkMainnetAddress(nonMainnetAddress)).toBe(false);
+    },
+  );
 
   it('rejects the Spark payload when encoded as Bech32 instead of Bech32m', () => {
-    const wrongEncoding = bech32.encode('spark', bech32.toWords(SPARK_PAYLOAD), 1023);
+    const wrongEncoding = bech32.encode(
+      'spark',
+      bech32m.decode(SPARK_ADDRESS, 1023).words,
+      1023,
+    );
 
     expect(isSparkMainnetAddress(wrongEncoding)).toBe(false);
   });

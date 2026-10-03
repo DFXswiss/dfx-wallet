@@ -40,6 +40,18 @@ describe('AppHeader', () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it('disables the back button when backDisabled is true', () => {
+    const onBack = jest.fn();
+    const { getByLabelText } = render(
+      <AppHeader title="X" onBack={onBack} backDisabled testID="hdr" />,
+    );
+    const backButton = getByLabelText('common.back');
+
+    expect(backButton.props.accessibilityState?.disabled).toBe(true);
+    fireEvent.press(backButton);
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
   it('falls back to router.back() when no onBack is provided and there is history', () => {
     mockCanGoBack.mockReturnValue(true);
     const { getByLabelText } = render(<AppHeader title="X" />);

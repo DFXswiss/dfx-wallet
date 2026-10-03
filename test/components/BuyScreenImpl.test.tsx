@@ -1,9 +1,11 @@
 import React from 'react';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
+import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import type {
   BuyPaymentInfoDto,
   SellPaymentInfoDto,
 } from '@/features/dfx-backend/services/dto/payment';
+import { darkColors, ThemeProvider, useThemeStore } from '@/theme';
 import BuyScreenImpl from '../../src/features/buy-sell/BuyScreenImpl';
 import SellScreenImpl from '../../src/features/buy-sell/SellScreenImpl';
 
@@ -145,31 +147,43 @@ jest.mock('@/store', () => ({
     selector({ isDfxAuthenticated: mockIsDfxAuthenticated }),
 }));
 
-jest.mock('@/components', () => ({
-  AppHeader: ({ title }: { title?: string }) => {
-    const ReactActual = jest.requireActual('react');
-    const { Text } = jest.requireActual('react-native');
+jest.mock('@/components', () => {
+  const ReactActual = jest.requireActual('react');
+  const { Pressable, Text } = jest.requireActual('react-native');
+
+  function MockAppHeader({ title }: { title?: string }) {
     return ReactActual.createElement(Text, null, title);
-  },
-  ConfirmTargetWalletModal: () => null,
-  Icon: ({ name }: { name: string }) => {
-    const ReactActual = jest.requireActual('react');
-    const { Text } = jest.requireActual('react-native');
-    return ReactActual.createElement(Text, null, name);
-  },
-  PrimaryButton: ({
+  }
+
+  function MockConfirmTargetWalletModal() {
+    return null;
+  }
+
+  function MockDarkBackdrop() {
+    return null;
+  }
+
+  function MockIcon({ name, color }: { name: string; color?: string }) {
+    return ReactActual.createElement(
+      Text,
+      { style: { color }, testID: `mock-icon-${name}` },
+      name,
+    );
+  }
+
+  function MockPrimaryButton({
     title,
     onPress,
     disabled,
     loading,
+    icon,
   }: {
     title: string;
     onPress: () => void | Promise<void>;
     disabled?: boolean;
     loading?: boolean;
-  }) => {
-    const ReactActual = jest.requireActual('react');
-    const { Pressable, Text } = jest.requireActual('react-native');
+    icon?: React.ReactNode;
+  }) {
     return ReactActual.createElement(
       Pressable,
       {
@@ -179,9 +193,18 @@ jest.mock('@/components', () => ({
         onPress,
       },
       ReactActual.createElement(Text, null, loading ? 'common.loading' : title),
+      icon,
     );
-  },
-}));
+  }
+
+  return {
+    AppHeader: MockAppHeader,
+    ConfirmTargetWalletModal: MockConfirmTargetWalletModal,
+    DarkBackdrop: MockDarkBackdrop,
+    Icon: MockIcon,
+    PrimaryButton: MockPrimaryButton,
+  };
+});
 
 const mockGetQuote = jest.fn();
 const mockCreatePaymentInfo = jest.fn();
@@ -340,6 +363,7 @@ const mockSellFlowState = {
 
 beforeEach(() => {
   mockIsDfxAuthenticated = false;
+  useThemeStore.setState({ mode: 'light' });
   mockBack.mockReset();
   mockGetQuote.mockReset();
   mockCreatePaymentInfo.mockReset();
@@ -362,6 +386,30 @@ beforeEach(() => {
 });
 
 describe('BuyScreenImpl', () => {
+  it('uses on-primary for the active currency and CTA icon in dark mode', () => {
+    useThemeStore.setState({ mode: 'dark' });
+    const { getByTestId, getByText } = render(
+      <ThemeProvider>
+        <BuyScreenImpl />
+      </ThemeProvider>,
+    );
+    fireEvent.press(getByText('BTC'));
+
+    const activeCurrencyColor = StyleSheet.flatten(
+      within(getByTestId('buy-currency-CHF')).getByText('CHF').props.style,
+    ).color;
+    const inactiveCurrencyColor = StyleSheet.flatten(
+      within(getByTestId('buy-currency-EUR')).getByText('EUR').props.style,
+    ).color;
+    const iconColor = StyleSheet.flatten(getByTestId('mock-icon-arrow-right').props.style).color;
+    expect(activeCurrencyColor).toBe(darkColors.onPrimary);
+    expect(activeCurrencyColor).not.toBe(darkColors.white);
+    expect(inactiveCurrencyColor).not.toBe(activeCurrencyColor);
+    expect(inactiveCurrencyColor).not.toBe(darkColors.onPrimary);
+    expect(iconColor).toBe(darkColors.onPrimary);
+    expect(iconColor).not.toBe(darkColors.white);
+  });
+
   it('normalizes a comma amount for both the quote and payment info request', async () => {
     mockCreatePaymentInfo.mockResolvedValueOnce(PAYMENT_INFO);
     const { getByPlaceholderText, getByText } = render(<BuyScreenImpl />);
@@ -605,6 +653,30 @@ describe('BuyScreenImpl', () => {
 });
 
 describe('SellScreenImpl', () => {
+  it('uses on-primary for the active currency and CTA icon in dark mode', () => {
+    useThemeStore.setState({ mode: 'dark' });
+    const { getByTestId, getByText } = render(
+      <ThemeProvider>
+        <SellScreenImpl />
+      </ThemeProvider>,
+    );
+    fireEvent.press(getByText('BTC'));
+
+    const activeCurrencyColor = StyleSheet.flatten(
+      within(getByTestId('sell-currency-CHF')).getByText('CHF').props.style,
+    ).color;
+    const inactiveCurrencyColor = StyleSheet.flatten(
+      within(getByTestId('sell-currency-EUR')).getByText('EUR').props.style,
+    ).color;
+    const iconColor = StyleSheet.flatten(getByTestId('mock-icon-arrow-right').props.style).color;
+    expect(activeCurrencyColor).toBe(darkColors.onPrimary);
+    expect(activeCurrencyColor).not.toBe(darkColors.white);
+    expect(inactiveCurrencyColor).not.toBe(activeCurrencyColor);
+    expect(inactiveCurrencyColor).not.toBe(darkColors.onPrimary);
+    expect(iconColor).toBe(darkColors.onPrimary);
+    expect(iconColor).not.toBe(darkColors.white);
+  });
+
   it('shows the inverse fee-inclusive rate and target-currency fee badge', () => {
     const { getByPlaceholderText, getByText } = render(<SellScreenImpl />);
 

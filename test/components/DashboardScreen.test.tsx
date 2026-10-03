@@ -1,5 +1,7 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent, render, within } from '@testing-library/react-native';
+import { Rect } from 'react-native-svg';
+import { darkColors, ThemeProvider, useThemeStore } from '@/theme';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -51,6 +53,7 @@ describe('DashboardScreen', () => {
     mockPush.mockReset();
     mockAuthenticate.mockClear();
     mockPortfolioIncomplete.current = false;
+    useThemeStore.setState({ mode: 'light' });
     useWalletStore.setState({ selectedCurrency: 'USD' });
     useAuthStore.setState({ isDfxAuthenticated: false });
   });
@@ -107,6 +110,23 @@ describe('DashboardScreen', () => {
     expect(getByTestId('dashboard-action-portfolio')).toBeTruthy();
     expect(getByTestId('dashboard-action-pay')).toBeTruthy();
     expect(getByTestId('dashboard-action-transactions')).toBeTruthy();
+  });
+
+  it('uses on-primary for primary-filled shortcut icons in dark mode', () => {
+    useThemeStore.setState({ mode: 'dark' });
+    const { getByTestId } = render(
+      <ThemeProvider>
+        <DashboardScreen />
+      </ThemeProvider>,
+    );
+
+    const portfolioIcon = within(
+      getByTestId('dashboard-action-portfolio'),
+    ).UNSAFE_getByType(Rect);
+    const payIcons = within(getByTestId('dashboard-action-pay')).UNSAFE_getAllByType(Rect);
+    expect(portfolioIcon.props.stroke).toBe(darkColors.onPrimary);
+    expect(portfolioIcon.props.stroke).not.toBe(darkColors.white);
+    expect(payIcons.every((icon) => icon.props.stroke === darkColors.onPrimary)).toBe(true);
   });
 
   it('triggers DFX silent auth once on mount when the user is not yet authenticated', () => {

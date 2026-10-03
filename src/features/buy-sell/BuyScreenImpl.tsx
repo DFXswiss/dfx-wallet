@@ -634,6 +634,7 @@ export default function BuyScreen() {
               {CURRENCIES.map((cur) => (
                 <Pressable
                   key={cur}
+                  testID={`buy-currency-${cur}`}
                   style={[
                     styles.currencyChip,
                     selectedCurrency === cur && styles.currencyChipActive,
@@ -777,7 +778,7 @@ export default function BuyScreen() {
 
           <PrimaryButton
             title={buyAction}
-            icon={<Icon name="arrow-right" size={18} color={colors.white} />}
+            icon={<Icon name="arrow-right" size={18} color={colors.onPrimary} />}
             onPress={async () => {
               if (!selectedChainSpec || numAmount === null || numAmount <= 0) return;
               if (hasTargetWallet) {
@@ -1251,7 +1252,7 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
     },
     currencyTextActive: {
-      color: colors.white,
+      color: colors.onPrimary,
     },
     quickRow: {
       flexDirection: 'row',

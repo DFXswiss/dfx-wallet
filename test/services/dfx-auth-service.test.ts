@@ -456,12 +456,20 @@ describe('dfxAuthService.loginAsLnurlAddressOwner', () => {
 describe('dfxAuthService delegating helpers', () => {
   let getSpy: jest.SpyInstance;
   let postSpy: jest.SpyInstance;
+  let clearAuthTokenForRefreshSpy: jest.SpyInstance;
+  let setAuthTokenForRefreshSpy: jest.SpyInstance;
 
   beforeEach(() => {
     getSpy = jest.spyOn(dfxApi, 'get');
     postSpy = jest.spyOn(dfxApi, 'post');
     jest.spyOn(dfxApi, 'setAuthToken').mockImplementation(() => {});
     jest.spyOn(dfxApi, 'clearAuthToken').mockImplementation(() => {});
+    clearAuthTokenForRefreshSpy = jest
+      .spyOn(dfxApi, 'clearAuthTokenForRefresh')
+      .mockReturnValue(true);
+    setAuthTokenForRefreshSpy = jest
+      .spyOn(dfxApi, 'setAuthTokenForRefresh')
+      .mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -492,6 +500,43 @@ describe('dfxAuthService delegating helpers', () => {
 
     expect(signFn).toHaveBeenCalledWith('sign me');
     expect(token).toBe('REFRESHED');
+  });
+
+  it('uses generation-bound token updates for a 401 refresh', async () => {
+    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    postSpy.mockResolvedValueOnce({ accessToken: 'REFRESHED' });
+
+    const token = await dfxAuthService.refresh('0xabc', async () => 'SIG', 7);
+
+    expect(token).toBe('REFRESHED');
+    expect(clearAuthTokenForRefreshSpy).toHaveBeenCalledWith(7);
+    expect(setAuthTokenForRefreshSpy).toHaveBeenCalledWith('REFRESHED', 7);
+    expect(dfxApi.clearAuthToken).not.toHaveBeenCalled();
+    expect(dfxApi.setAuthToken).not.toHaveBeenCalled();
+  });
+
+  it('rejects a refresh whose auth generation is already stale', async () => {
+    clearAuthTokenForRefreshSpy.mockReturnValueOnce(false);
+
+    await expect(dfxAuthService.refresh('0xabc', async () => 'SIG', 7)).rejects.toThrow(
+      'Authentication changed before token refresh started.',
+    );
+    expect(getSpy).not.toHaveBeenCalled();
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not adopt a refresh token after the auth generation changes', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    postSpy.mockResolvedValueOnce({ accessToken: 'STALE_TOKEN' });
+    setAuthTokenForRefreshSpy.mockReturnValue(false);
+
+    await expect(dfxAuthService.refresh('0xabc', async () => 'SIG', 7)).rejects.toThrow(
+      'Authentication changed while token refresh was pending.',
+    );
+    expect(setAuthTokenForRefreshSpy).toHaveBeenNthCalledWith(1, 'STALE_TOKEN', 7);
+    expect(setAuthTokenForRefreshSpy).toHaveBeenNthCalledWith(2, 'OLD_TOKEN', 7);
+    expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
   });
 
   it('loginAsAddressOwner re-auths with the given options', async () => {

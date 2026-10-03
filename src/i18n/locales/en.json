@@ -610,6 +610,7 @@
     "confirmTransaction": "Confirm Transaction",
     "done": "Done",
     "error": {
+      "amountPrecision": "The amount has too many decimal places.",
       "amountZero": "Amount must be greater than zero.",
       "feeTooHigh": "The network fee is too high.",
       "generic": "The transaction could not be sent.",

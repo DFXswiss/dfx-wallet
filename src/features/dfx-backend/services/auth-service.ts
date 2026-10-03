@@ -48,10 +48,16 @@ export class DfxAuthService {
   }
 
   /** Authenticate with a signed message and get a JWT */
-  async authenticate(request: AuthRequestDto): Promise<string> {
+  async authenticate(request: AuthRequestDto, authGeneration?: number): Promise<string> {
     const response = await dfxApi.post<AuthResponseDto>('/v1/auth', request);
+    if (
+      authGeneration !== undefined &&
+      !dfxApi.setAuthTokenForRefresh(response.accessToken, authGeneration)
+    ) {
+      throw new Error('Authentication changed while token refresh was pending.');
+    }
     this.accessToken = response.accessToken;
-    dfxApi.setAuthToken(response.accessToken);
+    if (authGeneration === undefined) dfxApi.setAuthToken(response.accessToken);
     return response.accessToken;
   }
 
@@ -80,32 +86,48 @@ export class DfxAuthService {
     address: string,
     signFn: (message: string) => Promise<string>,
     options?: { wallet?: string; blockchain?: string; usedRef?: string },
+    authGeneration?: number,
   ): Promise<string> {
     const previousToken = this.accessToken;
-    this.accessToken = null;
-    dfxApi.clearAuthToken();
+    if (authGeneration === undefined) {
+      this.accessToken = null;
+      dfxApi.clearAuthToken();
+    } else if (!dfxApi.clearAuthTokenForRefresh(authGeneration)) {
+      throw new Error('Authentication changed before token refresh started.');
+    }
 
     try {
       const { message } = await this.getSignMessage(address);
       const signature = await this.signWithCache(address, message, signFn);
 
-      return await this.authenticate({
-        address,
-        signature,
-        wallet: options?.wallet ?? 'DFX Wallet',
-        ...(options?.blockchain !== undefined ? { blockchain: options.blockchain } : {}),
-        ...(options?.usedRef !== undefined ? { usedRef: options.usedRef } : {}),
-      });
+      return await this.authenticate(
+        {
+          address,
+          signature,
+          wallet: options?.wallet ?? 'DFX Wallet',
+          ...(options?.blockchain !== undefined ? { blockchain: options.blockchain } : {}),
+          ...(options?.usedRef !== undefined ? { usedRef: options.usedRef } : {}),
+        },
+        authGeneration,
+      );
     } catch (err) {
-      this.accessToken = previousToken;
-      if (previousToken) dfxApi.setAuthToken(previousToken);
+      if (authGeneration === undefined) {
+        this.accessToken = previousToken;
+        if (previousToken) dfxApi.setAuthToken(previousToken);
+      } else if (previousToken) {
+        dfxApi.setAuthTokenForRefresh(previousToken, authGeneration);
+      }
       throw err;
     }
   }
 
   /** Refresh auth token (re-sign challenge) */
-  async refresh(address: string, signFn: (message: string) => Promise<string>): Promise<string> {
-    return this.login(address, signFn);
+  async refresh(
+    address: string,
+    signFn: (message: string) => Promise<string>,
+    authGeneration?: number,
+  ): Promise<string> {
+    return this.login(address, signFn, undefined, authGeneration);
   }
 
   /**

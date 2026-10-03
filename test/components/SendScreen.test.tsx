@@ -1,7 +1,10 @@
 import React from 'react';
-import { act, fireEvent, render } from '@testing-library/react-native';
+import * as Haptics from 'expo-haptics';
+import { act, fireEvent, render, within } from '@testing-library/react-native';
 import { bech32, bech32m } from 'bech32';
 import bs58check from 'bs58check';
+import Svg, { Path } from 'react-native-svg';
+import { darkColors, ThemeProvider, useThemeStore } from '@/theme';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -10,12 +13,25 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
+jest.mock('expo-haptics', () => ({
+  notificationAsync: jest.fn(),
+  NotificationFeedbackType: { Success: 'success' },
+}));
+
 const mockPush = jest.fn();
 const mockBack = jest.fn();
-jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush, back: mockBack, replace: jest.fn(), canGoBack: () => true }),
-  Stack: { Screen: () => null },
-}));
+const mockStackScreenOptions: { current: { gestureEnabled?: boolean } | null } = { current: null };
+jest.mock('expo-router', () => {
+  function MockStackScreen({ options }: { options: { gestureEnabled?: boolean } }) {
+    mockStackScreenOptions.current = options;
+    return null;
+  }
+
+  return {
+    useRouter: () => ({ push: mockPush, back: mockBack, replace: jest.fn(), canGoBack: () => true }),
+    Stack: { Screen: MockStackScreen },
+  };
+});
 
 // Send screen consumes `useSendFlow` directly; mock the public re-export so
 // the test never touches `useAccount` / WDK and we can drive the flow's
@@ -73,9 +89,18 @@ import SendScreen from '../../app/(auth)/send/index';
 
 // eslint-disable-next-line no-secrets/no-secrets -- public BIP-173 test vector, not a credential
 const RECIPIENT = 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4';
-const SPARK_PAYLOAD = new Uint8Array(33).map((_, index) => index);
-const SPARK_RECIPIENT = bech32m.encode('spark', bech32m.toWords(SPARK_PAYLOAD), 1023);
- 
+const SPARK_IDENTITY_PUBLIC_KEY_HEX =
+  '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798';
+const SPARK_IDENTITY_PUBLIC_KEY = Uint8Array.from(
+  { length: SPARK_IDENTITY_PUBLIC_KEY_HEX.length / 2 },
+  (_, index) =>
+    Number.parseInt(SPARK_IDENTITY_PUBLIC_KEY_HEX.slice(index * 2, index * 2 + 2), 16),
+);
+const SPARK_RECIPIENT = bech32m.encode(
+  'spark',
+  bech32m.toWords(Uint8Array.from([0x0a, 0x21, ...SPARK_IDENTITY_PUBLIC_KEY])),
+  1023,
+);
 const EVM_RECIPIENT = '0x52908400098527886E0F7030069857D2E4169EE7';
 const LOWERCASE_EVM_RECIPIENT = EVM_RECIPIENT.toLowerCase();
 const WRONG_CHECKSUM_EVM_RECIPIENT = `${EVM_RECIPIENT.slice(0, -2)}e7`;
@@ -110,9 +135,12 @@ describe('SendScreen', () => {
     mockEstimate.mockResolvedValue({ success: true, fee: '21000000000000' });
     mockReset.mockReset();
     mockUseSendFlow.mockReset();
+    (Haptics.notificationAsync as jest.Mock).mockReset();
     flowState.isLoading = false;
     flowState.txHash = null;
     flowState.error = null;
+    useThemeStore.setState({ mode: 'light' });
+    mockStackScreenOptions.current = null;
     qrScannerProps.onScan = null;
     qrScannerProps.onClose = null;
   });
@@ -189,7 +217,6 @@ describe('SendScreen', () => {
       ['lowercase', LOWERCASE_EVM_RECIPIENT],
     ])('enables Continue for a valid %s EVM recipient', (_label, address) => {
       const { getAllByText, getByPlaceholderText, getByTestId } = render(<SendScreen />);
-       
       fireEvent.press(getAllByText('CHF')[0]!);
       fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), address);
       fireEvent.changeText(getByPlaceholderText('0.00'), '1');
@@ -202,7 +229,6 @@ describe('SendScreen', () => {
       ['too short', '0x1234'],
     ])('keeps Continue disabled for a %s EVM recipient', (_label, address) => {
       const { getAllByText, getByPlaceholderText, getByTestId } = render(<SendScreen />);
-       
       fireEvent.press(getAllByText('CHF')[0]!);
       fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), address);
       fireEvent.changeText(getByPlaceholderText('0.00'), '1');
@@ -210,10 +236,23 @@ describe('SendScreen', () => {
       expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).toBe(true);
     });
 
+    it('keeps Continue disabled when the amount exceeds the asset precision', () => {
+      const { getAllByText, getByPlaceholderText, getByTestId } = render(<SendScreen />);
+      fireEvent.press(getAllByText('CHF')[0]!);
+      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), EVM_RECIPIENT);
+
+      // Every configured CHF send asset is ZCHF with 18 decimals.
+      fireEvent.changeText(getByPlaceholderText('0.00'), '1.123456789012345678');
+      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).not.toBe(true);
+
+      fireEvent.changeText(getByPlaceholderText('0.00'), '1.1234567890123456789');
+      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).toBe(true);
+      expect(mockEstimate).not.toHaveBeenCalled();
+    });
+
     it('renders the chain bar with multiple chains when the asset has >1 chain', () => {
       const { getAllByText, getByText } = render(<SendScreen />);
       // CHF has 4 EVM chains — picking it should render the chain bar.
-       
       fireEvent.press(getAllByText('CHF')[0]!);
       expect(getByText('Ethereum')).toBeTruthy();
       expect(getByText('Arbitrum')).toBeTruthy();
@@ -223,7 +262,6 @@ describe('SendScreen', () => {
 
     it('switches the selected chain when a different chip is pressed', () => {
       const { getAllByText, getByText } = render(<SendScreen />);
-       
       fireEvent.press(getAllByText('CHF')[0]!);
       // Default is the first chain (Ethereum). Tap Polygon — the chain
       // switches but stays in the input step.
@@ -312,7 +350,6 @@ describe('SendScreen', () => {
       );
       // CHF has a paymaster — the fee row actually renders.
       // CHF has 2 occurrences (symbol + label) — press the first.
-       
       fireEvent.press(getAllByText('CHF')[0]!);
       fillRecipientAndAmount(getByPlaceholderText, EVM_RECIPIENT);
       await act(async () => {
@@ -332,7 +369,6 @@ describe('SendScreen', () => {
     it('renders the irreversibility warning + confirm + cancel CTAs', async () => {
       const { getByText, getByPlaceholderText, findByText, getAllByText } = render(<SendScreen />);
       // CHF has 2 occurrences (symbol + label) — press the first.
-       
       fireEvent.press(getAllByText('CHF')[0]!);
       fillRecipientAndAmount(getByPlaceholderText, EVM_RECIPIENT);
       await act(async () => {
@@ -357,6 +393,73 @@ describe('SendScreen', () => {
       // continue CTA is back.
       expect(queryByText('send.confirmTransaction')).toBeNull();
       expect(getByText('common.continue')).toBeTruthy();
+    });
+
+    it('disables cancel and back and prevents a second transfer while send is in flight', async () => {
+      let resolveSend: ((hash: string | null) => void) | undefined;
+      mockSend.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSend = resolve;
+          }),
+      );
+      const { getByLabelText, getByPlaceholderText, getByTestId, getByText } = render(
+        <SendScreen />,
+      );
+      fireEvent.press(getByText('BTC'));
+      fillRecipientAndAmount(getByPlaceholderText);
+      await act(async () => {
+        fireEvent.press(getByText('common.continue'));
+      });
+
+      fireEvent.press(getByTestId('send-confirm-button'));
+
+      const cancelButton = getByTestId('send-cancel-button');
+      const backButton = getByLabelText('common.back');
+      expect(cancelButton.props.accessibilityState?.disabled).toBe(true);
+      expect(backButton.props.accessibilityState?.disabled).toBe(true);
+      expect(mockStackScreenOptions.current?.gestureEnabled).toBe(false);
+      fireEvent.press(cancelButton);
+      fireEvent.press(backButton);
+      fireEvent.press(getByTestId('send-confirm-button'));
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      expect(mockSend).toHaveBeenCalledWith({
+        asset: expect.anything(),
+        to: RECIPIENT,
+        amount: '1',
+      });
+
+      await act(async () => {
+        resolveSend?.(null);
+        await Promise.resolve();
+      });
+    });
+
+    it('ignores a late successful send result after unmount', async () => {
+      let resolveSend: ((hash: string | null) => void) | undefined;
+      mockSend.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSend = resolve;
+          }),
+      );
+      const { getByPlaceholderText, getByTestId, getByText, unmount } = render(<SendScreen />);
+      fireEvent.press(getByText('BTC'));
+      fillRecipientAndAmount(getByPlaceholderText);
+      await act(async () => {
+        fireEvent.press(getByText('common.continue'));
+      });
+      fireEvent.press(getByTestId('send-confirm-button'));
+
+      // User actions cannot supersede an in-flight send because cancel, back,
+      // and the navigation gesture are disabled; unmount is the reachable case.
+      unmount();
+
+      await act(async () => {
+        resolveSend?.('late-hash');
+        await Promise.resolve();
+      });
+      expect(Haptics.notificationAsync).not.toHaveBeenCalled();
     });
   });
 
@@ -512,6 +615,26 @@ describe('SendScreen', () => {
       };
       walk(UNSAFE_root);
       expect(invoked).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('theme colors', () => {
+    it('uses the on-primary token for the sell shortcut icon in dark mode', () => {
+      useThemeStore.setState({ mode: 'dark' });
+      const { getByTestId, getByText } = render(
+        <ThemeProvider>
+          <SendScreen />
+        </ThemeProvider>,
+      );
+      fireEvent.press(getByText('BTC'));
+
+      const [swapIcon] = within(getByTestId('send-action-sell')).UNSAFE_getAllByType(Svg);
+      const swapPaths = within(swapIcon!).UNSAFE_getAllByType(Path);
+      expect(swapPaths.length).toBeGreaterThan(0);
+      for (const swapPath of swapPaths) {
+        expect(swapPath.props.stroke).toBe(darkColors.onPrimary);
+        expect(swapPath.props.stroke).not.toBe(darkColors.white);
+      }
     });
   });
 
