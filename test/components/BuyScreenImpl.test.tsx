@@ -7,6 +7,17 @@ import type {
 import BuyScreenImpl from '../../src/features/buy-sell/BuyScreenImpl';
 import SellScreenImpl from '../../src/features/buy-sell/SellScreenImpl';
 
+jest.mock('@/services/balances', () => {
+  const actual = jest.requireActual('@/services/balances');
+  const balances = new Map([
+    ['btc', { assetId: 'btc', rawBalance: '1', status: 'ok', source: 'wdk' }],
+  ]);
+  return {
+    ...actual,
+    useBalances: () => ({ data: balances, isLoading: false, error: null }),
+  };
+});
+
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string | string[], params?: Record<string, unknown>) => {
@@ -126,9 +137,10 @@ jest.mock('@/services/storage', () => ({
   },
 }));
 
+let mockIsDfxAuthenticated = false;
 jest.mock('@/store', () => ({
   useAuthStore: (selector: (state: { isDfxAuthenticated: boolean }) => unknown) =>
-    selector({ isDfxAuthenticated: false }),
+    selector({ isDfxAuthenticated: mockIsDfxAuthenticated }),
 }));
 
 jest.mock('@/components', () => ({
@@ -159,6 +171,7 @@ jest.mock('@/components', () => ({
     return ReactActual.createElement(
       Pressable,
       {
+        accessibilityLabel: title,
         accessibilityRole: 'button',
         disabled: disabled || loading,
         onPress,
@@ -324,6 +337,7 @@ const mockSellFlowState = {
 };
 
 beforeEach(() => {
+  mockIsDfxAuthenticated = false;
   mockBack.mockReset();
   mockGetQuote.mockReset();
   mockCreatePaymentInfo.mockReset();
@@ -346,6 +360,50 @@ beforeEach(() => {
 });
 
 describe('BuyScreenImpl', () => {
+  it('normalizes a comma amount for both the quote and payment info request', async () => {
+    mockCreatePaymentInfo.mockResolvedValueOnce(PAYMENT_INFO);
+    const { getByPlaceholderText, getByText } = render(<BuyScreenImpl />);
+
+    fireEvent.press(getByText('BTC'));
+    fireEvent.changeText(getByPlaceholderText('0.00'), '100,50');
+
+    await waitFor(() =>
+      expect(mockGetQuote).toHaveBeenCalledWith(expect.objectContaining({ amount: 100.5 })),
+    );
+    await act(async () => {
+      fireEvent.press(getByText('buy.cta:{"asset":"BTC"}'));
+    });
+    expect(mockCreatePaymentInfo).toHaveBeenCalledWith(expect.objectContaining({ amount: 100.5 }));
+  });
+
+  it.each(['1,000.50', '1.2.3', '1,,5'])('keeps malformed amount %s gated', (invalid) => {
+    const { getByLabelText, getByPlaceholderText, getByText, queryByText } = render(
+      <BuyScreenImpl />,
+    );
+    const ctaLabel = 'buy.cta:{"asset":"BTC"}';
+
+    fireEvent.press(getByText('BTC'));
+    const amountInput = getByPlaceholderText('0.00');
+    fireEvent.changeText(amountInput, invalid);
+
+    expect(getByLabelText(ctaLabel).props.accessibilityState?.disabled).toBe(true);
+    expect(queryByText(/buy\.rateInclFees/)).toBeNull();
+    expect(mockGetQuote).not.toHaveBeenCalled();
+
+    fireEvent.changeText(amountInput, '100,50');
+    expect(getByLabelText(ctaLabel).props.accessibilityState?.disabled).not.toBe(true);
+  });
+
+  it('handles a payment-info retry when authenticated focus resumes', async () => {
+    mockIsDfxAuthenticated = true;
+    mockRetryLast.mockResolvedValueOnce({ kind: 'paymentInfo', info: PAYMENT_INFO });
+
+    const { getByText } = render(<BuyScreenImpl />);
+
+    await waitFor(() => expect(getByText('buy.paymentInfo')).toBeTruthy());
+    expect(mockRetryLast).toHaveBeenCalled();
+  });
+
   it('advances after a linked-chain retry only for payment info, not for a quote', async () => {
     flowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'link Bitcoin' };
     mockRetryLast
@@ -399,7 +457,7 @@ describe('BuyScreenImpl', () => {
       error: 'KycRequired',
       expectedMessage: 'buy.quoteError.KycRequired:{"code":"KycRequired"}',
     },
-    { error: undefined, expectedMessage: 'buy.quoteError.generic:{"code":"generic"}' },
+    { error: undefined, expectedMessage: 'buy.quoteError.noCode' },
   ])(
     'blocks payment instructions for final invalid payment info with error $error',
     async ({ error, expectedMessage }) => {

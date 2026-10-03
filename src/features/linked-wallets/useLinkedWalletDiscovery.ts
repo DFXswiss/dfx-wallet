@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getEvmRpcUrl, type ChainId } from '@/config/chains';
 import { DISCOVERABLE_TOKENS_BY_CHAIN, type DiscoverableToken } from '@/config/discoverable-tokens';
 import { formatBalance, toNumeric } from '@/config/portfolio-presentation';
@@ -386,11 +386,11 @@ export function useLinkedWalletDiscovery(
     enabled,
     staleTime: STALE_TIME_MS,
     refetchInterval: REFETCH_INTERVAL_MS,
-    // Show the previous (still-valid) result while a refetch — or a
-    // queryKey change like the pricing service flipping to "ready" —
-    // is in flight. Without this the UI flashed `—` on every linked
-    // wallet card during the seconds it took the new fetch to land.
-    placeholderData: keepPreviousData,
+    // Keep the previous result for wallet/pricing-state changes in the same
+    // fiat currency. Reusing it across a currency change would temporarily
+    // label the old numeric totals with the newly selected currency.
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.queryKey[3] === fiatCurrency ? previousData : undefined,
   });
 
   const refetch = useMemo(

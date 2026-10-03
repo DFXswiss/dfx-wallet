@@ -34,7 +34,7 @@ export function useTotalPortfolioFiat(): PortfolioFiatResult {
   // sums across the entire supported chain set — the user has no way
   // to deselect anyway because the manage screen is not reachable.
   const assetConfigs = useMemo(() => getAssets(), []);
-  const { data: balances } = useBalances(assetConfigs);
+  const { data: balances, isLoading: balancesLoading } = useBalances(assetConfigs);
   const [pricingReady, setPricingReady] = useState(pricingService.isReady());
   const [pricingRevision, setPricingRevision] = useState(0);
 
@@ -63,12 +63,19 @@ export function useTotalPortfolioFiat(): PortfolioFiatResult {
   const result = useMemo<PortfolioFiatResult>(() => {
     void pricingRevision;
     let sum = 0;
-    let isIncomplete = false;
+    let isIncomplete = balancesLoading;
     for (const asset of assetConfigs) {
       const meta = getAssetMeta(asset.getId());
       if (!meta || meta.category === 'native') continue;
       const balanceEntry = balances.get(asset.getId());
-      if (balanceEntry?.status === 'error' || balanceEntry?.status === 'stale') isIncomplete = true;
+      if (
+        !balanceEntry ||
+        balanceEntry.status === 'idle' ||
+        balanceEntry.status === 'loading' ||
+        balanceEntry.status === 'error' ||
+        balanceEntry.status === 'stale'
+      )
+        isIncomplete = true;
       const rawBalance = getRawBalance(balances, asset.getId());
       const balanceNum = toNumeric(formatBalance(rawBalance, asset.getDecimals()));
       const isOwnCurrency = meta.canonicalSymbol === fiatCurrency;
@@ -83,7 +90,7 @@ export function useTotalPortfolioFiat(): PortfolioFiatResult {
       sum += computeFiatValue(balanceNum, meta.canonicalSymbol, fiatCurrency, pricingReady);
     }
     return { totalFiat: sum, isIncomplete };
-  }, [assetConfigs, balances, fiatCurrency, pricingReady, pricingRevision]);
+  }, [assetConfigs, balances, balancesLoading, fiatCurrency, pricingReady, pricingRevision]);
 
   useEffect(() => {
     const formatted = Number.isFinite(result.totalFiat)

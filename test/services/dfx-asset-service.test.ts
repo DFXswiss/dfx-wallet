@@ -84,17 +84,32 @@ describe('dfxAssetService.list', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('caches a FAILED fetch until reset() — a transient error poisons the session', async () => {
-    // NOTE: design weakness — the promise (not the value) is cached, so one
-    // network hiccup keeps rejecting every later list()/find() until reset().
+  it('clears a failed cached request so a later call can retry', async () => {
     fetchMock.mockRejectedValueOnce(new TypeError('Network request failed'));
     await expect(dfxAssetService.list()).rejects.toThrow('Network request failed');
 
     fetchMock.mockResolvedValueOnce(jsonOk(ASSETS));
-    await expect(dfxAssetService.list()).rejects.toThrow('Network request failed');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await expect(dfxAssetService.list()).resolves.toEqual(ASSETS);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 
+  it('does not let an older rejection clear a newer cached request', async () => {
+    let rejectFirst!: (reason: Error) => void;
+    fetchMock
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((_resolve, reject) => {
+            rejectFirst = reject;
+          }),
+      )
+      .mockResolvedValueOnce(jsonOk(ASSETS));
+
+    const first = dfxAssetService.list();
     dfxAssetService.reset();
+    await expect(dfxAssetService.list()).resolves.toEqual(ASSETS);
+    rejectFirst(new Error('stale failure'));
+    await expect(first).rejects.toThrow('stale failure');
+
     await expect(dfxAssetService.list()).resolves.toEqual(ASSETS);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });

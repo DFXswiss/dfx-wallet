@@ -79,6 +79,33 @@ export const toNumeric = (formatted: string): number => {
 };
 
 /**
+ * Validate a user-entered non-negative decimal amount and normalize its optional
+ * comma or dot separator to a dot. Whole numbers and one separator with digits
+ * on both sides are accepted; malformed, empty, negative, or non-finite input
+ * returns `null`.
+ */
+export const normalizeDecimalAmount = (displayAmount: string): string | null => {
+  let separator: ',' | '.' | null = null;
+  for (const character of displayAmount) {
+    if (character !== ',' && character !== '.') continue;
+    if (separator !== null) return null;
+    separator = character;
+  }
+
+  let wholePart = displayAmount;
+  let fractionalPart: string | null = null;
+  if (separator !== null) {
+    [wholePart = '', fractionalPart = ''] = displayAmount.split(separator);
+  }
+  if (!/^\d+$/.test(wholePart) || (fractionalPart !== null && !/^\d+$/.test(fractionalPart))) {
+    return null;
+  }
+
+  const normalized = fractionalPart === null ? wholePart : `${wholePart}.${fractionalPart}`;
+  return Number.isFinite(Number(normalized)) ? normalized : null;
+};
+
+/**
  * Parse a user-typed decimal amount ("1", "1.5", "0,5") into the asset's
  * smallest unit as a decimal string. Uses BigInt — never Number — so it
  * preserves precision past 2^53. Fractional digits beyond `decimals` are

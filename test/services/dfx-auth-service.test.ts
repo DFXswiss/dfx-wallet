@@ -324,6 +324,7 @@ describe('dfxAuthService.changeActiveAddress', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+    dfxApi.setOnUnauthorized(async () => null);
     dfxAuthService.logout();
   });
 
@@ -357,6 +358,35 @@ describe('dfxAuthService.changeActiveAddress', () => {
 
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('OLD_TOKEN');
     expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
+  });
+
+  it('keeps a concurrently refreshed Bearer when the retried switch fails', async () => {
+    postSpy.mockRestore();
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    dfxApi.setAuthToken('OLD_TOKEN');
+    dfxApi.setOnUnauthorized(async () => {
+      dfxAuthService.adoptStoredToken('REFRESHED_TOKEN');
+      dfxApi.setAuthToken('REFRESHED_TOKEN');
+      return 'REFRESHED_TOKEN';
+    });
+    const fetchSpy = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Expired' }),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        json: async () => ({ statusCode: 403, code: 'FORBIDDEN', message: 'Not linked' }),
+      } as unknown as Response);
+
+    await expect(dfxAuthService.changeActiveAddress('0xother')).rejects.toThrow('Not linked');
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(dfxAuthService.getAccessToken()).toBe('REFRESHED_TOKEN');
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('REFRESHED_TOKEN');
   });
 });
 

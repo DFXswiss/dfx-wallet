@@ -4,15 +4,10 @@ import { initReactI18next } from 'react-i18next';
 
 import de from './locales/de.json';
 import en from './locales/en.json';
-import { normalizeLanguage, resolveInitialLanguageSync } from './language';
+import { normalizeLanguage, resolveInitialLanguageSync } from '@/i18n/language';
 
-export {
-  normalizeLanguage,
-  resolveInitialLanguage,
-  resolveInitialLanguageSync,
-  setLanguage,
-} from './language';
-export type { AppLanguage } from './language';
+export { normalizeLanguage, resolveInitialLanguageSync, setLanguage } from '@/i18n/language';
+export type { AppLanguage } from '@/i18n/language';
 
 const deviceLanguage = normalizeLanguage(getLocales()[0]?.languageCode) ?? 'en';
 const initialLanguage = resolveInitialLanguageSync(deviceLanguage);

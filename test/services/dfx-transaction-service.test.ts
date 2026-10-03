@@ -174,17 +174,15 @@ describe('dfxTransactionService.createCsvExport', () => {
     expect(result.downloadUrl).toBe(`${BASE}/v1/transaction/csv?key=a%2Bb%2Fc%3D%26d%3Fe`);
   });
 
-  it('turns an empty 200 body into fileKey undefined and a key=undefined URL', async () => {
-    // NOTE: passes through unvalidated — an empty success response yields
-    // { fileKey: undefined, downloadUrl: ".../csv?key=undefined" } instead
-    // of a controlled failure. The caller would hand a dead URL to the
-    // share sheet.
-    fetchMock.mockResolvedValueOnce(jsonOk(undefined));
+  it.each([
+    ['an empty body', jsonOk(undefined)],
+    ['a whitespace-only key', httpResponse(200, '   ')],
+  ])('rejects %s instead of building an unusable download URL', async (_label, response) => {
+    fetchMock.mockResolvedValueOnce(response);
 
-    const result = await dfxTransactionService.createCsvExport({ userAddress: '0xabc' });
-
-    expect(result.fileKey).toBeUndefined();
-    expect(result.downloadUrl).toBe(`${BASE}/v1/transaction/csv?key=undefined`);
+    await expect(
+      dfxTransactionService.createCsvExport({ userAddress: '0xabc' }),
+    ).rejects.toThrow('empty file key');
   });
 
   it('keeps a raw numeric-looking file key as text', async () => {

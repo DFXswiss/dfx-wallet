@@ -207,10 +207,14 @@ export default function SettingsScreen() {
           label: t('settings.language'),
           value: currentLang,
           testID: 'settings-language',
-          onPress: () => {
+          onPress: async () => {
             const next = currentLang === 'DE' ? 'en' : 'de';
-            void setLanguage(next, i18n);
-            syncLanguageToDfx(next);
+            try {
+              await setLanguage(next, i18n);
+              syncLanguageToDfx(next);
+            } catch {
+              // Keep the current language and remote preference unchanged.
+            }
           },
         },
         {

@@ -31,6 +31,10 @@
     },
     "android": {
       "allowBackup": false,
+      "blockedPermissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ],
       "package": "swiss.dfx.wallet",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

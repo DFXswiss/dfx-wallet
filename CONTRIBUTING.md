@@ -15,13 +15,13 @@ npx expo start --android           # Android emulator
 
 ## Prerequisites
 
-| Tool        | Version    | Purpose                                  |
-| ----------- | ---------- | ---------------------------------------- |
-| Node.js     | 22         | Runtime                                  |
-| npm         | 10+        | Package manager                          |
-| Xcode       | 16         | iOS 18 builds (macOS only)               |
-| Android SDK | API 34+    | Android builds                           |
-| Expo CLI    | bundled    | React Native tooling (via `npx expo`)    |
+| Tool        | Version            | Purpose                                  |
+| ----------- | ------------------ | ---------------------------------------- |
+| Node.js     | 22                 | Runtime                                  |
+| npm         | 10+                | Package manager                          |
+| Xcode       | 16                 | iOS 18 builds (macOS only)               |
+| Android SDK | API 36 (minSdk 34) | Android builds                           |
+| Expo CLI    | bundled            | React Native tooling (via `npx expo`)    |
 
 ## Build & Test Commands
 

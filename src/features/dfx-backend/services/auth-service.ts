@@ -135,7 +135,7 @@ export class DfxAuthService {
    * to another address that's already linked to the same account, without
    * re-signing.
    *
-   * Mirrors the path app.dfx.swiss uses: POST /v2/user/change with the
+   * Mirrors the path app.dfx.swiss uses: POST /v1/user/change with the
    * target `address` in the body — the API verifies the address belongs
    * to the JWT's `userDataId` and returns a fresh JWT scoped to that
    * address. Downstream `/v1/buy/paymentInfos` then credits the chosen
@@ -147,8 +147,8 @@ export class DfxAuthService {
    * for locally (e.g. linked from another device) — the standing Bearer
    * already proves account ownership.
    *
-   * On failure restores the previous Bearer so the caller's session
-   * isn't left in a half-flipped state.
+   * On failure restores the previous Bearer only if no concurrent refresh
+   * has already replaced it, so the caller keeps the newest valid session.
    */
   async changeActiveAddress(address: string): Promise<string> {
     const previousToken = this.accessToken;
@@ -161,8 +161,10 @@ export class DfxAuthService {
       dfxApi.setAuthToken(response.accessToken);
       return response.accessToken;
     } catch (err) {
-      this.accessToken = previousToken;
-      dfxApi.setAuthToken(previousToken);
+      if (this.accessToken === previousToken) {
+        this.accessToken = previousToken;
+        dfxApi.setAuthToken(previousToken);
+      }
       throw err;
     }
   }
