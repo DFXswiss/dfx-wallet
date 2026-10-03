@@ -2,6 +2,12 @@ import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { pricingService } from '@/services/pricing-service';
 
+jest.mock('@/i18n', () => ({}));
+
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
 // expo-router's Stack + StatusBar are stubbed so the Root layout can mount
 // in the test runtime without booting a navigator.
 jest.mock('expo-router', () => {
@@ -118,12 +124,16 @@ describe('RootLayout', () => {
     const hydrate = useAuthStore.getState().hydrate as jest.Mock;
     const { getByTestId } = render(<RootLayout />);
 
-    expect(getByTestId('hydrate-error-title')).toBeTruthy();
-    expect(getByTestId('hydrate-error-description')).toBeTruthy();
+    expect(getByTestId('hydrate-error-title').children.join('')).toBe(
+      'startup.hydrateErrorTitle',
+    );
+    expect(getByTestId('hydrate-error-description').children.join('')).toBe(
+      'startup.hydrateErrorDescription',
+    );
     expect(getByTestId('hydrate-retry')).toBeTruthy();
 
-    hydrate.mockClear();
+    const callsBeforeRetry = hydrate.mock.calls.length;
     fireEvent.press(getByTestId('hydrate-retry'));
-    expect(hydrate).toHaveBeenCalledTimes(1);
+    expect(hydrate).toHaveBeenCalledTimes(callsBeforeRetry + 1);
   });
 });

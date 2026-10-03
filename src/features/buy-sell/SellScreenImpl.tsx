@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   ImageBackground,
@@ -14,7 +14,7 @@ import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-rou
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { useAccount } from '@tetherto/wdk-react-native-core';
+import { useAccount, useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import {
   AppHeader,
   ConfirmTargetWalletModal,
@@ -24,31 +24,23 @@ import {
 } from '@/components';
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
 import {
-  canAdvanceToPayment,
-  getPaymentInfoErrorCode,
-  getQuoteErrorCode,
-} from '@/features/buy-sell/services/quote-display';
+  createDfxSessionGuard,
+  LOCAL_SESSION_ENDED_MESSAGE,
+} from '@/features/dfx-backend/session-guard';
 import type { ChainId } from '@/config/chains';
 import {
   formatBalance,
   formatCryptoAmount as fmtCrypto,
   formatFiat as fmtFiat,
-  normalizeDecimalAmount,
   toNumeric,
 } from '@/config/portfolio-presentation';
-import {
-  assetIncludedInEvmBalanceQuery,
-  assetIncludedInWdkBalanceQuery,
-  getAssetMeta,
-  getAssets,
-} from '@/config/tokens';
+import { getAssetMeta, getAssets, WDK_SUPPORTED_CHAINS } from '@/config/tokens';
 import { useLdsWallet } from '@/hooks';
 import { useEnabledChains } from '@/features/portfolio/useEnabledChains';
 import { useLinkedWalletReauth } from '@/features/linked-wallets/useLinkedWalletReauth';
 import { useSellFlow } from './useSellFlow';
 import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
 import { dfxAuthService, DfxApiError } from '@/features/dfx-backend/services';
-import { getRawBalance, useBalances } from '@/services/balances';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
 import {
@@ -229,21 +221,6 @@ export default function SellScreen() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
-  const [paymentInfoError, setPaymentInfoError] = useState<string | null>(null);
-  // Same-tick double presses both see confirmLoading === false. The ref
-  // closes that window; confirmLoading still guards a press after paint.
-  // Taken on submit. Released on a terminal payment-info result, on cancel,
-  // and on Back. A replay and an opening auth gate leave it held.
-  const submitLockRef = useRef(false);
-  // Bumped on every payment submit and on every cancel, so a response from
-  // an earlier submit cannot be applied to a later one.
-  const submitGenRef = useRef(0);
-  // The submit whose payment-info result may still open the confirm step.
-  // Null after cancel, Back, or a terminal result. A null payload that opens
-  // an auth gate keeps it, so the replay after sign-in can still apply.
-  const pendingGenRef = useRef<number | null>(null);
-  const unresolvedPaymentRef = useRef(false);
-  const [unresolvedPayment, setUnresolvedPayment] = useState(0);
   const { enabledChains } = useEnabledChains();
   const {
     paymentInfo,
@@ -253,7 +230,6 @@ export default function SellScreen() {
     getQuote,
     createPaymentInfo,
     dismissAuthGate,
-    cancelAuthGate,
     retryLast,
   } = useSellFlow();
   const [step, setStep] = useState<SellStep>('amount');
@@ -278,119 +254,15 @@ export default function SellScreen() {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(true);
 
-  useEffect(() => {
-    setPaymentInfoError(null);
-  }, [amount, selectedAsset, selectedChainIndex, selectedTokenIndex, payoutCurrency]);
-
-  const beginPaymentSubmit = (): number => {
-    const gen = ++submitGenRef.current;
-    pendingGenRef.current = gen;
-    submitLockRef.current = true;
-    return gen;
-  };
-
-  const cancelPaymentSubmit = (): void => {
-    submitGenRef.current += 1;
-    pendingGenRef.current = null;
-    submitLockRef.current = false;
-  };
-
-  const handlePaymentInfoResult = useCallback(
-    (info: Awaited<ReturnType<typeof createPaymentInfo>>, gen: number) => {
-      // Back or auth-gate cancel may have landed while this request was in
-      // flight. A newer submit owns the generation then, and this result
-      // must not be applied to it.
-      if (pendingGenRef.current === null || pendingGenRef.current !== gen) return;
-      if (canAdvanceToPayment(info)) {
-        pendingGenRef.current = null;
-        submitLockRef.current = false;
-        setPaymentInfoError(null);
-        setConfirmError(null);
-        setConfirmOpen(false);
-        setStep('confirm');
-        return;
-      }
-
-      const errorCode = getPaymentInfoErrorCode(info);
-      if (errorCode) {
-        pendingGenRef.current = null;
-        submitLockRef.current = false;
-        setPaymentInfoError(
-          errorCode === 'noCode'
-            ? t('sell.quoteError.noCode')
-            : t([`sell.quoteError.${errorCode}`, 'sell.quoteError.generic'], { code: errorCode }),
-        );
-        return;
-      }
-
-      // null, and no error code on the payload. The hook's auth gate or
-      // error lands on the next render; decide there so a stale closure
-      // cannot show an error beside the gate. Keep the generation: a gate
-      // is not a terminal result, and the replay still has to apply.
-      unresolvedPaymentRef.current = true;
-      setUnresolvedPayment((n) => n + 1);
-    },
-    [t],
-  );
-
-  const resumeAfterAuth = useCallback(async () => {
-    const gen = pendingGenRef.current;
-    const result = await retryLast();
-    if (result?.kind === 'paymentInfo') {
-      if (gen === null || pendingGenRef.current !== gen) return;
-      handlePaymentInfoResult(result.info, gen);
-    }
-    // quote results are applied by the hook's own state
-  }, [retryLast, handlePaymentInfoResult]);
-
   // Replay the last failed call after the user finishes the DFX login flow.
-  // retryLast only replays an action that was gated and not cancelled.
-  // Read the gate through a ref so this callback stays stable while the
-  // modal opens and closes.
   const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
-  const authGateRef = useRef(authGate);
-  authGateRef.current = authGate;
   useFocusEffect(
     useCallback(() => {
       if (isDfxAuthenticated) {
-        void resumeAfterAuth();
-        return;
+        void retryLast();
       }
-      // Act only when signed out with no gate and a payment submit still pending
-      // (the user backed out of login): then drop the replay and unlock below.
-      if (authGateRef.current || pendingGenRef.current === null) return;
-      cancelAuthGate();
-      pendingGenRef.current = null;
-      submitLockRef.current = false;
-    }, [isDfxAuthenticated, resumeAfterAuth, cancelAuthGate]),
+    }, [isDfxAuthenticated, retryLast]),
   );
-
-  // One modal at a time: the auth gate replaces the confirm dialog.
-  // Closing the dialog must not release the submit lock. The replay of the
-  // call that opened the gate still owns it.
-  useLayoutEffect(() => {
-    if (!authGate || !confirmOpen) return;
-    setConfirmOpen(false);
-    setConfirmLoading(false);
-  }, [authGate, confirmOpen]);
-
-  useEffect(() => {
-    if (!unresolvedPaymentRef.current) return;
-    if (isLoading) return;
-    unresolvedPaymentRef.current = false;
-    if (authGate) {
-      // Hold the submit lock and the pending generation until cancel or the
-      // replay. The gate is the only control the user has until then.
-      return;
-    }
-    pendingGenRef.current = null;
-    submitLockRef.current = false;
-    setConfirmLoading(false);
-    const message = error ?? t('sell.quoteError.noCode');
-    if (confirmOpen) setConfirmError(message);
-    // The bank step already renders the hook error once this update commits.
-    if (!error) setPaymentInfoError(message);
-  }, [unresolvedPayment, authGate, error, isLoading, confirmOpen, t]);
 
   const btcAccount = useAccount({ network: 'bitcoin', accountIndex: 0 });
   const sparkAccount = useAccount({ network: 'spark', accountIndex: 0 });
@@ -399,16 +271,14 @@ export default function SellScreen() {
 
   const linkChainToDfx = useCallback(
     async (chain: ChainId) => {
-      const retryAfterSuccessfulLink = async () => {
-        try {
-          await resumeAfterAuth();
-        } catch {
-          // The flow owns retry errors; do not surface them as link failures.
-        }
-      };
-
+      const guard = createDfxSessionGuard();
+      let latestToken: string | undefined;
+      const assertFlowActive = () =>
+        latestToken === undefined ? guard.assertActive() : guard.assertActive(latestToken);
+      await guard.assertActive();
       if (chain === 'bitcoin-taproot' || chain === 'bitcoin-lightning') {
         const user = lds.user ?? (await lds.signIn());
+        await guard.assertActive();
         if (!user) {
           throw new Error('DFX Lightning wallet not ready — please retry.');
         }
@@ -418,19 +288,24 @@ export default function SellScreen() {
             user.lightning.addressOwnershipProof,
             { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
           );
-          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ldsToken);
+          latestToken = ldsToken;
+          await guard.persistToken(ldsToken);
           await markChainLinkedInAutoLinkCache('lightning');
-          await retryAfterSuccessfulLink();
+          await guard.assertActive(ldsToken);
+          void retryLast();
         } catch (err) {
+          if (err instanceof Error && err.message === LOCAL_SESSION_ENDED_MESSAGE) throw err;
+          await assertFlowActive();
           if (err instanceof DfxApiError && err.statusCode === 409) {
             const ownerToken = await dfxAuthService.loginAsLnurlAddressOwner(
               user.lightning.addressLnurl,
               user.lightning.addressOwnershipProof,
               { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
             );
-            await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
+            await guard.persistToken(ownerToken);
             await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
-            await retryAfterSuccessfulLink();
+            await guard.assertActive(ownerToken);
+            void retryLast();
             return;
           }
           throw err;
@@ -467,11 +342,15 @@ export default function SellScreen() {
           wallet: 'DFX Wallet',
           blockchain: blockchainName,
         });
-        await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, newToken);
+        latestToken = newToken;
+        await guard.persistToken(newToken);
         if (chain === 'bitcoin' || chain === 'arbitrum' || chain === 'polygon' || chain === 'base')
           await markChainLinkedInAutoLinkCache(chain);
-        await retryAfterSuccessfulLink();
+        await guard.assertActive(newToken);
+        void retryLast();
       } catch (err) {
+        if (err instanceof Error && err.message === LOCAL_SESSION_ENDED_MESSAGE) throw err;
+        await assertFlowActive();
         // 409 → address belongs to another DFX user. Re-auth as that user
         // (drop the prior session) so the rest of the flow runs against the
         // account that already owns this wallet. See buy/index.tsx for full
@@ -481,32 +360,46 @@ export default function SellScreen() {
             wallet: 'DFX Wallet',
             blockchain: blockchainName,
           });
-          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
+          await guard.persistToken(ownerToken);
           await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
-          await retryAfterSuccessfulLink();
+          await guard.assertActive(ownerToken);
+          void retryLast();
           return;
         }
         throw err;
       }
     },
-    [btcAccount, sparkAccount, ethAccount, lds, resumeAfterAuth],
+    [btcAccount, sparkAccount, ethAccount, lds, retryLast],
+  );
+
+  const handleLinkChainToDfx = useCallback(
+    async (chain: ChainId) => {
+      try {
+        await linkChainToDfx(chain);
+      } catch (error) {
+        if (error instanceof Error && error.message === LOCAL_SESSION_ENDED_MESSAGE) return;
+        throw error;
+      }
+    },
+    [linkChainToDfx],
   );
 
   // Wallet balances — drive the chain/token chip filter so users only see
   // chains where they actually have funds to sell.
   const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const {
-    data: balances,
-    isLoading: balancesLoading,
-    error: balancesError,
-  } = useBalances(assetConfigs);
+  const wdkAssets = useMemo(
+    () => assetConfigs.filter((a) => WDK_SUPPORTED_CHAINS.includes(a.getNetwork() as ChainId)),
+    [assetConfigs],
+  );
+  const { data: balanceResults } = useBalancesForWallet(0, wdkAssets);
 
   const hasHolding = (network: ChainId, symbol: string): boolean => {
     const asset = assetConfigs.find(
       (a) => a.getNetwork() === network && getAssetMeta(a.getId())?.symbol === symbol,
     );
     if (!asset) return false;
-    const raw = getRawBalance(balances, asset.getId());
+    const result = balanceResults?.find((r) => r.assetId === asset.getId());
+    const raw = result?.success ? (result.balance ?? '0') : '0';
     return toNumeric(formatBalance(raw, asset.getDecimals())) > 0;
   };
 
@@ -520,34 +413,7 @@ export default function SellScreen() {
       }))
       .filter((c) => c.tokens.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAsset, balances, assetConfigs]);
-
-  const selectedBalanceStatuses = useMemo(() => {
-    if (!selectedAsset) return [];
-    const selectedSymbols = new Set(
-      selectedAsset.chains.flatMap((chain) => chain.tokens.map((token) => token.assetSymbol)),
-    );
-    return assetConfigs
-      .filter((asset) => {
-        const meta = getAssetMeta(asset.getId());
-        return (
-          meta !== undefined &&
-          selectedSymbols.has(meta.symbol) &&
-          (assetIncludedInWdkBalanceQuery(asset) || assetIncludedInEvmBalanceQuery(asset))
-        );
-      })
-      .map((asset) => balances.get(asset.getId())?.status);
-  }, [assetConfigs, balances, selectedAsset]);
-  const balancesPending =
-    balancesLoading ||
-    (balancesError === null &&
-      selectedBalanceStatuses.some(
-        (status) => status === undefined || status === 'idle' || status === 'loading',
-      ));
-  const balancesIncomplete =
-    balancesPending ||
-    balancesError !== null ||
-    selectedBalanceStatuses.some((status) => status === 'error' || status === 'stale');
+  }, [selectedAsset, balanceResults, assetConfigs]);
 
   // eslint-disable-next-line security/detect-object-injection -- selectedChainIndex is bounded by availableChains.length
   const selectedChainSpec = availableChains[selectedChainIndex] ?? null;
@@ -555,12 +421,11 @@ export default function SellScreen() {
   const selectedTokenSpec = selectedChainSpec?.tokens[selectedTokenIndex] ?? null;
   const sellAsset = selectedTokenSpec?.assetSymbol ?? '';
   const blockchain = selectedChainSpec?.blockchain ?? '';
-  const normalizedAmount = normalizeDecimalAmount(amount);
-  const numAmount = normalizedAmount === null ? null : Number(normalizedAmount);
 
   useEffect(() => {
     if (step !== 'amount' || !selectedChainSpec) return;
-    if (numAmount === null || numAmount <= 0) return;
+    const numAmount = parseFloat(amount);
+    if (!numAmount || numAmount <= 0) return;
     const id = setTimeout(() => {
       if (!selectedChainSpec) return;
       void getQuote({
@@ -572,7 +437,7 @@ export default function SellScreen() {
       });
     }, 350);
     return () => clearTimeout(id);
-  }, [numAmount, payoutCurrency, sellAsset, blockchain, step, getQuote, selectedChainSpec]);
+  }, [amount, payoutCurrency, sellAsset, blockchain, step, getQuote, selectedChainSpec]);
 
   const copy = async (label: string, value: string) => {
     if (!value) return;
@@ -587,12 +452,9 @@ export default function SellScreen() {
   // only land on /sell/paymentInfos. We render the breakdown from local
   // selection state instead, so a valid quote shows up immediately.
   const hasQuote =
-    !!paymentInfo &&
-    paymentInfo.isValid &&
-    !!paymentInfo.feesTarget &&
-    numAmount !== null &&
-    numAmount > 0;
-  const quoteError = !hasQuote ? getQuoteErrorCode(paymentInfo) : null;
+    !!paymentInfo && paymentInfo.isValid && !!paymentInfo.feesTarget && parseFloat(amount) > 0;
+  const quoteError =
+    !hasQuote && paymentInfo && paymentInfo.error ? String(paymentInfo.error) : null;
   // Empty quote without an explicit error code → the chain still has to
   // be linked. The sell CTA opens the bank step; submitting the IBAN with
   // Continue triggers the linkChain modal and auto-retries the quote.
@@ -600,12 +462,12 @@ export default function SellScreen() {
   // See buy/index.tsx — open the Angebot card the moment a positive amount
   // is set so the user always sees something refreshing instead of an empty
   // void during the /sell/quote round-trip.
-  const showQuoteCard = hasQuote || (numAmount !== null && numAmount > 0 && !!selectedChainSpec);
+  const showQuoteCard = hasQuote || (parseFloat(amount) > 0 && !!selectedChainSpec);
   const minVolume = paymentInfo?.minVolume;
   const maxVolume = paymentInfo?.maxVolume;
-  const belowMin =
-    minVolume != null && numAmount !== null && numAmount > 0 && numAmount < minVolume;
-  const aboveMax = maxVolume != null && numAmount !== null && numAmount > maxVolume;
+  const numAmount = parseFloat(amount);
+  const belowMin = minVolume != null && numAmount > 0 && numAmount < minVolume;
+  const aboveMax = maxVolume != null && numAmount > maxVolume;
   const sellAction = t('sell.cta', { asset: sellAsset });
   const quoteHeader = quoteError
     ? t([`sell.quoteError.${quoteError}`, 'sell.quoteError.generic'], { code: quoteError })
@@ -664,13 +526,7 @@ export default function SellScreen() {
         ))}
       </View>
 
-      {selectedAsset && balancesIncomplete ? (
-        <Text style={styles.warning} testID="sell-balance-incomplete">
-          {t(balancesPending ? 'sell.balanceLoading' : 'sell.balanceUnavailable')}
-        </Text>
-      ) : null}
-
-      {selectedAsset && !balancesIncomplete && availableChains.length === 0 ? (
+      {selectedAsset && availableChains.length === 0 ? (
         <Text style={styles.warning} testID="sell-no-balance">
           {t('sell.noBalance')}
         </Text>
@@ -736,7 +592,6 @@ export default function SellScreen() {
               {FIAT_CURRENCIES.map((cur) => (
                 <Pressable
                   key={cur}
-                  testID={`sell-currency-${cur}`}
                   style={[styles.currencyChip, payoutCurrency === cur && styles.currencyChipActive]}
                   onPress={() => setPayoutCurrency(cur)}
                 >
@@ -862,7 +717,7 @@ export default function SellScreen() {
 
           <PrimaryButton
             title={sellAction}
-            icon={<Icon name="arrow-right" size={18} color={colors.onPrimary} />}
+            icon={<Icon name="arrow-right" size={18} color={colors.white} />}
             onPress={() => {
               if (hasTargetWallet) {
                 setConfirmError(null);
@@ -871,7 +726,7 @@ export default function SellScreen() {
               }
               setStep('bank');
             }}
-            disabled={numAmount === null || numAmount <= 0 || belowMin || aboveMax}
+            disabled={!numAmount || numAmount <= 0 || belowMin || aboveMax}
           />
         </>
       ) : null}
@@ -894,17 +749,13 @@ export default function SellScreen() {
       />
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
-      {paymentInfoError ? <Text style={styles.errorText}>{paymentInfoError}</Text> : null}
 
       <View style={styles.spacer} />
 
       <PrimaryButton
         title={t('common.continue')}
         onPress={async () => {
-          if (!selectedChainSpec || numAmount === null || numAmount <= 0) return;
-          if (submitLockRef.current) return;
-          const gen = beginPaymentSubmit();
-          setPaymentInfoError(null);
+          if (!selectedChainSpec) return;
           const info = await createPaymentInfo({
             amount: numAmount,
             asset: sellAsset,
@@ -913,8 +764,7 @@ export default function SellScreen() {
             iban: iban.replace(/\s/g, ''),
             chain: selectedChainSpec.chain,
           });
-          if (pendingGenRef.current !== gen) return;
-          handlePaymentInfoResult(info, gen);
+          if (info) setStep('confirm');
         }}
         disabled={iban.replace(/\s/g, '').length < 15}
         loading={isLoading}
@@ -1022,13 +872,8 @@ export default function SellScreen() {
       <AppHeader
         title={t('sell.title')}
         onBack={() => {
-          // A payment-info response still in flight must not open confirm.
-          // Back from the bank step also drops the auth replay.
-          cancelPaymentSubmit();
-          if (step === 'bank') {
-            cancelAuthGate();
-            setStep('amount');
-          } else if (step === 'confirm') setStep('bank');
+          if (step === 'bank') setStep('amount');
+          else if (step === 'confirm') setStep('bank');
           else router.back();
         }}
         testID="sell-screen"
@@ -1068,17 +913,7 @@ export default function SellScreen() {
         )}
         {body}
       </View>
-      <DfxAuthGate
-        gate={authGate}
-        onClose={() => {
-          dismissAuthGate(authGate ?? undefined);
-        }}
-        onCancel={() => {
-          cancelPaymentSubmit();
-          cancelAuthGate(authGate ?? undefined);
-        }}
-        onLinkChain={linkChainToDfx}
-      />
+      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} onLinkChain={handleLinkChainToDfx} />
       <ConfirmTargetWalletModal
         visible={confirmOpen}
         flow="sell"
@@ -1089,15 +924,11 @@ export default function SellScreen() {
         error={confirmError}
         onCancel={() => {
           if (confirmLoading) return;
-          cancelPaymentSubmit();
-          cancelAuthGate();
           setConfirmOpen(false);
           setConfirmError(null);
         }}
         onConfirm={async () => {
-          if (confirmLoading || submitLockRef.current) return;
           if (!targetAddress || !targetBlockchain) return;
-          submitLockRef.current = true;
           setConfirmLoading(true);
           setConfirmError(null);
           try {
@@ -1115,7 +946,6 @@ export default function SellScreen() {
               err instanceof Error ? err.message : t('linkedWallet.reauthError.generic'),
             );
           } finally {
-            submitLockRef.current = false;
             setConfirmLoading(false);
           }
         }}
@@ -1352,7 +1182,7 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '600',
       color: colors.textSecondary,
     },
-    currencyTextActive: { color: colors.onPrimary },
+    currencyTextActive: { color: colors.white },
     quoteCard: {
       backgroundColor: colors.cardOverlay,
       borderRadius: 12,

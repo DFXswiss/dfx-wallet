@@ -46,6 +46,7 @@ import { waitFor } from '@testing-library/react-native';
 import { dfxApi, dfxAuthService } from '@/features/dfx-backend/services';
 import * as PinService from '@/services/pin';
 import {
+  FIRST_LOCKOUT_ATTEMPT,
   getPostPinDestination,
   PinOverwriteNotAllowedError,
   pinLockoutMs,
@@ -90,6 +91,12 @@ beforeEach(() => {
 });
 
 describe('pinLockoutMs', () => {
+  it('starts the first lockout on the configured fifth failed attempt', () => {
+    expect(FIRST_LOCKOUT_ATTEMPT).toBe(5);
+    expect(pinLockoutMs(FIRST_LOCKOUT_ATTEMPT - 1)).toBe(0);
+    expect(pinLockoutMs(FIRST_LOCKOUT_ATTEMPT)).toBeGreaterThan(0);
+  });
+
   it.each([0, 1, 2, 3, 4])('returns no delay before attempt %i', (attempts) => {
     expect(pinLockoutMs(attempts)).toBe(0);
   });
@@ -136,6 +143,7 @@ describe('useAuthStore', () => {
       const s = useAuthStore.getState();
       expect(s.isOnboarded).toBe(false);
       expect(s.isAuthenticated).toBe(false);
+      expect(s.sessionEpoch).toBe(0);
       expect(s.isDfxAuthenticated).toBe(false);
       expect(s.biometricEnabled).toBe(false);
       expect(s.pinHash).toBeNull();
@@ -152,6 +160,25 @@ describe('useAuthStore', () => {
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
       useAuthStore.getState().setDfxAuthenticated(true);
       expect(useAuthStore.getState().isDfxAuthenticated).toBe(true);
+    });
+
+    it('increments the session epoch only when an authenticated session is locked', () => {
+      const initialEpoch = useAuthStore.getState().sessionEpoch;
+
+      useAuthStore.getState().setAuthenticated(true);
+      expect(useAuthStore.getState().sessionEpoch).toBe(initialEpoch);
+
+      useAuthStore.getState().setAuthenticated(true);
+      expect(useAuthStore.getState().sessionEpoch).toBe(initialEpoch);
+
+      useAuthStore.getState().setAuthenticated(false);
+      expect(useAuthStore.getState().sessionEpoch).toBe(initialEpoch + 1);
+
+      useAuthStore.getState().setAuthenticated(false);
+      expect(useAuthStore.getState().sessionEpoch).toBe(initialEpoch + 1);
+
+      useAuthStore.getState().setAuthenticated(true);
+      expect(useAuthStore.getState().sessionEpoch).toBe(initialEpoch + 1);
     });
   });
 
@@ -253,23 +280,41 @@ describe('useAuthStore', () => {
       });
     });
 
-    it('does not record failed silent checks for shorter legacy PIN candidates', async () => {
-      await useAuthStore.getState().setPin('123456');
-      useAuthStore.setState({ failedAttempts: 4, lockedUntil: null });
-      setItemMock.mockClear();
-      deleteItemMock.mockClear();
+    it('counts overlapping failed PIN verifications independently', async () => {
+      let resolveVerification!: (value: boolean) => void;
+      const verification = new Promise<boolean>((resolve) => {
+        resolveVerification = resolve;
+      });
+      verifyPinHashMock
+        .mockImplementationOnce(() => verification)
+        .mockImplementationOnce(() => verification);
+      useAuthStore.setState({ pinHash: 'stored-hash' });
 
-      await expect(
-        useAuthStore.getState().verifyPin('9999', { recordFailure: false }),
-      ).resolves.toBe(false);
-      await expect(
-        useAuthStore.getState().verifyPin('99999', { recordFailure: false }),
-      ).resolves.toBe(false);
+      const attempts = [
+        useAuthStore.getState().verifyPin('111111'),
+        useAuthStore.getState().verifyPin('222222'),
+      ];
+      resolveVerification(false);
+      await Promise.all(attempts);
 
-      expect(useAuthStore.getState().failedAttempts).toBe(4);
-      expect(useAuthStore.getState().lockedUntil).toBeNull();
-      expect(setItemMock).not.toHaveBeenCalled();
-      expect(deleteItemMock).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().failedAttempts).toBe(2);
+      expect(setItemMock).toHaveBeenLastCalledWith('pinFailedAttempts', '2', {
+        keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+      });
+    });
+
+    it('locks a legacy PIN after five wrong counted attempts', async () => {
+      const legacyHash = await legacyHashPin('1234');
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+      useAuthStore.setState({ pinHash: legacyHash });
+
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await expect(useAuthStore.getState().verifyPin('9999')).resolves.toBe(false);
+      }
+
+      expect(useAuthStore.getState().failedAttempts).toBe(5);
+      expect(useAuthStore.getState().lockedUntil).toBe(1_030_000);
+      now.mockRestore();
     });
 
     it('keeps the failed attempt and lockout in memory when persistence rejects', async () => {
@@ -314,12 +359,12 @@ describe('useAuthStore', () => {
     });
 
     it(
-      'migrates a valid 4-digit legacy PIN hash after a successful silent verification',
+      'migrates a valid 4-digit legacy PIN hash after successful verification',
       async () => {
         const legacyHash = await legacyHashPin('1234');
         useAuthStore.setState({ pinHash: legacyHash });
 
-        const ok = await useAuthStore.getState().verifyPin('1234', { recordFailure: false });
+        const ok = await useAuthStore.getState().verifyPin('1234');
 
         expect(ok).toBe(true);
         await waitFor(() =>
@@ -359,6 +404,41 @@ describe('useAuthStore', () => {
       expect(s.lockedUntil).toBe(123456);
       expect(s.isHydrated).toBe(true);
     });
+
+    it.each(['NaN', '-1', '1.5'])(
+      'fails safe when stored failed attempts are invalid: %s',
+      async (storedFailedAttempts) => {
+        getItemMock.mockImplementation(async (key: string) => {
+          if (key === 'pinFailedAttempts') return storedFailedAttempts;
+          return null;
+        });
+        const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+
+        await useAuthStore.getState().hydrate();
+
+        expect(useAuthStore.getState().failedAttempts).toBe(5);
+        expect(useAuthStore.getState().lockedUntil).toBe(1_030_000);
+        expect(useAuthStore.getState().lockedUntil).toBeGreaterThan(Date.now());
+        expect(setItemMock).not.toHaveBeenCalled();
+        nowSpy.mockRestore();
+      },
+    );
+
+    it.each(['abc', '-5', '0'])(
+      'ignores an invalid stored lockout timestamp: %s',
+      async (storedLockedUntil) => {
+        getItemMock.mockImplementation(async (key: string) => {
+          if (key === 'pinFailedAttempts') return '3';
+          if (key === 'pinLockedUntil') return storedLockedUntil;
+          return null;
+        });
+
+        await useAuthStore.getState().hydrate();
+
+        expect(useAuthStore.getState().failedAttempts).toBe(3);
+        expect(useAuthStore.getState().lockedUntil).toBeNull();
+      },
+    );
 
     it('restores a persisted failed-attempt counter and lockout on a later hydrate', async () => {
       const persisted: Record<string, string> = { pinHash: 'invalid-hash' };
@@ -443,6 +523,23 @@ describe('useAuthStore', () => {
   });
 
   describe('reset', () => {
+    it('increments the session epoch before asynchronous cleanup finishes', async () => {
+      let finishAccountsRemoval!: () => void;
+      const accountsRemoval = new Promise<void>((resolve) => {
+        finishAccountsRemoval = resolve;
+      });
+      deleteItemMock.mockImplementation(async (key: string) => {
+        if (key === 'accounts') await accountsRemoval;
+      });
+      const previousSessionEpoch = useAuthStore.getState().sessionEpoch;
+
+      const reset = useAuthStore.getState().reset();
+
+      expect(useAuthStore.getState().sessionEpoch).toBe(previousSessionEpoch + 1);
+      finishAccountsRemoval();
+      await reset;
+    });
+
     it('removes all secure-storage keys and clears state', async () => {
       const clearAuthToken = jest.spyOn(dfxApi, 'clearAuthToken');
       const adoptStoredToken = jest.spyOn(dfxAuthService, 'adoptStoredToken');
@@ -459,6 +556,7 @@ describe('useAuthStore', () => {
         lockedUntil: 123456,
         hydrateError: 'stale error',
       });
+      const previousSessionEpoch = useAuthStore.getState().sessionEpoch;
 
       await useAuthStore.getState().reset();
 
@@ -481,6 +579,7 @@ describe('useAuthStore', () => {
       const s = useAuthStore.getState();
       expect(s.isOnboarded).toBe(false);
       expect(s.isAuthenticated).toBe(false);
+      expect(s.sessionEpoch).toBe(previousSessionEpoch + 1);
       expect(s.isDfxAuthenticated).toBe(false);
       expect(s.biometricEnabled).toBe(false);
       expect(s.pinHash).toBeNull();

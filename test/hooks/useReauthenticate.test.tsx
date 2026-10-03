@@ -147,6 +147,29 @@ describe('useReauthenticate', () => {
     await expect(result).resolves.toBe(false);
   });
 
+  it('submits a wrong 4-digit legacy PIN as one counted verification call', async () => {
+    useAuthStore.setState({ pinHash: 'abcdef' });
+    verifyPin.mockImplementationOnce(async () => {
+      useAuthStore.setState({ failedAttempts: 1 });
+      return false;
+    });
+    const view = render(<Harness />);
+
+    const result = requestReauth();
+    await waitFor(() => expect(view.getByTestId('reauth-pin-input')).toBeTruthy());
+    fireEvent.changeText(view.getByTestId('reauth-pin-input'), '1234');
+    await act(async () => {
+      fireEvent.press(view.getByTestId('reauth-pin-confirm'));
+    });
+
+    expect(verifyPin).toHaveBeenCalledTimes(1);
+    expect(verifyPin).toHaveBeenCalledWith('1234');
+    expect(verifyPin.mock.calls[0]).toHaveLength(1);
+    expect(useAuthStore.getState().failedAttempts).toBe(1);
+    cancelReauth();
+    await expect(result).resolves.toBe(false);
+  });
+
   it('shows the generic incorrect-PIN error when verification throws', async () => {
     useAuthStore.setState({ pinHash: 'hash', failedAttempts: 5 });
     verifyPin.mockRejectedValueOnce(new Error('keychain unavailable'));
