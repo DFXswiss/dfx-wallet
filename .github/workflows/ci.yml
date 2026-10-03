@@ -192,8 +192,8 @@ jobs:
           cache: npm
       # Blocking since the test-gates overhaul — a known-high vuln in the
       # dependency tree of a wallet is a merge blocker, not a yellow badge.
-      # image-size GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq: no published
-      # patched release (latest 2.0.2, repo archived) — allowlist only those.
+      # image-size GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq: patched only in 2.0.3 (repo archived); metro 0.83
+      # (Expo SDK 54) needs ^1 and passes file paths, which the 2.x API rejects — allowlist only those.
       # node-forge GHSA-86w9-cpqp-85rv: no published patched release (affects <=1.4.0, latest 1.4.0);
       # only reached through expo -> @expo/cli build tooling, not the app bundle — allowlist only that ID.
       # braces GHSA-vfj7-8cjw-p6xm: no published patched release (affects <=3.0.3, latest 3.0.3);
