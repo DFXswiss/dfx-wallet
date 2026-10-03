@@ -14,12 +14,18 @@
 /src/services/evm/           @Danswar @davidleomay @TaprootFreak
 /src/services/storage.ts     @Danswar @davidleomay @TaprootFreak
 /src/services/pin.ts         @Danswar @davidleomay @TaprootFreak
+/src/services/clipboard.ts   @Danswar @davidleomay @TaprootFreak
 /src/store/auth.ts            @Danswar @davidleomay @TaprootFreak
+/src/hooks/useAutoLock.ts    @Danswar @davidleomay @TaprootFreak
+/src/hooks/useReauthenticate.ts  @Danswar @davidleomay @TaprootFreak
+/src/hooks/useScreenCaptureProtection.ts  @Danswar @davidleomay @TaprootFreak
 /src/features/hardware-wallet/ @Danswar @davidleomay @TaprootFreak
 /src/features/passkey/       @Danswar @davidleomay @TaprootFreak
 /src/features/biometric/     @Danswar @davidleomay @TaprootFreak
 /src/features/pin/           @Danswar @davidleomay @TaprootFreak
 /src/features/settings/SeedExportScreenImpl.tsx  @Danswar @davidleomay @TaprootFreak
+/src/features/settings/SettingsScreenImpl.tsx  @Danswar @davidleomay @TaprootFreak
+/src/features/settings/services/  @Danswar @davidleomay @TaprootFreak
 /src/features/restore/       @Danswar @davidleomay @TaprootFreak
 /src/features/deep-link/     @Danswar @davidleomay @TaprootFreak
 /src/features/webview/       @Danswar @davidleomay @TaprootFreak
@@ -31,10 +37,12 @@
 
 # Security-critical screens (seed export, PIN entry, onboarding/key creation)
 /app/(auth)/seed-export.tsx  @Danswar @davidleomay @TaprootFreak
+/app/(auth)/_layout.tsx      @Danswar @davidleomay @TaprootFreak
 /app/(auth)/send/            @Danswar @davidleomay @TaprootFreak
 /app/(pin)/                  @Danswar @davidleomay @TaprootFreak
 /app/(onboarding)/           @Danswar @davidleomay @TaprootFreak
 /app/+native-intent.tsx      @Danswar @davidleomay @TaprootFreak
+/app/index.tsx               @Danswar @davidleomay @TaprootFreak
 
 # Backend trust boundary
 /src/features/dfx-backend/   @Danswar @davidleomay @TaprootFreak
