@@ -52,7 +52,7 @@ jobs:
 
       - name: Build Android
         run: |
-          BUILD_JSON=$(eas build --platform android --profile production --non-interactive --wait --json 2>/dev/null)
+          BUILD_JSON=$(eas build --platform android --profile github-apk --non-interactive --wait --json)
           echo "$BUILD_JSON" > /tmp/android-build.json
           APK_URL=$(echo "$BUILD_JSON" | jq -r '.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl // empty')
           echo "APK_URL=$APK_URL" >> $GITHUB_ENV
@@ -104,7 +104,7 @@ jobs:
 
       - name: Build iOS
         run: |
-          BUILD_JSON=$(eas build --platform ios --profile production --non-interactive --wait --json 2>/dev/null)
+          BUILD_JSON=$(eas build --platform ios --profile production --non-interactive --wait --json)
           echo "$BUILD_JSON" > /tmp/ios-build.json
           IPA_URL=$(echo "$BUILD_JSON" | jq -r '.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl // empty')
           echo "IPA_URL=$IPA_URL" >> $GITHUB_ENV

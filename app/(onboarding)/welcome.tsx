@@ -34,7 +34,7 @@ export default function WelcomeScreen() {
           hitSlop={12}
           style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
           accessibilityRole="button"
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.back')}
           testID="welcome-back-button"
         >
           <Icon name="arrow-left" size={24} color={colors.text} />

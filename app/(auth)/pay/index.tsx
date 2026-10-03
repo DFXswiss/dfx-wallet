@@ -12,13 +12,12 @@ import { FEATURES } from '@/config/features';
  *   - `PayDisabled`   — a tiny `<Redirect>` stub.
  *
  * `FEATURES.PAY` is a build-time boolean literal (Expo inlines
- * `process.env.EXPO_PUBLIC_*` via babel-preset-expo). Combined with
- * the conditional `require()`, Metro's dead-code elimination can drop
- * the unused module from the bundle: a production build with the flag
- * unset never loads `expo-camera` or the scanner logic.
+ * `process.env.EXPO_PUBLIC_*` via babel-preset-expo). The conditional
+ * `require()` keeps the unused module from executing, although Metro
+ * still includes both branches in the JavaScript bundle.
  *
- * Don't refactor the ternary into a plain `import` — that would defeat
- * the DCE and reintroduce the camera-stack into every MVP build.
+ * Don't refactor the ternary into a plain `import` — that would execute
+ * the camera stack in every MVP build.
  */
 const PayScreen = FEATURES.PAY
   ? // eslint-disable-next-line @typescript-eslint/no-require-imports

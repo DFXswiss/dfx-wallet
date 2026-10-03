@@ -5,9 +5,8 @@ import type { ChainId } from '@/config/chains';
  *
  * The endpoint returns every CoinGecko-listed coin with the contract
  * address it has on each blockchain platform we care about. We use it
- * as the "is this on CoinGecko?" filter the user explicitly asked for —
- * any token discovered on-chain that *doesn't* appear in this list (no
- * matching platform contract) gets dropped before we render anything.
+ * to attach price identifiers to discovered balances. A missing match
+ * leaves the token unpriced; it does not remove the holding from the UI.
  *
  * Response is ~2.6 MB / 17 000 coins (Nov 2026), so we keep it module-
  * level with a 24 h staleness window — well within CoinGecko's free
@@ -102,8 +101,7 @@ async function getCache(fetchImpl: typeof fetch): Promise<CacheState> {
 /**
  * Resolve an on-chain ERC-20 contract address to the CoinGecko coin id
  * we feed into `/simple/price`. Returns `null` when the contract isn't
- * on CoinGecko — caller drops the token from the discovery output per
- * the user's "only CoinGecko-listed tokens" spec.
+ * on CoinGecko; callers retain the balance and display unavailable fiat.
  */
 export async function lookupCoinId(
   chain: ChainId,

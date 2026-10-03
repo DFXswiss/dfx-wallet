@@ -17,15 +17,38 @@
 import React from 'react';
 import { act, renderHook } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { bech32m } from 'bech32';
+
 import { useSendFlow } from '../../src/hooks/useSendFlow';
 
 const mockSend = jest.fn();
 const mockEstimateFee = jest.fn();
+const mockBitcoinSend = jest.fn();
+const mockBitcoinEstimateFee = jest.fn();
 const mockRefreshWdkMutate = jest.fn();
-const mockUseAccount = jest.fn(() => ({ send: mockSend, estimateFee: mockEstimateFee }));
+const mockUseAccount = jest.fn(({ network }: { network: string }) =>
+  network === 'bitcoin'
+    ? { send: mockBitcoinSend, estimateFee: mockBitcoinEstimateFee }
+    : { send: mockSend, estimateFee: mockEstimateFee },
+);
+
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) =>
+      ({
+        'send.error.amountPrecision': 'The amount has too many decimal places.',
+        'send.error.amountZero': 'Amount must be greater than zero.',
+        'send.error.feeTooHigh': 'The network fee is too high.',
+        'send.error.generic': 'The transaction could not be sent.',
+        'send.error.insufficientFunds': 'Insufficient balance for this transaction.',
+        'send.error.network': 'The network is unavailable. Try again later.',
+      } as Record<string, string>)[key] ?? key,
+  }),
+}));
 
 jest.mock('@tetherto/wdk-react-native-core', () => ({
-  useAccount: (...args: unknown[]) => mockUseAccount(...(args as [])),
+  BaseAsset: jest.fn((config: { id: string }) => ({ getId: () => config.id })),
+  useAccount: (options: { network: string }) => mockUseAccount(options),
   useRefreshBalance: jest.fn(() => ({ mutate: mockRefreshWdkMutate })),
 }));
 
@@ -37,6 +60,20 @@ const assetWithDecimals = (decimals: number, id = 'asset'): Asset =>
 
 const usdt = assetWithDecimals(6, 'usdt-eth');
 const eth = assetWithDecimals(18, 'eth');
+const sparkBtc = assetWithDecimals(8, 'spark-native');
+const EVM_RECIPIENT = '0x52908400098527886E0F7030069857D2E4169EE7';
+const SPARK_IDENTITY_PUBLIC_KEY_HEX =
+  '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798';
+const SPARK_IDENTITY_PUBLIC_KEY = Uint8Array.from(
+  { length: SPARK_IDENTITY_PUBLIC_KEY_HEX.length / 2 },
+  (_, index) =>
+    Number.parseInt(SPARK_IDENTITY_PUBLIC_KEY_HEX.slice(index * 2, index * 2 + 2), 16),
+);
+const SPARK_RECIPIENT = bech32m.encode(
+  'spark',
+  bech32m.toWords(Uint8Array.from([0x0a, 0x21, ...SPARK_IDENTITY_PUBLIC_KEY])),
+  1023,
+);
 
 function wrap({ children }: { children: React.ReactNode }) {
   const client = new QueryClient({
@@ -50,15 +87,16 @@ const render = () => renderHook(() => useSendFlow('ethereum'), { wrapper: wrap }
 beforeEach(() => {
   mockSend.mockReset();
   mockEstimateFee.mockReset();
+  mockBitcoinSend.mockReset();
+  mockBitcoinEstimateFee.mockReset();
   mockRefreshWdkMutate.mockReset();
   mockUseAccount.mockClear();
 });
 
 describe('useSendFlow — amount parsing / precision (send path)', () => {
-  // Each of these display strings scales to base-unit "0" via parseUnits, so
-  // the send must short-circuit as "greater than zero" WITHOUT calling WDK.
+  // Each of these display strings is invalid or zero, so the send must
+  // short-circuit as "greater than zero" WITHOUT calling WDK.
   it.each([
-    ['dust truncated below one base unit', '0.0000001', 6],
     ['exact zero', '0', 6],
     ['zero with fraction', '0.0', 18],
     ['empty string', '', 6],
@@ -66,7 +104,6 @@ describe('useSendFlow — amount parsing / precision (send path)', () => {
     ['negative (rejected by the numeric regex)', '-1', 6],
     ['scientific notation (unsupported → 0)', '1e3', 6],
     ['double decimal point', '1.5.5', 6],
-    ['comma decimal separator', '1,5', 6],
     ['non-numeric junk', 'abc', 6],
   ])('rejects %s as zero without touching WDK', async (_label, amount, decimals) => {
     const asset = assetWithDecimals(decimals);
@@ -74,36 +111,57 @@ describe('useSendFlow — amount parsing / precision (send path)', () => {
 
     let txHash: string | null = 'sentinel';
     await act(async () => {
-      txHash = await result.current.send({ asset, to: '0xabc', amount });
+      txHash = await result.current.send({ asset, to: EVM_RECIPIENT, amount });
     });
 
     expect(txHash).toBeNull();
-    expect(result.current.error).toBe('Amount must be greater than zero');
+    expect(result.current.error).toBe('Amount must be greater than zero.');
     expect(mockSend).not.toHaveBeenCalled();
     expect(mockRefreshWdkMutate).not.toHaveBeenCalled();
   });
 
-  it('truncates fractional digits beyond the asset decimals (no rounding)', async () => {
+  it('accepts a comma decimal separator', async () => {
     mockSend.mockResolvedValueOnce({ success: true, hash: '0x1' });
     const { result } = render();
 
     await act(async () => {
-      // 1.2345678 at 6 decimals → drops the 8th digit → 1234567 base units.
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '1.2345678' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1,5' });
     });
 
-    expect(mockSend).toHaveBeenCalledWith({ asset: usdt, to: '0xabc', amount: '1234567' });
+    expect(mockSend).toHaveBeenCalledWith({
+      asset: usdt,
+      to: EVM_RECIPIENT,
+      amount: '1500000',
+    });
   });
 
-  it('sends the smallest representable unit (1 wei-equivalent) when it survives truncation', async () => {
+  it('rejects fractional digits beyond the asset decimals without calling WDK', async () => {
+    const { result } = render();
+
+    let txHash: string | null = 'sentinel';
+    await act(async () => {
+      txHash = await result.current.send({
+        asset: usdt,
+        to: EVM_RECIPIENT,
+        amount: '1.2345678',
+      });
+    });
+
+    expect(txHash).toBeNull();
+    expect(result.current.error).toBe('The amount has too many decimal places.');
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockRefreshWdkMutate).not.toHaveBeenCalled();
+  });
+
+  it('sends the smallest representable unit at the asset precision boundary', async () => {
     mockSend.mockResolvedValueOnce({ success: true, hash: '0x1' });
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '0.000001' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '0.000001' });
     });
 
-    expect(mockSend).toHaveBeenCalledWith({ asset: usdt, to: '0xabc', amount: '1' });
+    expect(mockSend).toHaveBeenCalledWith({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
   });
 
   it('handles full 18-decimal precision without float drift', async () => {
@@ -111,12 +169,16 @@ describe('useSendFlow — amount parsing / precision (send path)', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: eth, to: '0xabc', amount: '1.999999999999999999' });
+      await result.current.send({
+        asset: eth,
+        to: EVM_RECIPIENT,
+        amount: '1.999999999999999999',
+      });
     });
 
     expect(mockSend).toHaveBeenCalledWith({
       asset: eth,
-      to: '0xabc',
+      to: EVM_RECIPIENT,
       amount: '1999999999999999999',
     });
   });
@@ -126,10 +188,10 @@ describe('useSendFlow — amount parsing / precision (send path)', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '  1  ' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '  1  ' });
     });
 
-    expect(mockSend).toHaveBeenCalledWith({ asset: usdt, to: '0xabc', amount: '1000000' });
+    expect(mockSend).toHaveBeenCalledWith({ asset: usdt, to: EVM_RECIPIENT, amount: '1000000' });
   });
 });
 
@@ -139,14 +201,14 @@ describe('useSendFlow — loading + state machine', () => {
 
     // First send fails (zero amount) → error is set.
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '0' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '0' });
     });
-    expect(result.current.error).toBe('Amount must be greater than zero');
+    expect(result.current.error).toBe('Amount must be greater than zero.');
 
     // Second send succeeds → error must be cleared.
     mockSend.mockResolvedValueOnce({ success: true, hash: '0xok' });
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '1' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
     });
     expect(result.current.error).toBeNull();
     expect(result.current.txHash).toBe('0xok');
@@ -163,7 +225,7 @@ describe('useSendFlow — loading + state machine', () => {
 
     let pending!: Promise<string | null>;
     act(() => {
-      pending = result.current.send({ asset: usdt, to: '0xabc', amount: '1' });
+      pending = result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
     });
     // Mid-flight: the optimistic loading flag is set.
     expect(result.current.isLoading).toBe(true);
@@ -182,10 +244,10 @@ describe('useSendFlow — loading + state machine', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '1' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
     });
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.error).toBe('rpc boom');
+    expect(result.current.error).toBe('The network is unavailable. Try again later.');
     expect(result.current.txHash).toBeNull();
   });
 });
@@ -196,7 +258,7 @@ describe('useSendFlow — balance refresh discipline', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '1' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
     });
     expect(mockRefreshWdkMutate).toHaveBeenCalledTimes(1);
     expect(mockRefreshWdkMutate).toHaveBeenCalledWith({ accountIndex: 0, type: 'wallet' });
@@ -207,7 +269,7 @@ describe('useSendFlow — balance refresh discipline', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '1' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
     });
     expect(mockRefreshWdkMutate).not.toHaveBeenCalled();
   });
@@ -217,7 +279,7 @@ describe('useSendFlow — balance refresh discipline', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '1' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
     });
     expect(mockRefreshWdkMutate).not.toHaveBeenCalled();
   });
@@ -229,34 +291,45 @@ describe('useSendFlow — estimate path shares scaling + parsing', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.estimate({ asset: eth, to: '0xabc', amount: '0.5' });
+      await result.current.estimate({ asset: eth, to: EVM_RECIPIENT, amount: '0.5' });
     });
     expect(mockEstimateFee).toHaveBeenCalledWith({
       asset: eth,
-      to: '0xabc',
+      to: EVM_RECIPIENT,
       amount: '500000000000000000',
     });
   });
 
-  it('returns the amount-zero sentinel for dust that truncates to zero', async () => {
+  it('returns a precision error for excess comma decimals without estimating', async () => {
     const { result } = render();
 
     let fee: Awaited<ReturnType<typeof result.current.estimate>> | undefined;
     await act(async () => {
-      fee = await result.current.estimate({ asset: usdt, to: '0xabc', amount: '0.0000001' });
+      fee = await result.current.estimate({
+        asset: usdt,
+        to: EVM_RECIPIENT,
+        amount: '1,2345678',
+      });
     });
-    expect(fee).toEqual({ success: false, error: 'amount-zero' });
+    expect(fee).toEqual({
+      success: false,
+      error: 'The amount has too many decimal places.',
+    });
     expect(mockEstimateFee).not.toHaveBeenCalled();
   });
 
-  it('returns the amount-zero sentinel for junk input', async () => {
+  it('returns a translated amount error for junk input', async () => {
     const { result } = render();
 
     let fee: Awaited<ReturnType<typeof result.current.estimate>> | undefined;
     await act(async () => {
-      fee = await result.current.estimate({ asset: usdt, to: '0xabc', amount: 'not-a-number' });
+      fee = await result.current.estimate({
+        asset: usdt,
+        to: EVM_RECIPIENT,
+        amount: 'not-a-number',
+      });
     });
-    expect(fee).toEqual({ success: false, error: 'amount-zero' });
+    expect(fee).toEqual({ success: false, error: 'Amount must be greater than zero.' });
     expect(mockEstimateFee).not.toHaveBeenCalled();
   });
 
@@ -265,7 +338,7 @@ describe('useSendFlow — estimate path shares scaling + parsing', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.estimate({ asset: usdt, to: '0xabc', amount: '1' });
+      await result.current.estimate({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
     });
     // estimate must not leak its failure into the send-flow error surface.
     expect(result.current.error).toBeNull();
@@ -281,12 +354,51 @@ describe('useSendFlow — account binding', () => {
   });
 
   it('re-binds when the chain changes', () => {
-    const { rerender } = renderHook((chain: Parameters<typeof useSendFlow>[0]) => useSendFlow(chain), {
-      wrapper: wrap,
-      initialProps: 'ethereum' as Parameters<typeof useSendFlow>[0],
-    });
+    const { rerender } = renderHook(
+      (chain: Parameters<typeof useSendFlow>[0]) => useSendFlow(chain),
+      {
+        wrapper: wrap,
+        initialProps: 'ethereum' as Parameters<typeof useSendFlow>[0],
+      },
+    );
     rerender('polygon');
-    expect(mockUseAccount).toHaveBeenLastCalledWith({ network: 'polygon', accountIndex: 0 });
+    expect(mockUseAccount).toHaveBeenCalledWith({ network: 'polygon', accountIndex: 0 });
+  });
+
+  it('uses the chain-bound Bitcoin account for send and fee estimate', async () => {
+    mockBitcoinSend.mockResolvedValueOnce({ success: true, hash: 'btc-hash' });
+    mockBitcoinEstimateFee.mockResolvedValueOnce({ success: true, fee: '100' });
+    const { result } = renderHook(() => useSendFlow('bitcoin'), { wrapper: wrap });
+    // eslint-disable-next-line no-secrets/no-secrets -- public BIP173 example address, not a secret
+    const to = 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4';
+
+    await act(async () => {
+      await result.current.send({ asset: sparkBtc, to, amount: '0.1' });
+      await result.current.estimate({ asset: sparkBtc, to, amount: '0.1' });
+    });
+
+    expect(mockBitcoinSend).toHaveBeenCalledWith(
+      expect.objectContaining({ to, amount: '10000000' }),
+    );
+    expect(mockBitcoinEstimateFee).toHaveBeenCalledWith(
+      expect.objectContaining({ to, amount: '10000000' }),
+    );
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockEstimateFee).not.toHaveBeenCalled();
+  });
+
+  it('uses the chain-bound Spark account for a Spark send', async () => {
+    mockSend.mockResolvedValueOnce({ success: true, hash: 'spark-hash' });
+    const { result } = renderHook(() => useSendFlow('spark'), { wrapper: wrap });
+
+    await act(async () => {
+      await result.current.send({ asset: sparkBtc, to: SPARK_RECIPIENT, amount: '0.1' });
+    });
+
+    expect(mockSend).toHaveBeenCalledWith(
+      expect.objectContaining({ asset: sparkBtc, to: SPARK_RECIPIENT }),
+    );
+    expect(mockBitcoinSend).not.toHaveBeenCalled();
   });
 });
 
@@ -296,7 +408,7 @@ describe('useSendFlow — reset', () => {
     const { result } = render();
 
     await act(async () => {
-      await result.current.send({ asset: usdt, to: '0xabc', amount: '1' });
+      await result.current.send({ asset: usdt, to: EVM_RECIPIENT, amount: '1' });
     });
     expect(result.current.txHash).toBe('0xabc');
 

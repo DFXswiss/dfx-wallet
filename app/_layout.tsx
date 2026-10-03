@@ -22,7 +22,6 @@ LogBox.ignoreLogs([
   /\[AddressService\] getAddress failed/,
   /Failed to fetch balance for /,
   /could not coalesce error/,
-  /bad address checksum/,
   /Network ethereum timed out/,
   /useMultiAddressLoader failed/,
 ]);

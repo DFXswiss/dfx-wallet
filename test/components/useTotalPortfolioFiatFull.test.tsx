@@ -1,24 +1,33 @@
+import React from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
-import type { BalanceEntry, BalanceMap, BalanceSourceResult } from '@/services/balances';
+import type { BalanceEntry, BalanceSourceResult } from '@/services/balances';
+import {
+  assetIncludedInEvmBalanceQuery,
+  assetIncludedInWdkBalanceQuery,
+  DEFAULT_ENABLED_CHAINS,
+  getAssets,
+} from '@/config/tokens';
+import type { ChainId } from '@/config/chains';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import type { WalletDiscovery } from '@/features/linked-wallets/useLinkedWalletDiscovery';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { useAuthStore, useWalletStore } from '@/store';
 
-let mockBalanceMap: BalanceMap = new Map();
+let mockBalanceMap: Map<string, BalanceEntry> = new Map();
+let mockBalancesLoading = false;
 jest.mock('@/services/balances', () => {
   const actual = jest.requireActual('@/services/balances');
   return {
     ...actual,
     useBalances: (): BalanceSourceResult => ({
       data: mockBalanceMap,
-      isLoading: false,
+      isLoading: mockBalancesLoading,
       error: null,
     }),
   };
 });
 
-const mockEnabledChains = ['ethereum'] as const;
+let mockEnabledChains: ChainId[] = ['ethereum'];
 jest.mock('@/features/portfolio/useEnabledChains', () => ({
   useEnabledChains: () => ({
     enabledChains: mockEnabledChains,
@@ -85,6 +94,35 @@ function setBalances(entries: Record<string, string>) {
   mockBalanceMap = new Map(Object.entries(entries).map(([k, v]) => [k, makeEntry(k, v)]));
 }
 
+function setCompleteZeroBalances() {
+  mockBalanceMap = new Map(
+    getAssets(['ethereum']).map((asset) => [asset.getId(), makeEntry(asset.getId(), '0')]),
+  );
+}
+
+function setCompleteBalances(entries: Record<string, string>) {
+  setCompleteZeroBalances();
+  for (const [assetId, rawBalance] of Object.entries(entries)) {
+    mockBalanceMap.set(assetId, makeEntry(assetId, rawBalance));
+  }
+}
+
+function trackStateUpdates(): jest.Mock {
+  const originalUseState = React.useState;
+  const updates = jest.fn();
+  jest.spyOn(React, 'useState').mockImplementation(
+    ((initialState: unknown) => {
+      const [state, setState] = originalUseState(initialState);
+      const trackedSetState: React.Dispatch<React.SetStateAction<unknown>> = (value) => {
+        updates(value);
+        setState(value);
+      };
+      return [state, trackedSetState];
+    }) as unknown as typeof React.useState,
+  );
+  return updates;
+}
+
 const LINKED_A: UserAddressDto = {
   address: '0xAAAAaaaaAAAAaaaaAAAAaaaaAAAAaaaaAAAAaaaa',
   blockchain: 'Ethereum',
@@ -103,6 +141,8 @@ const ACTIVE: UserAddressDto = {
 
 describe('useTotalPortfolioFiat (full)', () => {
   beforeEach(() => {
+    mockEnabledChains = ['ethereum'];
+    mockBalancesLoading = false;
     setBalances({});
     mockDiscovery.clear();
     mockIsSelected.mockReset();
@@ -127,32 +167,33 @@ describe('useTotalPortfolioFiat (full)', () => {
   });
 
   it('returns 0 and persists "0" when the user holds nothing', async () => {
+    setCompleteZeroBalances();
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(0));
+    await waitFor(() => expect(result.current.totalFiat).toBe(0));
     expect(useWalletStore.getState().totalBalanceFiat).toBe('0');
   });
 
   it('sums a 1-USDT holding to 1 USD and skips native ETH', async () => {
-    setBalances({
+    setCompleteBalances({
       [USDT_ETH_ID]: '1000000',
       [ETH_NATIVE_ID]: '1000000000000000000',
     });
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(1));
+    await waitFor(() => expect(result.current.totalFiat).toBe(1));
     expect(useWalletStore.getState().totalBalanceFiat).toBe('1');
   });
 
   it('rounds the persisted total to two decimals', async () => {
-    setBalances({ [USDT_ETH_ID]: '123450' });
+    setCompleteBalances({ [USDT_ETH_ID]: '123450' });
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBeCloseTo(0.12345, 5));
+    await waitFor(() => expect(result.current.totalFiat).toBeCloseTo(0.12345, 5));
     expect(useWalletStore.getState().totalBalanceFiat).toBe('0.12');
   });
 
   it('prices a WBTC holding through the pricing-service rate', async () => {
     setBalances({ [WBTC_ETH_ID]: '100000000' });
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(50_000));
+    await waitFor(() => expect(result.current.totalFiat).toBe(50_000));
   });
 
   it('initializes pricing when the service is not yet ready, then marks ready', async () => {
@@ -160,14 +201,14 @@ describe('useTotalPortfolioFiat (full)', () => {
     const init = jest.spyOn(pricingService, 'initialize').mockResolvedValue(undefined);
     const { result } = renderHook(() => useTotalPortfolioFiat());
     await waitFor(() => expect(init).toHaveBeenCalled());
-    await waitFor(() => expect(result.current).toBe(0));
+    await waitFor(() => expect(result.current.totalFiat).toBe(0));
   });
 
   it('marks pricing not-ready when initialize() rejects', async () => {
     jest.spyOn(pricingService, 'isReady').mockReturnValue(false);
     jest.spyOn(pricingService, 'initialize').mockRejectedValue(new Error('offline'));
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(0));
+    await waitFor(() => expect(result.current.totalFiat).toBe(0));
   });
 
   it('clears linked wallets when the user is not DFX-authenticated', async () => {
@@ -177,6 +218,7 @@ describe('useTotalPortfolioFiat (full)', () => {
   });
 
   it('adds selected linked-wallet fiat and skips the active address', async () => {
+    setCompleteZeroBalances();
     useAuthStore.setState({ isDfxAuthenticated: true });
     mockGetUser.mockResolvedValue({
       addresses: [LINKED_A, LINKED_B, ACTIVE],
@@ -186,23 +228,27 @@ describe('useTotalPortfolioFiat (full)', () => {
       address: LINKED_A.address.toLowerCase(),
       assets: [],
       totalFiat: 10,
+      complete: true,
       known: true,
     });
     mockDiscovery.set(LINKED_B.address.toLowerCase(), {
       address: LINKED_B.address.toLowerCase(),
       assets: [],
       totalFiat: 5,
+      complete: true,
       known: true,
     });
     mockDiscovery.set(ACTIVE.address.toLowerCase(), {
       address: ACTIVE.address.toLowerCase(),
       assets: [],
       totalFiat: 999,
+      complete: true,
       known: true,
     });
 
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(15));
+    await waitFor(() => expect(result.current.totalFiat).toBe(15));
+    expect(result.current.isIncomplete).toBe(false);
   });
 
   it('ignores linked wallets the user has not selected and unknown discovery', async () => {
@@ -216,25 +262,134 @@ describe('useTotalPortfolioFiat (full)', () => {
       address: LINKED_A.address.toLowerCase(),
       assets: [],
       totalFiat: 7,
+      complete: false,
       known: false,
     });
 
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(0));
+    await waitFor(() => expect(result.current.isIncomplete).toBe(true));
+    expect(result.current.totalFiat).toBe(0);
+  });
+
+  it('does not persist a linked-wallet total when its discovery is incomplete', async () => {
+    setCompleteZeroBalances();
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    mockGetUser.mockResolvedValue({ addresses: [LINKED_A], activeAddress: null });
+    mockDiscovery.set(LINKED_A.address.toLowerCase(), {
+      address: LINKED_A.address.toLowerCase(),
+      assets: [],
+      totalFiat: 10,
+      complete: false,
+      known: true,
+    });
+    useWalletStore.setState({ totalBalanceFiat: '987.65' });
+
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+
+    await waitFor(() => expect(result.current.totalFiat).toBe(10));
+    expect(result.current.isIncomplete).toBe(true);
+    expect(useWalletStore.getState().totalBalanceFiat).toBe('987.65');
+  });
+
+  it('does not persist a linked-wallet total when discovery is unknown but marked complete', async () => {
+    setCompleteZeroBalances();
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    mockGetUser.mockResolvedValue({ addresses: [LINKED_A], activeAddress: null });
+    mockDiscovery.set(LINKED_A.address.toLowerCase(), {
+      address: LINKED_A.address.toLowerCase(),
+      assets: [],
+      totalFiat: 10,
+      complete: true,
+      known: false,
+    });
+
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+
+    await waitFor(() => expect(mockIsSelected).toHaveBeenCalledWith(LINKED_A.address));
+    expect(result.current.totalFiat).toBe(0);
+    expect(result.current.isIncomplete).toBe(true);
+
+    act(() => useWalletStore.setState({ totalBalanceFiat: '987.65' }));
+    act(() => pricingService.reset());
+    await waitFor(() => expect(useWalletStore.getState().totalBalanceFiat).toBe('987.65'));
   });
 
   it('treats a missing addresses array as empty', async () => {
     useAuthStore.setState({ isDfxAuthenticated: true });
     mockGetUser.mockResolvedValue({ addresses: undefined, activeAddress: undefined });
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(0));
+    await waitFor(() => expect(result.current.totalFiat).toBe(0));
   });
 
-  it('clears linked wallets when getUser rejects', async () => {
+  it('clears linked wallets on logout and does not restore them when the next getUser rejects', async () => {
+    setCompleteZeroBalances();
     useAuthStore.setState({ isDfxAuthenticated: true });
-    mockGetUser.mockRejectedValue(new Error('401'));
+    mockGetUser.mockResolvedValueOnce({ addresses: [LINKED_A], activeAddress: null });
+    mockDiscovery.set(LINKED_A.address.toLowerCase(), {
+      address: LINKED_A.address.toLowerCase(),
+      assets: [],
+      totalFiat: 10,
+      complete: true,
+      known: true,
+    });
     const { result } = renderHook(() => useTotalPortfolioFiat());
-    await waitFor(() => expect(result.current).toBe(0));
+    await waitFor(() => expect(result.current.totalFiat).toBe(10));
+    expect(result.current.isIncomplete).toBe(false);
+
+    act(() => useAuthStore.setState({ isDfxAuthenticated: false }));
+    await waitFor(() => expect(result.current.totalFiat).toBe(0));
+    expect(result.current.isIncomplete).toBe(false);
+
+    mockGetUser.mockRejectedValueOnce(new Error('401'));
+    act(() => useAuthStore.setState({ isDfxAuthenticated: true }));
+
+    await waitFor(() => expect(result.current.isIncomplete).toBe(true));
+    expect(result.current.totalFiat).toBe(0);
+  });
+
+  it('marks the total incomplete while the shared balances are loading', async () => {
+    setCompleteBalances({ [USDT_ETH_ID]: '1000000' });
+    mockBalancesLoading = true;
+    useWalletStore.setState({ totalBalanceFiat: '987.65' });
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+    await waitFor(() => expect(result.current.isIncomplete).toBe(true));
+    expect(result.current.totalFiat).toBe(1);
+    expect(useWalletStore.getState().totalBalanceFiat).toBe('987.65');
+  });
+
+  it('marks the total incomplete when an expected balance entry is missing', async () => {
+    setCompleteZeroBalances();
+    const balances = new Map(mockBalanceMap);
+    balances.delete(USDT_ETH_ID);
+    mockBalanceMap = balances;
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+    await waitFor(() => expect(result.current.isIncomplete).toBe(true));
+  });
+
+  it('marks the total incomplete when a balance entry is idle', async () => {
+    setCompleteZeroBalances();
+    const balances = new Map(mockBalanceMap);
+    balances.set(USDT_ETH_ID, { ...makeEntry(USDT_ETH_ID, '0'), status: 'idle' });
+    mockBalanceMap = balances;
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+    await waitFor(() => expect(result.current.isIncomplete).toBe(true));
+  });
+
+  it('ignores enabled assets that neither balance source queries when deciding completeness', async () => {
+    mockEnabledChains = [...DEFAULT_ENABLED_CHAINS];
+    expect(mockEnabledChains).toContain('bitcoin-taproot');
+    mockBalanceMap = new Map(
+      getAssets(mockEnabledChains)
+        .filter(
+          (asset) =>
+            assetIncludedInWdkBalanceQuery(asset) || assetIncludedInEvmBalanceQuery(asset),
+        )
+        .map((asset) => [asset.getId(), makeEntry(asset.getId(), '0')]),
+    );
+
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+
+    await waitFor(() => expect(result.current.isIncomplete).toBe(false));
   });
 
   it('does not apply a late getUser result after unmount', async () => {
@@ -245,11 +400,14 @@ describe('useTotalPortfolioFiat (full)', () => {
         resolveUser = resolve;
       }),
     );
+    const stateUpdates = trackStateUpdates();
     const { unmount } = renderHook(() => useTotalPortfolioFiat());
+    stateUpdates.mockClear();
     unmount();
     await act(async () => {
       resolveUser({ addresses: [LINKED_A], activeAddress: null });
     });
+    expect(stateUpdates).not.toHaveBeenCalled();
   });
 
   it('does not apply a late getUser rejection after unmount', async () => {
@@ -260,19 +418,24 @@ describe('useTotalPortfolioFiat (full)', () => {
         rejectUser = reject;
       }),
     );
+    const stateUpdates = trackStateUpdates();
     const { unmount } = renderHook(() => useTotalPortfolioFiat());
+    stateUpdates.mockClear();
     unmount();
     await act(async () => {
       rejectUser(new Error('late'));
     });
+    expect(stateUpdates).not.toHaveBeenCalled();
   });
 
   it('persists 0 when the computed total is not finite', async () => {
-    const presentation = jest.requireActual('@/config/portfolio-presentation') as typeof import('@/config/portfolio-presentation');
+    const presentation = jest.requireActual(
+      '@/config/portfolio-presentation',
+    ) as typeof import('@/config/portfolio-presentation');
     jest.spyOn(presentation, 'computeFiatValue').mockReturnValue(Number.NaN);
-    setBalances({ [USDT_ETH_ID]: '1000000' });
+    setCompleteBalances({ [USDT_ETH_ID]: '1000000' });
     const { result } = renderHook(() => useTotalPortfolioFiat());
     await waitFor(() => expect(useWalletStore.getState().totalBalanceFiat).toBe('0'));
-    expect(Number.isFinite(result.current)).toBe(false);
+    expect(Number.isFinite(result.current.totalFiat)).toBe(false);
   });
 });

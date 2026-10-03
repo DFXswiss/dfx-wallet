@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   ImageBackground,
@@ -17,6 +17,7 @@ import * as Haptics from 'expo-haptics';
 import { DarkBackdrop, Icon } from '@/components';
 import { isBiometricAvailable } from '@/features/biometric/biometric';
 import { dfxUserService } from '@/features/dfx-backend/services';
+import { setLanguage } from '@/i18n/language';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
 import {
@@ -65,6 +66,8 @@ export default function SettingsScreen() {
   const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [biometricSupported, setBiometricSupported] = useState<boolean | null>(null);
+  const currencySyncGeneration = useRef(0);
+  const currencySyncQueue = useRef<Promise<void>>(Promise.resolve());
 
   // Probe the OS for Face ID / Touch ID support so the toggle is greyed
   // out on devices that can't honour it (older simulators, no enrolled
@@ -106,8 +109,18 @@ export default function SettingsScreen() {
   };
 
   const syncCurrencyToDfx = (currency: string) => {
+    const requestGeneration = ++currencySyncGeneration.current;
     if (!isDfxAuthenticated) return;
-    void dfxUserService.updateUser({ currency: { name: currency } }).catch(() => undefined);
+
+    const syncLatestCurrency = async () => {
+      if (requestGeneration !== currencySyncGeneration.current) return;
+      await dfxUserService.updateUser({ currency: { name: currency } }).catch(() => undefined);
+    };
+
+    currencySyncQueue.current = currencySyncQueue.current.then(
+      syncLatestCurrency,
+      syncLatestCurrency,
+    );
   };
   const CURRENCIES = ['CHF', 'EUR', 'USD'] as const;
   const currentLang = i18n.language?.startsWith('de') ? 'DE' : 'EN';
@@ -206,10 +219,14 @@ export default function SettingsScreen() {
           label: t('settings.language'),
           value: currentLang,
           testID: 'settings-language',
-          onPress: () => {
+          onPress: async () => {
             const next = currentLang === 'DE' ? 'en' : 'de';
-            void i18n.changeLanguage(next);
-            syncLanguageToDfx(next);
+            try {
+              const persisted = await setLanguage(next, i18n);
+              if (persisted) syncLanguageToDfx(next);
+            } catch {
+              // Activation failed; keep the current language and remote preference unchanged.
+            }
           },
         },
         {

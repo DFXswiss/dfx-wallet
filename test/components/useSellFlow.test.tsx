@@ -1,10 +1,15 @@
 import { renderHook, act } from '@testing-library/react-native';
+import { DfxApiTimeoutError } from '@/features/dfx-backend/services/api';
 import type { SellPaymentInfoDto } from '../../src/features/dfx-backend/services/dto';
 
 const mockGetSellQuote = jest.fn();
 const mockCreateSellPaymentInfo = jest.fn();
 const mockConfirmSell = jest.fn();
 const mockInterpretDfxAuthError = jest.fn();
+
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 
 jest.mock('@/features/dfx-backend/services', () => ({
   dfxPaymentService: {
@@ -122,6 +127,90 @@ describe('useSellFlow', () => {
     expect(result.current.error).toBeNull();
   });
 
+  it('translates a DFX API timeout instead of exposing its raw message', async () => {
+    const timeout = new DfxApiTimeoutError(15_000);
+    mockCreateSellPaymentInfo.mockRejectedValueOnce(timeout);
+    const { result } = renderHook(() => useSellFlow());
+
+    await act(async () => {
+      await result.current.createPaymentInfo(PAYMENT_PARAMS);
+    });
+
+    expect(result.current.status).toBe('error');
+    expect(result.current.error).toBe('common.requestTimeout');
+    expect(result.current.error).not.toBe(timeout.message);
+  });
+
+  it('dismisses only the identified auth gate while preserving no-argument behavior', async () => {
+    const staleGate = { kind: 'kyc' as const, message: 'finish KYC' };
+    const currentGate = { kind: 'login' as const, message: 'sign in' };
+    const noArgumentGate = { kind: 'registration' as const, message: 'register' };
+    mockGetSellQuote
+      .mockRejectedValueOnce(new Error('kyc'))
+      .mockRejectedValueOnce(new Error('login'))
+      .mockRejectedValueOnce(new Error('registration'));
+    mockInterpretDfxAuthError
+      .mockReturnValueOnce(staleGate)
+      .mockReturnValueOnce(currentGate)
+      .mockReturnValueOnce(noArgumentGate);
+    const { result } = renderHook(() => useSellFlow());
+
+    await act(async () => {
+      await result.current.getQuote(QUOTE);
+    });
+    await act(async () => {
+      await result.current.getQuote(QUOTE);
+    });
+
+    act(() => {
+      result.current.dismissAuthGate(staleGate);
+    });
+    expect(result.current.authGate).toBe(currentGate);
+    expect(result.current.status).toBe('authGate');
+
+    act(() => {
+      result.current.dismissAuthGate(currentGate);
+    });
+    expect(result.current.authGate).toBeNull();
+    expect(result.current.status).toBe('idle');
+
+    await act(async () => {
+      await result.current.getQuote(QUOTE);
+    });
+    act(() => {
+      result.current.dismissAuthGate();
+    });
+    expect(result.current.authGate).toBeNull();
+    expect(result.current.status).toBe('idle');
+  });
+
+  it('retries the last sell quote and identifies the result as a quote', async () => {
+    mockGetSellQuote.mockRejectedValueOnce(new Error('login required'));
+    mockInterpretDfxAuthError.mockReturnValueOnce({ kind: 'login', message: 'sign in' });
+    mockGetSellQuote.mockResolvedValueOnce(validInfo({ id: 12 }));
+    const { result } = renderHook(() => useSellFlow());
+
+    await act(async () => {
+      await result.current.getQuote(QUOTE);
+    });
+
+    let retryResult: {
+      kind: 'quote' | 'paymentInfo';
+      info: SellPaymentInfoDto | null;
+    } | null = null;
+    await act(async () => {
+      retryResult = await result.current.retryLast();
+    });
+
+    expect(mockGetSellQuote).toHaveBeenCalledTimes(2);
+    expect(mockGetSellQuote.mock.calls[1]![0]).toEqual(QUOTE);
+    expect(mockCreateSellPaymentInfo).not.toHaveBeenCalled();
+    expect(retryResult).toMatchObject({
+      kind: 'quote',
+      info: { id: 12, isValid: true },
+    });
+  });
+
   it('retries sell payment info with the original IBAN-bearing params', async () => {
     mockCreateSellPaymentInfo.mockRejectedValueOnce(new Error('login required'));
     mockInterpretDfxAuthError.mockReturnValueOnce({ kind: 'login', message: 'sign in' });
@@ -133,15 +222,74 @@ describe('useSellFlow', () => {
     });
     expect(result.current.status).toBe('authGate');
 
+    let retryResult: {
+      kind: 'quote' | 'paymentInfo';
+      info: SellPaymentInfoDto | null;
+    } | null = null;
     await act(async () => {
-      await result.current.retryLast();
+      retryResult = await result.current.retryLast();
     });
 
     expect(mockCreateSellPaymentInfo).toHaveBeenCalledTimes(2);
     expect(mockCreateSellPaymentInfo.mock.calls[1]![0]).toEqual(PAYMENT_PARAMS);
     expect(mockGetSellQuote).not.toHaveBeenCalled();
+    expect(retryResult).toMatchObject({
+      kind: 'paymentInfo',
+      info: { id: 12, isValid: true },
+    });
     expect(result.current.status).toBe('success');
     expect(result.current.paymentInfo).toMatchObject({ id: 12 });
+  });
+
+  it('does not replay payment info when authenticated focus returns after a successful call', async () => {
+    mockCreateSellPaymentInfo.mockResolvedValueOnce(validInfo({ id: 12 }));
+    const { result } = renderHook(() => useSellFlow());
+
+    await act(async () => {
+      await result.current.createPaymentInfo(PAYMENT_PARAMS);
+    });
+
+    let retryResult: Awaited<ReturnType<typeof result.current.retryLast>> = null;
+    await act(async () => {
+      retryResult = await result.current.retryLast();
+    });
+
+    expect(retryResult).toBeNull();
+    expect(mockCreateSellPaymentInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not expose a payment-info retry before an auth failure occurs', async () => {
+    const pending = deferred<SellPaymentInfoDto>();
+    mockCreateSellPaymentInfo.mockReturnValueOnce(pending.promise);
+    const { result } = renderHook(() => useSellFlow());
+
+    let paymentCall: Promise<unknown>;
+    act(() => {
+      paymentCall = result.current.createPaymentInfo(PAYMENT_PARAMS);
+    });
+    await act(async () => {
+      await expect(result.current.retryLast()).resolves.toBeNull();
+    });
+    expect(mockCreateSellPaymentInfo).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      pending.resolve(validInfo());
+      await paymentCall;
+    });
+  });
+
+  it('does not replay payment info after a non-authentication failure', async () => {
+    mockCreateSellPaymentInfo.mockRejectedValueOnce(new Error('network down'));
+    const { result } = renderHook(() => useSellFlow());
+
+    await act(async () => {
+      await result.current.createPaymentInfo(PAYMENT_PARAMS);
+    });
+    await act(async () => {
+      await expect(result.current.retryLast()).resolves.toBeNull();
+    });
+
+    expect(mockCreateSellPaymentInfo).toHaveBeenCalledTimes(1);
   });
 
   it('confirms a sell payment and preserves the successful payment state', async () => {

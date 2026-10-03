@@ -7,7 +7,7 @@ This guide covers everything you need to develop, test, and contribute to the DF
 ```bash
 git clone https://github.com/DFXswiss/dfx-wallet.git
 cd dfx-wallet
-npm install
+npm ci --legacy-peer-deps
 npx expo start                     # dev server
 npx expo start --ios               # iOS simulator
 npx expo start --android           # Android emulator
@@ -15,13 +15,13 @@ npx expo start --android           # Android emulator
 
 ## Prerequisites
 
-| Tool        | Version    | Purpose                                  |
-| ----------- | ---------- | ---------------------------------------- |
-| Node.js     | 20+        | Runtime                                  |
-| npm         | 10+        | Package manager                          |
-| Xcode       | 15+        | iOS builds (macOS only)                  |
-| Android SDK | API 34+    | Android builds                           |
-| Expo CLI    | bundled    | React Native tooling (via `npx expo`)    |
+| Tool        | Version            | Purpose                                  |
+| ----------- | ------------------ | ---------------------------------------- |
+| Node.js     | 22                 | Runtime                                  |
+| npm         | 10+                | Package manager                          |
+| Xcode       | 16                 | iOS 18 builds (macOS only)               |
+| Android SDK | API 36 (minSdk 34) | Android builds                           |
+| Expo CLI    | bundled            | React Native tooling (via `npx expo`)    |
 
 ## Build & Test Commands
 
@@ -42,7 +42,7 @@ Run `npm run check` before every push. Never push if it fails.
 
 - **Framework**: React Native (Expo ~54, Expo Router)
 - **Language**: TypeScript (strict mode)
-- **Wallet SDK**: Tether WDK (`@tetherto/wdk-react-native-provider`)
+- **Wallet SDK**: Tether WDK (`@tetherto/wdk-react-native-core`)
 - **State**: Zustand
 - **i18n**: i18next + react-i18next (DE, EN)
 - **Storage**: react-native-mmkv (fast KV), expo-secure-store (secrets)
@@ -65,9 +65,9 @@ src/
   config/                          # Chain configs, environment
   hooks/                           # Custom React hooks
   i18n/                            # Localization (DE, EN)
-  models/                          # Domain models / types
-  services/dfx/                    # DFX API client + DTOs
-  services/hardware-wallet/        # BitBox02 integration
+  features/dfx-backend/            # DFX API client + DTOs
+  features/hardware-wallet/        # BitBox02 integration
+  services/                        # Shared wallet, pricing, balance, and utility services
   store/                           # Zustand stores
   theme/                           # Colors, typography
 ```
@@ -111,7 +111,7 @@ Write in English. Imperative mood. No trailing period on the subject. Describe _
 # Good
 Add BitBox02 BLE transport for Nova
 Fix balance refresh after send transaction
-Use DfxColors instead of raw hex in dashboard
+Use theme color tokens instead of raw hex in dashboard
 
 # Bad
 update stuff
@@ -155,21 +155,21 @@ import { create } from 'zustand';
 
 // 5. Internal (absolute paths via @/)
 import { useWalletStore } from '@/store/wallet';
-import { DfxColors } from '@/theme/colors';
+import { useColors } from '@/theme';
 ```
 
 Use the `@/` path alias for everything under `src/`.
 
 ### Styling — CRITICAL
 
-- **Colors**: Always use `DfxColors.*` from `src/theme/colors.ts`. NEVER use raw hex values or RN defaults.
+- **Colors**: Read semantic tokens through `useColors()` from `src/theme/`. NEVER use raw hex values or RN defaults.
 - **Typography**: Always use `Typography.*` from `src/theme/typography.ts`. NEVER hardcode font sizes.
 - **Loading**: Use RN `ActivityIndicator` — no third-party spinners.
 
 ### State Management
 
 - **Zustand** stores in `src/store/`
-- **No React Context** for state — Zustand stores are global singletons
+- **App state**: Use Zustand stores. React Context is reserved for the theme provider.
 - Secrets in `expo-secure-store`, fast KV in `react-native-mmkv`
 
 ### API Client
@@ -188,8 +188,8 @@ All DFX backend communication goes through `src/features/dfx-backend/services/ap
 
 ## Design Reference
 
-- **Theme**: Light. Soft sky-blue / white surfaces, dark navy text, blue (`#2F7CF7`) as the UI accent for icons, links, and active controls. The DFX brand red (`#F5516C`) is preserved as `DfxColors.brandRed` for the logo only.
-- **Dashboard**: full-screen mountain-illustration background (`assets/dashboard-bg.png`), DFX logo header + hamburger menu, large balance display with eye-toggle, Portfolio + Pay pill buttons, Transactions link, and a bottom Receive | Send pill. Buy and Sell are reached from inside the Receive and Send flows respectively.
+- **Theme**: Light and dark themes use semantic values returned by `useColors()`. The DFX brand red is reserved for the logo.
+- **Dashboard**: full-screen mountain-illustration background (`assets/dashboard-bg.png`), DFX logo header + hamburger menu, large balance display with eye-toggle, Portfolio + Pay pill buttons, Transactions link, and a bottom Send | Receive pill. Buy and Sell are reached from inside the Receive and Send flows respectively.
 - **Onboarding flow**: Welcome → Create/Restore (passkey or seed) → Verify Seed → Legal → PIN → Dashboard
 - **Settings**: reached from the Dashboard hamburger menu (no bottom tab bar). Flat list with sub-pages.
 - **KYC**: Multi-step wizard (Registration → Email → Nationality → Financial Data → 2FA → Ident)
@@ -197,25 +197,23 @@ All DFX backend communication goes through `src/features/dfx-backend/services/ap
 ## Supported Blockchains (via WDK)
 
 - Bitcoin On-Chain (`wdk-wallet-btc`)
-- Ethereum + L2s: Arbitrum, Polygon, Optimism, Base (`wdk-wallet-evm`)
-- Solana (`wdk-wallet-solana`)
-- TON (`wdk-wallet-ton`)
-- TRON (`wdk-wallet-tron`)
+- Ethereum + L2s: Arbitrum, Polygon, Base, Plasma (`wdk-wallet-evm-erc-4337`)
+- Sepolia testnet (`wdk-wallet-evm-erc-4337`)
 - Spark / Lightning (`wdk-wallet-spark`)
 
 ## Hardware Wallet Support — CRITICAL
 
-BitBox02 integration is a MUST-HAVE requirement.
+BitBox02 pairing is work in progress and remains disabled by default. Transaction signing is not implemented.
 
 **Dual-transport architecture:**
 
 - **USB HID** — Standard BitBox02, **Android only** (Apple blocks USB-HID for 3rd party apps)
 - **BLE** — BitBox02 Nova, **Android + iOS**
-- View-only wallet model: no seed stored locally, signing delegated to hardware
+- Intended view-only wallet model: no hardware-wallet seed stored locally
 
 **SDK:** `bitbox-api` (npm, v0.12.0, WASM from BitBoxSwiss/bitbox-api-rs)
 
-- Protocol stack (Noise XX handshake, Protobuf, signing) is transport-agnostic
+- Protocol stack (Noise XX handshake and Protobuf framing) is transport-agnostic
 - Only the ReadWrite transport layer needs native implementation
 
 **Implementation**: `src/features/hardware-wallet/`
@@ -225,9 +223,7 @@ BitBox02 integration is a MUST-HAVE requirement.
 - `transport-usb.ts` — Android native HID module (pattern: `@ledgerhq/react-native-hid`)
 - `transport-ble.ts` — BLE via `react-native-ble-plx` (Android + iOS)
 
-**Connection flow:** Scan (USB+BLE) → Detect → Connect → Noise handshake → Channel Verify → Get Address
-
-**Signing:** BTC (SegWit, Taproot, PSBT) + ETH (EIP-1559, ERC-20, EIP-712)
+**Planned connection flow:** Scan (USB+BLE) → Detect → Connect → Noise handshake → Channel Verify → Get Address. This flow is not complete, and no BTC or EVM transaction-signing path is wired into the app.
 
 **RealUnit reference files** (Flutter, useful as a reference for the signing flow):
 
@@ -237,7 +233,7 @@ BitBox02 integration is a MUST-HAVE requirement.
 
 ## Testing
 
-- **Unit tests**: Jest, co-located with the code they cover
+- **Unit tests**: Jest, under `test/`
 - **E2E**: Maestro (`npm run e2e:maestro`) for cross-platform flows, Detox (`npm run e2e:test:ios`) for iOS-specific scenarios. See [docs/maestro.md](docs/maestro.md) and [docs/visual-regression.md](docs/visual-regression.md) for the MVP/feature-gated tag split, baseline workflow, and CI runner setup.
 - Add tests for new business logic in `src/services/` and `src/store/`
 

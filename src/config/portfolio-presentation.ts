@@ -79,21 +79,53 @@ export const toNumeric = (formatted: string): number => {
 };
 
 /**
- * Parse a user-typed decimal amount ("1", "1.5", "0.000001") into the asset's
+ * Validate a user-entered non-negative decimal amount and normalize its optional
+ * comma or dot separator to a dot. Whole numbers and one separator with digits
+ * on both sides are accepted; malformed, empty, negative, or non-finite input
+ * returns `null`.
+ */
+export const normalizeDecimalAmount = (displayAmount: string): string | null => {
+  let separator: ',' | '.' | null = null;
+  for (const character of displayAmount) {
+    if (character !== ',' && character !== '.') continue;
+    if (separator !== null) return null;
+    separator = character;
+  }
+
+  let wholePart = displayAmount;
+  let fractionalPart: string | null = null;
+  if (separator !== null) {
+    [wholePart = '', fractionalPart = ''] = displayAmount.split(separator);
+  }
+  if (!/^\d+$/.test(wholePart) || (fractionalPart !== null && !/^\d+$/.test(fractionalPart))) {
+    return null;
+  }
+
+  const normalized = fractionalPart === null ? wholePart : `${wholePart}.${fractionalPart}`;
+  return Number.isFinite(Number(normalized)) ? normalized : null;
+};
+
+export const hasExcessPrecision = (displayAmount: string, decimals: number): boolean => {
+  const match = displayAmount.trim().match(/^\d*[.,](\d*)$/);
+  return match !== null && (match[1]?.length ?? 0) > decimals;
+};
+
+/**
+ * Parse a user-typed decimal amount ("1", "1.5", "0,5") into the asset's
  * smallest unit as a decimal string. Uses BigInt — never Number — so it
- * preserves precision past 2^53. Fractional digits beyond `decimals` are
- * truncated rather than rounded (defensive: never send more than the user
- * typed). Empty / malformed input returns "0".
+ * preserves precision past 2^53. Empty, malformed, or excessively precise
+ * input returns "0" rather than silently changing the requested amount.
  */
 export const parseUnits = (displayAmount: string, decimals: number): string => {
   const trimmed = displayAmount.trim();
-  if (!trimmed || trimmed === '.') return '0';
-  if (!/^\d*\.?\d*$/.test(trimmed)) return '0';
-  const [whole, fracRaw = ''] = trimmed.split('.');
-  // `split('.')` always yields at least one element, so `whole` is defined.
+  if (!trimmed || trimmed === '.' || trimmed === ',') return '0';
+  if (!/^\d*[.,]?\d*$/.test(trimmed)) return '0';
+  if (hasExcessPrecision(trimmed, decimals)) return '0';
+  const [whole, fracRaw = ''] = trimmed.split(/[.,]/);
+  // `split(/[.,]/)` always yields at least one element, so `whole` is defined.
   // It may still be the empty string for inputs like ".5" — fall back to "0".
   const wholePart = whole ? whole : '0';
-  const frac = fracRaw.slice(0, decimals).padEnd(decimals, '0');
+  const frac = fracRaw.padEnd(decimals, '0');
   const wholeBig = BigInt(wholePart) * BigInt(10) ** BigInt(decimals);
   const fracBig = frac === '' ? 0n : BigInt(frac);
   return (wholeBig + fracBig).toString();
@@ -117,6 +149,23 @@ export const formatCryptoAmount = (n: number): string =>
   Number.isFinite(n)
     ? n.toLocaleString('de-CH', { minimumFractionDigits: 0, maximumFractionDigits: 8 })
     : '0';
+
+export function isFiatPriceAvailable(
+  balance: number,
+  canonicalSymbol: string,
+  fiatCurrency: FiatCurrency,
+  pricingReady: boolean,
+): boolean {
+  if (balance <= 0) return true;
+  if (canonicalSymbol === fiatCurrency) return true;
+  if (!pricingReady) return false;
+
+  const ticker = SYMBOL_TO_TICKER.get(canonicalSymbol);
+  if (!ticker) return false;
+
+  const rate = pricingService.getExchangeRate(ticker, fiatCurrency);
+  return typeof rate === 'number' && Number.isFinite(rate);
+}
 
 /**
  * Convert a token balance into the user's display fiat currency.

@@ -1,9 +1,15 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import * as Clipboard from 'expo-clipboard';
+import { darkColors, ThemeProvider, useThemeStore } from '@/theme';
 
 const mockRequestPermission = jest.fn(async () => ({ granted: false }));
 const mockPermission: { current: { granted: boolean } | null } = { current: null };
+
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 
 jest.mock('expo-camera', () => {
   const { View } = jest.requireActual('react-native');
@@ -12,10 +18,10 @@ jest.mock('expo-camera', () => {
   }
   return {
     CameraView,
-    useCameraPermissions: (): [
-      typeof mockPermission.current,
-      typeof mockRequestPermission,
-    ] => [mockPermission.current, mockRequestPermission],
+    useCameraPermissions: (): [typeof mockPermission.current, typeof mockRequestPermission] => [
+      mockPermission.current,
+      mockRequestPermission,
+    ],
   };
 });
 
@@ -61,8 +67,26 @@ describe('QrScanner', () => {
     const { getByText } = render(
       <QrScanner visible={true} onScan={jest.fn()} onClose={jest.fn()} />,
     );
-    expect(getByText('Camera permission is required to scan QR codes.')).toBeTruthy();
-    expect(getByText('Grant Permission')).toBeTruthy();
+    expect(getByText('qrScanner.cameraPermission')).toBeTruthy();
+    expect(getByText('qrScanner.grantPermission')).toBeTruthy();
+  });
+
+  it('uses on-primary text for primary scanner actions in dark mode', () => {
+    mockPermission.current = { granted: false };
+    useThemeStore.setState({ mode: 'dark' });
+    const { getByText } = render(
+      <ThemeProvider>
+        <QrScanner visible={true} onScan={jest.fn()} onClose={jest.fn()} />
+      </ThemeProvider>,
+    );
+
+    expect(StyleSheet.flatten(getByText('qrScanner.grantPermission').props.style).color).toBe(
+      darkColors.onPrimary,
+    );
+    expect(StyleSheet.flatten(getByText('qrScanner.paste').props.style).color).toBe(
+      darkColors.onPrimary,
+    );
+    useThemeStore.setState({ mode: 'light' });
   });
 
   it('re-requesting permission from the fallback dispatches the same hook', () => {
@@ -71,7 +95,7 @@ describe('QrScanner', () => {
       <QrScanner visible={true} onScan={jest.fn()} onClose={jest.fn()} />,
     );
     mockRequestPermission.mockClear();
-    fireEvent.press(getByText('Grant Permission'));
+    fireEvent.press(getByText('qrScanner.grantPermission'));
     expect(mockRequestPermission).toHaveBeenCalled();
   });
 });

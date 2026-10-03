@@ -1,2 +1,0 @@
-swiss.dfx.wallet.bitbox
-xml usb_device_filter

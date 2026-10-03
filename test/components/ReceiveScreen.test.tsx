@@ -66,7 +66,6 @@ beforeEach(() => {
 });
 
 describe('ReceiveScreen', () => {
-
   it('renders the asset picker with the static RECEIVE_ASSETS list', () => {
     const { getAllByText, getByText } = render(<ReceiveScreen />);
     // BTC has distinct symbol + label ("BTC" / "Bitcoin"); CHF / USD reuse
@@ -152,13 +151,13 @@ describe('ReceiveScreen', () => {
     fireEvent.press(getByText('BTC'));
     expect(queryByText('receive.selectAsset')).toBeNull();
 
-    fireEvent.press(getByLabelText('Back'));
+    fireEvent.press(getByLabelText('common.back'));
     expect(getByText('receive.selectAsset')).toBeTruthy();
   });
 
   it('back button on the asset step calls router.back()', () => {
     const { getByLabelText } = render(<ReceiveScreen />);
-    fireEvent.press(getByLabelText('Back'));
+    fireEvent.press(getByLabelText('common.back'));
     expect(mockBack).toHaveBeenCalledTimes(1);
   });
 

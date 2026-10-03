@@ -2,6 +2,10 @@ import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import { DashboardHeader } from '../../src/components/DashboardHeader';
 
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
 describe('DashboardHeader', () => {
   it('renders both icon buttons when both handlers are provided', () => {
     const onMenu = jest.fn();
@@ -11,6 +15,15 @@ describe('DashboardHeader', () => {
     );
     expect(getByTestId('dashboard-shield-button')).toBeTruthy();
     expect(getByTestId('dashboard-menu-button')).toBeTruthy();
+  });
+
+  it('labels the DFX logo and Multi-Sig action for assistive technology', () => {
+    const { getByLabelText } = render(
+      <DashboardHeader onMenuPress={jest.fn()} onShieldPress={jest.fn()} />,
+    );
+
+    expect(getByLabelText('common.dfxLogo')).toBeTruthy();
+    expect(getByLabelText('common.multiSig')).toBeTruthy();
   });
 
   it('hides the menu button when onMenuPress is omitted (MVP build)', () => {

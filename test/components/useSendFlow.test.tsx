@@ -1,7 +1,8 @@
 import React from 'react';
 import { act, renderHook } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useSendFlow } from '../../src/hooks/useSendFlow';
+
+import { sendErrorKey, useSendFlow } from '../../src/hooks/useSendFlow';
 
 // `useAccount` and `useRefreshBalance` are the only WDK touchpoints the hook
 // has — both are stubbed here so the test never reaches a Bare worklet or a
@@ -9,6 +10,20 @@ import { useSendFlow } from '../../src/hooks/useSendFlow';
 const mockSend = jest.fn();
 const mockEstimateFee = jest.fn();
 const mockRefreshWdkMutate = jest.fn();
+
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) =>
+      ({
+        'send.error.amountPrecision': 'The amount has too many decimal places.',
+        'send.error.amountZero': 'Amount must be greater than zero.',
+        'send.error.feeTooHigh': 'The network fee is too high.',
+        'send.error.generic': 'The transaction could not be sent.',
+        'send.error.insufficientFunds': 'Insufficient balance for this transaction.',
+        'send.error.network': 'The network is unavailable. Try again later.',
+      } as Record<string, string>)[key] ?? key,
+  }),
+}));
 
 jest.mock('@tetherto/wdk-react-native-core', () => ({
   useAccount: jest.fn(() => ({
@@ -27,6 +42,7 @@ const fakeAsset = {
   getId: () => 'usdt-eth',
   getDecimals: () => 6,
 } as unknown as Parameters<ReturnType<typeof useSendFlow>['send']>[0]['asset'];
+const EVM_RECIPIENT = '0x52908400098527886E0F7030069857D2E4169EE7';
 
 function wrap({ children }: { children: React.ReactNode }) {
   const client = new QueryClient({
@@ -48,11 +64,11 @@ describe('useSendFlow', () => {
 
       let txHash: string | null = '';
       await act(async () => {
-        txHash = await result.current.send({ asset: fakeAsset, to: '0xabc', amount: '0' });
+        txHash = await result.current.send({ asset: fakeAsset, to: EVM_RECIPIENT, amount: '0' });
       });
 
       expect(txHash).toBeNull();
-      expect(result.current.error).toBe('Amount must be greater than zero');
+      expect(result.current.error).toBe('Amount must be greater than zero.');
       expect(result.current.txHash).toBeNull();
       expect(mockSend).not.toHaveBeenCalled();
     });
@@ -63,7 +79,7 @@ describe('useSendFlow', () => {
 
       let txHash: string | null = null;
       await act(async () => {
-        txHash = await result.current.send({ asset: fakeAsset, to: '0xabc', amount: '1' });
+        txHash = await result.current.send({ asset: fakeAsset, to: EVM_RECIPIENT, amount: '1' });
       });
 
       expect(txHash).toBe('0xdeadbeef');
@@ -72,7 +88,7 @@ describe('useSendFlow', () => {
       // 1 USDT with 6 decimals → "1000000" in base units.
       expect(mockSend).toHaveBeenCalledWith({
         asset: fakeAsset,
-        to: '0xabc',
+        to: EVM_RECIPIENT,
         amount: '1000000',
       });
       expect(mockRefreshWdkMutate).toHaveBeenCalledWith({ accountIndex: 0, type: 'wallet' });
@@ -84,11 +100,11 @@ describe('useSendFlow', () => {
 
       let txHash: string | null = null;
       await act(async () => {
-        txHash = await result.current.send({ asset: fakeAsset, to: '0xabc', amount: '1' });
+        txHash = await result.current.send({ asset: fakeAsset, to: EVM_RECIPIENT, amount: '1' });
       });
 
       expect(txHash).toBeNull();
-      expect(result.current.error).toBe('insufficient funds');
+      expect(result.current.error).toBe('Insufficient balance for this transaction.');
       expect(result.current.txHash).toBeNull();
       // Refresh must not fire on a failed send — stale-cache fallback
       // is fine; touching the cache would mask the real on-chain state.
@@ -100,23 +116,23 @@ describe('useSendFlow', () => {
       const { result } = renderHook(() => useSendFlow('ethereum'), { wrapper: wrap });
 
       await act(async () => {
-        await result.current.send({ asset: fakeAsset, to: '0xabc', amount: '1' });
+        await result.current.send({ asset: fakeAsset, to: EVM_RECIPIENT, amount: '1' });
       });
 
-      expect(result.current.error).toBe('Transaction failed');
+      expect(result.current.error).toBe('The transaction could not be sent.');
     });
 
-    it('catches a thrown error and exposes its message', async () => {
+    it('maps a thrown network error to the translated network message', async () => {
       mockSend.mockRejectedValueOnce(new Error('network down'));
       const { result } = renderHook(() => useSendFlow('ethereum'), { wrapper: wrap });
 
       let txHash: string | null = '';
       await act(async () => {
-        txHash = await result.current.send({ asset: fakeAsset, to: '0xabc', amount: '1' });
+        txHash = await result.current.send({ asset: fakeAsset, to: EVM_RECIPIENT, amount: '1' });
       });
 
       expect(txHash).toBeNull();
-      expect(result.current.error).toBe('network down');
+      expect(result.current.error).toBe('The network is unavailable. Try again later.');
     });
 
     it('uses a generic message when the thrown value is not an Error instance', async () => {
@@ -124,41 +140,62 @@ describe('useSendFlow', () => {
       const { result } = renderHook(() => useSendFlow('ethereum'), { wrapper: wrap });
 
       await act(async () => {
-        await result.current.send({ asset: fakeAsset, to: '0xabc', amount: '1' });
+        await result.current.send({ asset: fakeAsset, to: EVM_RECIPIENT, amount: '1' });
       });
 
-      expect(result.current.error).toBe('Transaction failed');
+      expect(result.current.error).toBe('The transaction could not be sent.');
     });
 
     it('scales fractional amounts to the asset decimals before handing to WDK', async () => {
       mockSend.mockResolvedValueOnce({ success: true, hash: '0xfeed' });
-      const eighteenDecAsset = { getId: () => 'eth', getDecimals: () => 18 } as unknown as Parameters<
-        typeof result.current.send
-      >[0]['asset'];
+      const eighteenDecAsset = {
+        getId: () => 'eth',
+        getDecimals: () => 18,
+      } as unknown as typeof fakeAsset;
       const { result } = renderHook(() => useSendFlow('ethereum'), { wrapper: wrap });
 
       await act(async () => {
-        await result.current.send({ asset: eighteenDecAsset, to: '0xabc', amount: '0.5' });
+        await result.current.send({
+          asset: eighteenDecAsset,
+          to: EVM_RECIPIENT,
+          amount: '0.5',
+        });
       });
 
       expect(mockSend).toHaveBeenCalledWith({
         asset: eighteenDecAsset,
-        to: '0xabc',
+        to: EVM_RECIPIENT,
         amount: '500000000000000000',
       });
     });
   });
 
+  describe('sendErrorKey', () => {
+    it.each([
+      ['amount must be positive', 'send.error.amountZero'],
+      ['Insufficient funds', 'send.error.insufficientFunds'],
+      ['not enough balance', 'send.error.insufficientFunds'],
+      ['balance too low', 'send.error.insufficientFunds'],
+      ['exceeds balance', 'send.error.insufficientFunds'],
+      ['Failed to fetch balance', 'send.error.network'],
+      ['maximum fee exceeded', 'send.error.feeTooHigh'],
+      ['network timeout', 'send.error.network'],
+      ['unexpected SDK detail', 'send.error.generic'],
+    ])('maps %s to %s', (raw, expected) => {
+      expect(sendErrorKey(raw)).toBe(expected);
+    });
+  });
+
   describe('estimate', () => {
-    it('rejects a zero amount with the amount-zero sentinel', async () => {
+    it('rejects a zero amount with a translated error', async () => {
       const { result } = renderHook(() => useSendFlow('ethereum'), { wrapper: wrap });
 
       let fee: Awaited<ReturnType<typeof result.current.estimate>> | undefined;
       await act(async () => {
-        fee = await result.current.estimate({ asset: fakeAsset, to: '0xabc', amount: '0' });
+        fee = await result.current.estimate({ asset: fakeAsset, to: EVM_RECIPIENT, amount: '0' });
       });
 
-      expect(fee).toEqual({ success: false, error: 'amount-zero' });
+      expect(fee).toEqual({ success: false, error: 'Amount must be greater than zero.' });
       expect(mockEstimateFee).not.toHaveBeenCalled();
     });
 
@@ -168,58 +205,64 @@ describe('useSendFlow', () => {
 
       let fee: Awaited<ReturnType<typeof result.current.estimate>> | undefined;
       await act(async () => {
-        fee = await result.current.estimate({ asset: fakeAsset, to: '0xabc', amount: '1' });
+        fee = await result.current.estimate({ asset: fakeAsset, to: EVM_RECIPIENT, amount: '1' });
       });
 
       expect(fee).toEqual({ success: true, fee: '21000000000000' });
     });
 
-    it('propagates a failure result from estimateFee', async () => {
+    it('translates a failure result from estimateFee', async () => {
       mockEstimateFee.mockResolvedValueOnce({ success: false, error: 'rpc-error' });
       const { result } = renderHook(() => useSendFlow('ethereum'), { wrapper: wrap });
 
       let fee: Awaited<ReturnType<typeof result.current.estimate>> | undefined;
       await act(async () => {
-        fee = await result.current.estimate({ asset: fakeAsset, to: '0xabc', amount: '1' });
+        fee = await result.current.estimate({ asset: fakeAsset, to: EVM_RECIPIENT, amount: '1' });
       });
 
-      expect(fee).toEqual({ success: false, error: 'rpc-error' });
+      expect(fee).toEqual({
+        success: false,
+        error: 'The network is unavailable. Try again later.',
+      });
     });
 
-    it('catches a thrown estimate error', async () => {
+    it('translates a thrown estimate error', async () => {
       mockEstimateFee.mockRejectedValueOnce(new Error('node unreachable'));
       const { result } = renderHook(() => useSendFlow('ethereum'), { wrapper: wrap });
 
       let fee: Awaited<ReturnType<typeof result.current.estimate>> | undefined;
       await act(async () => {
-        fee = await result.current.estimate({ asset: fakeAsset, to: '0xabc', amount: '1' });
+        fee = await result.current.estimate({ asset: fakeAsset, to: EVM_RECIPIENT, amount: '1' });
       });
 
-      expect(fee).toEqual({ success: false, error: 'node unreachable' });
+      expect(fee).toEqual({
+        success: false,
+        error: 'The network is unavailable. Try again later.',
+      });
     });
 
-    it('falls back to "estimate-failed" when the failure result has no error string', async () => {
+    it('falls back to the generic translation when the failure result has no error string', async () => {
       mockEstimateFee.mockResolvedValueOnce({ success: false });
       const { result } = renderHook(() => useSendFlow('ethereum'), { wrapper: wrap });
 
       let fee: Awaited<ReturnType<typeof result.current.estimate>> | undefined;
       await act(async () => {
-        fee = await result.current.estimate({ asset: fakeAsset, to: '0xabc', amount: '1' });
+        fee = await result.current.estimate({ asset: fakeAsset, to: EVM_RECIPIENT, amount: '1' });
       });
 
-      expect(fee).toEqual({ success: false, error: 'estimate-failed' });
+      expect(fee).toEqual({ success: false, error: 'The transaction could not be sent.' });
     });
 
-    it('falls back to "estimate-failed" when the throw value is not an Error instance', async () => {
+    it('falls back to the generic translation when the throw value is not an Error instance', async () => {
       mockEstimateFee.mockRejectedValueOnce('socket reset');
       const { result } = renderHook(() => useSendFlow('ethereum'), { wrapper: wrap });
 
       let fee: Awaited<ReturnType<typeof result.current.estimate>> | undefined;
       await act(async () => {
-        fee = await result.current.estimate({ asset: fakeAsset, to: '0xabc', amount: '1' });
+        fee = await result.current.estimate({ asset: fakeAsset, to: EVM_RECIPIENT, amount: '1' });
       });
 
-      expect(fee).toEqual({ success: false, error: 'estimate-failed' });
+      expect(fee).toEqual({ success: false, error: 'The transaction could not be sent.' });
     });
   });
 
@@ -229,7 +272,7 @@ describe('useSendFlow', () => {
       const { result } = renderHook(() => useSendFlow('ethereum'), { wrapper: wrap });
 
       await act(async () => {
-        await result.current.send({ asset: fakeAsset, to: '0xabc', amount: '1' });
+        await result.current.send({ asset: fakeAsset, to: EVM_RECIPIENT, amount: '1' });
       });
       expect(result.current.txHash).toBe('0xabc');
 

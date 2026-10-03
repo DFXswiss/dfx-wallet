@@ -46,7 +46,7 @@ const ASSETS = [
 ];
 
 /** Serve the public catalogs and delegate everything else to `main`. */
-function routeFetch(main: (url: string, init?: RequestInit) => Response) {
+function routeFetch(main: (url: string, init?: RequestInit) => Response | Promise<Response>) {
   fetchMock.mockImplementation(async (url, init) => {
     if (url === `${BASE}/v1/fiat`) return jsonOk(FIATS);
     if (url === `${BASE}/v1/asset`) return jsonOk(ASSETS);
@@ -58,6 +58,55 @@ const AUTH_HEADERS = {
   'Content-Type': 'application/json',
   Authorization: 'Bearer TEST_TOKEN',
 };
+
+const CATALOG_ABORT_CASES: Array<{
+  name: string;
+  endpoint: string;
+  invoke: (signal: AbortSignal) => Promise<unknown>;
+}> = [
+  {
+    name: 'getBuyQuote',
+    endpoint: '/v1/buy/quote',
+    invoke: (signal) =>
+      dfxPaymentService.getBuyQuote(
+        { amount: 1, currency: 'EUR', asset: 'BTC', blockchain: 'Bitcoin' },
+        { signal },
+      ),
+  },
+  {
+    name: 'createBuyPaymentInfo',
+    endpoint: '/v1/buy/paymentInfos',
+    invoke: (signal) =>
+      dfxPaymentService.createBuyPaymentInfo(
+        { amount: 1, currency: 'EUR', asset: 'BTC', blockchain: 'Bitcoin' },
+        { signal },
+      ),
+  },
+  {
+    name: 'getSellQuote',
+    endpoint: '/v1/sell/quote',
+    invoke: (signal) =>
+      dfxPaymentService.getSellQuote(
+        { amount: 1, currency: 'EUR', asset: 'BTC', blockchain: 'Bitcoin' },
+        { signal },
+      ),
+  },
+  {
+    name: 'createSellPaymentInfo',
+    endpoint: '/v1/sell/paymentInfos',
+    invoke: (signal) =>
+      dfxPaymentService.createSellPaymentInfo(
+        {
+          amount: 1,
+          currency: 'EUR',
+          asset: 'BTC',
+          blockchain: 'Bitcoin',
+          iban: 'CH9300762011623852957',
+        },
+        { signal },
+      ),
+  },
+];
 
 beforeAll(() => {
   globalThis.fetch = fetchMock as unknown as typeof fetch;
@@ -79,6 +128,38 @@ afterEach(() => {
   dfxApi.clearAuthToken();
   dfxAssetService.reset();
   dfxFiatService.reset();
+});
+
+describe('dfxPaymentService catalog aborts', () => {
+  it.each(CATALOG_ABORT_CASES)(
+    '$name aborts before its request when shared catalog resolution is pending',
+    async ({ endpoint, invoke }) => {
+      let resolveFiat!: (response: Response) => void;
+      let resolveAsset!: (response: Response) => void;
+      fetchMock.mockImplementation((url) => {
+        if (url === `${BASE}/v1/fiat`) {
+          return new Promise<Response>((resolve) => {
+            resolveFiat = resolve;
+          });
+        }
+        if (url === `${BASE}/v1/asset`) {
+          return new Promise<Response>((resolve) => {
+            resolveAsset = resolve;
+          });
+        }
+        return Promise.resolve(jsonOk({ isValid: true }));
+      });
+      const controller = new AbortController();
+
+      const request = invoke(controller.signal);
+      controller.abort();
+      resolveFiat(jsonOk(FIATS));
+      resolveAsset(jsonOk(ASSETS));
+
+      await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+      expect(fetchMock.mock.calls.some(([url]) => url === `${BASE}${endpoint}`)).toBe(false);
+    },
+  );
 });
 
 describe('dfxPaymentService buy flow', () => {
@@ -215,16 +296,107 @@ describe('dfxPaymentService buy flow', () => {
     expect(init.body).toBe('{}');
   });
 
-  it('forwards the AbortSignal to the quote request', async () => {
-    routeFetch(() => jsonOk({ isValid: true }));
+  it('aborts the quote request when the caller aborts', async () => {
+    let revealSignal!: (signal: AbortSignal) => void;
+    const signalCaptured = new Promise<AbortSignal>((resolve) => {
+      revealSignal = resolve;
+    });
+    routeFetch(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          if (!signal) {
+            reject(new Error('missing signal'));
+            return;
+          }
+          revealSignal(signal);
+          signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        }),
+    );
     const controller = new AbortController();
 
-    await dfxPaymentService.getBuyQuote(
+    const request = dfxPaymentService.getBuyQuote(
       { amount: 1, currency: 'EUR', asset: 'BTC', blockchain: 'Bitcoin' },
       { signal: controller.signal },
     );
+    const fetchSignal = await signalCaptured;
 
-    expect(findCall(`${BASE}/v1/buy/quote`).signal).toBe(controller.signal);
+    expect(fetchSignal).not.toBe(controller.signal);
+    expect(fetchSignal.aborted).toBe(false);
+    controller.abort();
+    expect(fetchSignal.aborted).toBe(true);
+    await expect(request).rejects.toThrow('aborted');
+  });
+
+  it('lets one caller abort while another caller finishes the shared catalog loads', async () => {
+    let resolveFiat!: (response: Response) => void;
+    let resolveAsset!: (response: Response) => void;
+    fetchMock.mockImplementation((url) => {
+      if (url === `${BASE}/v1/fiat`) {
+        return new Promise<Response>((resolve) => {
+          resolveFiat = resolve;
+        });
+      }
+      if (url === `${BASE}/v1/asset`) {
+        return new Promise<Response>((resolve) => {
+          resolveAsset = resolve;
+        });
+      }
+      return Promise.resolve(jsonOk({ isValid: true }));
+    });
+    const controller = new AbortController();
+
+    const aborted = dfxPaymentService.getBuyQuote(
+      { amount: 1, currency: 'EUR', asset: 'BTC', blockchain: 'Bitcoin' },
+      { signal: controller.signal },
+    );
+    const completed = dfxPaymentService.getBuyQuote({
+      amount: 2,
+      currency: 'EUR',
+      asset: 'BTC',
+      blockchain: 'Bitcoin',
+    });
+    controller.abort();
+
+    await expect(aborted).rejects.toMatchObject({ name: 'AbortError' });
+    resolveFiat(jsonOk(FIATS));
+    resolveAsset(jsonOk(ASSETS));
+    await expect(completed).resolves.toEqual({ isValid: true });
+
+    expect(fetchMock.mock.calls.filter(([url]) => url === `${BASE}/v1/fiat`)).toHaveLength(1);
+    expect(fetchMock.mock.calls.filter(([url]) => url === `${BASE}/v1/asset`)).toHaveLength(1);
+    expect(fetchMock.mock.calls.filter(([url]) => url === `${BASE}/v1/buy/quote`)).toHaveLength(1);
+  });
+
+  it('rejects an already-aborted caller before sending the quote request', async () => {
+    routeFetch(() => jsonOk({ isValid: true }));
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      dfxPaymentService.getBuyQuote(
+        { amount: 1, currency: 'EUR', asset: 'BTC', blockchain: 'Bitcoin' },
+        { signal: controller.signal },
+      ),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(fetchMock.mock.calls.some(([url]) => url === `${BASE}/v1/buy/quote`)).toBe(false);
+  });
+
+  it('propagates a catalog rejection to a waiting caller with an active signal', async () => {
+    fetchMock.mockImplementation(async (url) => {
+      if (url === `${BASE}/v1/fiat`) throw new Error('catalog failed');
+      if (url === `${BASE}/v1/asset`) return jsonOk(ASSETS);
+      return jsonOk({ isValid: true });
+    });
+    const controller = new AbortController();
+
+    await expect(
+      dfxPaymentService.getBuyQuote(
+        { amount: 1, currency: 'EUR', asset: 'BTC', blockchain: 'Bitcoin' },
+        { signal: controller.signal },
+      ),
+    ).rejects.toThrow('catalog failed');
+    expect(fetchMock.mock.calls.some(([url]) => url === `${BASE}/v1/buy/quote`)).toBe(false);
   });
 });
 

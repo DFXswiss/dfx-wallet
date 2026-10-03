@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
 import { useAccount, type IAsset } from '@tetherto/wdk-react-native-core';
+import { useTranslation } from 'react-i18next';
 import type { ChainId } from '@/config/chains';
-import { parseUnits } from '@/config/portfolio-presentation';
+import { hasExcessPrecision, parseUnits } from '@/config/portfolio-presentation';
 import { useRefreshBalances } from '@/services/balances';
 
 type SendState = {
@@ -14,15 +15,31 @@ type SendState = {
  * Hook for sending an asset (native or ERC-20) via the WDK worklet.
  *
  * The send screen surfaces canonical symbols (USD/CHF/EUR/BTC) so the caller
- * resolves the actual `IAsset` (e.g. USDT-on-Polygon) and passes it in. The
- * user-typed display amount ("1", "0.5") is scaled here by the asset's
- * decimals before being handed to WDK, which expects amounts in the asset's
- * smallest unit.
+ * resolves the effective chain and actual `IAsset` (e.g. USDT-on-Polygon)
+ * before passing them in. The user-typed display amount ("1", "0.5") is scaled
+ * here by the asset's decimals before being handed to WDK, which expects
+ * amounts in the asset's smallest unit.
  */
 export type FeeEstimate = { success: true; fee: string } | { success: false; error: string };
 
+export function sendErrorKey(rawError: string | undefined): string {
+  const error = rawError?.toLowerCase() ?? '';
+  if (/insufficient|not enough|exceeds balance|balance too low/.test(error)) {
+    return 'send.error.insufficientFunds';
+  }
+  if (/amount.*(zero|positive|greater)|greater than zero/.test(error)) {
+    return 'send.error.amountZero';
+  }
+  if (/fee.*(high|exceed)|max.*fee/.test(error)) return 'send.error.feeTooHigh';
+  if (/network|timeout|timed out|offline|fetch|socket|rpc|unreachable/.test(error)) {
+    return 'send.error.network';
+  }
+  return 'send.error.generic';
+}
+
 export function useSendFlow(chain: ChainId) {
-  const { send: sendFromAccount, estimateFee } = useAccount({
+  const { t } = useTranslation();
+  const account = useAccount({
     network: chain,
     accountIndex: 0,
   });
@@ -38,21 +55,28 @@ export function useSendFlow(chain: ChainId) {
       setState({ isLoading: true, txHash: null, error: null });
 
       try {
-        const baseAmount = parseUnits(params.amount, params.asset.getDecimals());
+        const decimals = params.asset.getDecimals();
+        if (hasExcessPrecision(params.amount, decimals)) {
+          const msg = t('send.error.amountPrecision');
+          setState({ isLoading: false, txHash: null, error: msg });
+          return null;
+        }
+        const baseAmount = parseUnits(params.amount, decimals);
         if (baseAmount === '0') {
-          const msg = 'Amount must be greater than zero';
+          const msg = t('send.error.amountZero');
           setState({ isLoading: false, txHash: null, error: msg });
           return null;
         }
 
-        const result = await sendFromAccount({
+        const result = await account.send({
           asset: params.asset,
           to: params.to,
           amount: baseAmount,
         });
 
         if (!result.success) {
-          const msg = result.error ?? 'Transaction failed';
+          console.warn('Wallet send failed', result.error);
+          const msg = t(sendErrorKey(result.error));
           setState({ isLoading: false, txHash: null, error: msg });
           return null;
         }
@@ -61,38 +85,47 @@ export function useSendFlow(chain: ChainId) {
         refreshBalances(0);
         return result.hash;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Transaction failed';
+        const rawError = err instanceof Error ? err.message : undefined;
+        console.warn('Wallet send failed', err);
+        const msg = t(sendErrorKey(rawError));
         setState({ isLoading: false, txHash: null, error: msg });
         return null;
       }
     },
-    [sendFromAccount, refreshBalances],
+    [account, refreshBalances, t],
   );
 
   const estimate = useCallback(
     async (params: { asset: IAsset; to: string; amount: string }): Promise<FeeEstimate> => {
       try {
-        const baseAmount = parseUnits(params.amount, params.asset.getDecimals());
-        if (baseAmount === '0') {
-          return { success: false, error: 'amount-zero' };
+        const decimals = params.asset.getDecimals();
+        if (hasExcessPrecision(params.amount, decimals)) {
+          return { success: false, error: t('send.error.amountPrecision') };
         }
-        const result = await estimateFee({
+        const baseAmount = parseUnits(params.amount, decimals);
+        if (baseAmount === '0') {
+          return { success: false, error: t('send.error.amountZero') };
+        }
+        const result = await account.estimateFee({
           asset: params.asset,
           to: params.to,
           amount: baseAmount,
         });
         if (!result.success) {
-          return { success: false, error: result.error ?? 'estimate-failed' };
+          console.warn('Wallet fee estimate failed', result.error);
+          return { success: false, error: t(sendErrorKey(result.error)) };
         }
         return { success: true, fee: result.fee };
       } catch (err) {
+        const rawError = err instanceof Error ? err.message : undefined;
+        console.warn('Wallet fee estimate failed', err);
         return {
           success: false,
-          error: err instanceof Error ? err.message : 'estimate-failed',
+          error: t(sendErrorKey(rawError)),
         };
       }
     },
-    [estimateFee],
+    [account, t],
   );
 
   const reset = useCallback(() => {

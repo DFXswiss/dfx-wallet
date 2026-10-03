@@ -1,5 +1,7 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent, render, within } from '@testing-library/react-native';
+import { Rect } from 'react-native-svg';
+import { darkColors, ThemeProvider, useThemeStore } from '@/theme';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -24,10 +26,14 @@ jest.mock('@/hooks', () => ({
     isAuthenticating: false,
     error: null,
   }),
-  useTotalPortfolioFiat: () => mockPortfolioFiat.current,
+  useTotalPortfolioFiat: () => ({
+    totalFiat: mockPortfolioFiat.current,
+    isIncomplete: mockPortfolioIncomplete.current,
+  }),
 }));
 
 const mockPortfolioFiat = { current: 1234.56 };
+const mockPortfolioIncomplete = { current: false };
 
 jest.mock('react-native-safe-area-context', () => {
   const { View } = jest.requireActual('react-native');
@@ -46,6 +52,9 @@ describe('DashboardScreen', () => {
   beforeEach(() => {
     mockPush.mockReset();
     mockAuthenticate.mockClear();
+    mockPortfolioFiat.current = 1234.56;
+    mockPortfolioIncomplete.current = false;
+    useThemeStore.setState({ mode: 'light' });
     useWalletStore.setState({ selectedCurrency: 'USD' });
     useAuthStore.setState({ isDfxAuthenticated: false });
   });
@@ -59,12 +68,26 @@ describe('DashboardScreen', () => {
   });
 
   it('renders the total balance in the user-selected currency', () => {
-    const { getByText } = render(<DashboardScreen />);
+    const { getByText, queryByText } = render(<DashboardScreen />);
     // splitBalance("1234.56") → whole "1’234" or "1'234", fraction "56".
     // We only assert the dollar symbol and the fraction; the thousands
     // separator is locale-dependent (see portfolio-presentation test).
     expect(getByText('$')).toBeTruthy();
     expect(getByText('.56')).toBeTruthy();
+    expect(queryByText('—')).toBeNull();
+  });
+
+  it('shows a placeholder and hint instead of a partial incomplete total', () => {
+    mockPortfolioIncomplete.current = true;
+    const { getByTestId, getByText, queryByText } = render(<DashboardScreen />);
+    expect(getByText('—')).toBeTruthy();
+    expect(getByText('dashboard.incompleteBalance')).toBeTruthy();
+    expect(queryByText('$')).toBeNull();
+    expect(queryByText('.56')).toBeNull();
+
+    fireEvent.press(getByTestId('dashboard-balance-toggle'));
+    expect(getByText('••••')).toBeTruthy();
+    expect(queryByText('—')).toBeNull();
   });
 
   it('toggles the balance visibility when the eye is pressed', () => {
@@ -96,6 +119,23 @@ describe('DashboardScreen', () => {
     expect(getByTestId('dashboard-action-portfolio')).toBeTruthy();
     expect(getByTestId('dashboard-action-pay')).toBeTruthy();
     expect(getByTestId('dashboard-action-transactions')).toBeTruthy();
+  });
+
+  it('uses on-primary for primary-filled shortcut icons in dark mode', () => {
+    useThemeStore.setState({ mode: 'dark' });
+    const { getByTestId } = render(
+      <ThemeProvider>
+        <DashboardScreen />
+      </ThemeProvider>,
+    );
+
+    const portfolioIcon = within(
+      getByTestId('dashboard-action-portfolio'),
+    ).UNSAFE_getByType(Rect);
+    const payIcons = within(getByTestId('dashboard-action-pay')).UNSAFE_getAllByType(Rect);
+    expect(portfolioIcon.props.stroke).toBe(darkColors.onPrimary);
+    expect(portfolioIcon.props.stroke).not.toBe(darkColors.white);
+    expect(payIcons.every((icon) => icon.props.stroke === darkColors.onPrimary)).toBe(true);
   });
 
   it('triggers DFX silent auth once on mount when the user is not yet authenticated', () => {

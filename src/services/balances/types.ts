@@ -7,7 +7,7 @@ import type { BalanceFetchStrategy } from '@/config/tokens';
  */
 export type BalanceSourceId = BalanceFetchStrategy;
 
-export type BalanceStatus = 'loading' | 'ok' | 'error' | 'idle';
+export type BalanceStatus = 'loading' | 'ok' | 'stale' | 'error' | 'idle';
 
 /**
  * A single asset's balance as observed by one source. Raw integer string at

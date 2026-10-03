@@ -15,7 +15,7 @@
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DfxApiError } from '@/features/dfx-backend/services/api';
+import { DfxApiError, DfxApiTimeoutError } from '@/features/dfx-backend/services/api';
 import { PasskeyPrfUnsupportedError } from '@/features/passkey/services/passkey-service';
 import { OpenCryptoPayError } from '@/services/opencryptopay/opencryptopay-service';
 
@@ -56,7 +56,12 @@ describe('exception surface', () => {
 
     // One entry per typed exception. Adding a new `extends Error` class?
     // Register it below AND add identity tests for it in this file.
-    const registered = ['DfxApiError', 'PasskeyPrfUnsupportedError', 'OpenCryptoPayError'];
+    const registered = [
+      'DfxApiError',
+      'DfxApiTimeoutError',
+      'PasskeyPrfUnsupportedError',
+      'OpenCryptoPayError',
+    ];
 
     expect(declarations).toHaveLength(registered.length);
     for (const cls of registered) {
@@ -85,6 +90,17 @@ describe('exception surface', () => {
     it('routes registration through isRegistrationRequired', () => {
       expect(new DfxApiError(403, 'REGISTRATION_REQUIRED', '').isRegistrationRequired).toBe(true);
       expect(new DfxApiError(403, 'KYC_LEVEL_REQUIRED', '').isRegistrationRequired).toBe(false);
+    });
+  });
+
+  describe('DfxApiTimeoutError', () => {
+    it('keeps its identity and records the configured timeout', () => {
+      const err = new DfxApiTimeoutError(12_345);
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(DfxApiTimeoutError);
+      expect(err.name).toBe('DfxApiTimeoutError');
+      expect(err.message).toBe('DFX API request timed out after 12345 ms');
+      expect(err.timeoutMs).toBe(12_345);
     });
   });
 

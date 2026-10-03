@@ -11,11 +11,11 @@ End-to-end UI tests for DFX Wallet using [Maestro](https://maestro.mobile.dev/).
 
 ## Prerequisites
 
-The wallet ships native modules that are not Expo Go compatible (`react-native-ble-plx`, `react-native-mmkv`, `react-native-nitro-modules`, `bitbox-api`, `@tetherto/wdk-react-native-provider`). Maestro therefore requires an installed dev-client or release build, never Expo Go.
+The wallet ships native modules that are not Expo Go compatible (`react-native-ble-plx`, `react-native-mmkv`, `react-native-nitro-modules`, `bitbox-api`, `@tetherto/wdk-react-native-core`). Maestro therefore requires an installed dev-client or release build, never Expo Go.
 
 - Maestro CLI: `brew tap mobile-dev-inc/tap && brew install maestro` (or `curl -Ls https://get.maestro.mobile.dev | bash`)
-- iOS: Xcode 16+, an iOS Simulator (run `xcrun simctl list devices`), and Facebook IDB (`brew tap facebook/fb && brew install idb-companion`) — required by Maestro to drive the simulator
-- Android: Android SDK with an emulator image (API 34+, x86_64)
+- iOS: Xcode 16, an iOS 18 Simulator (run `xcrun simctl list devices`), and Facebook IDB (`brew tap facebook/fb && brew install idb-companion`) — required by Maestro to drive the simulator
+- Android: Android SDK with API 36 installed (the app targets API 36, minSdk 34) and an x86_64 emulator image at API 34 or higher (CI uses API 34)
 - Built and installed app:
   - iOS: `npx expo run:ios --configuration Release`
   - Android: `npx expo run:android --variant release`
@@ -34,7 +34,7 @@ npm run e2e:maestro:ios
 npm run e2e:maestro:android
 ```
 
-Both scripts run every MVP flow under `.maestro/` (see [MVP vs feature-gated flows](#mvp-vs-feature-gated-flows) below). To run a single flow:
+Both scripts run every flow under `.maestro/` because they do not pass a tag filter. Feature-gated flows therefore need a build with the matching flags enabled and can fail against the default MVP build. See [MVP vs feature-gated flows](#mvp-vs-feature-gated-flows) below. To run a single flow:
 
 ```bash
 maestro test --env APP_ID=wallet.dfx.swiss .maestro/01-welcome.yaml         # iOS
@@ -49,16 +49,19 @@ maestro studio
 
 ## Test Configuration
 
-Flows target a Testnet build of the app. The relevant environment variables are read by `src/config/env.ts` and `src/config/chains.ts` and must be set at **build time** (not at Maestro runtime — they are baked into the JS bundle):
+Flows target a Testnet build of the app. Variables consumed by `src/config/env.ts` and `src/config/chains.ts` must be set at **build time** (not at Maestro runtime — they are baked into the JS bundle). The WDK indexer variables shown below are reserved and are not currently read by the app:
 
 ```bash
 EXPO_PUBLIC_DFX_API_URL=...        # DFX API testnet endpoint
-EXPO_PUBLIC_WDK_INDEXER_URL=...    # WDK indexer endpoint
 EXPO_PUBLIC_ETH_RPC_URL=...        # ETH testnet RPC
 # ... see src/config/chains.ts for the full list
+
+# Reserved for future WDK indexer integration; currently unused by the app
+EXPO_PUBLIC_WDK_INDEXER_URL=
+EXPO_PUBLIC_WDK_INDEXER_API_KEY=
 ```
 
-Set these before `npx expo run:ios` / `npx expo run:android` so the resulting binary points at testnet infrastructure.
+Set the consumed variables before `npx expo run:ios` / `npx expo run:android` so the resulting binary points at testnet infrastructure. The reserved indexer values do not affect the binary.
 
 ### `appId: ${APP_ID}` and platform-specific bundle IDs
 
@@ -200,8 +203,8 @@ Concurrent runs on the same PR cancel each other (`concurrency: cancel-in-progre
 
 ### Build-time configuration
 
-- Public values (DFX API URL, WDK indexer URL, chain RPCs) live in the committed `.env.testnet` at the repo root. Edit that file when the testnet endpoints land.
-- Only the WDK indexer API key is treated as a secret. Set it as a repo **secret** named `E2E_WDK_INDEXER_API_KEY` — the workflow injects it via `env:` so it overrides whatever's in `.env.testnet`.
+- Public values consumed by the app (DFX API URL and chain RPCs) live in the committed `.env.testnet` at the repo root. Edit that file when the testnet endpoints land.
+- The WDK indexer URL and API key entries are reserved for a future integration and are not currently read by the app. The workflows inject the reserved API-key secret, but it has no runtime effect until that integration exists.
 - Both jobs do `cp .env.testnet .env` before the build so Expo's `EXPO_PUBLIC_*` baking sees the right values.
 
-For local runs, do the same: `cp .env.testnet .env && npm run ios` (or `android`). Override the API key by adding a single line `EXPO_PUBLIC_WDK_INDEXER_API_KEY=...` to your `.env` after the copy.
+For local runs, do the same: `cp .env.testnet .env && npm run ios` (or `android`). Setting either reserved WDK indexer variable locally currently has no effect.
