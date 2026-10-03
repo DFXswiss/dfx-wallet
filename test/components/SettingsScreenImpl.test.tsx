@@ -244,7 +244,7 @@ describe('SettingsScreenImpl', () => {
     expect(dfxUserService.updateUser).not.toHaveBeenCalled();
   });
 
-  it('keeps the activated language and syncs DFX when persistence fails', async () => {
+  it('does not sync the language to DFX when persistence fails', async () => {
     useAuthStore.setState({ isDfxAuthenticated: true });
     (secureStorage.set as jest.Mock).mockRejectedValueOnce(new Error('storage unavailable'));
     const { getByTestId } = renderScreen();
@@ -253,9 +253,8 @@ describe('SettingsScreenImpl', () => {
     fireEvent.press(getByTestId('settings-language'));
 
     await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('de'));
-    await waitFor(() =>
-      expect(dfxUserService.updateUser).toHaveBeenCalledWith({ language: { symbol: 'DE' } }),
-    );
+    await waitFor(() => expect(secureStorage.set).toHaveBeenCalled());
+    expect(dfxUserService.updateUser).not.toHaveBeenCalled();
   });
 
   it('does not call DFX when flipping language/currency while logged out', async () => {

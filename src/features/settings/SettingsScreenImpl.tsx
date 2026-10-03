@@ -210,8 +210,8 @@ export default function SettingsScreen() {
           onPress: async () => {
             const next = currentLang === 'DE' ? 'en' : 'de';
             try {
-              await setLanguage(next, i18n);
-              syncLanguageToDfx(next);
+              const persisted = await setLanguage(next, i18n);
+              if (persisted) syncLanguageToDfx(next);
             } catch {
               // Activation failed; keep the current language and remote preference unchanged.
             }

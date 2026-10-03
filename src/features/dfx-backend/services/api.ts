@@ -82,6 +82,8 @@ class DfxApi {
     body?: unknown,
     options?: RequestOptions,
   ): Promise<T> {
+    const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const deadline = Date.now() + timeoutMs;
     const pending = await this.fetch(method, path, body, options);
 
     // Handle 401 — attempt token refresh once
@@ -96,8 +98,19 @@ class DfxApi {
       if (newToken) {
         this.authToken = newToken;
         pending.cleanup();
-        const retryPending = await this.fetch(method, path, body, options);
-        return this.consumeResponse<T>(retryPending, options?.responseType);
+        const remainingTimeoutMs = deadline - Date.now();
+        if (remainingTimeoutMs <= 0) throw new DfxApiTimeoutError(timeoutMs);
+        try {
+          const retryPending = await this.fetch(method, path, body, {
+            ...options,
+            timeoutMs: remainingTimeoutMs,
+          });
+          return await this.consumeResponse<T>(retryPending, options?.responseType);
+        } catch (error) {
+          // Report the original request budget, not the retry's remaining slice.
+          if (error instanceof DfxApiTimeoutError) throw new DfxApiTimeoutError(timeoutMs);
+          throw error;
+        }
       }
     }
 

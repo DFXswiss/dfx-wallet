@@ -1,5 +1,7 @@
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
+import { bech32, bech32m } from 'bech32';
+import bs58check from 'bs58check';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -69,14 +71,33 @@ jest.mock('react-native-safe-area-context', () => {
 
 import SendScreen from '../../app/(auth)/send/index';
 
-// eslint-disable-next-line no-secrets/no-secrets -- public Bitcoin test vector, not a credential
-const RECIPIENT = 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
-const SPARK_RECIPIENT = `spark1${'q'.repeat(40)}`;
+// eslint-disable-next-line no-secrets/no-secrets -- public BIP-173 test vector, not a credential
+const RECIPIENT = 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4';
+const SPARK_PAYLOAD = new Uint8Array(33).map((_, index) => index);
+const SPARK_RECIPIENT = bech32m.encode('spark', bech32m.toWords(SPARK_PAYLOAD), 1023);
+ 
+const EVM_RECIPIENT = '0x52908400098527886E0F7030069857D2E4169EE7';
+const LOWERCASE_EVM_RECIPIENT = EVM_RECIPIENT.toLowerCase();
+const WRONG_CHECKSUM_EVM_RECIPIENT = `${EVM_RECIPIENT.slice(0, -2)}e7`;
+const TESTNET_BECH32_RECIPIENT = bech32.encode('tb', [
+  0,
+  ...bech32.toWords(new Uint8Array(20)),
+]);
+const TESTNET_P2PKH_M_RECIPIENT = bs58check.encode(
+  Uint8Array.from([0x6f, ...new Uint8Array(20)]),
+);
+const TESTNET_P2PKH_N_RECIPIENT = bs58check.encode(
+  Uint8Array.from([0x6f, ...new Uint8Array(20).fill(0xff)]),
+);
+const TESTNET_P2SH_RECIPIENT = bs58check.encode(
+  Uint8Array.from([0xc4, ...new Uint8Array(20)]),
+);
 
 function fillRecipientAndAmount(
   getByPlaceholderText: ReturnType<typeof render>['getByPlaceholderText'],
+  recipient = RECIPIENT,
 ) {
-  fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), RECIPIENT);
+  fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), recipient);
   fireEvent.changeText(getByPlaceholderText('0.00'), '1');
 }
 
@@ -137,12 +158,21 @@ describe('SendScreen', () => {
       expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).not.toBe(true);
     });
 
+    it('keeps Continue disabled for a checksum-mutated mainnet BTC recipient', () => {
+      const invalidRecipient = `${RECIPIENT.slice(0, -1)}q`;
+      const { getByPlaceholderText, getByTestId, getByText } = render(<SendScreen />);
+      fireEvent.press(getByText('BTC'));
+      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), invalidRecipient);
+      fireEvent.changeText(getByPlaceholderText('0.00'), '1');
+
+      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).toBe(true);
+    });
+
     it.each([
-      'tb1qfm7d7yv7l4ye7z2k4v3j6u7s2f2z8x5v2w5q4p',
-      // eslint-disable-next-line no-secrets/no-secrets -- public Bitcoin test vector, not a credential
-      'mipcBbFg9gMiCh81Kj8tqqdgoZub1ZJRfn',
-      'n2eMqTT929pb1RDNuqEnxdaLau1rxy3efi',
-      '2N2JD6wb56AfK4tfmM6PwdVmoYk2dCKf4Br',
+      TESTNET_BECH32_RECIPIENT,
+      TESTNET_P2PKH_M_RECIPIENT,
+      TESTNET_P2PKH_N_RECIPIENT,
+      TESTNET_P2SH_RECIPIENT,
     ])('keeps Continue disabled for testnet BTC recipient %s', (address) => {
       const { getByPlaceholderText, getByTestId, getByText } = render(<SendScreen />);
       fireEvent.press(getByText('BTC'));
@@ -154,10 +184,36 @@ describe('SendScreen', () => {
       expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).not.toBe(true);
     });
 
+    it.each([
+      ['checksummed', EVM_RECIPIENT],
+      ['lowercase', LOWERCASE_EVM_RECIPIENT],
+    ])('enables Continue for a valid %s EVM recipient', (_label, address) => {
+      const { getAllByText, getByPlaceholderText, getByTestId } = render(<SendScreen />);
+       
+      fireEvent.press(getAllByText('CHF')[0]!);
+      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), address);
+      fireEvent.changeText(getByPlaceholderText('0.00'), '1');
+
+      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).not.toBe(true);
+    });
+
+    it.each([
+      ['wrong-checksum mixed-case', WRONG_CHECKSUM_EVM_RECIPIENT],
+      ['too short', '0x1234'],
+    ])('keeps Continue disabled for a %s EVM recipient', (_label, address) => {
+      const { getAllByText, getByPlaceholderText, getByTestId } = render(<SendScreen />);
+       
+      fireEvent.press(getAllByText('CHF')[0]!);
+      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), address);
+      fireEvent.changeText(getByPlaceholderText('0.00'), '1');
+
+      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).toBe(true);
+    });
+
     it('renders the chain bar with multiple chains when the asset has >1 chain', () => {
       const { getAllByText, getByText } = render(<SendScreen />);
       // CHF has 4 EVM chains — picking it should render the chain bar.
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+       
       fireEvent.press(getAllByText('CHF')[0]!);
       expect(getByText('Ethereum')).toBeTruthy();
       expect(getByText('Arbitrum')).toBeTruthy();
@@ -167,7 +223,7 @@ describe('SendScreen', () => {
 
     it('switches the selected chain when a different chip is pressed', () => {
       const { getAllByText, getByText } = render(<SendScreen />);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+       
       fireEvent.press(getAllByText('CHF')[0]!);
       // Default is the first chain (Ethereum). Tap Polygon — the chain
       // switches but stays in the input step.
@@ -256,9 +312,9 @@ describe('SendScreen', () => {
       );
       // CHF has a paymaster — the fee row actually renders.
       // CHF has 2 occurrences (symbol + label) — press the first.
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+       
       fireEvent.press(getAllByText('CHF')[0]!);
-      fillRecipientAndAmount(getByPlaceholderText);
+      fillRecipientAndAmount(getByPlaceholderText, EVM_RECIPIENT);
       await act(async () => {
         fireEvent.press(getByText('common.continue'));
       });
@@ -276,9 +332,9 @@ describe('SendScreen', () => {
     it('renders the irreversibility warning + confirm + cancel CTAs', async () => {
       const { getByText, getByPlaceholderText, findByText, getAllByText } = render(<SendScreen />);
       // CHF has 2 occurrences (symbol + label) — press the first.
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+       
       fireEvent.press(getAllByText('CHF')[0]!);
-      fillRecipientAndAmount(getByPlaceholderText);
+      fillRecipientAndAmount(getByPlaceholderText, EVM_RECIPIENT);
       await act(async () => {
         fireEvent.press(getByText('common.continue'));
       });
@@ -395,17 +451,6 @@ describe('SendScreen', () => {
   });
 
   describe('QR scanner integration', () => {
-    it('strips the ethereum:/bitcoin: prefix and the query string from a scanned URI', () => {
-      // The handler is wired inside the JSX; with the QrScanner stubbed
-      // out we can't dispatch a real scan event. We assert the behavior
-      // documented in the comment by reading the source-level helper —
-      // the same trim-pattern is exercised inside the screen module
-      // when a scanned payload comes in.
-      const sample = 'ethereum:0xabc?amount=1';
-      const stripped = sample.replace(/^(ethereum|bitcoin):/, '').split('?')[0];
-      expect(stripped).toBe('0xabc');
-    });
-
     it('a scanned URI populates the recipient field (onScan handler is wired)', () => {
       const { getByText, getByPlaceholderText } = render(<SendScreen />);
       fireEvent.press(getByText('BTC'));
@@ -414,12 +459,12 @@ describe('SendScreen', () => {
       // pipe the bare address into the recipient state.
       expect(qrScannerProps.onScan).not.toBeNull();
       act(() => {
-        qrScannerProps.onScan!('ethereum:0xCAFEBABE?amount=1');
+        qrScannerProps.onScan!(`ethereum:${EVM_RECIPIENT}?amount=1`);
       });
       expect(
         (getByPlaceholderText('send.addressPlaceholder') as unknown as { props: { value: string } })
           .props.value,
-      ).toBe('0xCAFEBABE');
+      ).toBe(EVM_RECIPIENT);
     });
 
     it('the scanner onClose handler closes the scanner', () => {

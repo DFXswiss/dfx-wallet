@@ -8,10 +8,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
+import { Stack, useRouter } from 'expo-router';
+import { isAddress } from 'ethers';
+import { useTranslation } from 'react-i18next';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { AppHeader, DarkBackdrop, Icon, PrimaryButton, ShortcutAction } from '@/components';
 import { QrScanner } from '@/components/QrScanner';
 import { useSendFlow } from '@/hooks';
@@ -106,7 +108,7 @@ export default function SendScreen() {
   const isValidAddress =
     selectedAsset?.symbol === 'BTC'
       ? isBitcoinOnChainAddress(normalizedRecipient) || isSparkMainnetAddress(normalizedRecipient)
-      : normalizedRecipient.length >= 26;
+      : isAddress(normalizedRecipient);
 
   const handleAssetSelect = (asset: AssetOption) => {
     setSelectedAsset(asset);
