@@ -2,6 +2,8 @@ import React from 'react';
 import { ActivityIndicator, Modal, TextInput } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { ReauthPinModal, type ReauthPinModalProps } from '@/components/ReauthPinModal';
+import de from '@/i18n/locales/de.json';
+import en from '@/i18n/locales/en.json';
 import { useAuthStore } from '@/store/auth';
 
 jest.mock('react-i18next', () => ({
@@ -23,6 +25,11 @@ function createProps(overrides: Partial<ReauthPinModalProps> = {}): ReauthPinMod
 describe('ReauthPinModal', () => {
   beforeEach(() => {
     useAuthStore.setState({ pinHash: 'pin$argon2id$current' });
+  });
+
+  it('describes reauthentication without requiring a six-digit PIN', () => {
+    expect(en.reauth.description).toBe('Confirm your identity with your PIN.');
+    expect(de.reauth.description).toBe('Bestätige deine Identität mit deiner PIN.');
   });
 
   it('accepts exactly six numeric digits, submits them, and clears the input', () => {

@@ -40,6 +40,7 @@ const dfxModule: {
 type AuthState = {
   isOnboarded: boolean;
   isAuthenticated: boolean;
+  sessionEpoch: number;
   isDfxAuthenticated: boolean;
   biometricEnabled: boolean;
   pinHash: string | null;
@@ -53,14 +54,10 @@ type AuthState = {
   setAuthenticated: (value: boolean) => void;
   setDfxAuthenticated: (value: boolean) => void;
   setPin: (pin: string) => Promise<void>;
-  verifyPin: (pin: string, options?: VerifyPinOptions) => Promise<boolean>;
+  verifyPin: (pin: string) => Promise<boolean>;
   authenticateBiometric: (options: BiometricPromptOptions) => Promise<boolean>;
   setBiometricEnabled: (enabled: boolean) => Promise<void>;
   reset: () => Promise<void>;
-};
-
-type VerifyPinOptions = {
-  recordFailure?: boolean;
 };
 
 export type BiometricPromptOptions = {
@@ -75,7 +72,7 @@ export class PinOverwriteNotAllowedError extends Error {
   }
 }
 
-const FIRST_LOCKOUT_ATTEMPT = 5;
+export const FIRST_LOCKOUT_ATTEMPT = 5;
 const INITIAL_LOCKOUT_MS = 30_000;
 const MAX_LOCKOUT_MS = 60 * 60 * 1000;
 
@@ -110,6 +107,7 @@ const BIOMETRIC_KEY = 'biometricEnabled';
 export const useAuthStore = create<AuthState>((set, get) => ({
   isOnboarded: false,
   isAuthenticated: false,
+  sessionEpoch: 0,
   isDfxAuthenticated: false,
   biometricEnabled: false,
   pinHash: null,
@@ -130,6 +128,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           secureStorage.get(StorageKeys.PIN_FAILED_ATTEMPTS),
           secureStorage.get(StorageKeys.PIN_LOCKED_UNTIL),
         ]);
+
+      const parsedFailedAttempts = failedAttempts === null ? 0 : Number(failedAttempts);
+      const hasValidFailedAttempts =
+        Number.isSafeInteger(parsedFailedAttempts) && parsedFailedAttempts >= 0;
+      const hydratedFailedAttempts = hasValidFailedAttempts
+        ? parsedFailedAttempts
+        : FIRST_LOCKOUT_ATTEMPT;
+      const parsedLockedUntil = lockedUntil === null ? null : Number(lockedUntil);
+      let hydratedLockedUntil: number | null = null;
+      if (!hasValidFailedAttempts) {
+        hydratedLockedUntil = Date.now() + pinLockoutMs(hydratedFailedAttempts);
+      } else if (
+        parsedLockedUntil !== null &&
+        Number.isSafeInteger(parsedLockedUntil) &&
+        parsedLockedUntil > 0
+      ) {
+        hydratedLockedUntil = parsedLockedUntil;
+      }
 
       // Re-arm both the API client and the auth service with the persisted
       // token so authenticated requests work after a cold start, and so the
@@ -152,8 +168,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isOnboarded: isOnboarded === 'true',
         isDfxAuthenticated: dfxToken !== null,
         biometricEnabled: biometric === 'true',
-        failedAttempts: failedAttempts ? Number(failedAttempts) : 0,
-        lockedUntil: lockedUntil ? Number(lockedUntil) : null,
+        failedAttempts: hydratedFailedAttempts,
+        lockedUntil: hydratedLockedUntil,
         isHydrated: true,
         hydrateError: null,
       });
@@ -170,7 +186,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isOnboarded: value });
   },
 
-  setAuthenticated: (value) => set({ isAuthenticated: value }),
+  setAuthenticated: (value) =>
+    set((state) => ({
+      isAuthenticated: value,
+      sessionEpoch: state.isAuthenticated && !value ? state.sessionEpoch + 1 : state.sessionEpoch,
+    })),
   setDfxAuthenticated: (value) => set({ isDfxAuthenticated: value }),
 
   setPin: async (pin) => {
@@ -181,14 +201,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ pinHash: hash });
   },
 
-  verifyPin: async (pin, { recordFailure = true } = {}) => {
-    const { pinHash, failedAttempts, lockedUntil } = get();
+  verifyPin: async (pin) => {
+    const { pinHash, lockedUntil } = get();
     if (!pinHash) return false;
     if (lockedUntil && lockedUntil > Date.now()) return false;
     const ok = await verifyPinHash(pin, pinHash);
     if (!ok) {
-      if (!recordFailure) return false;
-      const nextAttempts = failedAttempts + 1;
+      const nextAttempts = get().failedAttempts + 1;
       const lockoutMs = pinLockoutMs(nextAttempts);
       const nextLockedUntil = lockoutMs > 0 ? Date.now() + lockoutMs : null;
       set({ failedAttempts: nextAttempts, lockedUntil: nextLockedUntil });
@@ -244,6 +263,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   reset: async () => {
+    set((state) => ({ sessionEpoch: state.sessionEpoch + 1 }));
     const cleanupTasks: (() => void | Promise<void>)[] = [
       () => secureStorage.remove(StorageKeys.ACCOUNTS),
       () => secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS),
