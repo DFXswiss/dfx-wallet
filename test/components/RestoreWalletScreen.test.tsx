@@ -1,8 +1,15 @@
 import { Alert } from 'react-native';
-import { act, fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import de from '@/i18n/locales/de.json';
 import en from '@/i18n/locales/en.json';
+
+const mockPreventScreenCapture = jest.fn<Promise<void>, [string?]>();
+const mockAllowScreenCapture = jest.fn<Promise<void>, [string?]>();
+jest.mock('expo-screen-capture', () => ({
+  preventScreenCaptureAsync: (key?: string) => mockPreventScreenCapture(key),
+  allowScreenCaptureAsync: (key?: string) => mockAllowScreenCapture(key),
+}));
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -68,11 +75,44 @@ describe('RestoreWalletScreen', () => {
     mockResetAuth.mockResolvedValue(undefined);
     mockRestoreWallet.mockResolvedValue('default');
     mockDeleteWallet.mockResolvedValue(undefined);
+    mockPreventScreenCapture.mockReset();
+    mockAllowScreenCapture.mockReset();
+    mockPreventScreenCapture.mockResolvedValue(undefined);
+    mockAllowScreenCapture.mockResolvedValue(undefined);
     jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  // Red mutation: remove the protection hook call; native protection is never requested.
+  it('activates mnemonic screen-capture protection on mount', async () => {
+    render(<RestoreWalletScreen />);
+
+    await waitFor(() =>
+      expect(mockPreventScreenCapture).toHaveBeenCalledWith('restore-wallet-mnemonic'),
+    );
+  });
+
+  // Red mutation: disable the hook cleanup; native protection is not released on unmount.
+  it('releases mnemonic screen-capture protection on unmount', async () => {
+    const view = render(<RestoreWalletScreen />);
+    await waitFor(() => expect(mockPreventScreenCapture).toHaveBeenCalled());
+
+    view.unmount();
+
+    await waitFor(() =>
+      expect(mockAllowScreenCapture).toHaveBeenCalledWith('restore-wallet-mnemonic'),
+    );
+  });
+
+  // Red mutation: remove the unavailable-state warning from the screen.
+  it('warns when mnemonic screen-capture protection is unavailable', async () => {
+    mockPreventScreenCapture.mockRejectedValueOnce(new Error('native failure'));
+    const { getByText } = render(<RestoreWalletScreen />);
+
+    await waitFor(() => expect(getByText('common.screenCaptureUnavailable')).toBeTruthy());
   });
 
   it('keeps the continue CTA inert until a valid seed phrase is entered', async () => {

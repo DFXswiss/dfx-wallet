@@ -1,8 +1,16 @@
 import { dfxAuthService } from '@/features/dfx-backend/services';
+import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
 
 export const LOCAL_SESSION_ENDED_MESSAGE = 'Local wallet session ended during DFX authentication';
+
+export function isLocalSessionEndedError(error: unknown): boolean {
+  return (
+    error instanceof DfxAuthFlowInvalidatedError ||
+    (error instanceof Error && error.message === LOCAL_SESSION_ENDED_MESSAGE)
+  );
+}
 
 export type DfxSessionGuard = {
   /** Throws after cleaning up only this flow's DFX auth when the local session ended or changed. */
