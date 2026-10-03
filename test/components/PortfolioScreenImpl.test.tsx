@@ -9,6 +9,7 @@ import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { ThemeProvider, useThemeStore } from '@/theme';
 import { useAuthStore, useWalletStore } from '@/store';
 import { getAssets } from '@/config/tokens';
+import { GlassCard } from '@/components';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -223,9 +224,12 @@ describe('PortfolioScreenImpl', () => {
       [ZCHF_ETH_ID]: '0',
       [ETH_NATIVE_ID]: '1000000000000000000',
     });
-    const { getByTestId } = renderScreen();
+    const { getByTestId, UNSAFE_getAllByType } = renderScreen();
     await waitFor(() => expect(getByTestId('portfolio-asset-BTC')).toBeTruthy());
     expect(getByTestId('portfolio-asset-USD')).toBeTruthy();
+    // Every asset card renders on the shared glass module instead of a
+    // one-off opaque card (JK: "alle Karten ... müssen Glas design haben").
+    expect(UNSAFE_getAllByType(GlassCard).length).toBeGreaterThan(0);
 
     fireEvent.press(getByTestId('portfolio-asset-BTC'));
     expect(mockPush).toHaveBeenCalledWith({

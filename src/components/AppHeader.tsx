@@ -1,6 +1,8 @@
 import { ReactNode, useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { GlassIconButton } from './GlassIconButton';
+import { GlassSurface } from './GlassSurface';
 import { Icon } from './Icon';
 import { Header, Typography, useColors, type ThemeColors } from '@/theme';
 
@@ -57,16 +59,13 @@ export function AppHeader({
     <View style={styles.sideSlot} pointerEvents="none" />
   ) : (
     <View style={styles.sideSlot}>
-      <Pressable
+      <GlassIconButton
+        icon={<Icon name="arrow-left" size={26} color={colors.text} />}
         onPress={handleBack}
-        hitSlop={12}
-        style={[styles.iconSlot, styles.iconButton]}
-        accessibilityRole="button"
+        size={Header.slotSize}
         accessibilityLabel="Back"
-        testID={testID ? `${testID}-back` : undefined}
-      >
-        <Icon name="arrow-left" size={26} color={colors.text} />
-      </Pressable>
+        {...(testID ? { testID: `${testID}-back` } : {})}
+      />
     </View>
   );
 
@@ -75,7 +74,9 @@ export function AppHeader({
       {rightActionPlain ? (
         rightAction
       ) : (
-        <View style={[styles.iconSlot, styles.iconButton]}>{rightAction}</View>
+        <GlassSurface variant="quiet" radius={Header.slotRadius} style={styles.iconSlot}>
+          {rightAction}
+        </GlassSurface>
       )}
     </View>
   ) : (
@@ -117,12 +118,6 @@ const makeStyles = (colors: ThemeColors) =>
       height: Header.slotSize,
       alignItems: 'center',
       justifyContent: 'center',
-    },
-    iconButton: {
-      borderRadius: Header.slotRadius,
-      backgroundColor: colors.cardOverlay,
-      borderWidth: 1,
-      borderColor: colors.cardOverlayBorder,
     },
     title: {
       flexShrink: 1,

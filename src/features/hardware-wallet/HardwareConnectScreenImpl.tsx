@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader, DfxBackgroundScreen, PrimaryButton } from '@/components';
+import {
+  AppHeader,
+  DfxBackgroundScreen,
+  GlassCard,
+  GlassListGroup,
+  PrimaryButton,
+} from '@/components';
 import { BitboxProvider, BitboxWasmWebView } from './services';
 import type { HardwareWalletDevice } from './services';
 import { useHardwareWalletStore } from './store';
@@ -60,9 +66,9 @@ export default function HardwareConnectScreen() {
         <AppHeader title={t('hardware.connect')} onBack={() => router.back()} testID="hardware" />
 
         <View style={styles.body}>
-          <View style={styles.illustration}>
+          <GlassCard style={styles.illustration} testID="hardware-illustration-card">
             <Text style={styles.illustrationText}>BitBox02</Text>
-          </View>
+          </GlassCard>
 
           <View style={styles.statusContainer}>
             {status === 'scanning' && <ActivityIndicator color={colors.primary} />}
@@ -94,11 +100,12 @@ export default function HardwareConnectScreen() {
           )}
 
           {devices.length > 0 && status === 'detected' && (
-            <View style={styles.deviceList}>
-              {devices.map((dev) => (
-                <Pressable
+            <GlassListGroup style={styles.deviceList} testID="hardware-device-list">
+              {devices.map((dev, idx) => (
+                <GlassListGroup.Row
                   key={dev.id}
                   style={styles.deviceItem}
+                  last={idx === devices.length - 1}
                   onPress={() => handleConnect(dev)}
                 >
                   <View style={styles.deviceInfo}>
@@ -113,9 +120,9 @@ export default function HardwareConnectScreen() {
                     </View>
                   </View>
                   <Text style={styles.connectText}>{t('hardware.deviceConnect')}</Text>
-                </Pressable>
+                </GlassListGroup.Row>
               ))}
-            </View>
+            </GlassListGroup>
           )}
 
           {status === 'verifying' && <Text style={styles.hint}>{t('hardware.pairingHint')}</Text>}
@@ -174,10 +181,6 @@ const makeStyles = (colors: ThemeColors) =>
     illustration: {
       width: 200,
       height: 120,
-      borderRadius: 12,
-      backgroundColor: colors.surfaceLight,
-      borderWidth: 1,
-      borderColor: colors.border,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -239,11 +242,6 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      padding: 16,
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
     },
     deviceInfo: {
       flexDirection: 'row',

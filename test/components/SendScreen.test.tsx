@@ -63,7 +63,12 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 
+// eslint-disable-next-line import/first
 import SendScreen from '../../app/(auth)/send/index';
+// eslint-disable-next-line import/first
+import { GlassListGroup } from '../../src/components/GlassListGroup';
+// eslint-disable-next-line import/first
+import { GlassSurface } from '../../src/components/GlassSurface';
 
 const RECIPIENT = '0x1234567890123456789012345678901234567890';
 
@@ -89,18 +94,25 @@ describe('SendScreen', () => {
 
   describe('asset step', () => {
     it('renders the asset picker with the static SEND_ASSETS list', () => {
-      const { getAllByText, getByText, getByTestId } = render(<SendScreen />);
+      // The row title is the bare symbol; the subtitle is the i18n full name
+      // (`transfer.assetName.<SYMBOL>`), which the mocked `t()` above returns
+      // as the raw key instead of the translated string.
+      const { getByText, getByTestId } = render(<SendScreen />);
       expect(getByTestId('send-screen')).toBeTruthy();
       expect(getByText('BTC')).toBeTruthy();
-      expect(getByText('Bitcoin')).toBeTruthy();
-      expect(getAllByText('CHF').length).toBeGreaterThanOrEqual(1);
-      expect(getAllByText('USD').length).toBeGreaterThanOrEqual(1);
-      expect(getByText('Euro')).toBeTruthy();
+      expect(getByText('transfer.assetName.BTC')).toBeTruthy();
+      expect(getByText('CHF')).toBeTruthy();
+      expect(getByText('transfer.assetName.CHF')).toBeTruthy();
+      expect(getByText('EUR')).toBeTruthy();
+      expect(getByText('transfer.assetName.EUR')).toBeTruthy();
+      expect(getByText('USD')).toBeTruthy();
+      expect(getByText('transfer.assetName.USD')).toBeTruthy();
     });
 
-    it('shows the "sell to bank" affordance when FEATURES.BUY_SELL is on', () => {
-      const { getByTestId } = render(<SendScreen />);
+    it('shows the "sell to bank" affordance with its label when FEATURES.BUY_SELL is on', () => {
+      const { getByTestId, getByText } = render(<SendScreen />);
       expect(getByTestId('send-destination-bank')).toBeTruthy();
+      expect(getByText('send.sendToBank')).toBeTruthy();
     });
 
     it('navigates to the sell screen when the bank-send affordance is pressed', () => {
@@ -109,21 +121,28 @@ describe('SendScreen', () => {
       expect(mockPush).toHaveBeenCalledWith('/(auth)/sell');
     });
 
-    it('switches to the input step after picking BTC', () => {
-      const { getByText, queryByText } = render(<SendScreen />);
+    it('renders the asset list on a glass list surface', () => {
+      // Assets moved from individual `GlassCard`s to rows in one shared
+      // `GlassListGroup` (`AssetPickerStep`).
+      const { UNSAFE_queryAllByType } = render(<SendScreen />);
+      expect(UNSAFE_queryAllByType(GlassListGroup).length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('switches to the input step after tapping the BTC asset row', () => {
+      const { getByText, getByTestId, queryByText } = render(<SendScreen />);
       expect(getByText('send.sendToCrypto')).toBeTruthy();
-      fireEvent.press(getByText('BTC'));
+      fireEvent.press(getByTestId('send-asset-btc'));
       expect(queryByText('send.sendToCrypto')).toBeNull();
+      expect(getByTestId('send-input-step')).toBeTruthy();
       expect(getByText('common.continue')).toBeTruthy();
     });
   });
 
   describe('input step', () => {
     it('renders the chain bar with multiple chains when the asset has >1 chain', () => {
-      const { getAllByText, getByText } = render(<SendScreen />);
+      const { getByText } = render(<SendScreen />);
       // CHF has 4 EVM chains — picking it should render the chain bar.
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      fireEvent.press(getAllByText('CHF')[0]!);
+      fireEvent.press(getByText('CHF'));
       expect(getByText('Ethereum')).toBeTruthy();
       expect(getByText('Arbitrum')).toBeTruthy();
       expect(getByText('Polygon')).toBeTruthy();
@@ -131,9 +150,8 @@ describe('SendScreen', () => {
     });
 
     it('switches the selected chain when a different chip is pressed', () => {
-      const { getAllByText, getByText } = render(<SendScreen />);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      fireEvent.press(getAllByText('CHF')[0]!);
+      const { getByText } = render(<SendScreen />);
+      fireEvent.press(getByText('CHF'));
       // Default is the first chain (Ethereum). Tap Polygon — the chain
       // switches but stays in the input step.
       fireEvent.press(getByText('Polygon'));
@@ -177,11 +195,11 @@ describe('SendScreen', () => {
 
     it('shows the "fee unavailable" copy when the estimate fails', async () => {
       mockEstimate.mockResolvedValueOnce({ success: false, error: 'rpc-error' });
-      const { getByText, getByPlaceholderText, findByText, getAllByText } = render(<SendScreen />);
-      // CHF has a paymaster — the fee row actually renders.
-      // CHF has 2 occurrences (symbol + label) — press the first.
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      fireEvent.press(getAllByText('CHF')[0]!);
+      const { getByText, getByPlaceholderText, findByText } = render(<SendScreen />);
+      // CHF has a paymaster — the fee row actually renders. Its row title
+      // ("CHF") is the only place that literal string renders now — the
+      // i18n full name (`transfer.assetName.CHF`) is a separate string.
+      fireEvent.press(getByText('CHF'));
       fillRecipientAndAmount(getByPlaceholderText);
       await act(async () => {
         fireEvent.press(getByText('common.continue'));
@@ -190,10 +208,8 @@ describe('SendScreen', () => {
     });
 
     it('renders the irreversibility warning + confirm + cancel CTAs', async () => {
-      const { getByText, getByPlaceholderText, findByText, getAllByText } = render(<SendScreen />);
-      // CHF has 2 occurrences (symbol + label) — press the first.
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      fireEvent.press(getAllByText('CHF')[0]!);
+      const { getByText, getByPlaceholderText, findByText } = render(<SendScreen />);
+      fireEvent.press(getByText('CHF'));
       fillRecipientAndAmount(getByPlaceholderText);
       await act(async () => {
         fireEvent.press(getByText('common.continue'));
@@ -368,20 +384,19 @@ describe('SendScreen', () => {
   });
 
   describe('pressed-state style branches', () => {
-    it('exercises every function-style Pressable with pressed=true', () => {
-      const { UNSAFE_root } = render(<SendScreen />);
-      let invoked = 0;
-      const walk = (node: { props?: { style?: unknown }; children?: unknown[] }) => {
-        if (typeof node.props?.style === 'function') {
-          node.props.style({ pressed: true });
-          invoked += 1;
-        }
-        for (const child of node.children ?? []) {
-          if (typeof child === 'object' && child) walk(child as typeof node);
-        }
-      };
-      walk(UNSAFE_root);
-      expect(invoked).toBeGreaterThanOrEqual(2);
+    it('drives the pressed "lead" feedback on the bank-destination card', () => {
+      // The bank-destination card is still a `GlassCard onPress` — press
+      // feedback is real `onPressIn`/`onPressOut` state inside `GlassCard`.
+      const { getByTestId } = render(<SendScreen />);
+      const id = 'send-destination-bank';
+      const surfaceAtRest = getByTestId(id).findByType(GlassSurface);
+      expect(surfaceAtRest.props.variant).not.toBe('lead');
+
+      fireEvent(getByTestId(id), 'pressIn');
+      expect(getByTestId(id).findByType(GlassSurface).props.variant).toBe('lead');
+
+      fireEvent(getByTestId(id), 'pressOut');
+      expect(getByTestId(id).findByType(GlassSurface).props.variant).not.toBe('lead');
     });
   });
 

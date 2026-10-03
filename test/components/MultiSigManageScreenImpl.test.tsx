@@ -1,7 +1,7 @@
 import React from 'react';
-import { Alert } from 'react-native';
+import { Alert, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
-import { ThemeProvider, useThemeStore } from '@/theme';
+import { Card, ThemeProvider, useThemeStore } from '@/theme';
 
 jest.mock('react-native-mmkv', () => {
   const store = new Map<string, string>();
@@ -51,7 +51,7 @@ jest.mock('@/components', () => {
   return {
     ...actual,
     Icon: ({ name }: { name: string }) => ReactActual.createElement(Text, null, name),
-    DarkBackdrop: () => ReactActual.createElement(View, { testID: 'dark-backdrop' }),
+    ScreenBackdrop: () => ReactActual.createElement(View, { testID: 'screen-backdrop' }),
     PrimaryButton: ({
       title,
       onPress,
@@ -133,6 +133,17 @@ describe('MultiSigManageScreenImpl', () => {
     expect(getByText(SHORT)).toBeTruthy();
   });
 
+  it('renders the vault and summary cards as GlassCard (theme Card.radius, not a hardcoded value)', () => {
+    useMultiSigStore.setState({ vaults: [VAULT] });
+    const { getByTestId } = renderScreen();
+    const flatten = (style: unknown) =>
+      StyleSheet.flatten(style as StyleProp<ViewStyle>) as Record<string, unknown>;
+    expect(flatten(getByTestId('vault-vault-1').props.style).borderRadius).toBe(Card.radius);
+    expect(flatten(getByTestId('multi-sig-summary-card').props.style).borderRadius).toBe(
+      Card.radius,
+    );
+  });
+
   it('adds another vault from the filled list', () => {
     useMultiSigStore.setState({ vaults: [VAULT] });
     const { getByTestId } = renderScreen();
@@ -163,9 +174,9 @@ describe('MultiSigManageScreenImpl', () => {
     expect(useMultiSigStore.getState().vaults).toHaveLength(1);
   });
 
-  it('renders the dark backdrop when the theme is dark', () => {
+  it('renders the screen backdrop', () => {
     useThemeStore.setState({ mode: 'dark' });
     const { getByTestId } = renderScreen();
-    expect(getByTestId('dark-backdrop')).toBeTruthy();
+    expect(getByTestId('screen-backdrop')).toBeTruthy();
   });
 });
