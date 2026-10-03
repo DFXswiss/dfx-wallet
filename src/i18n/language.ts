@@ -20,11 +20,13 @@ export function resolveInitialLanguageSync(fallback: AppLanguage): AppLanguage {
 export async function setLanguage(
   language: AppLanguage,
   instance: { changeLanguage: (language: string) => Promise<unknown> },
-): Promise<void> {
+): Promise<boolean> {
   await instance.changeLanguage(language);
   try {
     await secureStorage.set(StorageKeys.SELECTED_LANGUAGE, language);
+    return true;
   } catch {
     // The active language remains usable even if secure storage is temporarily unavailable.
+    return false;
   }
 }
