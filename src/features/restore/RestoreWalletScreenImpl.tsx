@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
@@ -20,7 +20,14 @@ export default function RestoreWalletScreen() {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
-  const { activeWalletId, restoreWallet, deleteWallet } = useWalletManager();
+  const {
+    activeWalletId,
+    restoreWallet,
+    deleteWallet,
+    getEncryptedEntropy,
+    getEncryptedSeed,
+    getEncryptionKey,
+  } = useWalletManager();
   const isOnboarded = useAuthStore((state) => state.isOnboarded);
   const { t } = useTranslation();
   const [seedPhrase, setSeedPhrase] = useState('');
@@ -70,6 +77,18 @@ export default function RestoreWalletScreen() {
         confirm: confirmReplacement,
         reset: () => useAuthStore.getState().reset(),
         deleteWallet: () => deleteWallet('default'),
+        getRemainingWalletItems: async () => {
+          const [key, encryptedSeed, encryptedEntropy] = await Promise.all([
+            getEncryptionKey('default'),
+            getEncryptedSeed('default'),
+            getEncryptedEntropy('default'),
+          ]);
+          return {
+            key: key !== null,
+            seed: encryptedSeed !== null,
+            entropy: encryptedEntropy !== null,
+          };
+        },
         restoreWallet: () => restoreWallet(seed, 'default'),
       });
       if (result === 'cancelled') return;
@@ -101,31 +120,42 @@ export default function RestoreWalletScreen() {
       </View>
 
       <View style={styles.inputCard}>
-        {captureProtection === 'unavailable' && (
-          <View style={styles.captureWarning} testID="restore-wallet-capture-warning">
-            <Text style={styles.captureWarningText}>{t('common.screenCaptureUnavailable')}</Text>
-          </View>
+        {captureProtection === 'pending' ? (
+          <ActivityIndicator testID="restore-wallet-protection-loading" color={colors.primary} />
+        ) : (
+          <>
+            {captureProtection === 'unavailable' && (
+              <View style={styles.captureWarning} testID="restore-wallet-capture-warning">
+                <Text style={styles.captureWarningText}>
+                  {t('common.screenCaptureUnavailable')}
+                </Text>
+              </View>
+            )}
+            <TextInput
+              testID="restore-wallet-seed-input"
+              style={styles.input}
+              value={seedPhrase}
+              onChangeText={(text) => {
+                setSeedPhrase(text);
+                setError(null);
+              }}
+              placeholder={t('onboarding.restoreSeedPlaceholder')}
+              placeholderTextColor={colors.textTertiary}
+              multiline
+              blurOnSubmit
+              returnKeyType="done"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+            />
+            <Text style={styles.wordCount} testID="restore-wallet-word-count">
+              {t('onboarding.seedWordCount', {
+                count: wordCount,
+                total: wordCount > 12 ? 24 : 12,
+              })}
+            </Text>
+          </>
         )}
-        <TextInput
-          testID="restore-wallet-seed-input"
-          style={styles.input}
-          value={seedPhrase}
-          onChangeText={(text) => {
-            setSeedPhrase(text);
-            setError(null);
-          }}
-          placeholder={t('onboarding.restoreSeedPlaceholder')}
-          placeholderTextColor={colors.textTertiary}
-          multiline
-          blurOnSubmit
-          returnKeyType="done"
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="off"
-        />
-        <Text style={styles.wordCount} testID="restore-wallet-word-count">
-          {t('onboarding.seedWordCount', { count: wordCount, total: wordCount > 12 ? 24 : 12 })}
-        </Text>
       </View>
 
       {error && (

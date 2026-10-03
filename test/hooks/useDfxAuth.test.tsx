@@ -153,6 +153,25 @@ describe('useDfxAuth', () => {
     expect(useAuthStore.getState().isDfxAuthenticated).toBe(false);
   });
 
+  it('silently returns null when a background login flow is invalidated', async () => {
+    const invalidated = new DfxAuthFlowInvalidatedError();
+    mockLogin.mockImplementationOnce(() => Promise.reject(invalidated));
+    const { result } = renderHook(() => useDfxAuth());
+
+    let authentication!: Promise<string | null>;
+    act(() => {
+      authentication = result.current.authenticateSilent();
+    });
+    await act(async () => {
+      await expect(authentication).resolves.toBeNull();
+    });
+
+    expect(result.current.error).toBeNull();
+    expect(mockSecureStorageSet).not.toHaveBeenCalled();
+    expect(mockLogout).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().isDfxAuthenticated).toBe(false);
+  });
+
   it('rejects authenticate after a reset creates a new active local session', async () => {
     const pendingLogin = deferred<string>();
     mockGetAccessToken.mockReturnValue('newer-token');

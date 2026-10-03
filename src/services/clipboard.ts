@@ -57,8 +57,8 @@ async function clearClipboardIfUnchanged(cleanup: PendingClipboardCleanup): Prom
 }
 
 export async function copySensitive(value: string, clearAfterMs = 60_000): Promise<void> {
-  await Clipboard.setStringAsync(value);
   cancelPendingCleanup();
+  await Clipboard.setStringAsync(value);
 
   const deadline = Date.now() + clearAfterMs;
   const cleanup: PendingClipboardCleanup = {

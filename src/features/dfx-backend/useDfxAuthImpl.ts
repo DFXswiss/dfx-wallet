@@ -1,6 +1,9 @@
 import { useCallback, useRef, useState } from 'react';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { createDfxSessionGuard } from '@/features/dfx-backend/session-guard';
+import {
+  createDfxSessionGuard,
+  isLocalSessionEndedError,
+} from '@/features/dfx-backend/session-guard';
 import { dfxAuthService } from '@/features/dfx-backend/services';
 import {
   EVM_AUTH_ADDRESS_PROBE_MESSAGE,
@@ -100,7 +103,10 @@ export function useDfxAuth() {
   const authenticateSilent = useCallback(async (): Promise<string | null> => {
     try {
       return await authenticate();
-    } catch {
+    } catch (err) {
+      if (isLocalSessionEndedError(err)) {
+        setError(null);
+      }
       return null;
     }
   }, [authenticate]);

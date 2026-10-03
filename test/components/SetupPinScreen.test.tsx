@@ -23,8 +23,10 @@ jest.mock('@/store', () => ({
 }));
 
 const mockUnlock = jest.fn();
+let mockWalletStatus = 'UNLOCKED';
 jest.mock('@tetherto/wdk-react-native-core', () => ({
   useWalletManager: () => ({
+    status: mockWalletStatus,
     unlock: (walletId: string) => mockUnlock(walletId),
   }),
 }));
@@ -54,6 +56,7 @@ describe('SetupPinScreen', () => {
     jest.clearAllMocks();
     mockFeatures.LEGAL = false;
     mockIsOnboarded = false;
+    mockWalletStatus = 'UNLOCKED';
     mockSetPin.mockResolvedValue(undefined);
     mockSetOnboarded.mockResolvedValue(undefined);
     mockUnlock.mockResolvedValue(undefined);
@@ -106,6 +109,7 @@ describe('SetupPinScreen', () => {
   it('unlocks before authenticating and navigating during PIN migration', async () => {
     let resolveUnlock: () => void = () => undefined;
     mockIsOnboarded = true;
+    mockWalletStatus = 'LOCKED';
     mockUnlock.mockImplementationOnce(
       () =>
         new Promise<void>((resolve) => {
@@ -135,6 +139,7 @@ describe('SetupPinScreen', () => {
   it('stays unauthenticated and shows the unlock error when PIN migration unlock fails', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     mockIsOnboarded = true;
+    mockWalletStatus = 'LOCKED';
     mockUnlock.mockImplementationOnce(async () => {
       throw new Error('wallet unavailable');
     });
@@ -152,7 +157,9 @@ describe('SetupPinScreen', () => {
   });
 
   it('keeps fresh onboarding unlocked without an extra wallet unlock', async () => {
-    const { getByTestId } = render(<SetupPinScreen />);
+    const { getByTestId, rerender } = render(<SetupPinScreen />);
+    mockWalletStatus = 'LOCKED';
+    rerender(<SetupPinScreen />);
 
     await enterPin(getByTestId, '123456');
     await enterPin(getByTestId, '123456');
@@ -161,6 +168,32 @@ describe('SetupPinScreen', () => {
     expect(mockUnlock).not.toHaveBeenCalled();
     expect(mockSetAuthenticated).toHaveBeenCalledWith(true);
     expect(mockSetPin).toHaveBeenCalledWith('123456');
+  });
+
+  it('unlocks an interrupted onboarding wallet before authenticating', async () => {
+    let resolveUnlock: () => void = () => undefined;
+    mockWalletStatus = 'LOCKED';
+    mockUnlock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUnlock = resolve;
+        }),
+    );
+    const { getByTestId } = render(<SetupPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+    await enterPin(getByTestId, '123456');
+
+    await waitFor(() => expect(mockUnlock).toHaveBeenCalledWith('default'));
+    expect(mockSetAuthenticated).not.toHaveBeenCalledWith(true);
+    await act(async () => {
+      resolveUnlock();
+    });
+
+    await waitFor(() => expect(mockSetAuthenticated).toHaveBeenCalledWith(true));
+    expect(mockUnlock.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSetAuthenticated.mock.invocationCallOrder[0]!,
+    );
   });
 
   it('authenticates before finishing onboarding and opening the dashboard when legal is disabled', async () => {
