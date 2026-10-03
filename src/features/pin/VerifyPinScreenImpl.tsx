@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import { BrandLogo, DarkBackdrop, Icon, PinProcessingOverlay, PrimaryButton } from '@/components';
 import { FEATURES } from '@/config/features';
+import { needsPinRehash } from '@/services/pin';
 import { useAuthStore } from '@/store';
 import { getPostPinDestination } from '@/store/auth';
 import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
@@ -30,6 +31,7 @@ export default function VerifyPinScreen() {
     authenticateBiometric,
     biometricEnabled,
     failedAttempts,
+    pinHash,
     lockedUntil,
     isOnboarded,
     setOnboarded,
@@ -39,19 +41,31 @@ export default function VerifyPinScreen() {
   const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [pin, setPinValue] = useState('');
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<'finish' | 'incorrect' | null>(null);
   const [unlockFailed, setUnlockFailed] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [biometricInFlight, setBiometricInFlight] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const unlockedRef = useRef(false);
+  const legacyCheckPromises = useRef<Set<Promise<void>>>(new Set());
   const isLocked = lockedUntil !== null && lockedUntil > now;
   const remainingSeconds = isLocked ? Math.max(1, Math.ceil((lockedUntil - now) / 1000)) : 0;
 
   const finishAuthentication = useCallback(async () => {
-    const destination = getPostPinDestination(isOnboarded, FEATURES.LEGAL);
-    if (destination.shouldSetOnboarded) await setOnboarded(true);
-    setAuthenticated(true);
-    router.replace(destination.route);
+    try {
+      const destination = getPostPinDestination(isOnboarded, FEATURES.LEGAL);
+      if (destination.shouldSetOnboarded) await setOnboarded(true);
+      setAuthenticated(true);
+      router.replace(destination.route);
+    } catch (err) {
+      console.warn('verify: failed to finish authentication', err);
+      unlockedRef.current = false;
+      setAuthenticated(false);
+      setError('finish');
+      setPinValue('');
+    } finally {
+      setProcessing(false);
+    }
   }, [isOnboarded, router, setAuthenticated, setOnboarded]);
 
   const goToRecovery = useCallback(() => {
@@ -93,33 +107,60 @@ export default function VerifyPinScreen() {
   }, [biometricEnabled]);
 
   const handleDigit = (digit: string) => {
-    if (processing || isLocked) return;
-    setError(false);
+    if (unlockedRef.current || processing || isLocked) return;
+    setError(null);
     setUnlockFailed(false);
     const newPin = pin + digit;
     if (newPin.length > 6) return;
     setPinValue(newPin);
 
+    if (pinHash && needsPinRehash(pinHash) && newPin.length >= 4 && newPin.length < 6) {
+      const check = checkPin(newPin, { showInvalid: false });
+      legacyCheckPromises.current.add(check);
+      void check.finally(() => legacyCheckPromises.current.delete(check));
+    }
+
     if (newPin.length === 6) {
-      void checkPin(newPin);
+      void checkPin(newPin, { showInvalid: true });
     }
   };
 
-  const checkPin = async (pinValue: string) => {
-    setProcessing(true);
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  const checkPin = async (pinValue: string, { showInvalid }: { showInvalid: boolean }) => {
+    if (unlockedRef.current) return;
+    const defersFailure = showInvalid && pinHash !== null && needsPinRehash(pinHash);
+    if (showInvalid) {
+      setProcessing(true);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      if (unlockedRef.current) return;
+    }
 
     let isValid = false;
     try {
-      isValid = await verifyPin(pinValue);
+      isValid =
+        showInvalid && !defersFailure
+          ? await verifyPin(pinValue)
+          : await verifyPin(pinValue, { recordFailure: false });
     } catch (err) {
       console.warn('verify: PIN verification threw', err);
     }
+    if (unlockedRef.current) return;
+    if (!isValid && defersFailure) {
+      await Promise.all(legacyCheckPromises.current);
+      if (unlockedRef.current) return;
+      try {
+        isValid = await verifyPin(pinValue);
+      } catch (err) {
+        console.warn('verify: PIN verification threw', err);
+      }
+      if (unlockedRef.current) return;
+    }
     if (isValid) {
+      unlockedRef.current = true;
       try {
         await unlockWallet();
       } catch (err) {
         console.warn('verify: PIN unlock failed', err);
+        unlockedRef.current = false;
         setProcessing(false);
         setUnlockFailed(true);
         setPinValue('');
@@ -129,15 +170,16 @@ export default function VerifyPinScreen() {
       await finishAuthentication();
       return;
     }
+    if (!showInvalid) return;
     setProcessing(false);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    setError(true);
+    setError('incorrect');
     setPinValue('');
   };
 
   const handleDelete = () => {
     if (isLocked) return;
-    setError(false);
+    setError(null);
     setPinValue(pin.slice(0, -1));
   };
 
@@ -146,6 +188,16 @@ export default function VerifyPinScreen() {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [isLocked]);
+
+  const getPinErrorMessage = () => {
+    if (error === 'finish') return t('pin.finishError');
+    if (failedAttempts < FIRST_LOCKOUT_ATTEMPT) {
+      return t('pin.incorrectAttemptsLeft', {
+        count: FIRST_LOCKOUT_ATTEMPT - failedAttempts,
+      });
+    }
+    return t('pin.tooMany');
+  };
 
   const body = (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
@@ -189,11 +241,7 @@ export default function VerifyPinScreen() {
 
         {!isLocked && error && !unlockFailed && (
           <Text style={styles.error} testID="verify-pin-error">
-            {failedAttempts < FIRST_LOCKOUT_ATTEMPT
-              ? t('pin.incorrectAttemptsLeft', {
-                  count: FIRST_LOCKOUT_ATTEMPT - failedAttempts,
-                })
-              : t('pin.tooMany')}
+            {getPinErrorMessage()}
           </Text>
         )}
 

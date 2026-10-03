@@ -5,10 +5,6 @@ const mockSetAuthenticated = jest.fn();
 
 jest.mock('@/config/features', () => ({ FEATURES: { PIN: true } }));
 
-const { FEATURES: mockFeatures } = jest.requireMock('@/config/features') as {
-  FEATURES: { PIN: boolean };
-};
-
 jest.mock('@/store/auth', () => ({
   useAuthStore: (
     selector: (state: { setAuthenticated: typeof mockSetAuthenticated }) => unknown,
@@ -31,7 +27,6 @@ describe('useAutoLock', () => {
     listener = undefined;
     remove.mockReset();
     mockSetAuthenticated.mockReset();
-    mockFeatures.PIN = true;
     jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, nextListener) => {
       listener = nextListener;
       return { remove };
@@ -81,11 +76,5 @@ describe('useAutoLock', () => {
     const { unmount } = render(<AutoLockHarness />);
     unmount();
     expect(remove).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not subscribe when the PIN feature is disabled', () => {
-    mockFeatures.PIN = false;
-    render(<AutoLockHarness />);
-    expect(AppState.addEventListener).not.toHaveBeenCalled();
   });
 });

@@ -1,9 +1,9 @@
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
-jest.mock('@/config/features', () => ({ FEATURES: { PIN: true } }));
+jest.mock('@/config/features', () => ({ FEATURES: { BIOMETRIC: true, PIN: true } }));
 const { FEATURES: mockFeatures } = jest.requireMock('@/config/features') as {
-  FEATURES: { PIN: boolean };
+  FEATURES: { BIOMETRIC: boolean; PIN: boolean };
 };
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -46,6 +46,7 @@ describe('useReauthenticate', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFeatures.BIOMETRIC = true;
     mockFeatures.PIN = true;
     authenticateBiometric.mockResolvedValue(false);
     verifyPin.mockResolvedValue(true);
@@ -64,6 +65,29 @@ describe('useReauthenticate', () => {
     await expect(requestReauth()).resolves.toBe(true);
     expect(authenticateBiometric).not.toHaveBeenCalled();
     expect(verifyPin).not.toHaveBeenCalled();
+  });
+
+  it('opens the PIN modal without prompting when the biometric feature is disabled', async () => {
+    mockFeatures.BIOMETRIC = false;
+    useAuthStore.setState({ biometricEnabled: true, pinHash: 'hash' });
+    const view = render(<Harness />);
+
+    const result = requestReauth();
+    await waitFor(() => expect(view.getByTestId('reauth-pin-input')).toBeTruthy());
+    expect(authenticateBiometric).not.toHaveBeenCalled();
+    cancelReauth();
+    await expect(result).resolves.toBe(false);
+  });
+
+  it('opens the PIN modal without prompting when biometrics are disabled by the user', async () => {
+    useAuthStore.setState({ biometricEnabled: false, pinHash: 'hash' });
+    const view = render(<Harness />);
+
+    const result = requestReauth();
+    await waitFor(() => expect(view.getByTestId('reauth-pin-input')).toBeTruthy());
+    expect(authenticateBiometric).not.toHaveBeenCalled();
+    cancelReauth();
+    await expect(result).resolves.toBe(false);
   });
 
   it('resolves true after successful biometric authentication', async () => {
@@ -213,15 +237,65 @@ describe('useReauthenticate', () => {
     jest.useRealTimers();
   });
 
-  it('returns the same promise for concurrent requests', async () => {
-    useAuthStore.setState({ pinHash: 'hash' });
+  it('returns the same promise while biometric reauthentication is pending', async () => {
+    let resolveFirstBiometric: (value: boolean) => void = () => undefined;
+    authenticateBiometric.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        resolveFirstBiometric = resolve;
+      }),
+    );
+    useAuthStore.setState({ biometricEnabled: true, pinHash: 'hash' });
     render(<Harness />);
 
     const first = requestReauth();
     const second = requestReauth();
     expect(second).toBe(first);
+    expect(authenticateBiometric).toHaveBeenCalledTimes(1);
+    expect(current.modalProps.visible).toBe(false);
+
+    await act(async () => resolveFirstBiometric(false));
+    await waitFor(() => expect(current.modalProps.visible).toBe(true));
+
     cancelReauth();
     await expect(first).resolves.toBe(false);
+    await expect(second).resolves.toBe(false);
+  });
+
+  it('ignores a stale PIN verification result after cancellation and a new request', async () => {
+    let resolveFirstVerification: (value: boolean) => void = () => undefined;
+    verifyPin.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        resolveFirstVerification = resolve;
+      }),
+    );
+    useAuthStore.setState({ pinHash: 'hash' });
+    const view = render(<Harness />);
+    const first = requestReauth();
+    await waitFor(() => expect(view.getByTestId('reauth-pin-input')).toBeTruthy());
+
+    await act(async () => {
+      current.modalProps.onSubmit('123456');
+      await Promise.resolve();
+    });
+    expect(current.modalProps.verifying).toBe(true);
+
+    cancelReauth();
+    await expect(first).resolves.toBe(false);
+    const second = requestReauth();
+    expect(second).not.toBe(first);
+    await waitFor(() => expect(current.modalProps.visible).toBe(true));
+    expect(current.modalProps.verifying).toBe(false);
+    const secondResolution = jest.fn();
+    void second.then(secondResolution);
+
+    await act(async () => resolveFirstVerification(false));
+    expect(current.modalProps.visible).toBe(true);
+    expect(current.modalProps.verifying).toBe(false);
+    expect(current.modalProps.error).toBeNull();
+    expect(secondResolution).not.toHaveBeenCalled();
+
+    cancelReauth();
+    await expect(second).resolves.toBe(false);
   });
 
   it('ignores another PIN submission while verification is in progress', async () => {

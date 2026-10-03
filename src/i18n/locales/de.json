@@ -70,6 +70,7 @@
     "ok": "OK",
     "retry": "Erneut versuchen",
     "save": "Speichern",
+    "screenCaptureUnavailable": "Der Bildschirmaufnahme-Schutz ist auf diesem Gerät nicht verfügbar. Stelle sicher, dass niemand deine Recovery Phrase sehen oder aufnehmen kann.",
     "submit": "Absenden"
   },
   "contact": {
@@ -425,7 +426,7 @@
     "featureSwiss": "Direkter Anschluss an Schweizer Bankzahlungen",
     "invalidSeed": "Diese Seed Phrase ist noch nicht gültig. Gib genau 12 oder 24 Wörter in der ursprünglichen Reihenfolge ein.",
     "restoreConfirmAction": "Wallet ersetzen",
-    "restoreConfirmMessage": "Deine aktuelle Wallet wird von diesem Gerät entfernt und kann nur mit ihrer eigenen Seed Phrase wiederhergestellt werden.",
+    "restoreConfirmMessage": "Deine aktuelle Wallet wird entfernt, bevor die neue Wallet importiert wird. Sie kann nur mit ihrer eigenen Seed Phrase wiederhergestellt werden.",
     "restoreConfirmTitle": "Aktuelle Wallet ersetzen?",
     "restoreError": "Diese Wallet konnte nicht wiederhergestellt werden. Prüfe die Seed Phrase und versuche es erneut.",
     "restorePasskey": "Mit Passkey",
@@ -495,6 +496,7 @@
     "createDescription": "Wähle eine 6-stellige PIN zum Schutz deiner Wallet.",
     "enter": "PIN eingeben",
     "enterTitle": "Willkommen zurück",
+    "finishError": "Die Authentifizierung konnte nicht abgeschlossen werden. Bitte erneut versuchen.",
     "incorrect": "Falsche PIN.",
     "incorrectAttemptsLeft_one": "Falsche PIN. Noch {{count}} Versuch übrig.",
     "incorrectAttemptsLeft_other": "Falsche PIN. Noch {{count}} Versuche übrig.",

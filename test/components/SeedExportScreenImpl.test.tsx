@@ -11,8 +11,8 @@ import {
 } from '@/features/passkey/services';
 import { copySensitive } from '@/services/clipboard';
 
-const mockPrevent = jest.fn(async (_key?: string) => undefined);
-const mockAllow = jest.fn(async (_key?: string) => undefined);
+const mockPrevent = jest.fn<Promise<void>, [string?]>();
+const mockAllow = jest.fn<Promise<void>, [string?]>();
 const mockRequestReauth = jest.fn(async () => true);
 jest.mock('expo-screen-capture', () => ({
   preventScreenCaptureAsync: (key?: string) => mockPrevent(key),
@@ -44,7 +44,7 @@ jest.mock('react-i18next', () => ({
 
 const mockBack = jest.fn();
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: jest.fn(), back: mockBack, replace: jest.fn(), canGoBack: () => true }),
+  useRouter: () => ({ back: mockBack }),
 }));
 
 jest.mock('expo-haptics', () => ({
@@ -52,10 +52,6 @@ jest.mock('expo-haptics', () => ({
   notificationAsync: jest.fn(),
   ImpactFeedbackStyle: { Medium: 'medium' },
   NotificationFeedbackType: { Success: 'success', Error: 'error' },
-}));
-
-jest.mock('expo-clipboard', () => ({
-  setStringAsync: jest.fn(),
 }));
 
 jest.mock('@/services/clipboard', () => ({ copySensitive: jest.fn() }));
@@ -66,8 +62,6 @@ jest.mock('@/services/storage', () => {
     ...actual,
     secureStorage: {
       get: jest.fn(),
-      set: jest.fn(),
-      remove: jest.fn(),
     },
   };
 });
@@ -137,6 +131,30 @@ describe('SeedExportScreenImpl', () => {
     expect(mockBack).toHaveBeenCalled();
   });
 
+  it('disables reveal while wallet origin metadata is loading', () => {
+    (secureStorage.get as jest.Mock).mockImplementation(
+      () => new Promise<string | null>(() => undefined),
+    );
+    const { getByTestId } = render(<SeedExportScreenImpl />);
+    const revealButton = getByTestId('seed-export-reveal-button');
+
+    expect(revealButton.props.accessibilityState?.disabled).toBe(true);
+    fireEvent.press(revealButton);
+    expect(mockRequestReauth).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the initial wallet origin metadata read rejects', async () => {
+    (secureStorage.get as jest.Mock).mockRejectedValue(new Error('keychain unavailable'));
+    const { getByTestId, getByText } = render(<SeedExportScreenImpl />);
+
+    await waitFor(() => expect(getByText('common.error')).toBeTruthy());
+    const revealButton = getByTestId('seed-export-reveal-button');
+    expect(revealButton.props.accessibilityState?.disabled).toBe(true);
+    fireEvent.press(revealButton);
+    expect(mockRequestReauth).not.toHaveBeenCalled();
+    expect(getMnemonic).not.toHaveBeenCalled();
+  });
+
   it('reveals a seed-flow mnemonic from WDK and copies it', async () => {
     let scheduled: (() => void) | undefined;
     const realSetTimeout = globalThis.setTimeout;
@@ -183,6 +201,62 @@ describe('SeedExportScreenImpl', () => {
       fireEvent.press(getByText('seedExport.revealSeed'));
     });
 
+    expect(getMnemonic).not.toHaveBeenCalled();
+    expect(queryAllByText('abandon')).toHaveLength(0);
+  });
+
+  it('aborts when passkey origin metadata disappears after reauthentication', async () => {
+    let afterReauth = false;
+    mockPasskeyStorage();
+    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) => {
+      if (afterReauth) return null;
+      if (key === StorageKeys.WALLET_ORIGIN) return 'passkey';
+      if (key === StorageKeys.PASSKEY_CREDENTIAL_ID) return 'stored-credential';
+      if (key === StorageKeys.PASSKEY_DERIVATION_VERSION) return '1';
+      return null;
+    });
+    mockRequestReauth.mockImplementationOnce(async () => {
+      afterReauth = true;
+      return true;
+    });
+    const { getByText, queryAllByText } = render(<SeedExportScreenImpl />);
+    await waitFor(() => expect(getByText('seedExport.revealPasskey')).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.press(getByText('seedExport.revealPasskey'));
+    });
+
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'common.error',
+      'seedExport.passkeyVerificationUnavailable',
+    );
+    expect(authenticatePasskey).not.toHaveBeenCalled();
+    expect(getMnemonic).not.toHaveBeenCalled();
+    expect(queryAllByText('abandon')).toHaveLength(0);
+  });
+
+  it('aborts when wallet origin metadata cannot be reread after reauthentication', async () => {
+    let afterReauth = false;
+    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) => {
+      if (afterReauth) throw new Error('keychain unavailable');
+      if (key === StorageKeys.WALLET_ORIGIN) return 'passkey';
+      if (key === StorageKeys.PASSKEY_CREDENTIAL_ID) return 'stored-credential';
+      if (key === StorageKeys.PASSKEY_DERIVATION_VERSION) return '1';
+      return null;
+    });
+    mockRequestReauth.mockImplementationOnce(async () => {
+      afterReauth = true;
+      return true;
+    });
+    const { getByText, queryAllByText } = render(<SeedExportScreenImpl />);
+    await waitFor(() => expect(getByText('seedExport.revealPasskey')).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.press(getByText('seedExport.revealPasskey'));
+    });
+
+    expect(Alert.alert).toHaveBeenCalledWith('common.error', 'seedExport.deriveFailed');
+    expect(authenticatePasskey).not.toHaveBeenCalled();
     expect(getMnemonic).not.toHaveBeenCalled();
     expect(queryAllByText('abandon')).toHaveLength(0);
   });
@@ -324,7 +398,7 @@ describe('SeedExportScreenImpl', () => {
     expect(getMnemonic).toHaveBeenCalledWith('default');
   });
 
-  it('does not authenticate or reveal when the stored passkey credential ID is missing', async () => {
+  it('fails closed for an origin-only marker left by interrupted passkey setup', async () => {
     (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
       key === StorageKeys.WALLET_ORIGIN ? 'passkey' : null,
     );
@@ -341,6 +415,30 @@ describe('SeedExportScreenImpl', () => {
     );
     expect(authenticatePasskey).not.toHaveBeenCalled();
     expect(deriveMnemonicFromPrf).not.toHaveBeenCalled();
+    expect(getMnemonic).not.toHaveBeenCalled();
+    expect(queryAllByText('abandon')).toHaveLength(0);
+  });
+
+  it.each([
+    ['credential ID only', StorageKeys.PASSKEY_CREDENTIAL_ID, 'stored-credential'],
+    ['derivation version only', StorageKeys.PASSKEY_DERIVATION_VERSION, '1'],
+  ])('fails closed for partial passkey metadata: %s', async (_label, partialKey, value) => {
+    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
+      key === partialKey ? value : null,
+    );
+    const { getByText, queryAllByText } = render(<SeedExportScreenImpl />);
+    await waitFor(() => expect(getByText('seedExport.revealPasskey')).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.press(getByText('seedExport.revealPasskey'));
+    });
+
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'common.error',
+      'seedExport.passkeyVerificationUnavailable',
+    );
+    expect(authenticatePasskey).not.toHaveBeenCalled();
+    expect(getMnemonic).not.toHaveBeenCalled();
     expect(queryAllByText('abandon')).toHaveLength(0);
   });
 
@@ -394,6 +492,45 @@ describe('SeedExportScreenImpl', () => {
     expect(Alert.alert).toHaveBeenCalledWith('common.error', 'seedExport.deriveFailed');
   });
 
+  it('keeps the seed hidden while screen-capture protection is pending', async () => {
+    let resolveProtection: (() => void) | undefined;
+    mockPrevent.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveProtection = resolve;
+        }),
+    );
+    const { getByText, getByTestId, queryAllByText } = render(<SeedExportScreenImpl />);
+    await waitFor(() => expect(getByText('seedExport.revealSeed')).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.press(getByText('seedExport.revealSeed'));
+    });
+
+    await waitFor(() => expect(mockPrevent).toHaveBeenCalledWith('seed-export'));
+    expect(getByTestId('seed-export-protection-loading')).toBeTruthy();
+    expect(queryAllByText('abandon')).toHaveLength(0);
+
+    await act(async () => {
+      resolveProtection!();
+    });
+
+    await waitFor(() => expect(queryAllByText('abandon').length).toBeGreaterThan(0));
+  });
+
+  it('shows a warning and the seed when screen-capture protection is unavailable', async () => {
+    mockPrevent.mockRejectedValueOnce(new Error('native failure'));
+    const { getByText, getAllByText } = render(<SeedExportScreenImpl />);
+    await waitFor(() => expect(getByText('seedExport.revealSeed')).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.press(getByText('seedExport.revealSeed'));
+    });
+
+    await waitFor(() => expect(getByText('common.screenCaptureUnavailable')).toBeTruthy());
+    expect(getAllByText('abandon').length).toBeGreaterThan(0);
+  });
+
   it('releases screen-capture protection on unmount after the seed is shown', async () => {
     const { getByText, unmount } = render(<SeedExportScreenImpl />);
     await waitFor(() => expect(getByText('seedExport.revealSeed')).toBeTruthy());
@@ -402,6 +539,6 @@ describe('SeedExportScreenImpl', () => {
     });
     await waitFor(() => expect(mockPrevent).toHaveBeenCalled());
     unmount();
-    expect(mockAllow).toHaveBeenCalledWith('seed-export');
+    await waitFor(() => expect(mockAllow).toHaveBeenCalledWith('seed-export'));
   });
 });
