@@ -1,6 +1,7 @@
 {
   "biometric": {
     "enable": "Biometrie aktivieren",
+    "prompt": "Authentifiziere dich, um auf deine Wallet zuzugreifen",
     "usePin": "PIN verwenden"
   },
   "buy": {
@@ -69,6 +70,7 @@
     "ok": "OK",
     "retry": "Erneut versuchen",
     "save": "Speichern",
+    "screenCaptureUnavailable": "Der Bildschirmaufnahme-Schutz ist auf diesem Gerät nicht verfügbar. Stelle sicher, dass niemand deine Recovery Phrase sehen oder aufnehmen kann.",
     "submit": "Absenden"
   },
   "contact": {
@@ -423,6 +425,9 @@
     "featureSelfCustody": "Self-custody — nur du hast den Schlüssel",
     "featureSwiss": "Direkter Anschluss an Schweizer Bankzahlungen",
     "invalidSeed": "Diese Seed Phrase ist noch nicht gültig. Gib genau 12 oder 24 Wörter in der ursprünglichen Reihenfolge ein.",
+    "restoreConfirmAction": "Wallet ersetzen",
+    "restoreConfirmMessage": "Deine aktuelle Wallet wird entfernt, bevor die neue Wallet importiert wird. Sie kann nur mit ihrer eigenen Seed Phrase wiederhergestellt werden.",
+    "restoreConfirmTitle": "Aktuelle Wallet ersetzen?",
     "restoreError": "Diese Wallet konnte nicht wiederhergestellt werden. Prüfe die Seed Phrase und versuche es erneut.",
     "restorePasskey": "Mit Passkey",
     "restoreSeed": "Mit Seed Phrase",
@@ -491,15 +496,18 @@
     "createDescription": "Wähle eine 6-stellige PIN zum Schutz deiner Wallet.",
     "enter": "PIN eingeben",
     "enterTitle": "Willkommen zurück",
+    "finishError": "Die Authentifizierung konnte nicht abgeschlossen werden. Bitte erneut versuchen.",
     "incorrect": "Falsche PIN.",
     "incorrectAttemptsLeft_one": "Falsche PIN. Noch {{count}} Versuch übrig.",
     "incorrectAttemptsLeft_other": "Falsche PIN. Noch {{count}} Versuche übrig.",
+    "lockedFor_one": "Zu viele Fehlversuche. Versuche es in {{count}} Sekunde erneut.",
+    "lockedFor_other": "Zu viele Fehlversuche. Versuche es in {{count}} Sekunden erneut.",
     "mismatch": "PINs stimmen nicht überein.",
-    "recoveryCta": "Wallet wiederherstellen",
     "processing": "Einen Moment …",
+    "recoveryCta": "Wallet wiederherstellen",
     "remainingAttempts": "{{count}} Versuche übrig.",
     "saveError": "PIN konnte nicht gespeichert werden. Bitte erneut versuchen.",
-    "tooMany": "Zu viele Fehlversuche. Bitte starte die App neu.",
+    "tooMany": "Zu viele Fehlversuche. Bitte versuche es später erneut.",
     "unlockFailed": "Deine Wallet konnte nicht entsperrt werden. Bitte erneut versuchen oder deine Wallet wiederherstellen."
   },
   "portfolio": {
@@ -517,6 +525,11 @@
     "optional": "Optionale Netzwerke",
     "totalValue": "Gesamtwert"
   },
+  "reauth": {
+    "description": "Bestätige deine Identität mit deiner PIN.",
+    "pinLabel": "PIN zur Bestätigung",
+    "title": "Identität bestätigen"
+  },
   "receive": {
     "buyBtcWithEuro": "BTC mit Euro kaufen",
     "buyFromBank": "Mit deinem Bankkonto kaufen",
@@ -532,8 +545,10 @@
     "deriveFailed": "Recovery Phrase konnte nicht aus Passkey abgeleitet werden. Bitte versuche es erneut.",
     "descriptionPasskey": "Authentifiziere dich mit deinem Passkey, um deine Recovery Phrase anzuzeigen. Schreibe sie auf und bewahre sie sicher auf.",
     "descriptionSeed": "Deine Recovery Phrase ist der einzige Weg, deine Wallet wiederherzustellen. Bewahre sie sicher auf und teile sie nie.",
+    "passkeyVerificationUnavailable": "Die Recovery Phrase konnte nicht mit dieser Wallet abgeglichen werden und wurde nicht angezeigt.",
     "revealPasskey": "Authentifizieren zum Anzeigen",
     "revealSeed": "Tippen um Recovery Phrase anzuzeigen",
+    "seedMismatch": "Die aus dem Passkey abgeleitete Recovery Phrase stimmt nicht mit deiner Wallet überein. Sie wurde nicht angezeigt.",
     "warning": "Teile deine Recovery Phrase niemals. Jeder mit diesen Wörtern kann auf deine Wallet zugreifen."
   },
   "sell": {
@@ -611,8 +626,10 @@
     "contact": "Kontakt",
     "currencies": "Währungen",
     "deleteWallet": "Wallet löschen",
+    "deleteWalletCleanupFailed": "Die Wallet wurde gelöscht, aber einige lokale Zugangsdaten konnten nicht entfernt werden.",
     "deleteWalletConfirm": "Deine Wallet wird permanent von diesem Gerät entfernt. Stelle sicher, dass du deine Seed Phrase gesichert hast.",
     "deleteWalletConfirmPasskey": "Deine Wallet wird permanent von diesem Gerät entfernt. Zur Wiederherstellung benötigst du deinen Passkey oder deine exportierte Recovery Phrase. Bitte lösche den Passkey auch aus deinen Geräteeinstellungen.",
+    "deleteWalletFailed": "Die Wallet konnte nicht sicher gelöscht werden. Deine lokalen Zugangsdaten wurden nicht zurückgesetzt.",
     "dfxWallets": "DFX-Wallets",
     "email": "Kontaktdaten",
     "hardwareWallet": "Hardware Wallet",
@@ -630,6 +647,10 @@
     "taxReport": "Steuerreport",
     "title": "Einstellungen",
     "userData": "Profil"
+  },
+  "startup": {
+    "hydrateErrorDescription": "Deine geschützten Wallet-Daten konnten nicht geladen werden. Versuche es erneut, ohne die App-Daten zu löschen.",
+    "hydrateErrorTitle": "Wallet konnte nicht geladen werden"
   },
   "support": {
     "createError": "Ticket konnte nicht erstellt werden. Bitte erneut versuchen.",

@@ -46,7 +46,8 @@ makes later phases possible. None of it requires design or product input.
 - [x] `permissions: contents: read` at workflow root in every workflow;
       per-job escalation only where required (CodeQL needs
       `security-events: write`, auto-release-pr needs
-      `pull-requests: write`).
+      `pull-requests: write`, GitHub-release jobs using `GITHUB_TOKEN` need
+      `contents: write`; the tag job pushes with an SSH deploy key and stays read-only).
 - [x] `check` split into parallel `typecheck`, `lint`, `format`, `test`
       jobs; `audit` retained.
 - **Acceptance**: workflows pass; `permissions` block present in every
@@ -120,28 +121,29 @@ ship per-screen or per-flow.
 
 ### P1.1 — Screen capture / screenshot block on sensitive screens
 
-- [ ] Use `expo-screen-capture` (Android `FLAG_SECURE`, iOS
-      `UIScreen.isCaptured` listener) on: seed reveal, seed verify, PIN entry,
-      PIN setup, balance card.
+- [~] `expo-screen-capture` protection is active while the seed is visible
+      during wallet creation, mnemonic entry during restore, and seed export.
+      Seed verify, PIN entry/setup, and the balance card remain open.
 - **Acceptance**: manual verification on device + emulator; Android
   screenshots return blank, iOS screen-recording obscures the view.
 
-### P1.2 — App-backgrounding blur
+### P1.2 — App-backgrounding blur and auto-lock
 
-- [ ] Render an opaque overlay when `AppState` transitions to
-      `inactive`/`background`, on at least the same screens as P1.1 plus the
-      authenticated tabs.
+- [~] Render a global opaque overlay when `AppState` transitions to
+      `inactive`/`background`; device task-switcher verification remains.
+- [x] Lock authenticated sessions after more than 60 seconds in the
+      background when PIN protection is enabled.
 - **Acceptance**: switching apps shows the overlay before the OS snapshot
   is taken; no leakage in iOS task switcher.
 
 ### P1.3 — PIN bruteforce protection
 
-- [ ] Track failed attempts in `expo-secure-store`. Apply exponential
-      backoff. After N (e.g. 10) failures: wipe `expo-secure-store`,
-      `IS_ONBOARDED`, encrypted seed, and reset to onboarding.
-- [ ] UI shows remaining attempts and lockout time.
-- **Acceptance**: dedicated test in `src/services/pin.ts` covers backoff
-  schedule and wipe trigger; manual test confirms recovery flow.
+- [~] Track failed attempts and lockout expiry in `expo-secure-store`; apply
+      exponential backoff beginning with 30 seconds after five failures. No
+      wallet wipe is implemented; that remains a separate product decision.
+- [x] UI shows remaining attempts and lockout time.
+- **Acceptance**: store and screen tests cover persistence, backoff, reset on
+  success, and the lockout UI; manual recovery-flow verification remains.
 
 ### P1.4 — Biometric re-auth before signing
 
@@ -155,17 +157,19 @@ ship per-screen or per-flow.
 
 - [ ] On copy of address: announce "copied", auto-clear after 60s if
       clipboard still holds the same value.
-- [ ] On copy of mnemonic: confirmation modal explaining the risk; same
-      60s auto-clear.
+- [~] On copy of mnemonic: auto-clear after 60s while the app is in the
+      foreground if the clipboard still holds the same value. iOS does not
+      allow background clipboard access; a clear that fails or becomes due in
+      the background runs at the next foreground activation. The confirmation
+      modal remains open.
 - **Acceptance**: integration test on `Clipboard.setStringAsync` calls;
   manual verification on iOS + Android.
 
 ### P1.6 — Deep-link allowlist
 
-- [ ] Strict parser for `dfx://` and Universal Links. Reject unknown
-      hosts/paths. Never auto-confirm a sensitive action (send, swap, KYC
-      callback) from a deep-link payload — always require the user to confirm
-      pre-filled data.
+- [~] Native intents are forced through the app root and the in-app handler
+      accepts only explicit route names. Sensitive actions are not
+      auto-confirmed; signed Universal Links remain open.
 - [ ] Universal Links signed via Apple AASA / Android assetlinks.
 - **Acceptance**: fuzz-test the parser; manual test that a hostile deep
   link cannot trigger a transaction without confirmation.
@@ -350,5 +354,5 @@ phase if a structural change is needed.
 Any PR touching `src/features/hardware-wallet/`, `src/services/wallet/`,
 `src/features/dfx-backend/`, `src/services/pin.ts`, `src/features/biometric/`, or
 secure storage requires a security-conscious review (one of the
-maintainers tagged for security). Document this requirement in
-`CODEOWNERS` once the file exists.
+maintainers tagged for security). This requirement is enforced in
+`.github/CODEOWNERS`.

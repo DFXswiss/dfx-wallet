@@ -1,20 +1,23 @@
 import 'react-native-get-random-values';
 import 'react-native-url-polyfill/auto';
 import { useEffect } from 'react';
-import { ActivityIndicator, LogBox, StyleSheet, View } from 'react-native';
-import { Buffer } from '@craftzdog/react-native-buffer';
+import { ActivityIndicator, LogBox, StyleSheet, Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { Buffer } from '@craftzdog/react-native-buffer';
+import { useTranslation } from 'react-i18next';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { WdkAppProvider } from '@tetherto/wdk-react-native-core';
 import { bundle } from '../.wdk';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { PrimaryButton } from '@/components/PrimaryButton';
+import { PrivacyShield } from '@/components/PrivacyShield';
 import { getWdkConfigs } from '@/config/chains';
 import { IS_E2E } from '@/config/e2e';
 import { pricingService } from '@/services/pricing-service';
 import { useAuthStore, useWalletStore } from '@/store';
-import { ThemeProvider, useColors, useThemeStore } from '@/theme';
+import { Spacing, ThemeProvider, Typography, useColors, useThemeStore } from '@/theme';
 import '@/i18n';
 
 LogBox.ignoreLogs([
@@ -50,12 +53,13 @@ export default function RootLayout() {
 }
 
 function ThemedRoot() {
-  const { isHydrated: authHydrated, hydrate } = useAuthStore();
+  const { isHydrated: authHydrated, hydrate, hydrateError } = useAuthStore();
   const hydrateWallet = useWalletStore((s) => s.hydrate);
   const hydrateTheme = useThemeStore((s) => s.hydrate);
   const themeHydrated = useThemeStore((s) => s.isHydrated);
   const isHydrated = authHydrated && themeHydrated;
   const colors = useColors();
+  const { t } = useTranslation();
 
   useEffect(() => {
     void hydrate();
@@ -75,7 +79,30 @@ function ThemedRoot() {
     <>
       <StatusBar style={colors.statusBar} />
       <OfflineBanner />
-      {isHydrated ? (
+      {hydrateError !== null ? (
+        <View
+          style={[styles.hydrateError, { backgroundColor: colors.background }]}
+          testID="hydrate-error"
+        >
+          <Text
+            style={[styles.hydrateErrorTitle, { color: colors.text }]}
+            testID="hydrate-error-title"
+          >
+            {t('startup.hydrateErrorTitle')}
+          </Text>
+          <Text
+            style={[styles.hydrateErrorDescription, { color: colors.textSecondary }]}
+            testID="hydrate-error-description"
+          >
+            {t('startup.hydrateErrorDescription')}
+          </Text>
+          <PrimaryButton
+            title={t('common.retry')}
+            onPress={() => void hydrate()}
+            testID="hydrate-retry"
+          />
+        </View>
+      ) : isHydrated ? (
         <Stack
           screenOptions={{
             headerShown: false,
@@ -93,6 +120,7 @@ function ThemedRoot() {
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       )}
+      <PrivacyShield />
     </>
   );
 }
@@ -102,5 +130,21 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  hydrateError: {
+    flex: 1,
+    alignItems: 'stretch',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xl,
+  },
+  hydrateErrorTitle: {
+    ...Typography.headlineSmall,
+    marginBottom: Spacing.sm,
+    textAlign: 'center',
+  },
+  hydrateErrorDescription: {
+    ...Typography.bodyMedium,
+    marginBottom: Spacing.xl,
+    textAlign: 'center',
   },
 });

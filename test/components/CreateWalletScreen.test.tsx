@@ -1,6 +1,15 @@
 import React from 'react';
-import { act, fireEvent, render } from '@testing-library/react-native';
-import * as Clipboard from 'expo-clipboard';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { copySensitive } from '@/services/clipboard';
+
+jest.mock('@/services/clipboard', () => ({ copySensitive: jest.fn() }));
+
+const mockPreventScreenCapture = jest.fn<Promise<void>, [string?]>();
+const mockAllowScreenCapture = jest.fn<Promise<void>, [string?]>();
+jest.mock('expo-screen-capture', () => ({
+  preventScreenCaptureAsync: (key?: string) => mockPreventScreenCapture(key),
+  allowScreenCaptureAsync: (key?: string) => mockAllowScreenCapture(key),
+}));
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -41,7 +50,12 @@ describe('CreateWalletScreen', () => {
     mockRestoreWallet.mockResolvedValue(undefined);
     mockDeleteWallet.mockReset();
     mockDeleteWallet.mockResolvedValue(undefined);
-    jest.spyOn(Clipboard, 'setStringAsync').mockResolvedValue(true);
+    mockPreventScreenCapture.mockReset();
+    mockAllowScreenCapture.mockReset();
+    mockPreventScreenCapture.mockResolvedValue(undefined);
+    mockAllowScreenCapture.mockResolvedValue(undefined);
+    (copySensitive as jest.Mock).mockReset();
+    (copySensitive as jest.Mock).mockResolvedValue(undefined);
   });
 
   it('renders the seed card with the reveal CTA hidden until tapped', () => {
@@ -51,12 +65,48 @@ describe('CreateWalletScreen', () => {
     expect(queryByTestId('create-wallet-seed-container')).toBeNull();
   });
 
-  it('reveals 12 seed words after pressing the reveal CTA', () => {
-    const { getByTestId } = render(<CreateWalletScreen />);
+  it('keeps seed words hidden until screen-capture protection becomes active', async () => {
+    let resolveProtection: (() => void) | undefined;
+    mockPreventScreenCapture.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveProtection = resolve;
+        }),
+    );
+    const { getByTestId, queryByTestId } = render(<CreateWalletScreen />);
     fireEvent.press(getByTestId('create-wallet-reveal-button'));
+    expect(queryByTestId('create-wallet-seed-container')).toBeNull();
+    expect(getByTestId('create-wallet-protection-loading')).toBeTruthy();
+    await waitFor(() =>
+      expect(mockPreventScreenCapture).toHaveBeenCalledWith('create-wallet-seed'),
+    );
+
+    await act(async () => {
+      resolveProtection!();
+    });
+
     expect(getByTestId('create-wallet-seed-container')).toBeTruthy();
     expect(getByTestId('create-wallet-word-1')).toBeTruthy();
     expect(getByTestId('create-wallet-word-12')).toBeTruthy();
+  });
+
+  it('shows a warning and the seed when screen-capture protection is unavailable', async () => {
+    mockPreventScreenCapture.mockRejectedValueOnce(new Error('native failure'));
+    const { getByTestId, getByText } = render(<CreateWalletScreen />);
+    fireEvent.press(getByTestId('create-wallet-reveal-button'));
+
+    await waitFor(() => expect(getByTestId('create-wallet-seed-container')).toBeTruthy());
+    expect(getByText('common.screenCaptureUnavailable')).toBeTruthy();
+  });
+
+  it('releases seed capture protection on unmount', async () => {
+    const view = render(<CreateWalletScreen />);
+    fireEvent.press(view.getByTestId('create-wallet-reveal-button'));
+    await waitFor(() => expect(view.getByTestId('create-wallet-seed-container')).toBeTruthy());
+    view.unmount();
+    await waitFor(() =>
+      expect(mockAllowScreenCapture).toHaveBeenCalledWith('create-wallet-seed'),
+    );
   });
 
   it('disables the continue CTA before the seed is revealed', () => {
@@ -81,11 +131,12 @@ describe('CreateWalletScreen', () => {
     try {
       const { getByTestId } = render(<CreateWalletScreen />);
       fireEvent.press(getByTestId('create-wallet-reveal-button'));
+      await waitFor(() => expect(getByTestId('create-wallet-seed-container')).toBeTruthy());
       await act(async () => {
         fireEvent.press(getByTestId('create-wallet-copy-button'));
       });
-      expect(Clipboard.setStringAsync).toHaveBeenCalledTimes(1);
-      const arg = (Clipboard.setStringAsync as jest.Mock).mock.calls[0]![0];
+      expect(copySensitive).toHaveBeenCalledTimes(1);
+      const arg = (copySensitive as jest.Mock).mock.calls[0]![0];
       expect(typeof arg).toBe('string');
       // 12-word BIP-39 mnemonic — 11 spaces separating the words.
       expect(arg.split(' ')).toHaveLength(12);
@@ -103,6 +154,7 @@ describe('CreateWalletScreen', () => {
   it('restores a wallet and routes to setup-pin on successful create', async () => {
     const { getByTestId } = render(<CreateWalletScreen />);
     fireEvent.press(getByTestId('create-wallet-reveal-button'));
+    await waitFor(() => expect(getByTestId('create-wallet-seed-container')).toBeTruthy());
     await act(async () => {
       fireEvent.press(getByTestId('create-wallet-continue-button'));
     });
@@ -117,6 +169,7 @@ describe('CreateWalletScreen', () => {
       .mockResolvedValueOnce(undefined);
     const { getByTestId } = render(<CreateWalletScreen />);
     fireEvent.press(getByTestId('create-wallet-reveal-button'));
+    await waitFor(() => expect(getByTestId('create-wallet-seed-container')).toBeTruthy());
     await act(async () => {
       fireEvent.press(getByTestId('create-wallet-continue-button'));
     });
@@ -130,6 +183,7 @@ describe('CreateWalletScreen', () => {
     mockRestoreWallet.mockRejectedValueOnce(new Error('WDK worklet timeout'));
     const { getByTestId, findByText } = render(<CreateWalletScreen />);
     fireEvent.press(getByTestId('create-wallet-reveal-button'));
+    await waitFor(() => expect(getByTestId('create-wallet-seed-container')).toBeTruthy());
     await act(async () => {
       fireEvent.press(getByTestId('create-wallet-continue-button'));
     });

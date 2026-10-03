@@ -23,6 +23,10 @@ import {
   PrimaryButton,
 } from '@/components';
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
+import {
+  createDfxSessionGuard,
+  isLocalSessionEndedError,
+} from '@/features/dfx-backend/session-guard';
 import type { ChainId } from '@/config/chains';
 import {
   formatFiat as fmtFiat,
@@ -285,12 +289,18 @@ export default function BuyScreen() {
 
   const linkChainToDfx = useCallback(
     async (chain: ChainId) => {
+      const guard = createDfxSessionGuard();
+      let latestToken: string | undefined;
+      const assertFlowActive = () =>
+        latestToken === undefined ? guard.assertActive() : guard.assertActive(latestToken);
+      await guard.assertActive();
       // Taproot + Lightning both ride the same DFX Lightning Network rails
       // (lightning.space-managed LDS user). The deposit address is a Lightning
       // Address (`name@dfx.swiss`) and we hand DFX the LNURL form plus the
       // ownership proof LDS issued instead of running a wallet sign-flow.
       if (chain === 'bitcoin-taproot' || chain === 'bitcoin-lightning') {
         const user = lds.user ?? (await lds.signIn());
+        await guard.assertActive();
         if (!user) {
           throw new Error('DFX Lightning wallet not ready — please retry.');
         }
@@ -300,10 +310,14 @@ export default function BuyScreen() {
             user.lightning.addressOwnershipProof,
             { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
           );
-          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ldsToken);
+          latestToken = ldsToken;
+          await guard.persistToken(ldsToken);
           await markChainLinkedInAutoLinkCache('lightning');
+          await guard.assertActive(ldsToken);
           void retryLast();
         } catch (err) {
+          if (isLocalSessionEndedError(err)) throw err;
+          await assertFlowActive();
           // 409 → the LDS LNURL is on another DFX user. Mirror the EVM/BTC
           // recovery: drop the current JWT and re-auth as the LNURL owner
           // so the buy flow can continue against the account that already
@@ -314,8 +328,9 @@ export default function BuyScreen() {
               user.lightning.addressOwnershipProof,
               { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
             );
-            await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
+            await guard.persistToken(ownerToken);
             await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
+            await guard.assertActive(ownerToken);
             void retryLast();
             return;
           }
@@ -353,15 +368,19 @@ export default function BuyScreen() {
           wallet: 'DFX Wallet',
           blockchain: blockchainName,
         });
-        await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, newToken);
+        latestToken = newToken;
+        await guard.persistToken(newToken);
         // Mark in the auto-link cache so the next cold start skips this
         // chain instead of re-prompting. Only chains that auto-link knows
         // about: bitcoin + the EVM chains (ethereum is the login, no cache
         // entry needed).
         if (chain === 'bitcoin' || chain === 'arbitrum' || chain === 'polygon' || chain === 'base')
           await markChainLinkedInAutoLinkCache(chain);
+        await guard.assertActive(newToken);
         void retryLast();
       } catch (err) {
+        if (isLocalSessionEndedError(err)) throw err;
+        await assertFlowActive();
         // 409 means the address belongs to a *different* DFX user. The user's
         // mental model is "this is MY wallet" — so re-auth as the owner of
         // this address (drop the prior JWT) instead of forcing a merge that
@@ -373,10 +392,11 @@ export default function BuyScreen() {
             wallet: 'DFX Wallet',
             blockchain: blockchainName,
           });
-          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
+          await guard.persistToken(ownerToken);
           // Wipe the per-chain link cache: a different user means different
           // already-linked chains, so auto-link should re-evaluate from scratch.
           await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
+          await guard.assertActive(ownerToken);
           void retryLast();
           return;
         }
@@ -384,6 +404,18 @@ export default function BuyScreen() {
       }
     },
     [btcAccount, sparkAccount, ethAccount, lds, retryLast],
+  );
+
+  const handleLinkChainToDfx = useCallback(
+    async (chain: ChainId) => {
+      try {
+        await linkChainToDfx(chain);
+      } catch (error) {
+        if (isLocalSessionEndedError(error)) return;
+        throw error;
+      }
+    },
+    [linkChainToDfx],
   );
 
   // eslint-disable-next-line security/detect-object-injection -- selectedChainIndex is bounded by chains.length
@@ -910,7 +942,7 @@ export default function BuyScreen() {
         )}
         {body}
       </View>
-      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} onLinkChain={linkChainToDfx} />
+      <DfxAuthGate gate={authGate} onClose={dismissAuthGate} onLinkChain={handleLinkChainToDfx} />
       <ConfirmTargetWalletModal
         visible={confirmOpen}
         flow="buy"

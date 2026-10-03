@@ -1,8 +1,7 @@
 # Code owners for security-critical paths.
 #
-# Effective only once the develop/main rulesets enable
-# "require review from Code Owners" — see docs/security/roadmap.md (P0.6).
-# Until then this file still routes review requests automatically.
+# Code-owner review is enabled in both the develop and main rulesets.
+# This file also routes review requests automatically.
 #
 # Rationale (docs/security/roadmap.md, "Reviews"): any PR touching key
 # handling, signing, secure storage, the DFX backend client, dependency
@@ -15,26 +14,62 @@
 /src/services/evm/           @Danswar @davidleomay @TaprootFreak
 /src/services/storage.ts     @Danswar @davidleomay @TaprootFreak
 /src/services/pin.ts         @Danswar @davidleomay @TaprootFreak
+/src/services/clipboard.ts   @Danswar @davidleomay @TaprootFreak
+/src/store/auth.ts            @Danswar @davidleomay @TaprootFreak
+/src/components/PrivacyShield.tsx  @Danswar @davidleomay @TaprootFreak
+/src/components/ReauthPinModal.tsx  @Danswar @davidleomay @TaprootFreak
+/src/hooks/useAutoLock*.ts   @Danswar @davidleomay @TaprootFreak
+/src/hooks/useReauthenticate.ts  @Danswar @davidleomay @TaprootFreak
+/src/hooks/useScreenCaptureProtection.ts  @Danswar @davidleomay @TaprootFreak
 /src/features/hardware-wallet/ @Danswar @davidleomay @TaprootFreak
 /src/features/passkey/       @Danswar @davidleomay @TaprootFreak
 /src/features/biometric/     @Danswar @davidleomay @TaprootFreak
 /src/features/pin/           @Danswar @davidleomay @TaprootFreak
+/src/features/settings/SeedExportScreenImpl.tsx  @Danswar @davidleomay @TaprootFreak
+/src/features/settings/SettingsScreenImpl.tsx  @Danswar @davidleomay @TaprootFreak
+/src/features/settings/services/  @Danswar @davidleomay @TaprootFreak
+/src/features/restore/       @Danswar @davidleomay @TaprootFreak
+/src/features/deep-link/     @Danswar @davidleomay @TaprootFreak
+/src/features/linked-wallets/useLinkedWalletReauth.ts  @Danswar @davidleomay @TaprootFreak
+/src/features/webview/       @Danswar @davidleomay @TaprootFreak
 
 # Feature flags decide which security features are live
 /src/config/features.ts      @Danswar @davidleomay @TaprootFreak
+/src/config/deep-links.ts    @Danswar @davidleomay @TaprootFreak
+/src/config/chains.ts        @Danswar @davidleomay @TaprootFreak
+/src/config/tokens.ts        @Danswar @davidleomay @TaprootFreak
 
 # Security-critical screens (seed export, PIN entry, onboarding/key creation)
+/app/_layout.tsx             @Danswar @davidleomay @TaprootFreak
 /app/(auth)/seed-export.tsx  @Danswar @davidleomay @TaprootFreak
+/app/(auth)/_layout.tsx      @Danswar @davidleomay @TaprootFreak
+/app/(auth)/send/            @Danswar @davidleomay @TaprootFreak
 /app/(pin)/                  @Danswar @davidleomay @TaprootFreak
 /app/(onboarding)/           @Danswar @davidleomay @TaprootFreak
+/app/+native-intent.tsx      @Danswar @davidleomay @TaprootFreak
+/app/index.tsx               @Danswar @davidleomay @TaprootFreak
 
 # Backend trust boundary
 /src/features/dfx-backend/   @Danswar @davidleomay @TaprootFreak
+/src/features/buy-sell/      @Danswar @davidleomay @TaprootFreak
 
 # Supply chain & build integrity
 /package.json                @Danswar @davidleomay @TaprootFreak
 /package-lock.json           @Danswar @davidleomay @TaprootFreak
 /plugins/                    @Danswar @davidleomay @TaprootFreak
+/patches/                    @Danswar @davidleomay @TaprootFreak
+/modules/bitbox-hid/         @Danswar @davidleomay @TaprootFreak
+/app.json                    @Danswar @davidleomay @TaprootFreak
+/eas.json                    @Danswar @davidleomay @TaprootFreak
+/wdk.config.js               @Danswar @davidleomay @TaprootFreak
+
+# Security documentation and screenshot redaction
+/docs/security/              @Danswar @davidleomay @TaprootFreak
+/e2e/utils/mask-artifact.ts  @Danswar @davidleomay @TaprootFreak
+/e2e/utils/mask-png.ts       @Danswar @davidleomay @TaprootFreak
+/e2e/utils/screenshot.ts     @Danswar @davidleomay @TaprootFreak
+/e2e/visual/                 @Danswar @davidleomay @TaprootFreak
+/e2e/__baselines__/          @Danswar @davidleomay @TaprootFreak
 
 # CI and the gates themselves (a gate nobody guards is not a gate)
 /.github/                    @Danswar @davidleomay @TaprootFreak

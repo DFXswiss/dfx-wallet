@@ -42,7 +42,9 @@ describe('WalletStore', () => {
 
   it('persists the currency pick to secure storage so it survives a relaunch', () => {
     useWalletStore.getState().setSelectedCurrency('EUR');
-    expect(setItemMock).toHaveBeenCalledWith('selectedCurrency', 'EUR');
+    expect(setItemMock).toHaveBeenCalledWith('selectedCurrency', 'EUR', {
+      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    });
   });
 
   it('does NOT persist unknown currencies (in-memory only)', () => {

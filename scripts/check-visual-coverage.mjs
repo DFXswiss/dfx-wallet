@@ -54,15 +54,23 @@ export function discoverRoutes() {
 }
 
 /** All names passed to expectScreenToMatchBaseline() across e2e/visual/*.test.ts. */
+export function matcherNamesFromSource(src) {
+  const names = new Set();
+  for (const match of src.matchAll(
+    /expectScreenToMatchBaseline\(\s*['"]([^'"]+)['"]\s*(?=[,)])/g,
+  )) {
+    names.add(match[1]);
+  }
+  return names;
+}
+
 export function discoverMatcherNames(dir = 'e2e/visual') {
   const names = new Set();
   if (!existsSync(dir)) return names;
   for (const file of readdirSync(dir)) {
     if (!file.endsWith('.ts') && !file.endsWith('.tsx')) continue;
     const src = readFileSync(`${dir}/${file}`, 'utf8');
-    for (const m of src.matchAll(/expectScreenToMatchBaseline\(\s*['"]([^'"]+)['"]\s*\)/g)) {
-      names.add(m[1]);
-    }
+    for (const name of matcherNamesFromSource(src)) names.add(name);
   }
   return names;
 }
@@ -335,6 +343,16 @@ function runSelfTest() {
       'strict fails on pending',
       () => validate(base, obs, { strict: true }).errors.some((e) => e.includes('--strict')),
     ],
+    [
+      'matcher discovery accepts an options argument',
+      () => {
+        const names = matcherNamesFromSource(
+          `expectScreenToMatchBaseline('plain');\n` +
+            `expectScreenToMatchBaseline('masked', { maskTestIDs: ['seed'] });`,
+        );
+        return names.size === 2 && names.has('plain') && names.has('masked');
+      },
+    ],
     ['coverage math', () => validate(base, obs).stats.coveragePct === 50],
   ];
 
@@ -343,7 +361,7 @@ function runSelfTest() {
     let ok = false;
     try {
       ok = fn();
-    } catch (err) {
+    } catch {
       ok = false;
     }
     if (!ok) {
