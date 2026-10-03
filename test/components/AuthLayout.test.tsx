@@ -83,6 +83,15 @@ describe('AuthLayout', () => {
     expect(mockUseAutoLock).toHaveBeenCalledTimes(1);
   });
 
+  it('unregisters the silent 401 handler when the authenticated layout unmounts', () => {
+    useAuthStore.setState({ isAuthenticated: true });
+    const view = render(<AuthLayout />);
+
+    view.unmount();
+
+    expect(dfxSpies.setOnUnauthorized).toHaveBeenLastCalledWith(null);
+  });
+
   it('invokes useDeepLink on every render (unconditional hook call)', () => {
     useAuthStore.setState({ isAuthenticated: false });
     render(<AuthLayout />);

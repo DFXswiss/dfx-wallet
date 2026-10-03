@@ -16,7 +16,9 @@
 /src/services/pin.ts         @Danswar @davidleomay @TaprootFreak
 /src/services/clipboard.ts   @Danswar @davidleomay @TaprootFreak
 /src/store/auth.ts            @Danswar @davidleomay @TaprootFreak
-/src/hooks/useAutoLock.ts    @Danswar @davidleomay @TaprootFreak
+/src/components/PrivacyShield.tsx  @Danswar @davidleomay @TaprootFreak
+/src/components/ReauthPinModal.tsx  @Danswar @davidleomay @TaprootFreak
+/src/hooks/useAutoLock*.ts   @Danswar @davidleomay @TaprootFreak
 /src/hooks/useReauthenticate.ts  @Danswar @davidleomay @TaprootFreak
 /src/hooks/useScreenCaptureProtection.ts  @Danswar @davidleomay @TaprootFreak
 /src/features/hardware-wallet/ @Danswar @davidleomay @TaprootFreak
@@ -28,14 +30,17 @@
 /src/features/settings/services/  @Danswar @davidleomay @TaprootFreak
 /src/features/restore/       @Danswar @davidleomay @TaprootFreak
 /src/features/deep-link/     @Danswar @davidleomay @TaprootFreak
+/src/features/linked-wallets/useLinkedWalletReauth.ts  @Danswar @davidleomay @TaprootFreak
 /src/features/webview/       @Danswar @davidleomay @TaprootFreak
 
 # Feature flags decide which security features are live
 /src/config/features.ts      @Danswar @davidleomay @TaprootFreak
+/src/config/deep-links.ts    @Danswar @davidleomay @TaprootFreak
 /src/config/chains.ts        @Danswar @davidleomay @TaprootFreak
 /src/config/tokens.ts        @Danswar @davidleomay @TaprootFreak
 
 # Security-critical screens (seed export, PIN entry, onboarding/key creation)
+/app/_layout.tsx             @Danswar @davidleomay @TaprootFreak
 /app/(auth)/seed-export.tsx  @Danswar @davidleomay @TaprootFreak
 /app/(auth)/_layout.tsx      @Danswar @davidleomay @TaprootFreak
 /app/(auth)/send/            @Danswar @davidleomay @TaprootFreak
@@ -56,6 +61,12 @@
 /app.json                    @Danswar @davidleomay @TaprootFreak
 /eas.json                    @Danswar @davidleomay @TaprootFreak
 /wdk.config.js               @Danswar @davidleomay @TaprootFreak
+
+# Security documentation and screenshot redaction
+/docs/security/              @Danswar @davidleomay @TaprootFreak
+/e2e/utils/mask-artifact.ts  @Danswar @davidleomay @TaprootFreak
+/e2e/utils/mask-png.ts       @Danswar @davidleomay @TaprootFreak
+/e2e/utils/screenshot.ts     @Danswar @davidleomay @TaprootFreak
 
 # CI and the gates themselves (a gate nobody guards is not a gate)
 /.github/                    @Danswar @davidleomay @TaprootFreak

@@ -13,6 +13,25 @@ type EvmAuthAddressCache = {
   signerAddress: string;
 };
 
+const LOCAL_SESSION_ENDED_MESSAGE = 'Local wallet session ended during DFX authentication';
+
+function hasActiveLocalSession(): boolean {
+  const { isAuthenticated, isOnboarded } = useAuthStore.getState();
+  return isAuthenticated && isOnboarded;
+}
+
+function requireActiveLocalSession(): void {
+  if (hasActiveLocalSession()) return;
+  dfxAuthService.logout();
+  throw new Error(LOCAL_SESSION_ENDED_MESSAGE);
+}
+
+async function discardPersistedToken(): Promise<never> {
+  dfxAuthService.logout();
+  await secureStorage.remove(StorageKeys.DFX_AUTH_TOKEN);
+  throw new Error(LOCAL_SESSION_ENDED_MESSAGE);
+}
+
 /**
  * Hook for DFX API authentication via wallet signature.
  *
@@ -68,20 +87,20 @@ export function useDfxAuth() {
   }, [address, signMessage]);
 
   const authenticate = useCallback(
-    async (options?: { wallet?: string }, authGeneration?: number): Promise<string> => {
+    async (options?: { wallet?: string }): Promise<string> => {
       setIsAuthenticating(true);
       setError(null);
 
       try {
         const walletAddress = await resolveAuthAddress();
-        const token =
-          authGeneration === undefined
-            ? await dfxAuthService.login(walletAddress, signMessage, {
-                wallet: options?.wallet ?? 'DFX Wallet',
-              })
-            : await dfxAuthService.refresh(walletAddress, signMessage, authGeneration);
+        requireActiveLocalSession();
+        const token = await dfxAuthService.login(walletAddress, signMessage, {
+          wallet: options?.wallet ?? 'DFX Wallet',
+        });
+        requireActiveLocalSession();
 
         await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
+        if (!hasActiveLocalSession()) await discardPersistedToken();
         setDfxAuthenticated(true);
         return token;
       } catch (err) {
@@ -96,16 +115,13 @@ export function useDfxAuth() {
   );
 
   /** Best-effort variant for background callers: returns the new token or null. */
-  const authenticateSilent = useCallback(
-    async (authGeneration?: number): Promise<string | null> => {
-      try {
-        return await authenticate(undefined, authGeneration);
-      } catch {
-        return null;
-      }
-    },
-    [authenticate],
-  );
+  const authenticateSilent = useCallback(async (): Promise<string | null> => {
+    try {
+      return await authenticate();
+    } catch {
+      return null;
+    }
+  }, [authenticate]);
 
   /**
    * Recovery for the "User is merged" 403 path. Drops the prior session
@@ -121,14 +137,18 @@ export function useDfxAuth() {
 
     try {
       const walletAddress = await resolveAuthAddress();
+      requireActiveLocalSession();
       const token = await dfxAuthService.loginAsAddressOwner(walletAddress, signMessage, {
         wallet: 'DFX Wallet',
       });
+      requireActiveLocalSession();
 
       await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
+      if (!hasActiveLocalSession()) await discardPersistedToken();
       // Different user → invalidate per-chain link cache so auto-link
       // re-evaluates against the new JWT.
       await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
+      if (!hasActiveLocalSession()) await discardPersistedToken();
       setDfxAuthenticated(true);
       return token;
     } catch (err) {

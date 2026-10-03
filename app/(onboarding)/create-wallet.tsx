@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
@@ -29,7 +29,8 @@ export default function CreateWalletScreen() {
   const [copied, setCopied] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  useScreenCaptureProtection(revealed, 'create-wallet-seed');
+  const captureProtection = useScreenCaptureProtection(revealed, 'create-wallet-seed');
+  const canRenderSeed = revealed && captureProtection !== 'pending';
 
   const handleReveal = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -94,8 +95,17 @@ export default function CreateWalletScreen() {
             <Text style={styles.revealText}>{t('onboarding.seedReveal')}</Text>
             <Text style={styles.revealHint}>{t('onboarding.seedRevealHint')}</Text>
           </Pressable>
+        ) : !canRenderSeed ? (
+          <ActivityIndicator testID="create-wallet-protection-loading" color={colors.primary} />
         ) : (
           <>
+            {captureProtection === 'unavailable' && (
+              <View style={styles.captureWarning} testID="create-wallet-capture-warning">
+                <Text style={styles.captureWarningText}>
+                  {t('common.screenCaptureUnavailable')}
+                </Text>
+              </View>
+            )}
             <View style={styles.seedContainer} testID="create-wallet-seed-container">
               {seedWords.map((word, index) => (
                 <View
@@ -130,7 +140,7 @@ export default function CreateWalletScreen() {
         testID="create-wallet-continue-button"
         title={t('common.continue')}
         onPress={handleContinue}
-        disabled={!revealed}
+        disabled={!canRenderSeed}
         loading={isCreating}
       />
     </DfxBackgroundScreen>
@@ -163,6 +173,18 @@ const makeStyles = (colors: ThemeColors) =>
       borderWidth: 1,
       borderColor: colors.border,
       padding: 16,
+    },
+    captureWarning: {
+      backgroundColor: colors.surfaceLight,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.warning,
+      padding: 12,
+      marginBottom: 12,
+    },
+    captureWarningText: {
+      ...Typography.bodyMedium,
+      color: colors.warning,
     },
     revealButton: {
       minHeight: 168,

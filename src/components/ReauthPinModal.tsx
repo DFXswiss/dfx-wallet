@@ -11,6 +11,8 @@ import {
   View,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { needsPinRehash } from '@/services/pin';
+import { useAuthStore } from '@/store/auth';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 
 export type ReauthPinModalProps = {
@@ -33,7 +35,10 @@ export function ReauthPinModal({
   const { t } = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const pinHash = useAuthStore((state) => state.pinHash);
   const [pin, setPin] = useState('');
+  const minimumPinLength = pinHash && needsPinRehash(pinHash) ? 4 : 6;
+  const canSubmit = pin.length >= minimumPinLength;
 
   useEffect(() => {
     if (!visible) setPin('');
@@ -44,8 +49,13 @@ export function ReauthPinModal({
     onCancel();
   };
 
+  const requestClose = () => {
+    if (verifying) return;
+    clearAndCancel();
+  };
+
   const submit = () => {
-    if (pin.length !== 6 || locked || verifying) return;
+    if (!canSubmit || locked || verifying) return;
     const submittedPin = pin;
     setPin('');
     onSubmit(submittedPin);
@@ -56,7 +66,7 @@ export function ReauthPinModal({
       visible={visible}
       animationType="fade"
       transparent
-      onRequestClose={clearAndCancel}
+      onRequestClose={requestClose}
       testID="reauth-pin-modal"
     >
       <KeyboardAvoidingView
@@ -97,7 +107,7 @@ export function ReauthPinModal({
               testID="reauth-pin-confirm"
               style={[styles.button, styles.confirmButton]}
               onPress={submit}
-              disabled={pin.length !== 6 || locked || verifying}
+              disabled={!canSubmit || locked || verifying}
             >
               {verifying ? (
                 <ActivityIndicator color={colors.white} />
