@@ -698,6 +698,12 @@ describe('SettingsScreenImpl', () => {
   });
 
   it('shows an error and keeps auth state when deletion fails and the wallet remains', async () => {
+    const expectedAuthState = {
+      isAuthenticated: true,
+      isOnboarded: true,
+      pinHash: 'distinctive-pin-hash',
+    };
+    useAuthStore.setState(expectedAuthState);
     deleteWallet.mockRejectedValueOnce(new Error('delete failed'));
     getEncryptedSeed.mockResolvedValueOnce('encrypted-seed');
     const alertSpy = jest.spyOn(Alert, 'alert');
@@ -710,6 +716,7 @@ describe('SettingsScreenImpl', () => {
 
     expect(mockReplace).not.toHaveBeenCalledWith('/');
     expect(alertSpy).toHaveBeenLastCalledWith('common.error', 'settings.deleteWalletFailed');
+    expect(useAuthStore.getState()).toMatchObject(expectedAuthState);
   });
 
   it('goes back when history exists and replaces the dashboard otherwise', async () => {

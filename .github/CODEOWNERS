@@ -51,6 +51,7 @@
 
 # Backend trust boundary
 /src/features/dfx-backend/   @Danswar @davidleomay @TaprootFreak
+/src/features/buy-sell/      @Danswar @davidleomay @TaprootFreak
 
 # Supply chain & build integrity
 /package.json                @Danswar @davidleomay @TaprootFreak
