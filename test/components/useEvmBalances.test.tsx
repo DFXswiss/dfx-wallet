@@ -34,6 +34,7 @@ import { getAssets } from '../../src/config/tokens';
 
 let queryClient: QueryClient | undefined;
 let mockEthereumAddress = '0xfeedface';
+let addressSequence = 0;
 
 function wrap({ children }: { children: React.ReactNode }) {
   queryClient ??= new QueryClient({
@@ -47,7 +48,7 @@ function wrap({ children }: { children: React.ReactNode }) {
 describe('useEvmBalances', () => {
   beforeEach(() => {
     queryClient = undefined;
-    mockEthereumAddress = '0xfeedface';
+    mockEthereumAddress = `0xfeedface${addressSequence++}`;
     mockFetcherResult.current = new Map();
     (useAccount as jest.Mock).mockImplementation(({ network }: { network: string }) =>
       network === 'ethereum' ? { address: mockEthereumAddress } : { address: null },
@@ -132,6 +133,34 @@ describe('useEvmBalances', () => {
         rawBalance: '500',
         status: 'stale',
         error: 'rpc-down',
+      }),
+    );
+  });
+
+  it('shares the last successful address-bound value across hook instances', async () => {
+    mockFetcherResult.current.set('ethereum-native', {
+      assetId: 'ethereum-native',
+      rawBalance: '750',
+    });
+    const ethNative = getAssets(['ethereum']).find((a) => a.getId() === 'ethereum-native');
+    const first = renderHook(() => useEvmBalances([ethNative!]), { wrapper: wrap });
+    await waitFor(() =>
+      expect(first.result.current.data.get('ethereum-native')?.status).toBe('ok'),
+    );
+    first.unmount();
+
+    queryClient = undefined;
+    mockFetcherResult.current.set('ethereum-native', {
+      assetId: 'ethereum-native',
+      error: 'rpc-down-in-second-instance',
+    });
+    const second = renderHook(() => useEvmBalances([ethNative!]), { wrapper: wrap });
+
+    await waitFor(() =>
+      expect(second.result.current.data.get('ethereum-native')).toMatchObject({
+        rawBalance: '750',
+        status: 'stale',
+        error: 'rpc-down-in-second-instance',
       }),
     );
   });

@@ -50,6 +50,7 @@ describe('dfxApi request hardening', () => {
 
   afterEach(() => {
     jest.useRealTimers();
+    jest.restoreAllMocks();
     dfxApi.setOnUnauthorized(async () => null);
   });
 
@@ -123,6 +124,9 @@ describe('dfxApi request hardening', () => {
   });
 
   it('cleans up the pending response when token refresh rejects', async () => {
+    const controller = new AbortController();
+    const clearTimeoutSpy = jest.spyOn(globalThis, 'clearTimeout');
+    const removeAbortListenerSpy = jest.spyOn(controller.signal, 'removeEventListener');
     dfxApi.setOnUnauthorized(async () => {
       throw new Error('refresh failed');
     });
@@ -132,7 +136,64 @@ describe('dfxApi request hardening', () => {
       json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Unauthorized' }),
     });
 
-    await expect(dfxApi.get('/v1/user')).rejects.toThrow('refresh failed');
+    await expect(dfxApi.get('/v1/user', { signal: controller.signal })).rejects.toThrow(
+      'refresh failed',
+    );
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+    expect(removeAbortListenerSpy).toHaveBeenCalledWith('abort', expect.any(Function));
+  });
+
+  it('aborts one caller while a shared token refresh remains pending', async () => {
+    let resolveRefresh!: (token: string | null) => void;
+    const pendingRefresh = new Promise<string | null>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    const refresh = jest.fn(() => pendingRefresh);
+    dfxApi.setOnUnauthorized(refresh);
+    const unauthorized = {
+      ok: false,
+      status: 401,
+      json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Unauthorized' }),
+    };
+    (globalThis.fetch as jest.Mock)
+      .mockResolvedValueOnce(unauthorized)
+      .mockResolvedValueOnce(unauthorized)
+      .mockResolvedValue({ ok: true, status: 200, text: async () => '{}' });
+    const controller = new AbortController();
+
+    const abortedRequest = dfxApi.get('/v1/user', { signal: controller.signal });
+    const completedRequest = dfxApi.get('/v1/user');
+    await Promise.resolve();
+    await Promise.resolve();
+    controller.abort();
+
+    await expect(abortedRequest).rejects.toMatchObject({ name: 'AbortError' });
+    resolveRefresh('NEW_TOKEN');
+    await expect(completedRequest).resolves.toEqual({});
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('times out while a shared token refresh remains pending', async () => {
+    jest.useFakeTimers();
+    let resolveRefresh!: (token: string | null) => void;
+    const pendingRefresh = new Promise<string | null>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    dfxApi.setOnUnauthorized(() => pendingRefresh);
+    (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Unauthorized' }),
+    });
+
+    const request = dfxApi.get('/v1/user', { timeoutMs: 25 });
+    await Promise.resolve();
+    await Promise.resolve();
+    jest.advanceTimersByTime(25);
+
+    await expect(request).rejects.toBeInstanceOf(DfxApiTimeoutError);
+    resolveRefresh(null);
+    await pendingRefresh;
   });
 
   it('aborts a request after the configured timeout', async () => {

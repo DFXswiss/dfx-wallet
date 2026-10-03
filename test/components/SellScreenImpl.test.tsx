@@ -3,14 +3,16 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { BalanceEntry, BalanceMap, BalanceSourceResult } from '@/services/balances';
 
 let mockBalanceMap: BalanceMap = new Map();
+let mockBalancesLoading = false;
+let mockBalancesError: Error | null = null;
 jest.mock('@/services/balances', () => {
   const actual = jest.requireActual('@/services/balances');
   return {
     ...actual,
     useBalances: (): BalanceSourceResult => ({
       data: mockBalanceMap,
-      isLoading: false,
-      error: null,
+      isLoading: mockBalancesLoading,
+      error: mockBalancesError,
     }),
   };
 });
@@ -247,6 +249,8 @@ beforeEach(() => {
     ['bitcoin-native', balanceEntry('bitcoin-native', '100000000', 'wdk')],
   ]);
   mockEnabledChains = ['bitcoin'];
+  mockBalancesLoading = false;
+  mockBalancesError = null;
   mockBack.mockReset();
   mockGetQuote.mockReset();
   mockCreatePaymentInfo.mockReset();
@@ -344,6 +348,43 @@ describe('SellScreenImpl', () => {
 
     expect(getByText('Ethereum')).toBeTruthy();
     expect(getByText('USDT')).toBeTruthy();
+    expect(queryByTestId('sell-no-balance')).toBeNull();
+  });
+
+  it('shows a loading placeholder instead of no balance while balances load', () => {
+    mockBalanceMap = new Map();
+    mockBalancesLoading = true;
+
+    const { getByText, queryByTestId } = render(<SellScreenImpl />);
+    fireEvent.press(getByText('BTC'));
+
+    expect(getByText('sell.balanceLoading')).toBeTruthy();
+    expect(queryByTestId('sell-no-balance')).toBeNull();
+  });
+
+  it('shows an unavailable placeholder instead of no balance on a balance-source error', () => {
+    mockBalanceMap = new Map();
+    mockBalancesError = new Error('rpc-down');
+
+    const { getByText, queryByTestId } = render(<SellScreenImpl />);
+    fireEvent.press(getByText('BTC'));
+
+    expect(getByText('sell.balanceUnavailable')).toBeTruthy();
+    expect(queryByTestId('sell-no-balance')).toBeNull();
+  });
+
+  it('treats a stale balance entry as incomplete instead of as no balance', () => {
+    mockBalanceMap = new Map([
+      [
+        'bitcoin-native',
+        { ...balanceEntry('bitcoin-native', '0', 'wdk'), status: 'stale' },
+      ],
+    ]);
+
+    const { getByText, queryByTestId } = render(<SellScreenImpl />);
+    fireEvent.press(getByText('BTC'));
+
+    expect(getByText('sell.balanceUnavailable')).toBeTruthy();
     expect(queryByTestId('sell-no-balance')).toBeNull();
   });
 
