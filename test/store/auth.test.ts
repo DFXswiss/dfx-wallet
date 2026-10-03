@@ -440,6 +440,48 @@ describe('useAuthStore', () => {
       },
     );
 
+    it.each([null, 'NaN', '0', '-5'])(
+      're-derives the lockout for five valid attempts when the timestamp is %s',
+      async (storedLockedUntil) => {
+        getItemMock.mockImplementation(async (key: string) => {
+          if (key === 'pinFailedAttempts') return '5';
+          if (key === 'pinLockedUntil') return storedLockedUntil;
+          return null;
+        });
+        const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+
+        await useAuthStore.getState().hydrate();
+
+        expect(useAuthStore.getState().failedAttempts).toBe(5);
+        expect(useAuthStore.getState().lockedUntil).toBe(1_000_000 + pinLockoutMs(5));
+        nowSpy.mockRestore();
+      },
+    );
+
+    it('keeps a missing lockout timestamp unset below the first lockout attempt', async () => {
+      getItemMock.mockImplementation(async (key: string) =>
+        key === 'pinFailedAttempts' ? '3' : null,
+      );
+
+      await useAuthStore.getState().hydrate();
+
+      expect(useAuthStore.getState().failedAttempts).toBe(3);
+      expect(useAuthStore.getState().lockedUntil).toBeNull();
+    });
+
+    it('keeps a valid stored lockout timestamp', async () => {
+      getItemMock.mockImplementation(async (key: string) => {
+        if (key === 'pinFailedAttempts') return '5';
+        if (key === 'pinLockedUntil') return '123456';
+        return null;
+      });
+
+      await useAuthStore.getState().hydrate();
+
+      expect(useAuthStore.getState().failedAttempts).toBe(5);
+      expect(useAuthStore.getState().lockedUntil).toBe(123456);
+    });
+
     it('restores a persisted failed-attempt counter and lockout on a later hydrate', async () => {
       const persisted: Record<string, string> = { pinHash: 'invalid-hash' };
       setItemMock.mockImplementation(async (key: string, value: string) => {
