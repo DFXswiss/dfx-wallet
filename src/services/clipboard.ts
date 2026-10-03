@@ -4,6 +4,7 @@ import * as Clipboard from 'expo-clipboard';
 type PendingClipboardCleanup = {
   value: string;
   deadline: number;
+  clearAfterMs: number;
   attempts: number;
   isClearing: boolean;
   timeout: ReturnType<typeof setTimeout> | null;
@@ -13,6 +14,16 @@ type PendingClipboardCleanup = {
 const MAX_CLEAR_ATTEMPTS = 3;
 
 let pendingCleanup: PendingClipboardCleanup | null = null;
+
+function scheduleClipboardClear(cleanup: PendingClipboardCleanup): void {
+  if (cleanup.timeout !== null) clearTimeout(cleanup.timeout);
+  cleanup.timeout = setTimeout(() => {
+    cleanup.timeout = null;
+    if (pendingCleanup === cleanup && AppState.currentState === 'active') {
+      void clearClipboardIfUnchanged(cleanup);
+    }
+  }, cleanup.clearAfterMs);
+}
 
 function cancelPendingCleanup(): void {
   if (!pendingCleanup) return;
@@ -34,7 +45,11 @@ async function clearClipboardIfUnchanged(cleanup: PendingClipboardCleanup): Prom
     // Clipboard access can be denied after the app is backgrounded.
     if (pendingCleanup === cleanup) {
       cleanup.attempts += 1;
-      if (cleanup.attempts >= MAX_CLEAR_ATTEMPTS) cancelPendingCleanup();
+      if (cleanup.attempts >= MAX_CLEAR_ATTEMPTS) {
+        cancelPendingCleanup();
+      } else if (AppState.currentState === 'active') {
+        scheduleClipboardClear(cleanup);
+      }
     }
   } finally {
     cleanup.isClearing = false;
@@ -49,6 +64,7 @@ export async function copySensitive(value: string, clearAfterMs = 60_000): Promi
   const cleanup: PendingClipboardCleanup = {
     value,
     deadline,
+    clearAfterMs,
     attempts: 0,
     isClearing: false,
     timeout: null,
@@ -61,9 +77,5 @@ export async function copySensitive(value: string, clearAfterMs = 60_000): Promi
     }
   };
   cleanup.subscription = AppState.addEventListener('change', onAppStateChange);
-  cleanup.timeout = setTimeout(() => {
-    if (AppState.currentState === 'active') {
-      void clearClipboardIfUnchanged(cleanup);
-    }
-  }, clearAfterMs);
+  scheduleClipboardClear(cleanup);
 }

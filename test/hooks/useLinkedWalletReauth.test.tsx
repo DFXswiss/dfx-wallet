@@ -61,6 +61,7 @@ jest.mock('@/services/storage', () => ({
 
 import { useLinkedWalletReauth } from '@/features/linked-wallets/useLinkedWalletReauth';
 import { LOCAL_SESSION_ENDED_MESSAGE } from '@/features/dfx-backend/session-guard';
+import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
 import { StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
 
@@ -159,6 +160,33 @@ describe('useLinkedWalletReauth', () => {
     expect(mockLogout).toHaveBeenCalledTimes(1);
     expect(mockSecureStorageGet).not.toHaveBeenCalled();
     expect(mockSecureStorageRemove).not.toHaveBeenCalled();
+  });
+
+  it('does not fall through to path 2 when path 1 is invalidated', async () => {
+    const invalidated = new DfxAuthFlowInvalidatedError();
+    mockChangeActiveAddress.mockRejectedValueOnce(invalidated);
+    const { result } = renderHook(() => useLinkedWalletReauth());
+
+    await expect(result.current.reauthAs('LNURL1ABC', 'Lightning')).resolves.toEqual({
+      ok: false,
+      error: invalidated.message,
+    });
+
+    expect(mockLoginAsLnurlAddressOwner).not.toHaveBeenCalled();
+    expect(mockSecureStorageSet).not.toHaveBeenCalled();
+  });
+
+  it('returns an unannotated invalidation from path 2', async () => {
+    const invalidated = new DfxAuthFlowInvalidatedError();
+    mockLoginAsLnurlAddressOwner.mockRejectedValueOnce(invalidated);
+    const { result } = renderHook(() => useLinkedWalletReauth());
+
+    await expect(result.current.reauthAs('LNURL1ABC', 'Lightning')).resolves.toEqual({
+      ok: false,
+      error: invalidated.message,
+    });
+
+    expect(mockSecureStorageSet).not.toHaveBeenCalled();
   });
 
   it('does not persist a Lightning owner token after reset creates a new active session', async () => {

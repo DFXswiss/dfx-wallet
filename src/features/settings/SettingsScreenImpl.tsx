@@ -132,14 +132,14 @@ export default function SettingsScreen() {
   const { deleteWallet, getEncryptedSeed } = useWalletManager();
   const { requestReauth, modalProps } = useReauthenticate();
   const [walletOrigin, setWalletOrigin] = useState<string | null>(null);
+  const isPasskeyOrigin = walletOrigin === 'passkey' || walletOrigin === 'passkey-pending';
 
   useEffect(() => {
     void secureStorage.get(StorageKeys.WALLET_ORIGIN).then(setWalletOrigin);
   }, []);
 
   const handleDeleteWallet = () => {
-    const isPasskey = walletOrigin === 'passkey';
-    const message = isPasskey
+    const message = isPasskeyOrigin
       ? t('settings.deleteWalletConfirmPasskey')
       : t('settings.deleteWalletConfirm');
 
@@ -208,7 +208,7 @@ export default function SettingsScreen() {
         },
         {
           icon: 'shield',
-          label: t(walletOrigin === 'passkey' ? 'settings.seed' : 'settings.seedPhrase'),
+          label: t(isPasskeyOrigin ? 'settings.seed' : 'settings.seedPhrase'),
           testID: 'settings-seed',
           route: '/(auth)/seed-export',
         },

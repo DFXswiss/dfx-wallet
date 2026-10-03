@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
+import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import {
   BrandLogo,
   DfxBackgroundScreen,
@@ -13,14 +14,15 @@ import { FEATURES } from '@/config/features';
 import { useAuthStore } from '@/store';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 
-type SetupError = 'mismatch' | 'save';
+type SetupError = 'mismatch' | 'save' | 'unlock';
 
 export default function SetupPinScreen() {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
-  const { setPin, setAuthenticated, setOnboarded } = useAuthStore();
+  const { isOnboarded, setPin, setAuthenticated, setOnboarded } = useAuthStore();
+  const { unlock } = useWalletManager();
   const [pin, setPinValue] = useState('');
   const [step, setStep] = useState<'create' | 'confirm'>('create');
   const [firstPin, setFirstPin] = useState('');
@@ -54,6 +56,21 @@ export default function SetupPinScreen() {
     try {
       setProcessing(true);
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      if (isOnboarded) {
+        try {
+          await unlock('default');
+        } catch (err) {
+          setAuthenticated(false);
+          setProcessing(false);
+          console.warn('setup-pin: wallet unlock failed', err);
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          setError('unlock');
+          setPinValue('');
+          setFirstPin('');
+          setStep('create');
+          return;
+        }
+      }
       setAuthenticated(true);
       await setPin(pinValue);
       if (!FEATURES.LEGAL) await setOnboarded(true);
@@ -94,7 +111,11 @@ export default function SetupPinScreen() {
         </Text>
         {error && (
           <Text style={styles.error} testID="setup-pin-error">
-            {error === 'save' ? t('pin.saveError') : t('pin.mismatch')}
+            {error === 'unlock'
+              ? t('pin.unlockFailed')
+              : error === 'save'
+                ? t('pin.saveError')
+                : t('pin.mismatch')}
           </Text>
         )}
 

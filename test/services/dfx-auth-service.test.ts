@@ -1,6 +1,7 @@
 import { dfxApi, DfxApiError } from '../../src/features/dfx-backend/services/api';
 import {
   assertBackendSignMessage,
+  DfxAuthFlowInvalidatedError,
   DfxSignMessageMismatchError,
   dfxAuthService,
 } from '../../src/features/dfx-backend/services/auth-service';
@@ -286,7 +287,7 @@ describe('dfxAuthService in-flight session changes', () => {
     dfxAuthService.adoptStoredToken('NEWER_TOKEN');
     response.resolve({ accessToken: 'LATE_TOKEN' });
 
-    await expect(login).resolves.toBe('LATE_TOKEN');
+    await expect(login).rejects.toBeInstanceOf(DfxAuthFlowInvalidatedError);
     expect(setAuthTokenSpy).not.toHaveBeenCalledWith('LATE_TOKEN');
     expect(apiToken).toBe('NEWER_TOKEN');
     expect(dfxAuthService.getAccessToken()).toBe('NEWER_TOKEN');
@@ -309,7 +310,7 @@ describe('dfxAuthService in-flight session changes', () => {
       dfxAuthService.adoptStoredToken('NEWER_TOKEN');
       response.resolve({ accessToken: 'LATE_TOKEN' });
 
-      await expect(login).resolves.toBe('LATE_TOKEN');
+      await expect(login).rejects.toBeInstanceOf(DfxAuthFlowInvalidatedError);
       expect(setAuthTokenSpy).not.toHaveBeenCalledWith('LATE_TOKEN');
       expect(apiToken).toBeNull();
       expect(dfxAuthService.getAccessToken()).toBe('NEWER_TOKEN');
@@ -443,6 +444,40 @@ describe('dfxAuthService in-flight session changes', () => {
     secondResponse.resolve({ accessToken: 'SECOND_TOKEN' });
 
     await expect(secondLink).resolves.toBe('SECOND_TOKEN');
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('SECOND_TOKEN');
+    expect(apiToken).toBe('SECOND_TOKEN');
+    expect(dfxAuthService.getAccessToken()).toBe('SECOND_TOKEN');
+  });
+
+  it('keeps a same-session token installed before another flow fails', async () => {
+    primeSession('SEED_TOKEN');
+    getSpy
+      .mockResolvedValueOnce({ message: backendSignMessage('bc1qfirst') })
+      .mockResolvedValueOnce({ message: backendSignMessage('bc1qsecond') });
+    const firstPostStarted = deferred<void>();
+    const secondPostStarted = deferred<void>();
+    const firstResponse = deferred<{ accessToken: string }>();
+    const secondResponse = deferred<{ accessToken: string }>();
+    postSpy
+      .mockImplementationOnce(() => {
+        firstPostStarted.resolve(undefined);
+        return firstResponse.promise;
+      })
+      .mockImplementationOnce(() => {
+        secondPostStarted.resolve(undefined);
+        return secondResponse.promise;
+      });
+
+    const firstLink = dfxAuthService.linkAddress('bc1qfirst', async () => 'FIRST_SIGNATURE');
+    await firstPostStarted.promise;
+    const secondLink = dfxAuthService.linkAddress('bc1qsecond', async () => 'SECOND_SIGNATURE');
+    await secondPostStarted.promise;
+    secondResponse.resolve({ accessToken: 'SECOND_TOKEN' });
+
+    await expect(secondLink).resolves.toBe('SECOND_TOKEN');
+    firstResponse.reject(new DfxApiError(409, 'CONFLICT', 'Address belongs to another user'));
+    await expect(firstLink).rejects.toThrow(/Address belongs to another user/);
+
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('SECOND_TOKEN');
     expect(apiToken).toBe('SECOND_TOKEN');
     expect(dfxAuthService.getAccessToken()).toBe('SECOND_TOKEN');

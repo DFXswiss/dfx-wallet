@@ -2,6 +2,7 @@ import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { LOCAL_SESSION_ENDED_MESSAGE } from '@/features/dfx-backend/session-guard';
+import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
 import type { DfxAuthGateState } from '@/features/dfx-backend/services';
 import type {
   BuyPaymentInfoDto,
@@ -491,6 +492,23 @@ describe('BuyScreenImpl', () => {
     expect(queryByText(LOCAL_SESSION_ENDED_MESSAGE)).toBeNull();
     expect(mockAlert).not.toHaveBeenCalled();
   });
+
+  it('silently closes the link gate when DFX authentication is invalidated', async () => {
+    const invalidated = new DfxAuthFlowInvalidatedError();
+    mockDfxAuthService.linkAddress.mockRejectedValueOnce(invalidated);
+    flowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'Link Bitcoin' };
+    const { getByTestId, queryByText } = render(<BuyScreenImpl />);
+
+    fireEvent.press(getByTestId('dfx-auth-gate-primary'));
+
+    await waitFor(() => expect(mockDfxAuthService.linkAddress).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockDismissAuthGate).toHaveBeenCalledTimes(1));
+    expect(
+      getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled,
+    ).toBe(false);
+    expect(queryByText(invalidated.message)).toBeNull();
+    expect(mockAlert).not.toHaveBeenCalled();
+  });
 });
 
 describe('SellScreenImpl', () => {
@@ -596,6 +614,23 @@ describe('SellScreenImpl', () => {
     expect(mockSecureStorage.set).not.toHaveBeenCalledWith('dfx-auth-token', 'stale-sell-token');
     expect(mockSellRetryLast).not.toHaveBeenCalled();
     expect(queryByText(LOCAL_SESSION_ENDED_MESSAGE)).toBeNull();
+    expect(mockAlert).not.toHaveBeenCalled();
+  });
+
+  it('silently closes the link gate when DFX authentication is invalidated', async () => {
+    const invalidated = new DfxAuthFlowInvalidatedError();
+    mockDfxAuthService.linkAddress.mockRejectedValueOnce(invalidated);
+    mockSellFlowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'Link Bitcoin' };
+    const { getByTestId, queryByText } = render(<SellScreenImpl />);
+
+    fireEvent.press(getByTestId('dfx-auth-gate-primary'));
+
+    await waitFor(() => expect(mockDfxAuthService.linkAddress).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockSellDismissAuthGate).toHaveBeenCalledTimes(1));
+    expect(
+      getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled,
+    ).toBe(false);
+    expect(queryByText(invalidated.message)).toBeNull();
     expect(mockAlert).not.toHaveBeenCalled();
   });
 });

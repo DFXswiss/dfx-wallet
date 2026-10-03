@@ -121,8 +121,8 @@ ship per-screen or per-flow.
 ### P1.1 — Screen capture / screenshot block on sensitive screens
 
 - [~] `expo-screen-capture` protection is active while the seed is visible
-      during wallet creation and seed export. Seed verify, PIN entry/setup,
-      and the balance card remain open.
+      during wallet creation, mnemonic entry during restore, and seed export.
+      Seed verify, PIN entry/setup, and the balance card remain open.
 - **Acceptance**: manual verification on device + emulator; Android
   screenshots return blank, iOS screen-recording obscures the view.
 
@@ -156,8 +156,11 @@ ship per-screen or per-flow.
 
 - [ ] On copy of address: announce "copied", auto-clear after 60s if
       clipboard still holds the same value.
-- [~] On copy of mnemonic: auto-clear after 60s if the clipboard still holds
-      the same value. The confirmation modal remains open.
+- [~] On copy of mnemonic: auto-clear after 60s while the app is in the
+      foreground if the clipboard still holds the same value. iOS does not
+      allow background clipboard access; a clear that fails or becomes due in
+      the background runs at the next foreground activation. The confirmation
+      modal remains open.
 - **Acceptance**: integration test on `Clipboard.setStringAsync` calls;
   manual verification on iOS + Android.
 

@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { useAccount } from '@tetherto/wdk-react-native-core';
 import {
   createDfxSessionGuard,
+  isLocalSessionEndedError,
   LOCAL_SESSION_ENDED_MESSAGE,
 } from '@/features/dfx-backend/session-guard';
 import { dfxAuthService } from '@/features/dfx-backend/services';
@@ -52,8 +53,11 @@ export function useLinkedWalletReauth() {
         await guard.persistToken(token);
         return { ok: true, token };
       } catch (err) {
-        if (err instanceof Error && err.message === LOCAL_SESSION_ENDED_MESSAGE) {
-          return { ok: false, error: LOCAL_SESSION_ENDED_MESSAGE };
+        if (isLocalSessionEndedError(err)) {
+          return {
+            ok: false,
+            error: err instanceof Error ? err.message : LOCAL_SESSION_ENDED_MESSAGE,
+          };
         }
         // Capture so we can surface it if Path 2 also fails — silently
         // swallowing the message made it impossible to tell why the
@@ -125,6 +129,12 @@ export function useLinkedWalletReauth() {
 
         return { ok: false, error: annotate(`Unsupported blockchain ${blockchain}`) };
       } catch (err) {
+        if (isLocalSessionEndedError(err)) {
+          return {
+            ok: false,
+            error: err instanceof Error ? err.message : LOCAL_SESSION_ENDED_MESSAGE,
+          };
+        }
         return {
           ok: false,
           error: annotate(err instanceof Error ? err.message : 'Reauth failed'),

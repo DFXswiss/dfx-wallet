@@ -25,7 +25,7 @@ import {
 import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
 import {
   createDfxSessionGuard,
-  LOCAL_SESSION_ENDED_MESSAGE,
+  isLocalSessionEndedError,
 } from '@/features/dfx-backend/session-guard';
 import type { ChainId } from '@/config/chains';
 import {
@@ -287,7 +287,7 @@ export default function SellScreen() {
           await guard.assertActive(ldsToken);
           void retryLast();
         } catch (err) {
-          if (err instanceof Error && err.message === LOCAL_SESSION_ENDED_MESSAGE) throw err;
+          if (isLocalSessionEndedError(err)) throw err;
           await assertFlowActive();
           if (err instanceof DfxApiError && err.statusCode === 409) {
             const ownerToken = await dfxAuthService.loginAsLnurlAddressOwner(
@@ -342,7 +342,7 @@ export default function SellScreen() {
         await guard.assertActive(newToken);
         void retryLast();
       } catch (err) {
-        if (err instanceof Error && err.message === LOCAL_SESSION_ENDED_MESSAGE) throw err;
+        if (isLocalSessionEndedError(err)) throw err;
         await assertFlowActive();
         // 409 → address belongs to another DFX user. Re-auth as that user
         // (drop the prior session) so the rest of the flow runs against the
@@ -370,7 +370,7 @@ export default function SellScreen() {
       try {
         await linkChainToDfx(chain);
       } catch (error) {
-        if (error instanceof Error && error.message === LOCAL_SESSION_ENDED_MESSAGE) return;
+        if (isLocalSessionEndedError(error)) return;
         throw error;
       }
     },

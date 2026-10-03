@@ -35,9 +35,20 @@ jest.mock('@/store', () => ({
 
 import {
   createDfxSessionGuard,
+  isLocalSessionEndedError,
   LOCAL_SESSION_ENDED_MESSAGE,
 } from '@/features/dfx-backend/session-guard';
+import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
 import { StorageKeys } from '@/services/storage';
+
+describe('isLocalSessionEndedError', () => {
+  it('matches local-session and invalidated-auth errors only', () => {
+    expect(isLocalSessionEndedError(new Error(LOCAL_SESSION_ENDED_MESSAGE))).toBe(true);
+    expect(isLocalSessionEndedError(new DfxAuthFlowInvalidatedError())).toBe(true);
+    expect(isLocalSessionEndedError(new Error('different failure'))).toBe(false);
+    expect(isLocalSessionEndedError('not an error')).toBe(false);
+  });
+});
 
 describe('createDfxSessionGuard', () => {
   beforeEach(() => {
