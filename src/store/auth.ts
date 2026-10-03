@@ -53,10 +53,14 @@ type AuthState = {
   setAuthenticated: (value: boolean) => void;
   setDfxAuthenticated: (value: boolean) => void;
   setPin: (pin: string) => Promise<void>;
-  verifyPin: (pin: string) => Promise<boolean>;
+  verifyPin: (pin: string, options?: VerifyPinOptions) => Promise<boolean>;
   authenticateBiometric: (options: BiometricPromptOptions) => Promise<boolean>;
   setBiometricEnabled: (enabled: boolean) => Promise<void>;
   reset: () => Promise<void>;
+};
+
+type VerifyPinOptions = {
+  recordFailure?: boolean;
 };
 
 export type BiometricPromptOptions = {
@@ -177,22 +181,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ pinHash: hash });
   },
 
-  verifyPin: async (pin) => {
+  verifyPin: async (pin, { recordFailure = true } = {}) => {
     const { pinHash, failedAttempts, lockedUntil } = get();
     if (!pinHash) return false;
     if (lockedUntil && lockedUntil > Date.now()) return false;
     const ok = await verifyPinHash(pin, pinHash);
     if (!ok) {
+      if (!recordFailure) return false;
       const nextAttempts = failedAttempts + 1;
       const lockoutMs = pinLockoutMs(nextAttempts);
       const nextLockedUntil = lockoutMs > 0 ? Date.now() + lockoutMs : null;
-      await Promise.all([
-        secureStorage.set(StorageKeys.PIN_FAILED_ATTEMPTS, String(nextAttempts)),
-        nextLockedUntil
-          ? secureStorage.set(StorageKeys.PIN_LOCKED_UNTIL, String(nextLockedUntil))
-          : secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL),
-      ]);
       set({ failedAttempts: nextAttempts, lockedUntil: nextLockedUntil });
+      try {
+        await Promise.all([
+          secureStorage.set(StorageKeys.PIN_FAILED_ATTEMPTS, String(nextAttempts)),
+          nextLockedUntil
+            ? secureStorage.set(StorageKeys.PIN_LOCKED_UNTIL, String(nextLockedUntil))
+            : secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL),
+        ]);
+      } catch {
+        return false;
+      }
       return false;
     }
     await Promise.all([

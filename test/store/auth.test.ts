@@ -253,6 +253,41 @@ describe('useAuthStore', () => {
       });
     });
 
+    it('does not record failed silent checks for shorter legacy PIN candidates', async () => {
+      await useAuthStore.getState().setPin('123456');
+      useAuthStore.setState({ failedAttempts: 4, lockedUntil: null });
+      setItemMock.mockClear();
+      deleteItemMock.mockClear();
+
+      await expect(
+        useAuthStore.getState().verifyPin('9999', { recordFailure: false }),
+      ).resolves.toBe(false);
+      await expect(
+        useAuthStore.getState().verifyPin('99999', { recordFailure: false }),
+      ).resolves.toBe(false);
+
+      expect(useAuthStore.getState().failedAttempts).toBe(4);
+      expect(useAuthStore.getState().lockedUntil).toBeNull();
+      expect(setItemMock).not.toHaveBeenCalled();
+      expect(deleteItemMock).not.toHaveBeenCalled();
+    });
+
+    it('keeps the failed attempt and lockout in memory when persistence rejects', async () => {
+      await useAuthStore.getState().setPin('123456');
+      useAuthStore.setState({ failedAttempts: 4, lockedUntil: null });
+      setItemMock.mockClear();
+      setItemMock.mockImplementationOnce(async () => {
+        throw new Error('keychain unavailable');
+      });
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+
+      await expect(useAuthStore.getState().verifyPin('999999')).resolves.toBe(false);
+
+      expect(useAuthStore.getState().failedAttempts).toBe(5);
+      expect(useAuthStore.getState().lockedUntil).toBe(1_030_000);
+      now.mockRestore();
+    });
+
     it('does not calculate a hash while a persisted lockout is active', async () => {
       useAuthStore.setState({
         pinHash: 'stored-hash',
@@ -278,24 +313,27 @@ describe('useAuthStore', () => {
       expect(useAuthStore.getState().lockedUntil).toBeNull();
     });
 
-    it('migrates a valid legacy PIN hash after successful verification', async () => {
-      const legacyHash = await legacyHashPin('123456');
-      useAuthStore.setState({ pinHash: legacyHash });
+    it(
+      'migrates a valid 4-digit legacy PIN hash after a successful silent verification',
+      async () => {
+        const legacyHash = await legacyHashPin('1234');
+        useAuthStore.setState({ pinHash: legacyHash });
 
-      const ok = await useAuthStore.getState().verifyPin('123456');
+        const ok = await useAuthStore.getState().verifyPin('1234', { recordFailure: false });
 
-      expect(ok).toBe(true);
-      await waitFor(() =>
-        expect(setItemMock).toHaveBeenCalledWith(
-          'pinHash',
-          expect.stringMatching(/^pin\$argon2id\$/),
-          { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY },
-        ),
-      );
-      await waitFor(() =>
-        expect(useAuthStore.getState().pinHash).toBe(setItemMock.mock.calls.at(-1)?.[1]),
-      );
-    });
+        expect(ok).toBe(true);
+        await waitFor(() =>
+          expect(setItemMock).toHaveBeenCalledWith(
+            'pinHash',
+            expect.stringMatching(/^pin\$argon2id\$/),
+            { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY },
+          ),
+        );
+        await waitFor(() =>
+          expect(useAuthStore.getState().pinHash).toBe(setItemMock.mock.calls.at(-1)?.[1]),
+        );
+      },
+    );
   });
 
   describe('hydrate', () => {

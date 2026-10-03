@@ -14,9 +14,6 @@ jest.mock('../../src/services/storage', () => {
         store.set(key, value);
       }),
       get: jest.fn(async (key: string) => store.get(key) ?? null),
-      remove: jest.fn(async (key: string) => {
-        store.delete(key);
-      }),
       __reset: () => store.clear(),
     },
   };
@@ -75,28 +72,35 @@ describe('setupPasskeyWallet', () => {
     const setOrder = mockedStorage.set.mock.invocationCallOrder;
     expect(setOrder.every((n) => n > initAt)).toBe(true);
 
-    // And the three keys are written in the documented order.
+    // The origin marker is first so any interrupted metadata write remains fail-closed.
     expect(mockedStorage.set.mock.calls.map((c) => c[0])).toEqual([
+      StorageKeys.WALLET_ORIGIN,
       StorageKeys.PASSKEY_CREDENTIAL_ID,
       StorageKeys.PASSKEY_DERIVATION_VERSION,
-      StorageKeys.WALLET_ORIGIN,
     ]);
   });
 
-  it('does not mark the wallet as passkey-origin when metadata persistence fails', async () => {
+  it('leaves the passkey origin marker when later metadata persistence fails', async () => {
+    const persist = mockedStorage.set.getMockImplementation() as (
+      key: string,
+      value: string,
+    ) => Promise<void>;
     mockedStorage.set
-      .mockImplementationOnce(async () => undefined)
-      .mockRejectedValueOnce(new Error('keychain unavailable'));
+      .mockImplementationOnce((key: string, value: string) => persist(key, value))
+      .mockImplementationOnce(async () => {
+        throw new Error('keychain unavailable');
+      });
 
     await expect(
       setupPasskeyWallet(PRF_32, CREDENTIAL_ID, async () => undefined),
     ).rejects.toThrow('keychain unavailable');
 
     expect(mockedStorage.set.mock.calls.map((call) => call[0])).toEqual([
+      StorageKeys.WALLET_ORIGIN,
       StorageKeys.PASSKEY_CREDENTIAL_ID,
-      StorageKeys.PASSKEY_DERIVATION_VERSION,
     ]);
-    expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBeNull();
+    expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBe('passkey');
+    expect(await mockedStorage.get(StorageKeys.PASSKEY_CREDENTIAL_ID)).toBeNull();
   });
 
   it('does not write orphaned storage keys when wallet init fails', async () => {

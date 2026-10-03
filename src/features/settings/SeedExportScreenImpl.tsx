@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
@@ -17,12 +25,37 @@ import { secureStorage, StorageKeys } from '@/services/storage';
 import { seedToWords } from '@/services/wallet';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 
+type WalletOriginState = 'loading' | 'seed' | 'passkey' | 'error';
+
+type WalletMetadata = {
+  credentialId: string | null;
+  derivationVersion: string | null;
+  origin: string | null;
+  state: Exclude<WalletOriginState, 'loading'>;
+};
+
+async function readWalletMetadata(): Promise<WalletMetadata> {
+  const [origin, credentialId, derivationVersion] = await Promise.all([
+    secureStorage.get(StorageKeys.WALLET_ORIGIN),
+    secureStorage.get(StorageKeys.PASSKEY_CREDENTIAL_ID),
+    secureStorage.get(StorageKeys.PASSKEY_DERIVATION_VERSION),
+  ]);
+  const state: WalletMetadata['state'] =
+    origin === 'passkey' || credentialId !== null || derivationVersion !== null
+      ? 'passkey'
+      : origin === null
+        ? 'seed'
+        : 'error';
+
+  return { credentialId, derivationVersion, origin, state };
+}
+
 export default function SeedExportScreen() {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { t } = useTranslation();
   const router = useRouter();
-  const [walletOrigin, setWalletOrigin] = useState<string | null>(null);
+  const [walletOrigin, setWalletOrigin] = useState<WalletOriginState>('loading');
   const [seedWords, setSeedWords] = useState<string[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -34,25 +67,58 @@ export default function SeedExportScreen() {
   const getMnemonic = wallet?.getMnemonic?.bind(wallet);
 
   useEffect(() => {
-    void secureStorage.get(StorageKeys.WALLET_ORIGIN).then(setWalletOrigin);
+    let mounted = true;
+    void readWalletMetadata()
+      .then((metadata) => {
+        if (mounted) setWalletOrigin(metadata.state);
+      })
+      .catch(() => {
+        if (mounted) setWalletOrigin('error');
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  useScreenCaptureProtection(seedWords !== null, 'seed-export');
+  const captureProtection = useScreenCaptureProtection(seedWords !== null, 'seed-export');
 
   const isPasskey = walletOrigin === 'passkey';
+  const isOriginReady = walletOrigin === 'seed' || walletOrigin === 'passkey';
+  const canRenderSeed = seedWords !== null && captureProtection !== 'pending';
 
   const handleReveal = async () => {
+    if (!isOriginReady) return;
     if (!(await requestReauth())) return;
+
+    let metadata: WalletMetadata;
+    try {
+      metadata = await readWalletMetadata();
+    } catch {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(t('common.error'), t('seedExport.deriveFailed'));
+      return;
+    }
+
+    if (
+      metadata.state === 'error' ||
+      metadata.state !== walletOrigin ||
+      (metadata.state === 'passkey' && metadata.origin !== 'passkey')
+    ) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(t('common.error'), t('seedExport.passkeyVerificationUnavailable'));
+      return;
+    }
+
     if (isPasskey) {
       setIsLoading(true);
       try {
-        const credentialId = await secureStorage.get(StorageKeys.PASSKEY_CREDENTIAL_ID);
+        const credentialId = metadata.credentialId;
         if (!credentialId || !getMnemonic) {
           void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           Alert.alert(t('common.error'), t('seedExport.passkeyVerificationUnavailable'));
           return;
         }
-        const versionStr = await secureStorage.get(StorageKeys.PASSKEY_DERIVATION_VERSION);
+        const versionStr = metadata.derivationVersion;
         const version = versionStr ? parseInt(versionStr, 10) : 1;
         const { prfOutput } = await authenticatePasskey({ credentialId });
         const mnemonic = deriveMnemonicFromPrf(prfOutput, version);
@@ -139,20 +205,33 @@ export default function SeedExportScreen() {
 
         {!seedWords ? (
           <Pressable
-            style={[styles.revealButton, isLoading && styles.revealButtonDisabled]}
+            testID="seed-export-reveal-button"
+            style={[
+              styles.revealButton,
+              (isLoading || !isOriginReady) && styles.revealButtonDisabled,
+            ]}
             onPress={handleReveal}
-            disabled={isLoading}
+            disabled={isLoading || !isOriginReady}
           >
             <Text style={styles.revealText}>
-              {isLoading
+              {walletOrigin === 'loading' || isLoading
                 ? t('common.loading')
-                : isPasskey
-                  ? t('seedExport.revealPasskey')
-                  : t('seedExport.revealSeed')}
+                : walletOrigin === 'error'
+                  ? t('common.error')
+                  : isPasskey
+                    ? t('seedExport.revealPasskey')
+                    : t('seedExport.revealSeed')}
             </Text>
           </Pressable>
+        ) : !canRenderSeed ? (
+          <ActivityIndicator testID="seed-export-protection-loading" color={colors.primary} />
         ) : (
           <>
+            {captureProtection === 'unavailable' && (
+              <View style={styles.warningContainer} testID="seed-export-capture-warning">
+                <Text style={styles.warningText}>{t('common.screenCaptureUnavailable')}</Text>
+              </View>
+            )}
             <View style={styles.warningContainer}>
               <Text style={styles.warningText}>{t('seedExport.warning')}</Text>
             </View>

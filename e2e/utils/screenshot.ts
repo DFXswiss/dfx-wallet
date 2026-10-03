@@ -2,11 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { by, device, element } from 'detox';
 import { toMatchImageSnapshot } from 'jest-image-snapshot';
-import {
-  elementFramesFromAttributes,
-  maskPngBuffer,
-  type ScreenshotMaskRect,
-} from './mask-png';
+import { maskArtifactInPlace } from './mask-artifact';
+import { elementFramesFromAttributes, type ScreenshotMaskRect } from './mask-png';
 
 // Detox replaces the global `expect` with its own matcher API.
 // We need Jest's original `expect` for jest-image-snapshot.
@@ -72,14 +69,12 @@ export async function expectScreenToMatchBaseline(
   const maskFrames = maskTestIDs.length > 0 ? await getMaskFrames(maskTestIDs) : [];
   const windowWidth = maskFrames.length > 0 ? await getWindowWidth() : null;
   const artifactPath = await device.takeScreenshot(name);
-  // eslint-disable-next-line security/detect-non-literal-fs-filename
-  let screenshot = fs.readFileSync(artifactPath);
-
-  if (windowWidth !== null) {
-    screenshot = maskPngBuffer(screenshot, maskFrames, windowWidth);
-    // Replace Detox's raw artifact so an unmasked seed never remains on disk.
+  let screenshot: Buffer;
+  if (windowWidth === null) {
     // eslint-disable-next-line security/detect-non-literal-fs-filename
-    fs.writeFileSync(artifactPath, screenshot);
+    screenshot = fs.readFileSync(artifactPath);
+  } else {
+    screenshot = maskArtifactInPlace(artifactPath, maskFrames, windowWidth);
   }
 
   jestExpect(screenshot).toMatchImageSnapshot({

@@ -6,7 +6,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 // Capture the href that the disabled stubs hand to `router.replace`. Each
-// stub flips two pieces of auth-store state and replaces to the dashboard;
+// stub flips the relevant auth-store state and replaces to the next route;
 // asserting on the replace call is the lightest way to verify behavior
 // without booting the router.
 const mockReplace = jest.fn();
@@ -58,6 +58,25 @@ describe('SetupPinDisabled', () => {
     expect(isOnboarded).toBe(true);
     expect(isAuthenticated).toBe(true);
   });
+
+  it('shows an error and does not navigate when finishing authentication rejects', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockFeatures.LEGAL = false;
+    const originalSetOnboarded = useAuthStore.getState().setOnboarded;
+    useAuthStore.setState({
+      setOnboarded: jest.fn(async () => {
+        throw new Error('keychain unavailable');
+      }),
+    });
+
+    const view = render(<SetupPinDisabled />);
+
+    await waitFor(() => expect(view.getByText('pin.finishError')).toBeTruthy());
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(mockReplace).not.toHaveBeenCalled();
+    useAuthStore.setState({ setOnboarded: originalSetOnboarded });
+    warn.mockRestore();
+  });
 });
 
 describe('VerifyPinDisabled', () => {
@@ -65,15 +84,29 @@ describe('VerifyPinDisabled', () => {
     mockReplace.mockReset();
     mockUnlock.mockReset();
     mockUnlock.mockResolvedValue(undefined);
+    mockFeatures.LEGAL = true;
     await useAuthStore.getState().reset();
   });
 
   it('unlocks the WDK wallet, flips isAuthenticated, and replaces to the dashboard', async () => {
+    useAuthStore.setState({ isOnboarded: true });
     render(<VerifyPinDisabled />);
     await waitFor(() => expect(mockReplace).toHaveBeenCalled());
     expect(mockUnlock).toHaveBeenCalledWith('default');
     expect(useAuthStore.getState().isAuthenticated).toBe(true);
     expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard');
+  });
+
+  it('routes unfinished onboarding to the legal disclaimer after unlocking', async () => {
+    render(<VerifyPinDisabled />);
+
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith('/(onboarding)/legal-disclaimer'),
+    );
+
+    expect(mockUnlock).toHaveBeenCalledWith('default');
+    expect(useAuthStore.getState().isOnboarded).toBe(false);
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
   });
 
   it('authenticates and routes only after the unlock promise resolves', async () => {

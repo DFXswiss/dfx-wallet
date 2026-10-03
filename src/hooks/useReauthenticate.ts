@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/auth';
 const FIRST_LOCKOUT_ATTEMPT = 5;
 
 type PendingRequest = {
+  id: number;
   promise: Promise<boolean>;
   resolve: (value: boolean) => void;
 };
@@ -26,24 +27,47 @@ export function useReauthenticate(): UseReauthenticateResult {
   const [verifying, setVerifying] = useState(false);
   const [now, setNow] = useState(Date.now());
   const pending = useRef<PendingRequest | null>(null);
+  const requestGeneration = useRef(0);
   const mounted = useRef(true);
 
   const isLocked = lockedUntil !== null && lockedUntil > now;
   const remainingSeconds = isLocked ? Math.max(1, Math.ceil((lockedUntil - now) / 1000)) : 0;
 
-  const finish = useCallback((result: boolean) => {
+  const isCurrentRequest = useCallback(
+    (requestId: number) =>
+      mounted.current &&
+      requestGeneration.current === requestId &&
+      pending.current?.id === requestId,
+    [],
+  );
+
+  const finish = useCallback(
+    (requestId: number, result: boolean) => {
+      if (!isCurrentRequest(requestId)) return;
+      const current = pending.current;
+      pending.current = null;
+      setModalVisible(false);
+      setError(null);
+      setVerifying(false);
+      current?.resolve(result);
+    },
+    [isCurrentRequest],
+  );
+
+  const cancel = useCallback(() => {
+    requestGeneration.current += 1;
     const current = pending.current;
-    if (!current) return;
     pending.current = null;
     setModalVisible(false);
     setError(null);
     setVerifying(false);
-    current.resolve(result);
+    current?.resolve(false);
   }, []);
 
   useEffect(() => {
     return () => {
       mounted.current = false;
+      requestGeneration.current += 1;
       const current = pending.current;
       pending.current = null;
       current?.resolve(false);
@@ -58,16 +82,20 @@ export function useReauthenticate(): UseReauthenticateResult {
 
   const requestReauth = useCallback((): Promise<boolean> => {
     if (pending.current) return pending.current.promise;
+    const requestId = ++requestGeneration.current;
+    setModalVisible(false);
+    setError(null);
+    setVerifying(false);
 
     let resolveRequest: (value: boolean) => void = () => undefined;
     const promise = new Promise<boolean>((resolve) => {
       resolveRequest = resolve;
     });
-    pending.current = { promise, resolve: resolveRequest };
+    pending.current = { id: requestId, promise, resolve: resolveRequest };
 
     void (async () => {
       const auth = useAuthStore.getState();
-      if (biometricEnabled) {
+      if (FEATURES.BIOMETRIC && biometricEnabled) {
         let authenticated = false;
         try {
           authenticated = await auth.authenticateBiometric({
@@ -77,17 +105,17 @@ export function useReauthenticate(): UseReauthenticateResult {
         } catch {
           authenticated = false;
         }
-        if (!mounted.current || pending.current?.promise !== promise) return;
+        if (!isCurrentRequest(requestId)) return;
         if (authenticated) {
-          finish(true);
+          finish(requestId, true);
           return;
         }
         if (!FEATURES.PIN || !useAuthStore.getState().pinHash) {
-          finish(false);
+          finish(requestId, false);
           return;
         }
       } else if (!FEATURES.PIN || !pinHash) {
-        finish(true);
+        finish(requestId, true);
         return;
       }
 
@@ -97,11 +125,13 @@ export function useReauthenticate(): UseReauthenticateResult {
     })();
 
     return promise;
-  }, [biometricEnabled, finish, pinHash, t]);
+  }, [biometricEnabled, finish, isCurrentRequest, pinHash, t]);
 
   const submitPin = useCallback(
     async (pin: string) => {
-      if (verifying) return;
+      const currentRequest = pending.current;
+      if (verifying || !currentRequest) return;
+      const requestId = currentRequest.id;
       const auth = useAuthStore.getState();
       if (auth.lockedUntil && auth.lockedUntil > Date.now()) {
         setNow(Date.now());
@@ -116,10 +146,10 @@ export function useReauthenticate(): UseReauthenticateResult {
       } catch {
         valid = false;
       }
-      if (!mounted.current || !pending.current) return;
+      if (!isCurrentRequest(requestId)) return;
       setVerifying(false);
       if (valid) {
-        finish(true);
+        finish(requestId, true);
         return;
       }
 
@@ -133,7 +163,7 @@ export function useReauthenticate(): UseReauthenticateResult {
           : t('pin.incorrect'),
       );
     },
-    [finish, t, verifying],
+    [finish, isCurrentRequest, t, verifying],
   );
 
   const modalProps = useMemo<ReauthPinModalProps>(
@@ -142,10 +172,10 @@ export function useReauthenticate(): UseReauthenticateResult {
       error: isLocked ? t('pin.lockedFor', { count: remainingSeconds }) : error,
       locked: isLocked,
       verifying,
-      onCancel: () => finish(false),
+      onCancel: cancel,
       onSubmit: (pin) => void submitPin(pin),
     }),
-    [error, finish, isLocked, modalVisible, remainingSeconds, submitPin, t, verifying],
+    [cancel, error, isLocked, modalVisible, remainingSeconds, submitPin, t, verifying],
   );
 
   return { requestReauth, modalProps };

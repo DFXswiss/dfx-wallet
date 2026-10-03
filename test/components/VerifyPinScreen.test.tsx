@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
 jest.mock('react-i18next', () => ({
@@ -33,11 +34,13 @@ const mockAuthState: {
   failedAttempts: number;
   isOnboarded: boolean;
   lockedUntil: number | null;
+  pinHash: string | null;
 } = {
   biometricEnabled: false,
   failedAttempts: 0,
   isOnboarded: true,
   lockedUntil: null,
+  pinHash: 'pin$argon2id$current',
 };
 jest.mock('@/store', () => ({
   useAuthStore: () => ({
@@ -48,6 +51,7 @@ jest.mock('@/store', () => ({
     failedAttempts: mockAuthState.failedAttempts,
     isOnboarded: mockAuthState.isOnboarded,
     lockedUntil: mockAuthState.lockedUntil,
+    pinHash: mockAuthState.pinHash,
     setOnboarded: mockSetOnboarded,
   }),
 }));
@@ -85,6 +89,7 @@ describe('VerifyPinScreen', () => {
     mockAuthState.failedAttempts = 0;
     mockAuthState.isOnboarded = true;
     mockAuthState.lockedUntil = null;
+    mockAuthState.pinHash = 'pin$argon2id$current';
     jest.spyOn(global, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0);
       return 0;
@@ -133,6 +138,32 @@ describe('VerifyPinScreen', () => {
     expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard');
   });
 
+  it('shows an error and allows retry when finishing authentication rejects', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockFeatures.LEGAL = false;
+    mockAuthState.isOnboarded = false;
+    mockVerifyPin.mockResolvedValue(true);
+    mockSetOnboarded.mockImplementationOnce(async () => {
+      throw new Error('keychain unavailable');
+    });
+    const { getByTestId, queryByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+
+    await waitFor(() =>
+      expect(getByTestId('verify-pin-error').children.join('')).toBe('pin.finishError'),
+    );
+    expect(queryByTestId('pin-processing-overlay')).toBeNull();
+    expect(mockSetAuthenticated).toHaveBeenCalledWith(false);
+    expect(mockReplace).not.toHaveBeenCalled();
+
+    await enterPin(getByTestId, '123456');
+
+    expect(mockVerifyPin).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard'));
+    warn.mockRestore();
+  });
+
   it('authenticates only after the wallet unlock resolves', async () => {
     mockVerifyPin.mockResolvedValue(true);
     const calls: string[] = [];
@@ -167,6 +198,116 @@ describe('VerifyPinScreen', () => {
     await enterPin(getByTestId, '6');
     expect(mockVerifyPin).toHaveBeenCalledTimes(1);
   });
+
+  it('unlocks a valid 4-digit legacy PIN without recording a failed attempt', async () => {
+    mockAuthState.pinHash = 'abcdef';
+    mockVerifyPin.mockImplementation(async (pin: string) => pin === '1234');
+    const { getByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '1234');
+
+    expect(mockVerifyPin).toHaveBeenCalledWith('1234', { recordFailure: false });
+    expect(mockSetAuthenticated).toHaveBeenCalledWith(true);
+    expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard');
+  });
+
+  it('ignores further digits while a successful legacy unlock is pending', async () => {
+    let resolveUnlock: () => void = () => undefined;
+    mockAuthState.pinHash = 'abcdef';
+    mockVerifyPin.mockImplementation(async (pin: string) => pin === '1234');
+    mockUnlock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUnlock = resolve;
+        }),
+    );
+    const { getByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '1234');
+    expect(mockUnlock).toHaveBeenCalledTimes(1);
+
+    await enterPin(getByTestId, '56');
+
+    expect(mockVerifyPin).toHaveBeenCalledTimes(1);
+    expect(mockVerifyPin).not.toHaveBeenCalledWith('123456');
+
+    await act(async () => resolveUnlock());
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledTimes(1));
+  });
+
+  it('ignores a stale failed 6-digit check after a legacy check unlocks', async () => {
+    let resolveLegacyVerification: (value: boolean) => void = () => undefined;
+    let resolveFinalVerification: (value: boolean) => void = () => undefined;
+    mockAuthState.pinHash = 'abcdef';
+    mockVerifyPin.mockImplementation((pin: string) => {
+      if (pin === '1234') {
+        return new Promise<boolean>((resolve) => {
+          resolveLegacyVerification = resolve;
+        });
+      }
+      if (pin === '123456') {
+        return new Promise<boolean>((resolve) => {
+          resolveFinalVerification = resolve;
+        });
+      }
+      return Promise.resolve(false);
+    });
+    const { getByTestId, queryByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+    await waitFor(() =>
+      expect(mockVerifyPin).toHaveBeenCalledWith('123456', { recordFailure: false }),
+    );
+
+    await act(async () => resolveLegacyVerification(true));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledTimes(1));
+
+    await act(async () => resolveFinalVerification(false));
+
+    expect(queryByTestId('verify-pin-error')).toBeNull();
+    expect(Haptics.notificationAsync).not.toHaveBeenCalledWith(
+      Haptics.NotificationFeedbackType.Error,
+    );
+    expect(mockVerifyPin).not.toHaveBeenCalledWith('123456');
+    expect(mockUnlock).toHaveBeenCalledTimes(1);
+    expect(mockSetAuthenticated).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+  });
+
+  it('tries both shorter candidates and unlocks a valid 5-digit legacy PIN', async () => {
+    mockAuthState.pinHash = 'abcdef';
+    mockVerifyPin.mockImplementation(async (pin: string) => pin === '12345');
+    const { getByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '12345');
+
+    expect(mockVerifyPin).toHaveBeenNthCalledWith(1, '1234', { recordFailure: false });
+    expect(mockVerifyPin).toHaveBeenNthCalledWith(2, '12345', { recordFailure: false });
+    expect(mockSetAuthenticated).toHaveBeenCalledWith(true);
+    expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard');
+  });
+
+  it(
+    'keeps wrong 4- and 5-digit legacy checks silent and records only the 6-digit attempt',
+    async () => {
+      mockAuthState.pinHash = 'abcdef';
+      const { getByTestId, queryByTestId } = render(<VerifyPinScreen />);
+
+      await enterPin(getByTestId, '12345');
+
+      expect(mockVerifyPin).toHaveBeenNthCalledWith(1, '1234', { recordFailure: false });
+      expect(mockVerifyPin).toHaveBeenNthCalledWith(2, '12345', { recordFailure: false });
+      expect(queryByTestId('verify-pin-error')).toBeNull();
+      expect(queryByTestId('verify-pin-locked')).toBeNull();
+
+      await enterPin(getByTestId, '6');
+
+      expect(mockVerifyPin).toHaveBeenNthCalledWith(3, '123456', { recordFailure: false });
+      expect(mockVerifyPin).toHaveBeenNthCalledWith(4, '123456');
+      expect(getByTestId('verify-pin-error')).toBeTruthy();
+    },
+  );
 
   it('shows the processing overlay while final PIN verification is pending', async () => {
     mockVerifyPin.mockImplementation(() => new Promise<boolean>(() => undefined));
