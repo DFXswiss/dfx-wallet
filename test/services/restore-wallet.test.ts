@@ -1,4 +1,7 @@
-import { restoreWalletFlow } from '@/features/restore/services/restore-wallet';
+import {
+  isWalletAlreadyExistsError,
+  restoreWalletFlow,
+} from '@/features/restore/services/restore-wallet';
 
 function createDependencies() {
   const calls: string[] = [];
@@ -19,6 +22,25 @@ function createDependencies() {
     }),
   };
 }
+
+describe('isWalletAlreadyExistsError', () => {
+  it('recognises already-exists errors case-insensitively within a longer message', () => {
+    expect(isWalletAlreadyExistsError(new Error('Wallet ALREADY EXISTS for this identifier'))).toBe(
+      true,
+    );
+  });
+
+  it.each(['Wallet already exists', { message: 'Wallet already exists' }, null, undefined])(
+    'rejects non-Error value %p',
+    (value) => {
+      expect(isWalletAlreadyExistsError(value)).toBe(false);
+    },
+  );
+
+  it('rejects unrelated Error messages', () => {
+    expect(isWalletAlreadyExistsError(new Error('Wallet creation failed'))).toBe(false);
+  });
+});
 
 describe('restoreWalletFlow', () => {
   it('restores and resets without confirmation when no wallet exists', async () => {

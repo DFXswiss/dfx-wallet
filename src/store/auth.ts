@@ -145,6 +145,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         parsedLockedUntil > 0
       ) {
         hydratedLockedUntil = parsedLockedUntil;
+      } else if (hydratedFailedAttempts >= FIRST_LOCKOUT_ATTEMPT) {
+        hydratedLockedUntil = Date.now() + pinLockoutMs(hydratedFailedAttempts);
       }
 
       // Re-arm both the API client and the auth service with the persisted
