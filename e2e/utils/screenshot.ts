@@ -2,10 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { by, device, element } from 'detox';
 import { toMatchImageSnapshot } from 'jest-image-snapshot';
-import { PNG } from 'pngjs';
 import {
   elementFramesFromAttributes,
-  maskPngRegions,
+  maskPngBuffer,
   type ScreenshotMaskRect,
 } from './mask-png';
 
@@ -77,9 +76,10 @@ export async function expectScreenToMatchBaseline(
   let screenshot = fs.readFileSync(artifactPath);
 
   if (windowWidth !== null) {
-    const png = PNG.sync.read(screenshot);
-    maskPngRegions(png, maskFrames, png.width / windowWidth);
-    screenshot = PNG.sync.write(png);
+    screenshot = maskPngBuffer(screenshot, maskFrames, windowWidth);
+    // Replace Detox's raw artifact so an unmasked seed never remains on disk.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
+    fs.writeFileSync(artifactPath, screenshot);
   }
 
   jestExpect(screenshot).toMatchImageSnapshot({

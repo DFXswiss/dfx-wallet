@@ -65,10 +65,10 @@ describe('deleteWalletFlow', () => {
     expect(dependencies.reset).not.toHaveBeenCalled();
   });
 
-  it('reports failure when auth reset fails after deletion', async () => {
+  it('reports a deleted wallet with incomplete cleanup when auth reset fails', async () => {
     const dependencies = createDependencies();
     dependencies.reset.mockRejectedValueOnce(new Error('keychain unavailable'));
 
-    await expect(deleteWalletFlow(dependencies)).resolves.toBe('failed');
+    await expect(deleteWalletFlow(dependencies)).resolves.toBe('deleted-with-cleanup-error');
   });
 });

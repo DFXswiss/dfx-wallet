@@ -33,14 +33,14 @@ describe('OnboardingLayout routing guards', () => {
   });
 
   it('redirects to the dashboard when an onboarded + authenticated user enters /(onboarding)/*', () => {
-    useAuthStore.setState({ isOnboarded: true, isAuthenticated: true });
+    useAuthStore.setState({ isOnboarded: true, isAuthenticated: true, pinHash: 'hash' });
     mockSegments.current = ['(onboarding)', 'welcome'];
     const { getByTestId } = render(<OnboardingLayout />);
     expect(getByTestId('redirect').props.children).toBe('/(auth)/(tabs)/dashboard');
   });
 
   it('redirects to PIN verify when onboarded but not yet authenticated in-memory', () => {
-    useAuthStore.setState({ isOnboarded: true, isAuthenticated: false });
+    useAuthStore.setState({ isOnboarded: true, isAuthenticated: false, pinHash: 'hash' });
     mockSegments.current = ['(onboarding)', 'welcome'];
     const { getByTestId } = render(<OnboardingLayout />);
     expect(getByTestId('redirect').props.children).toBe('/(pin)/verify');
@@ -100,6 +100,38 @@ describe('OnboardingLayout routing guards', () => {
     mockSegments.current = ['(onboarding)', 'setup-pin'];
     const { getByTestId } = render(<OnboardingLayout />);
     expect(getByTestId('redirect').props.children).toBe('/(pin)/verify');
+  });
+
+  it('allows an onboarded user without a PIN to open setup-pin', () => {
+    useAuthStore.setState({ isOnboarded: true, isAuthenticated: false, pinHash: null });
+    mockActiveWalletId.current = 'default';
+    mockSegments.current = ['(onboarding)', 'setup-pin'];
+
+    const { queryByTestId, getByTestId } = render(<OnboardingLayout />);
+
+    expect(queryByTestId('redirect')).toBeNull();
+    expect(getByTestId('stack-rendered')).toBeTruthy();
+  });
+
+  it('does not allow an onboarded user with a PIN to reopen setup-pin', () => {
+    useAuthStore.setState({ isOnboarded: true, isAuthenticated: false, pinHash: 'hash' });
+    mockActiveWalletId.current = 'default';
+    mockSegments.current = ['(onboarding)', 'setup-pin'];
+
+    const { getByTestId } = render(<OnboardingLayout />);
+
+    expect(getByTestId('redirect').props.children).toBe('/(pin)/verify');
+  });
+
+  it('redirects an authenticated onboarded user with a PIN away from setup-pin', () => {
+    useAuthStore.setState({ isOnboarded: true, isAuthenticated: true, pinHash: 'hash' });
+    mockActiveWalletId.current = 'default';
+    mockSegments.current = ['(onboarding)', 'setup-pin'];
+
+    const { getByTestId, queryByTestId } = render(<OnboardingLayout />);
+
+    expect(getByTestId('redirect').props.children).toBe('/(auth)/(tabs)/dashboard');
+    expect(queryByTestId('stack-rendered')).toBeNull();
   });
 
   it('jumps to setup-pin when a wallet exists but PIN has not been set yet', () => {

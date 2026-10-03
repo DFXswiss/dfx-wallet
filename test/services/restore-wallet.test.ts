@@ -136,7 +136,7 @@ describe('restoreWalletFlow', () => {
     expect(dependencies.reset).not.toHaveBeenCalled();
   });
 
-  it('propagates a failed retry and does not reset auth', async () => {
+  it('resets auth after deleting the wallet when the restore retry fails', async () => {
     const dependencies = createDependencies();
     dependencies.restoreWallet
       .mockRejectedValueOnce(new Error('already exists'))
@@ -151,6 +151,30 @@ describe('restoreWalletFlow', () => {
 
     expect(dependencies.deleteWallet).toHaveBeenCalledTimes(1);
     expect(dependencies.restoreWallet).toHaveBeenCalledTimes(2);
-    expect(dependencies.reset).not.toHaveBeenCalled();
+    expect(dependencies.reset).toHaveBeenCalledTimes(1);
+  });
+
+  it('best-effort resets after deletion and preserves the original restore failure', async () => {
+    const dependencies = createDependencies();
+    const restoreError = new Error('restore failed');
+    dependencies.restoreWallet.mockImplementationOnce(async () => {
+      dependencies.calls.push('restore');
+      throw restoreError;
+    });
+    dependencies.reset.mockImplementationOnce(async () => {
+      dependencies.calls.push('reset');
+      throw new Error('reset failed');
+    });
+
+    await expect(
+      restoreWalletFlow({
+        ...dependencies,
+        hasExistingWallet: true,
+        hasWalletToDelete: true,
+      }),
+    ).rejects.toBe(restoreError);
+
+    expect(dependencies.calls).toEqual(['confirm', 'delete', 'restore', 'reset']);
+    expect(dependencies.reset).toHaveBeenCalledTimes(1);
   });
 });

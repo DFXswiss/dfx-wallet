@@ -63,6 +63,9 @@ export function useLinkedWalletReauth() {
         if (blockchain === 'Lightning') {
           const user = lds.user ?? (await lds.signIn());
           if (!user) return { ok: false, error: annotate('LDS not ready') };
+          if (user.lightning.addressLnurl.trim().toLowerCase() !== address.trim().toLowerCase()) {
+            return { ok: false, error: annotate('addressMismatch') };
+          }
           const token = await dfxAuthService.loginAsLnurlAddressOwner(
             user.lightning.addressLnurl,
             user.lightning.addressOwnershipProof,

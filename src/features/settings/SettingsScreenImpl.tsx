@@ -159,6 +159,11 @@ export default function SettingsScreen() {
             Alert.alert(t('common.error'), t('settings.deleteWalletFailed'));
             return;
           }
+          if (result === 'deleted-with-cleanup-error') {
+            router.replace('/');
+            Alert.alert(t('common.error'), t('settings.deleteWalletCleanupFailed'));
+            return;
+          }
           if (result === 'deleted') router.replace('/');
         },
       },

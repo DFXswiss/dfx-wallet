@@ -20,6 +20,7 @@ describe('app/index.tsx initial routing', () => {
       isOnboarded: false,
       isAuthenticated: false,
       isDfxAuthenticated: false,
+      pinHash: null,
     });
   });
 
@@ -29,15 +30,27 @@ describe('app/index.tsx initial routing', () => {
     expect(getByTestId('redirect-target').props.children).toBe('/(onboarding)/welcome');
   });
 
-  it('redirects to PIN verify when onboarded but not yet authenticated', () => {
-    useAuthStore.setState({ isOnboarded: true, isAuthenticated: false });
+  it('redirects an onboarded user without a PIN to PIN setup', () => {
+    useAuthStore.setState({ isOnboarded: true, isAuthenticated: false, pinHash: null });
+    const { getByTestId } = render(<Index />);
+    expect(getByTestId('redirect-target').props.children).toBe('/(onboarding)/setup-pin');
+  });
+
+  it('redirects to PIN verify when onboarded with a PIN but not yet authenticated', () => {
+    useAuthStore.setState({ isOnboarded: true, isAuthenticated: false, pinHash: 'hash' });
     const { getByTestId } = render(<Index />);
     expect(getByTestId('redirect-target').props.children).toBe('/(pin)/verify');
   });
 
   it('redirects to the dashboard when the user is fully authenticated', () => {
-    useAuthStore.setState({ isOnboarded: true, isAuthenticated: true });
+    useAuthStore.setState({ isOnboarded: true, isAuthenticated: true, pinHash: 'hash' });
     const { getByTestId } = render(<Index />);
     expect(getByTestId('redirect-target').props.children).toBe('/(auth)/(tabs)/dashboard');
+  });
+
+  it('requires PIN setup for an authenticated onboarded user whose build gained PIN support', () => {
+    useAuthStore.setState({ isOnboarded: true, isAuthenticated: true, pinHash: null });
+    const { getByTestId } = render(<Index />);
+    expect(getByTestId('redirect-target').props.children).toBe('/(onboarding)/setup-pin');
   });
 });

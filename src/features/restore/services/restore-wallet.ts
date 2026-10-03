@@ -24,13 +24,29 @@ export async function restoreWalletFlow({
   const replacementConfirmed = hasExistingWallet ? await confirm() : false;
   if (hasExistingWallet && !replacementConfirmed) return 'cancelled';
 
-  if (hasWalletToDelete) await deleteWallet();
-  try {
-    await restoreWallet();
-  } catch (error) {
-    if (!replacementConfirmed || !isWalletAlreadyExistsError(error)) throw error;
+  let walletWasDeleted = false;
+  if (hasWalletToDelete) {
     await deleteWallet();
-    await restoreWallet();
+    walletWasDeleted = true;
+  }
+  try {
+    try {
+      await restoreWallet();
+    } catch (error) {
+      if (!replacementConfirmed || !isWalletAlreadyExistsError(error)) throw error;
+      await deleteWallet();
+      walletWasDeleted = true;
+      await restoreWallet();
+    }
+  } catch (error) {
+    if (walletWasDeleted) {
+      try {
+        await reset();
+      } catch {
+        // Preserve the restore failure that left the wallet unavailable.
+      }
+    }
+    throw error;
   }
   await reset();
   return 'restored';
