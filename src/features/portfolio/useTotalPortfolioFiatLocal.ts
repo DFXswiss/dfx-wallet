@@ -89,11 +89,12 @@ export function useTotalPortfolioFiat(): PortfolioFiatResult {
   }, [assetConfigs, balances, balancesLoading, fiatCurrency, pricingReady, pricingRevision]);
 
   useEffect(() => {
+    if (result.isIncomplete) return;
     const formatted = Number.isFinite(result.totalFiat)
       ? Math.round(result.totalFiat * 100) / 100
       : 0;
     setTotalBalanceFiat(String(formatted));
-  }, [result.totalFiat, setTotalBalanceFiat]);
+  }, [result.isIncomplete, result.totalFiat, setTotalBalanceFiat]);
 
   return result;
 }

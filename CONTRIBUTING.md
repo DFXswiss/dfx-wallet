@@ -189,7 +189,7 @@ All DFX backend communication goes through `src/features/dfx-backend/services/ap
 ## Design Reference
 
 - **Theme**: Light and dark themes use semantic values returned by `useColors()`. The DFX brand red is reserved for the logo.
-- **Dashboard**: full-screen mountain-illustration background (`assets/dashboard-bg.png`), DFX logo header + hamburger menu, large balance display with eye-toggle, Portfolio + Pay pill buttons, Transactions link, and a bottom Receive | Send pill. Buy and Sell are reached from inside the Receive and Send flows respectively.
+- **Dashboard**: full-screen mountain-illustration background (`assets/dashboard-bg.png`), DFX logo header + hamburger menu, large balance display with eye-toggle, Portfolio + Pay pill buttons, Transactions link, and a bottom Send | Receive pill. Buy and Sell are reached from inside the Receive and Send flows respectively.
 - **Onboarding flow**: Welcome → Create/Restore (passkey or seed) → Verify Seed → Legal → PIN → Dashboard
 - **Settings**: reached from the Dashboard hamburger menu (no bottom tab bar). Flat list with sub-pages.
 - **KYC**: Multi-step wizard (Registration → Email → Nationality → Financial Data → 2FA → Ident)
