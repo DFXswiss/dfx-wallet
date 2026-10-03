@@ -129,7 +129,8 @@ export default function SettingsScreen() {
   };
   const CURRENCIES = ['CHF', 'EUR', 'USD'] as const;
   const currentLang = i18n.language?.startsWith('de') ? 'DE' : 'EN';
-  const { deleteWallet, getEncryptedSeed } = useWalletManager();
+  const { deleteWallet, getEncryptedEntropy, getEncryptedSeed, getEncryptionKey } =
+    useWalletManager();
   const { requestReauth, modalProps } = useReauthenticate();
   const [walletOrigin, setWalletOrigin] = useState<string | null>(null);
   const isPasskeyOrigin = walletOrigin === 'passkey' || walletOrigin === 'passkey-pending';
@@ -152,7 +153,18 @@ export default function SettingsScreen() {
           const result = await deleteWalletFlow({
             requestReauth,
             deleteWallet: () => deleteWallet('default'),
-            walletExists: async () => (await getEncryptedSeed('default')) !== null,
+            getRemainingWalletItems: async () => {
+              const [key, encryptedSeed, encryptedEntropy] = await Promise.all([
+                getEncryptionKey('default'),
+                getEncryptedSeed('default'),
+                getEncryptedEntropy('default'),
+              ]);
+              return {
+                key: key !== null,
+                seed: encryptedSeed !== null,
+                entropy: encryptedEntropy !== null,
+              };
+            },
             reset,
           });
           if (result === 'failed') {

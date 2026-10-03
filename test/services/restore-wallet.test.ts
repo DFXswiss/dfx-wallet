@@ -17,6 +17,7 @@ function createDependencies() {
     deleteWallet: jest.fn(async () => {
       calls.push('delete');
     }),
+    getRemainingWalletItems: jest.fn(async () => ({ key: true, seed: true, entropy: true })),
     restoreWallet: jest.fn(async () => {
       calls.push('restore');
     }),
@@ -143,9 +144,13 @@ describe('restoreWalletFlow', () => {
     expect(dependencies.reset).not.toHaveBeenCalled();
   });
 
-  it('leaves auth untouched when deleting the existing wallet fails', async () => {
+  // Red mutations: remove the retry or classify all remaining items as partial deletion.
+  it('leaves auth untouched when both deletions fail and all wallet items remain', async () => {
     const dependencies = createDependencies();
-    dependencies.deleteWallet.mockRejectedValueOnce(new Error('delete failed'));
+    dependencies.deleteWallet.mockImplementation(async () => {
+      dependencies.calls.push('delete');
+      throw new Error('delete failed');
+    });
     await expect(
       restoreWalletFlow({
         ...dependencies,
@@ -155,7 +160,79 @@ describe('restoreWalletFlow', () => {
     ).rejects.toThrow('delete failed');
 
     expect(dependencies.restoreWallet).not.toHaveBeenCalled();
+    expect(dependencies.deleteWallet).toHaveBeenCalledTimes(2);
+    expect(dependencies.getRemainingWalletItems).toHaveBeenCalledTimes(1);
     expect(dependencies.reset).not.toHaveBeenCalled();
+  });
+
+  // Red mutations: omit the retry, classify partial deletion as total failure, or skip its reset.
+  it('resets auth when both deletions fail after some wallet items were removed', async () => {
+    const dependencies = createDependencies();
+    dependencies.deleteWallet.mockImplementation(async () => {
+      dependencies.calls.push('delete');
+      throw new Error('partial delete');
+    });
+    dependencies.getRemainingWalletItems.mockResolvedValueOnce({
+      key: true,
+      seed: false,
+      entropy: true,
+    });
+
+    await expect(
+      restoreWalletFlow({
+        ...dependencies,
+        hasExistingWallet: true,
+        hasWalletToDelete: true,
+      }),
+    ).rejects.toThrow('partial delete');
+
+    expect(dependencies.calls).toEqual(['confirm', 'delete', 'delete', 'reset']);
+    expect(dependencies.restoreWallet).not.toHaveBeenCalled();
+    expect(dependencies.reset).toHaveBeenCalledTimes(1);
+  });
+
+  // Red mutation: omit the deletion retry.
+  it('restores normally when the deletion retry succeeds', async () => {
+    const dependencies = createDependencies();
+    dependencies.deleteWallet.mockImplementationOnce(async () => {
+      dependencies.calls.push('delete');
+      throw new Error('first delete failed');
+    });
+
+    await expect(
+      restoreWalletFlow({
+        ...dependencies,
+        hasExistingWallet: true,
+        hasWalletToDelete: true,
+      }),
+    ).resolves.toBe('restored');
+
+    expect(dependencies.calls).toEqual(['confirm', 'delete', 'delete', 'restore', 'reset']);
+    expect(dependencies.deleteWallet).toHaveBeenCalledTimes(2);
+    expect(dependencies.reset).toHaveBeenCalledTimes(1);
+  });
+
+  // Red mutation: classify an unverifiable deletion as a total failure.
+  it('resets auth when remaining-item inspection throws', async () => {
+    const dependencies = createDependencies();
+    dependencies.deleteWallet.mockImplementation(async () => {
+      dependencies.calls.push('delete');
+      throw new Error('delete failed');
+    });
+    dependencies.getRemainingWalletItems.mockRejectedValueOnce(
+      new Error('storage unavailable'),
+    );
+
+    await expect(
+      restoreWalletFlow({
+        ...dependencies,
+        hasExistingWallet: true,
+        hasWalletToDelete: true,
+      }),
+    ).rejects.toThrow('delete failed');
+
+    expect(dependencies.calls).toEqual(['confirm', 'delete', 'delete', 'reset']);
+    expect(dependencies.reset).toHaveBeenCalledTimes(1);
   });
 
   it('resets auth after deleting the wallet when the restore retry fails', async () => {

@@ -1,8 +1,21 @@
 import { Text } from 'react-native';
 import { act, render, waitFor } from '@testing-library/react-native';
 
-const mockPrevent = jest.fn<Promise<void>, [string?]>();
-const mockAllow = jest.fn<Promise<void>, [string?]>();
+const mockActiveTags = new Set<string>();
+const mockNativePrevent = jest.fn<Promise<void>, []>();
+const mockNativeAllow = jest.fn<Promise<void>, []>();
+const mockPrevent = jest.fn<Promise<void>, [string?]>(async (key = 'default') => {
+  if (!mockActiveTags.has(key)) {
+    mockActiveTags.add(key);
+    await mockNativePrevent();
+  }
+});
+const mockAllow = jest.fn<Promise<void>, [string?]>(async (key = 'default') => {
+  mockActiveTags.delete(key);
+  if (mockActiveTags.size === 0) {
+    await mockNativeAllow();
+  }
+});
 let mockScreenCaptureAvailable = true;
 
 jest.mock('expo-screen-capture', () => ({
@@ -24,15 +37,18 @@ function Harness({ active, captureKey }: { active: boolean; captureKey: string }
 describe('useScreenCaptureProtection', () => {
   beforeEach(() => {
     mockScreenCaptureAvailable = true;
-    mockPrevent.mockReset();
-    mockAllow.mockReset();
-    mockPrevent.mockResolvedValue(undefined);
-    mockAllow.mockResolvedValue(undefined);
+    mockActiveTags.clear();
+    mockNativePrevent.mockReset();
+    mockNativeAllow.mockReset();
+    mockPrevent.mockClear();
+    mockAllow.mockClear();
+    mockNativePrevent.mockResolvedValue(undefined);
+    mockNativeAllow.mockResolvedValue(undefined);
   });
 
   it('transitions from pending to active after native protection resolves', async () => {
     let resolveProtection: (() => void) | undefined;
-    mockPrevent.mockImplementationOnce(
+    mockNativePrevent.mockImplementationOnce(
       () =>
         new Promise<void>((resolve) => {
           resolveProtection = resolve;
@@ -61,12 +77,55 @@ describe('useScreenCaptureProtection', () => {
   });
 
   it('reports unavailable when native protection rejects', async () => {
-    mockPrevent.mockRejectedValueOnce(new Error('native failure'));
+    mockNativePrevent.mockRejectedValueOnce(new Error('native failure'));
     const view = render(<Harness active captureKey="seed" />);
 
     await waitFor(() =>
       expect(view.getByTestId('capture-state').props.children).toBe('unavailable'),
     );
+  });
+
+  // Red mutation: omit allow after a rejected prevent; the second mount short-circuits to active.
+  it('releases a rejected tag so a same-key remount retries native protection', async () => {
+    mockNativePrevent
+      .mockRejectedValueOnce(new Error('first native failure'))
+      .mockRejectedValueOnce(new Error('second native failure'));
+    const firstView = render(<Harness active captureKey="seed" />);
+
+    await waitFor(() =>
+      expect(firstView.getByTestId('capture-state').props.children).toBe('unavailable'),
+    );
+    await waitFor(() => expect(mockAllow).toHaveBeenCalledWith('seed'));
+    expect(mockActiveTags.has('seed')).toBe(false);
+    firstView.unmount();
+
+    const secondView = render(<Harness active captureKey="seed" />);
+
+    await waitFor(() =>
+      expect(secondView.getByTestId('capture-state').props.children).toBe('unavailable'),
+    );
+    expect(mockNativePrevent).toHaveBeenCalledTimes(2);
+  });
+
+  // Red mutation: omit allow from the cancelled rejection path; the tag remains registered.
+  it('releases the tag when an unmounted protection attempt later rejects', async () => {
+    let rejectProtection: ((reason: Error) => void) | undefined;
+    mockNativePrevent.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectProtection = reject;
+        }),
+    );
+    const view = render(<Harness active captureKey="seed" />);
+    await waitFor(() => expect(mockNativePrevent).toHaveBeenCalledTimes(1));
+
+    view.unmount();
+    await act(async () => {
+      rejectProtection!(new Error('native failure'));
+    });
+
+    await waitFor(() => expect(mockAllow).toHaveBeenCalledWith('seed'));
+    expect(mockActiveTags.has('seed')).toBe(false);
   });
 
   it('protects only while active and releases the same key', async () => {
@@ -83,7 +142,7 @@ describe('useScreenCaptureProtection', () => {
   });
 
   it('releases active protection on unmount and contains cleanup rejection', async () => {
-    mockAllow.mockRejectedValueOnce(new Error('native failure'));
+    mockNativeAllow.mockRejectedValueOnce(new Error('native failure'));
     const view = render(<Harness active captureKey="export" />);
     await waitFor(() =>
       expect(view.getByTestId('capture-state').props.children).toBe('active'),

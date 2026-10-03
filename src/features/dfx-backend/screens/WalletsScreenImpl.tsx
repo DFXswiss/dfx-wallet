@@ -12,6 +12,7 @@ import {
   RenameWalletModal,
   Skeleton,
 } from '@/components';
+import { isLocalSessionEndedError } from '@/features/dfx-backend/session-guard';
 import { dfxAuthService, dfxUserService, DfxApiError } from '@/features/dfx-backend/services';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { useDfxAuth } from '@/hooks';
@@ -123,6 +124,7 @@ export default function WalletsScreen() {
       );
       await refresh();
     } catch (err) {
+      if (isLocalSessionEndedError(err)) return;
       setLinkError(err instanceof Error ? err.message : t('wallets.linkError'));
     } finally {
       setLinkingChain(null);
