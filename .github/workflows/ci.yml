@@ -199,11 +199,12 @@ jobs:
       # braces GHSA-vfj7-8cjw-p6xm: no published patched release (affects <=3.0.3, latest 3.0.3);
       # only reached through micromatch in jest, metro, @expo/cli and patch-package tooling
       # (patch-package -> find-yarn-workspace-root -> micromatch -> braces), not the app bundle.
-      # stream-json GHSA-528h-pc64-c93x: moderate, patched in 3.5.0 but detox pins 1.9.1, so an override
-      # would be a two-major jump inside E2E tooling; only reached through detox, not the app bundle.
-      # npm audit reports @wix-pilot/detox (a peer of detox) as high due to braces and collects the
-      # stream-json ID in that entry too, so it must be allowlisted here.
-      # Unidentified advisory objects and unknown via types fail closed as blockers.
+      # stream-json GHSA-528h-pc64-c93x: moderate, patched in 3.5.0, but detox's ^1.7.4 range resolves
+      # to 1.9.1 in the lockfile, so an override would be a two-major jump inside E2E tooling;
+      # only reached through detox, not the app bundle.
+      # npm audit reports @wix-pilot/detox (a dependency of detox that peer-depends on it) as high
+      # due to braces and collects the stream-json ID in that entry too, so it must be allowlisted here.
+      # Unidentified advisories, unresolved package references and unknown via types fail closed.
       - name: npm audit (high+)
         run: |
           set +e
@@ -249,8 +250,13 @@ jobs:
                               advisory_ghsas.update(m.upper() for m in GHSA_RE.findall(val))
                       found |= advisory_ghsas or {"UNIDENTIFIED-ADVISORY"}
                   elif isinstance(via, str):
-                      found.update(m.upper() for m in GHSA_RE.findall(via))
-                      found |= collect_ghsas(via, seen)
+                      referenced_ghsas = {m.upper() for m in GHSA_RE.findall(via)}
+                      found |= referenced_ghsas
+                      if via not in vulns:
+                          if not referenced_ghsas:
+                              found.add("UNIDENTIFIED-ADVISORY")
+                      elif via not in seen:
+                          found |= collect_ghsas(via, seen)
                   else:
                       found.add("UNIDENTIFIED-ADVISORY")
               return found
