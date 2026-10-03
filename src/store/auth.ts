@@ -103,6 +103,7 @@ export function getPostPinDestination(
 }
 
 const BIOMETRIC_KEY = 'biometricEnabled';
+let pinFailurePersistence = Promise.resolve();
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   isOnboarded: false,
@@ -213,13 +214,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const lockoutMs = pinLockoutMs(nextAttempts);
       const nextLockedUntil = lockoutMs > 0 ? Date.now() + lockoutMs : null;
       set({ failedAttempts: nextAttempts, lockedUntil: nextLockedUntil });
-      try {
+      const persistence = pinFailurePersistence.then(async () => {
+        const { failedAttempts, lockedUntil: currentLockedUntil } = get();
         await Promise.all([
-          secureStorage.set(StorageKeys.PIN_FAILED_ATTEMPTS, String(nextAttempts)),
-          nextLockedUntil
-            ? secureStorage.set(StorageKeys.PIN_LOCKED_UNTIL, String(nextLockedUntil))
+          secureStorage.set(StorageKeys.PIN_FAILED_ATTEMPTS, String(failedAttempts)),
+          currentLockedUntil
+            ? secureStorage.set(StorageKeys.PIN_LOCKED_UNTIL, String(currentLockedUntil))
             : secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL),
         ]);
+      });
+      pinFailurePersistence = persistence.catch(() => undefined);
+      try {
+        await persistence;
       } catch {
         return false;
       }

@@ -46,7 +46,8 @@ makes later phases possible. None of it requires design or product input.
 - [x] `permissions: contents: read` at workflow root in every workflow;
       per-job escalation only where required (CodeQL needs
       `security-events: write`, auto-release-pr needs
-      `pull-requests: write`, and release/tag jobs need `contents: write`).
+      `pull-requests: write`, GitHub-release jobs using `GITHUB_TOKEN` need
+      `contents: write`; the tag job pushes with an SSH deploy key and stays read-only).
 - [x] `check` split into parallel `typecheck`, `lint`, `format`, `test`
       jobs; `audit` retained.
 - **Acceptance**: workflows pass; `permissions` block present in every

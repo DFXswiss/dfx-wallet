@@ -30,9 +30,15 @@ jest.mock('expo-router', () => ({
 
 const mockRestoreWallet = jest.fn();
 const mockDeleteWallet = jest.fn();
+const mockGetEncryptedEntropy = jest.fn();
+const mockGetEncryptedSeed = jest.fn();
+const mockGetEncryptionKey = jest.fn();
 const mockWalletManager = {
   activeWalletId: null as string | null,
   deleteWallet: mockDeleteWallet,
+  getEncryptedEntropy: mockGetEncryptedEntropy,
+  getEncryptedSeed: mockGetEncryptedSeed,
+  getEncryptionKey: mockGetEncryptionKey,
   restoreWallet: mockRestoreWallet,
 };
 jest.mock('@tetherto/wdk-react-native-core', () => ({
@@ -59,11 +65,8 @@ import RestoreWalletScreen from '../../src/features/restore/RestoreWalletScreenI
 const VALID_SEED =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-function typeSeed(getByTestId: (id: string) => unknown, phrase: string) {
-  fireEvent.changeText(
-    getByTestId('restore-wallet-seed-input') as Parameters<typeof fireEvent.changeText>[0],
-    phrase,
-  );
+async function typeSeed(findByTestId: ReturnType<typeof render>['findByTestId'], phrase: string) {
+  fireEvent.changeText(await findByTestId('restore-wallet-seed-input'), phrase);
 }
 
 describe('RestoreWalletScreen', () => {
@@ -75,6 +78,9 @@ describe('RestoreWalletScreen', () => {
     mockResetAuth.mockResolvedValue(undefined);
     mockRestoreWallet.mockResolvedValue('default');
     mockDeleteWallet.mockResolvedValue(undefined);
+    mockGetEncryptedEntropy.mockResolvedValue(null);
+    mockGetEncryptedSeed.mockResolvedValue(null);
+    mockGetEncryptionKey.mockResolvedValue(null);
     mockPreventScreenCapture.mockReset();
     mockAllowScreenCapture.mockReset();
     mockPreventScreenCapture.mockResolvedValue(undefined);
@@ -107,17 +113,41 @@ describe('RestoreWalletScreen', () => {
     );
   });
 
-  // Red mutation: remove the unavailable-state warning from the screen.
-  it('warns when mnemonic screen-capture protection is unavailable', async () => {
-    mockPreventScreenCapture.mockRejectedValueOnce(new Error('native failure'));
-    const { getByText } = render(<RestoreWalletScreen />);
+  // Red mutation: render the mnemonic input while protection is pending.
+  it('keeps mnemonic input hidden until screen-capture protection settles', async () => {
+    let resolveProtection: (() => void) | undefined;
+    mockPreventScreenCapture.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveProtection = resolve;
+        }),
+    );
+    const view = render(<RestoreWalletScreen />);
 
-    await waitFor(() => expect(getByText('common.screenCaptureUnavailable')).toBeTruthy());
+    expect(view.getByTestId('restore-wallet-protection-loading')).toBeTruthy();
+    expect(view.queryByTestId('restore-wallet-seed-input')).toBeNull();
+    await waitFor(() => expect(mockPreventScreenCapture).toHaveBeenCalled());
+
+    await act(async () => {
+      resolveProtection!();
+    });
+
+    expect(await view.findByTestId('restore-wallet-seed-input')).toBeTruthy();
+    expect(view.queryByTestId('restore-wallet-protection-loading')).toBeNull();
+  });
+
+  // Red mutations: gate the input to active only; remove the unavailable-state warning.
+  it('shows the mnemonic input and warning when screen-capture protection is unavailable', async () => {
+    mockPreventScreenCapture.mockRejectedValueOnce(new Error('native failure'));
+    const { findByTestId, findByText } = render(<RestoreWalletScreen />);
+
+    expect(await findByTestId('restore-wallet-seed-input')).toBeTruthy();
+    expect(await findByText('common.screenCaptureUnavailable')).toBeTruthy();
   });
 
   it('keeps the continue CTA inert until a valid seed phrase is entered', async () => {
-    const { getByTestId } = render(<RestoreWalletScreen />);
-    typeSeed(getByTestId, 'not a real seed phrase');
+    const { findByTestId, getByTestId } = render(<RestoreWalletScreen />);
+    await typeSeed(findByTestId, 'not a real seed phrase');
 
     await act(async () => {
       fireEvent.press(getByTestId('restore-wallet-continue-button'));
@@ -126,15 +156,15 @@ describe('RestoreWalletScreen', () => {
     expect(mockRestoreWallet).not.toHaveBeenCalled();
   });
 
-  it('tracks the entered word count', () => {
-    const { getByTestId } = render(<RestoreWalletScreen />);
-    typeSeed(getByTestId, 'alpha bravo charlie');
+  it('tracks the entered word count', async () => {
+    const { findByTestId, getByTestId } = render(<RestoreWalletScreen />);
+    await typeSeed(findByTestId, 'alpha bravo charlie');
     expect(getByTestId('restore-wallet-word-count')).toBeTruthy();
   });
 
   it('restores from a valid seed and routes to setup-pin', async () => {
-    const { getByTestId } = render(<RestoreWalletScreen />);
-    typeSeed(getByTestId, VALID_SEED);
+    const { findByTestId, getByTestId } = render(<RestoreWalletScreen />);
+    await typeSeed(findByTestId, VALID_SEED);
 
     await act(async () => {
       fireEvent.press(getByTestId('restore-wallet-continue-button'));
@@ -153,8 +183,8 @@ describe('RestoreWalletScreen', () => {
     (Alert.alert as jest.Mock).mockImplementationOnce((_title, _message, buttons) => {
       (buttons as { onPress?: () => void }[])[1]?.onPress?.();
     });
-    const { getByTestId } = render(<RestoreWalletScreen />);
-    typeSeed(getByTestId, VALID_SEED);
+    const { findByTestId, getByTestId } = render(<RestoreWalletScreen />);
+    await typeSeed(findByTestId, VALID_SEED);
 
     await act(async () => {
       fireEvent.press(getByTestId('restore-wallet-continue-button'));
@@ -184,13 +214,42 @@ describe('RestoreWalletScreen', () => {
     expect(mockPush).toHaveBeenCalledWith('/(onboarding)/setup-pin');
   });
 
+  // Red mutations: omit the retry, skip reset after partial deletion, or omit a WDK item getter.
+  it('resets and stays on restore when deleting the current wallet is partial', async () => {
+    mockWalletManager.activeWalletId = 'default';
+    mockDeleteWallet.mockRejectedValue(new Error('partial delete'));
+    mockGetEncryptionKey.mockResolvedValue('encryption-key');
+    mockGetEncryptedSeed.mockResolvedValue(null);
+    mockGetEncryptedEntropy.mockResolvedValue('encrypted-entropy');
+    (Alert.alert as jest.Mock).mockImplementationOnce((_title, _message, buttons) => {
+      (buttons as { onPress?: () => void }[])[1]?.onPress?.();
+    });
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { findByTestId, getByTestId } = render(<RestoreWalletScreen />);
+    await typeSeed(findByTestId, VALID_SEED);
+
+    await act(async () => {
+      fireEvent.press(getByTestId('restore-wallet-continue-button'));
+    });
+
+    expect(mockDeleteWallet).toHaveBeenCalledTimes(2);
+    expect(mockGetEncryptionKey).toHaveBeenCalledWith('default');
+    expect(mockGetEncryptedSeed).toHaveBeenCalledWith('default');
+    expect(mockGetEncryptedEntropy).toHaveBeenCalledWith('default');
+    expect(mockResetAuth).toHaveBeenCalledTimes(1);
+    expect(mockRestoreWallet).not.toHaveBeenCalled();
+    expect(getByTestId('restore-wallet-error')).toBeTruthy();
+    expect(mockPush).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it('does not change either wallet when replacement is cancelled', async () => {
     mockAuthState.isOnboarded = true;
     (Alert.alert as jest.Mock).mockImplementationOnce((_title, _message, buttons) => {
       (buttons as { onPress?: () => void }[])[0]?.onPress?.();
     });
-    const { getByTestId } = render(<RestoreWalletScreen />);
-    typeSeed(getByTestId, VALID_SEED);
+    const { findByTestId, getByTestId } = render(<RestoreWalletScreen />);
+    await typeSeed(findByTestId, VALID_SEED);
 
     await act(async () => {
       fireEvent.press(getByTestId('restore-wallet-continue-button'));
@@ -205,8 +264,8 @@ describe('RestoreWalletScreen', () => {
   it('surfaces an error and stays on the screen when restore fails for an unrelated reason', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     mockRestoreWallet.mockRejectedValueOnce(new Error('WDK worklet timeout'));
-    const { getByTestId } = render(<RestoreWalletScreen />);
-    typeSeed(getByTestId, VALID_SEED);
+    const { findByTestId, getByTestId } = render(<RestoreWalletScreen />);
+    await typeSeed(findByTestId, VALID_SEED);
 
     await act(async () => {
       fireEvent.press(getByTestId('restore-wallet-continue-button'));

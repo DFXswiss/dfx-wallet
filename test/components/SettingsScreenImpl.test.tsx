@@ -132,7 +132,9 @@ function pressConfirm(alertSpy: jest.SpyInstance) {
 
 describe('SettingsScreenImpl', () => {
   const deleteWallet = jest.fn();
+  const getEncryptedEntropy = jest.fn();
   const getEncryptedSeed = jest.fn();
+  const getEncryptionKey = jest.fn();
 
   beforeEach(() => {
     mockPush.mockReset();
@@ -158,9 +160,18 @@ describe('SettingsScreenImpl', () => {
     (secureStorage.remove as jest.Mock).mockResolvedValue(undefined);
     deleteWallet.mockReset();
     deleteWallet.mockResolvedValue(undefined);
+    getEncryptedEntropy.mockReset();
+    getEncryptedEntropy.mockResolvedValue(null);
     getEncryptedSeed.mockReset();
     getEncryptedSeed.mockResolvedValue(null);
-    (useWalletManager as jest.Mock).mockReturnValue({ deleteWallet, getEncryptedSeed });
+    getEncryptionKey.mockReset();
+    getEncryptionKey.mockResolvedValue(null);
+    (useWalletManager as jest.Mock).mockReturnValue({
+      deleteWallet,
+      getEncryptedEntropy,
+      getEncryptedSeed,
+      getEncryptionKey,
+    });
     useAuthStore.setState({
       isDfxAuthenticated: false,
       biometricEnabled: false,
@@ -356,6 +367,7 @@ describe('SettingsScreenImpl', () => {
     expect(mockReplace).toHaveBeenCalledWith('/');
   });
 
+  // Red mutations: omit the retry or omit any WDK credential getter from dependency wiring.
   it('uses the passkey confirm copy and resets when a throwing delete removed the wallet', async () => {
     (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
       key === StorageKeys.WALLET_ORIGIN ? 'passkey' : null,
@@ -369,7 +381,10 @@ describe('SettingsScreenImpl', () => {
     await act(async () => {
       await pressConfirm(alertSpy);
     });
+    expect(deleteWallet).toHaveBeenCalledTimes(2);
+    expect(getEncryptionKey).toHaveBeenCalledWith('default');
     expect(getEncryptedSeed).toHaveBeenCalledWith('default');
+    expect(getEncryptedEntropy).toHaveBeenCalledWith('default');
     expect(mockReplace).toHaveBeenCalledWith('/');
   });
 
@@ -425,6 +440,7 @@ describe('SettingsScreenImpl', () => {
     expect(mockReplace).not.toHaveBeenCalledWith('/');
   });
 
+  // Red mutation: classify three remaining WDK credential items as a partial deletion.
   it('shows an error and keeps auth state when deletion fails and the wallet remains', async () => {
     const expectedAuthState = {
       isAuthenticated: true,
@@ -432,8 +448,10 @@ describe('SettingsScreenImpl', () => {
       pinHash: 'distinctive-pin-hash',
     };
     useAuthStore.setState(expectedAuthState);
-    deleteWallet.mockRejectedValueOnce(new Error('delete failed'));
-    getEncryptedSeed.mockResolvedValueOnce('encrypted-seed');
+    deleteWallet.mockRejectedValue(new Error('delete failed'));
+    getEncryptionKey.mockResolvedValue('encryption-key');
+    getEncryptedSeed.mockResolvedValue('encrypted-seed');
+    getEncryptedEntropy.mockResolvedValue('encrypted-entropy');
     const alertSpy = jest.spyOn(Alert, 'alert');
     const { getByTestId } = renderScreen();
     await waitFor(() => expect(getByTestId('settings-delete-wallet')).toBeTruthy());
