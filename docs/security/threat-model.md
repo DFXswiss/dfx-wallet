@@ -27,7 +27,7 @@ We design against, in increasing capability:
    PIN + biometric + auto-lock + screen-capture protection.
 2. **Targeted attacker with the phone** — has the locked phone and time.
    Defeated by full-device encryption (OS responsibility) + brute-force
-   resistance on the PIN (hash + rate-limit + wipe-after-N).
+   resistance on the PIN (hash + persistent backoff without wipe).
 3. **Malicious app on the same device** — installed by user, no root.
    Defeated by Keychain/Keystore isolation, no clear-text storage, deep-link
    validation, no broadcast-leakable intents.

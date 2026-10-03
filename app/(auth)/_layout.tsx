@@ -55,6 +55,7 @@ function AuthenticatedLayout() {
 
   useEffect(() => {
     dfxApi.setOnUnauthorized(authenticateSilent);
+    return () => dfxApi.setOnUnauthorized(null);
   }, [authenticateSilent]);
 
   // Once we have a DFX session, attach BTC + Spark wallets to the user's

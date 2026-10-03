@@ -2,6 +2,7 @@ import React from 'react';
 import { ActivityIndicator, Modal, TextInput } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { ReauthPinModal, type ReauthPinModalProps } from '@/components/ReauthPinModal';
+import { useAuthStore } from '@/store/auth';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -20,6 +21,10 @@ function createProps(overrides: Partial<ReauthPinModalProps> = {}): ReauthPinMod
 }
 
 describe('ReauthPinModal', () => {
+  beforeEach(() => {
+    useAuthStore.setState({ pinHash: 'pin$argon2id$current' });
+  });
+
   it('accepts exactly six numeric digits, submits them, and clears the input', () => {
     const props = createProps();
     const view = render(<ReauthPinModal {...props} />);
@@ -33,12 +38,23 @@ describe('ReauthPinModal', () => {
     expect(view.getByTestId('reauth-pin-input').props.value).toBe('');
   });
 
-  it('does not submit an incomplete PIN', () => {
+  it('does not submit fewer than 6 digits for a modern PIN hash', () => {
     const props = createProps();
     const view = render(<ReauthPinModal {...props} />);
     fireEvent.changeText(view.getByTestId('reauth-pin-input'), '12345');
     fireEvent.press(view.getByTestId('reauth-pin-confirm'));
     expect(props.onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('submits a 4-digit PIN for a legacy hash', () => {
+    useAuthStore.setState({ pinHash: 'abcdef' });
+    const props = createProps();
+    const view = render(<ReauthPinModal {...props} />);
+
+    fireEvent.changeText(view.getByTestId('reauth-pin-input'), '1234');
+    fireEvent.press(view.getByTestId('reauth-pin-confirm'));
+
+    expect(props.onSubmit).toHaveBeenCalledWith('1234');
   });
 
   it('clears the PIN and cancels from the button and native close request', () => {
@@ -69,6 +85,17 @@ describe('ReauthPinModal', () => {
 
     expect(view.UNSAFE_getByType(ActivityIndicator)).toBeTruthy();
     expect(view.getByTestId('reauth-pin-cancel').props.accessibilityState?.disabled).toBe(true);
+  });
+
+  it('ignores a native close request while PIN verification is in progress', () => {
+    const props = createProps({ verifying: true });
+    const view = render(<ReauthPinModal {...props} />);
+
+    act(() => {
+      view.UNSAFE_getByType(Modal).props.onRequestClose();
+    });
+
+    expect(props.onCancel).not.toHaveBeenCalled();
   });
 
   it('clears entered PIN when the modal becomes hidden', () => {

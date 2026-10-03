@@ -350,5 +350,5 @@ phase if a structural change is needed.
 Any PR touching `src/features/hardware-wallet/`, `src/services/wallet/`,
 `src/features/dfx-backend/`, `src/services/pin.ts`, `src/features/biometric/`, or
 secure storage requires a security-conscious review (one of the
-maintainers tagged for security). Document this requirement in
-`CODEOWNERS` once the file exists.
+maintainers tagged for security). This requirement is enforced in
+`.github/CODEOWNERS`.

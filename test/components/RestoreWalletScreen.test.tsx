@@ -1,6 +1,9 @@
 import { Alert } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 
+import de from '@/i18n/locales/de.json';
+import en from '@/i18n/locales/en.json';
+
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -105,7 +108,7 @@ describe('RestoreWalletScreen', () => {
     expect(mockPush).toHaveBeenCalledWith('/(onboarding)/setup-pin');
   });
 
-  it('confirms before replacing an existing wallet', async () => {
+  it('warns that replacement deletes the current wallet before importing the new one', async () => {
     mockWalletManager.activeWalletId = 'default';
     (Alert.alert as jest.Mock).mockImplementationOnce((_title, _message, buttons) => {
       (buttons as { onPress?: () => void }[])[1]?.onPress?.();
@@ -117,6 +120,12 @@ describe('RestoreWalletScreen', () => {
       fireEvent.press(getByTestId('restore-wallet-continue-button'));
     });
 
+    expect(en.onboarding.restoreConfirmMessage).toBe(
+      'Your current wallet will be removed before the new wallet is imported. It can only be recovered with its own seed phrase.',
+    );
+    expect(de.onboarding.restoreConfirmMessage).toBe(
+      'Deine aktuelle Wallet wird entfernt, bevor die neue Wallet importiert wird. Sie kann nur mit ihrer eigenen Seed Phrase wiederhergestellt werden.',
+    );
     expect(Alert.alert).toHaveBeenCalledWith(
       'onboarding.restoreConfirmTitle',
       'onboarding.restoreConfirmMessage',
