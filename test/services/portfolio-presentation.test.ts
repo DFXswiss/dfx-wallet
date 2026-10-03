@@ -5,6 +5,7 @@ import {
   formatFiat,
   formatNumber,
   hasExcessPrecision,
+  isFiatPriceAvailable,
   normalizeDecimalAmount,
   parseUnits,
   resolveFiatCurrency,
@@ -201,6 +202,38 @@ describe('formatCryptoAmount', () => {
 
   it('returns "0" for non-finite input', () => {
     expect(formatCryptoAmount(NaN)).toBe('0');
+  });
+});
+
+describe('isFiatPriceAvailable', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('short-circuits without a rate lookup when conversion is unnecessary or unavailable', () => {
+    const spy = jest.spyOn(pricingService, 'getExchangeRate');
+
+    expect(isFiatPriceAvailable(0, 'BTC', FiatCurrency.CHF, true)).toBe(true);
+    expect(isFiatPriceAvailable(1, 'CHF', FiatCurrency.CHF, false)).toBe(true);
+    expect(isFiatPriceAvailable(1, 'BTC', FiatCurrency.CHF, false)).toBe(false);
+    expect(isFiatPriceAvailable(1, 'NOPE', FiatCurrency.CHF, true)).toBe(false);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('accepts a finite exchange rate', () => {
+    const spy = jest.spyOn(pricingService, 'getExchangeRate').mockReturnValue(50_000);
+
+    expect(isFiatPriceAvailable(1, 'BTC', FiatCurrency.CHF, true)).toBe(true);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith('btc', FiatCurrency.CHF);
+  });
+
+  it.each([NaN, Infinity, -Infinity])('rejects the non-finite exchange rate %s', (rate) => {
+    const spy = jest.spyOn(pricingService, 'getExchangeRate').mockReturnValue(rate);
+
+    expect(isFiatPriceAvailable(1, 'BTC', FiatCurrency.CHF, true)).toBe(false);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith('btc', FiatCurrency.CHF);
   });
 });
 

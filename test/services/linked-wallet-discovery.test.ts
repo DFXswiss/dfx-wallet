@@ -159,6 +159,51 @@ describe('linked-wallet asset pricing', () => {
     expect(result.current.data.get(WALLET.address)?.complete).toBe(false);
   });
 
+  it('marks a Lightning-only wallet unknown and incomplete', async () => {
+    const wallet = {
+      address: 'lnurl1linkedwallet',
+      blockchain: 'Lightning',
+      blockchains: ['Lightning'],
+    };
+
+    const { result } = renderHook(
+      () => useLinkedWalletDiscovery([wallet], FiatCurrency.CHF, true),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() =>
+      expect(result.current.data.get(wallet.address)).toMatchObject({
+        known: false,
+        complete: false,
+      }),
+    );
+  });
+
+  it('stays incomplete when Ethereum succeeds but Lightning is unmapped', async () => {
+    const wallet = {
+      ...WALLET,
+      blockchains: ['Ethereum', 'Lightning'],
+    };
+    jest.spyOn(blockscout, 'isBlockscoutSupported').mockReturnValue(true);
+    jest.spyOn(blockscout, 'getTokenList').mockResolvedValue({ ok: true, value: [] });
+    jest.spyOn(simplePrice, 'fetchSimplePrices').mockResolvedValue(new Map());
+    jest.spyOn(EvmBalanceFetcher.prototype, 'fetch').mockImplementation(async (specs) => {
+      const results = new Map<string, EvmBalanceResult>();
+      for (const spec of specs) {
+        results.set(spec.assetId, { assetId: spec.assetId, rawBalance: '0' });
+      }
+      return results;
+    });
+
+    const { result } = renderHook(
+      () => useLinkedWalletDiscovery([wallet], FiatCurrency.CHF, true),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => expect(result.current.data.get(wallet.address)?.known).toBe(true));
+    expect(result.current.data.get(wallet.address)?.complete).toBe(false);
+  });
+
   it('marks discovery complete when every RPC balance read succeeds with a real zero', async () => {
     jest.spyOn(blockscout, 'isBlockscoutSupported').mockReturnValue(true);
     jest.spyOn(blockscout, 'getTokenList').mockResolvedValue({ ok: true, value: [] });
