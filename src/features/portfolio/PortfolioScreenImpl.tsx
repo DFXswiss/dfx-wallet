@@ -24,17 +24,21 @@ import {
   SYMBOL_GLYPH,
   toNumeric,
 } from '@/config/portfolio-presentation';
+import {
+  areLocalPortfolioBalancesComplete,
+  getPortfolioAssetCompleteness,
+  hasSettledBalanceEntry,
+  isCombinedPortfolioComplete,
+  isLinkedWalletEntryComplete,
+} from '@/features/portfolio/portfolio-completeness';
+import { useLinkedWalletProfile } from '@/features/portfolio/useLinkedWalletProfile';
 import { useEnabledChains } from './useEnabledChains';
 import {
   defaultLinkedWalletName,
   useLinkedWalletNames,
 } from '@/features/linked-wallets/useLinkedWalletNames';
-import {
-  useLinkedWalletDiscovery,
-  type WalletDiscovery,
-} from '@/features/linked-wallets/useLinkedWalletDiscovery';
+import { useLinkedWalletDiscovery } from '@/features/linked-wallets/useLinkedWalletDiscovery';
 import { useLinkedWalletSelection } from '@/features/linked-wallets/useLinkedWalletSelection';
-import { dfxUserService } from '@/features/dfx-backend/services';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { useAuthStore, useWalletStore } from '@/store';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
@@ -59,19 +63,13 @@ type PortfolioGroup = {
   category: TokenCategory;
   totalBalanceNum: number;
   totalFiat: number;
+  isBalanceComplete: boolean;
+  isFiatComplete: boolean;
   // Distinct networks the canonical asset is held on. USDC + USDT on
   // Ethereum still counts as one network — the user cares about chains, not
   // token variants on the same chain.
   networks: Set<string>;
 };
-
-function isWalletDiscoveryExact(entry: WalletDiscovery | undefined): entry is WalletDiscovery {
-  return (
-    entry?.known === true &&
-    entry.complete &&
-    entry.assets.every((asset) => asset.fiatValue != null)
-  );
-}
 
 export default function PortfolioScreen() {
   const { t } = useTranslation();
@@ -86,39 +84,15 @@ export default function PortfolioScreen() {
   const { getName } = useLinkedWalletNames();
 
   const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const { data: balances } = useBalances(assetConfigs);
+  const { data: balances, isLoading: balancesLoading } = useBalances(assetConfigs);
   const pricingRevision = usePricingSnapshot();
   const pricingReady = pricingService.isReady();
-  const [linkedAddresses, setLinkedAddresses] = useState<UserAddressDto[]>([]);
-  const [activeAddress, setActiveAddress] = useState<string | null>(null);
-
-  // Pull the DFX-linked wallet list once whenever the screen mounts with an
-  // authenticated session. The active address is excluded from the
-  // "Linked wallets" rail because the existing portfolio cards above
-  // already represent the user's primary holdings.
-  useEffect(() => {
-    if (!isDfxAuthenticated) {
-      setLinkedAddresses([]);
-      setActiveAddress(null);
-      return;
-    }
-    let cancelled = false;
-    void dfxUserService
-      .getUser()
-      .then((user) => {
-        if (cancelled) return;
-        setLinkedAddresses(user.addresses ?? []);
-        setActiveAddress(user.activeAddress?.address ?? null);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setLinkedAddresses([]);
-        setActiveAddress(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isDfxAuthenticated]);
+  const [linkedProfileRefreshKey, setLinkedProfileRefreshKey] = useState(0);
+  const {
+    linkedAddresses,
+    activeAddress,
+    isIncomplete: linkedProfileIncomplete,
+  } = useLinkedWalletProfile(isDfxAuthenticated, linkedProfileRefreshKey);
 
   const linkedWalletsUnordered = useMemo(() => {
     const lcActive = activeAddress?.toLowerCase() ?? null;
@@ -176,6 +150,14 @@ export default function PortfolioScreen() {
       const rawBalance = getRawBalance(balances, asset.getId());
       const balance = formatBalance(rawBalance, asset.getDecimals());
       const balanceNum = toNumeric(balance);
+      const completeness = getPortfolioAssetCompleteness({
+        asset,
+        balanceEntry: balances.get(asset.getId()),
+        balance: balanceNum,
+        canonicalSymbol: meta.canonicalSymbol,
+        fiatCurrency,
+        pricingReady,
+      });
 
       const fiatValue = computeFiatValue(
         balanceNum,
@@ -188,6 +170,12 @@ export default function PortfolioScreen() {
       if (existing) {
         existing.totalBalanceNum += balanceNum;
         existing.totalFiat += fiatValue;
+        existing.isBalanceComplete =
+          existing.isBalanceComplete &&
+          !balancesLoading &&
+          (!completeness.isQueried || completeness.isBalanceComplete);
+        existing.isFiatComplete =
+          existing.isFiatComplete && !balancesLoading && completeness.isComplete;
         existing.networks.add(meta.network);
       } else {
         byCanonical.set(meta.canonicalSymbol, {
@@ -196,6 +184,9 @@ export default function PortfolioScreen() {
           category: meta.category,
           totalBalanceNum: balanceNum,
           totalFiat: fiatValue,
+          isBalanceComplete:
+            !balancesLoading && (!completeness.isQueried || completeness.isBalanceComplete),
+          isFiatComplete: !balancesLoading && completeness.isComplete,
           networks: new Set([meta.network]),
         });
       }
@@ -221,24 +212,41 @@ export default function PortfolioScreen() {
       if (cat !== 0) return cat;
       return a.canonicalSymbol.localeCompare(b.canonicalSymbol);
     });
-  }, [assetConfigs, balances, fiatCurrency, pricingReady, pricingRevision]);
+  }, [assetConfigs, balances, balancesLoading, fiatCurrency, pricingReady, pricingRevision]);
+
+  const localBalancesComplete = useMemo(() => {
+    void pricingRevision;
+    return areLocalPortfolioBalancesComplete({
+      assets: assetConfigs,
+      balances,
+      isLoading: balancesLoading,
+      pricingReady,
+      fiatCurrency,
+    });
+  }, [assetConfigs, balances, balancesLoading, fiatCurrency, pricingReady, pricingRevision]);
+  const showSkeleton = balancesLoading && !hasSettledBalanceEntry(assetConfigs, balances);
 
   // Headline total = local WDK groups + selected linked-wallet discovery
   // fiat. Any unresolved chain or price makes the combined value partial,
   // so the UI must not present it as an exact total.
   const linkedWalletsFiat = useMemo(() => {
     let sum = 0;
-    let complete = true;
     for (const wallet of linkedWallets) {
       const entry = linkedDiscovery.get(wallet.address.toLowerCase());
-      if (isWalletDiscoveryExact(entry)) sum += entry.totalFiat;
-      else complete = false;
+      if (isLinkedWalletEntryComplete(entry)) sum += entry.totalFiat;
     }
-    return { complete, sum };
+    return sum;
   }, [linkedWallets, linkedDiscovery]);
 
+  const portfolioComplete = isCombinedPortfolioComplete({
+    localBalancesComplete,
+    linkedProfileIncomplete,
+    linkedWalletAddresses: linkedWallets.map((wallet) => wallet.address),
+    linkedDiscovery,
+  });
+
   const totalFiat = useMemo(
-    () => groups.reduce((sum, g) => sum + g.totalFiat, 0) + linkedWalletsFiat.sum,
+    () => groups.reduce((sum, g) => sum + g.totalFiat, 0) + linkedWalletsFiat,
     [groups, linkedWalletsFiat],
   );
 
@@ -248,22 +256,12 @@ export default function PortfolioScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
+    if (isDfxAuthenticated) setLinkedProfileRefreshKey((current) => current + 1);
     try {
       await Promise.all([
         pricingService.refresh().catch(() => undefined),
         queryClient.invalidateQueries({ queryKey: ['balances'] }),
         refetchDiscovery(),
-        // Re-pull the DFX user payload so a newly-linked wallet shows up
-        // immediately after the user adds it on another device.
-        isDfxAuthenticated
-          ? dfxUserService
-              .getUser()
-              .then((user) => {
-                setLinkedAddresses(user.addresses ?? []);
-                setActiveAddress(user.activeAddress?.address ?? null);
-              })
-              .catch(() => undefined)
-          : Promise.resolve(),
       ]);
     } finally {
       setRefreshing(false);
@@ -304,7 +302,7 @@ export default function PortfolioScreen() {
       >
         <Text style={styles.totalLabel}>{t('portfolio.totalValue')}</Text>
         <View style={styles.totalRow}>
-          {linkedWalletsFiat.complete ? (
+          {portfolioComplete ? (
             <>
               <Text style={styles.totalCurrency}>{currencySymbol}</Text>
               <Text style={styles.totalValue} testID="portfolio-total-value">
@@ -322,14 +320,11 @@ export default function PortfolioScreen() {
             </Text>
           )}
         </View>
-        {!linkedWalletsFiat.complete ? (
+        {!portfolioComplete ? (
           <Text style={styles.incompleteHint}>{t('dashboard.incompleteBalance')}</Text>
         ) : null}
 
-        {balances === undefined ? (
-          // Balance fetch hasn't resolved yet — surface skeleton rows in
-          // the same shape as PortfolioGroupCard so layout doesn't shift
-          // when data lands.
+        {showSkeleton ? (
           <View style={styles.assetList}>
             {[0, 1, 2, 3].map((i) => (
               <View key={i} style={styles.skeletonRow}>
@@ -386,7 +381,7 @@ export default function PortfolioScreen() {
                     displayName={displayName}
                     currencySymbol={currencySymbol}
                     fiatValue={entry?.totalFiat ?? 0}
-                    fiatExact={isWalletDiscoveryExact(entry)}
+                    fiatExact={isLinkedWalletEntryComplete(entry)}
                     onPress={() =>
                       router.push({
                         pathname: '/(auth)/linked-wallet/[address]',
@@ -502,6 +497,10 @@ function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) 
     group.networks.size === 1
       ? t('portfolio.networkCount_one', { count: group.networks.size })
       : t('portfolio.networkCount_other', { count: group.networks.size });
+  const fiatLabel = group.isFiatComplete ? `${currencySymbol} ${group.totalFiat.toFixed(2)}` : '—';
+  const balanceLabel = group.isBalanceComplete
+    ? `${formatNumber(group.totalBalanceNum)} ${group.canonicalSymbol}`
+    : '—';
   return (
     <Pressable
       onPress={onPress}
@@ -524,10 +523,10 @@ function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) 
       </View>
       <View style={styles.balanceColumn}>
         <Text style={styles.fiatValue} numberOfLines={1}>
-          {currencySymbol} {group.totalFiat.toFixed(2)}
+          {fiatLabel}
         </Text>
         <Text style={styles.cryptoBalance} numberOfLines={1}>
-          {formatNumber(group.totalBalanceNum)} {group.canonicalSymbol}
+          {balanceLabel}
         </Text>
       </View>
     </Pressable>
