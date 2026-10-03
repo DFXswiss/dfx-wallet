@@ -29,7 +29,10 @@ import {
   defaultLinkedWalletName,
   useLinkedWalletNames,
 } from '@/features/linked-wallets/useLinkedWalletNames';
-import { useLinkedWalletDiscovery } from '@/features/linked-wallets/useLinkedWalletDiscovery';
+import {
+  useLinkedWalletDiscovery,
+  type WalletDiscovery,
+} from '@/features/linked-wallets/useLinkedWalletDiscovery';
 import { useLinkedWalletSelection } from '@/features/linked-wallets/useLinkedWalletSelection';
 import { dfxUserService } from '@/features/dfx-backend/services';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
@@ -61,6 +64,14 @@ type PortfolioGroup = {
   // token variants on the same chain.
   networks: Set<string>;
 };
+
+function isWalletDiscoveryExact(entry: WalletDiscovery | undefined): entry is WalletDiscovery {
+  return (
+    entry?.known === true &&
+    entry.complete &&
+    entry.assets.every((asset) => asset.fiatValue != null)
+  );
+}
 
 export default function PortfolioScreen() {
   const { t } = useTranslation();
@@ -213,19 +224,21 @@ export default function PortfolioScreen() {
   }, [assetConfigs, balances, fiatCurrency, pricingReady, pricingRevision]);
 
   // Headline total = local WDK groups + selected linked-wallet discovery
-  // fiat. Wallets the discovery couldn't resolve contribute nothing
-  // instead of zeroing the headline.
+  // fiat. Any unresolved chain or price makes the combined value partial,
+  // so the UI must not present it as an exact total.
   const linkedWalletsFiat = useMemo(() => {
     let sum = 0;
+    let complete = true;
     for (const wallet of linkedWallets) {
       const entry = linkedDiscovery.get(wallet.address.toLowerCase());
-      if (entry?.known) sum += entry.totalFiat;
+      if (isWalletDiscoveryExact(entry)) sum += entry.totalFiat;
+      else complete = false;
     }
-    return sum;
+    return { complete, sum };
   }, [linkedWallets, linkedDiscovery]);
 
   const totalFiat = useMemo(
-    () => groups.reduce((sum, g) => sum + g.totalFiat, 0) + linkedWalletsFiat,
+    () => groups.reduce((sum, g) => sum + g.totalFiat, 0) + linkedWalletsFiat.sum,
     [groups, linkedWalletsFiat],
   );
 
@@ -291,16 +304,27 @@ export default function PortfolioScreen() {
       >
         <Text style={styles.totalLabel}>{t('portfolio.totalValue')}</Text>
         <View style={styles.totalRow}>
-          <Text style={styles.totalCurrency}>{currencySymbol}</Text>
-          <Text style={styles.totalValue} testID="portfolio-total-value">
-            {Number.isFinite(totalFiat)
-              ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })
-              : '0.00'}
-          </Text>
+          {linkedWalletsFiat.complete ? (
+            <>
+              <Text style={styles.totalCurrency}>{currencySymbol}</Text>
+              <Text style={styles.totalValue} testID="portfolio-total-value">
+                {Number.isFinite(totalFiat)
+                  ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
+                  : '0.00'}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.totalValue} testID="portfolio-total-value">
+              —
+            </Text>
+          )}
         </View>
+        {!linkedWalletsFiat.complete ? (
+          <Text style={styles.incompleteHint}>{t('dashboard.incompleteBalance')}</Text>
+        ) : null}
 
         {balances === undefined ? (
           // Balance fetch hasn't resolved yet — surface skeleton rows in
@@ -362,7 +386,7 @@ export default function PortfolioScreen() {
                     displayName={displayName}
                     currencySymbol={currencySymbol}
                     fiatValue={entry?.totalFiat ?? 0}
-                    fiatKnown={entry?.known ?? false}
+                    fiatExact={isWalletDiscoveryExact(entry)}
                     onPress={() =>
                       router.push({
                         pathname: '/(auth)/linked-wallet/[address]',
@@ -409,14 +433,14 @@ function LinkedWalletCard({
   displayName,
   currencySymbol,
   fiatValue,
-  fiatKnown,
+  fiatExact,
   onPress,
 }: {
   wallet: UserAddressDto;
   displayName: string;
   currencySymbol: string;
   fiatValue: number;
-  fiatKnown: boolean;
+  fiatExact: boolean;
   onPress: () => void;
 }) {
   const { t } = useTranslation();
@@ -428,10 +452,9 @@ function LinkedWalletCard({
   const chains = (wallet.blockchains?.length ? wallet.blockchains : [wallet.blockchain]).join(
     ' · ',
   );
-  // Fiat is known when at least one of the wallet's chains matches a
-  // local WDK address. Cards for wallets linked from another device
-  // surface a `—` glyph instead of misleading 0.00s.
-  const fiatLabel = fiatKnown
+  // Only a fully scanned and priced wallet has an exact fiat value.
+  // Partial or unavailable discovery surfaces a placeholder instead.
+  const fiatLabel = fiatExact
     ? `${currencySymbol} ${(Math.round(fiatValue * 100) / 100).toLocaleString('de-CH', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
@@ -571,6 +594,12 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
       fontWeight: '700',
       color: colors.text,
       flexShrink: 1,
+      ...onBackdrop,
+    },
+    incompleteHint: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      textAlign: 'center',
       ...onBackdrop,
     },
     assetList: {

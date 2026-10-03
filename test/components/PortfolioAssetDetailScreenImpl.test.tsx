@@ -16,7 +16,8 @@ import { useWalletStore } from '@/store';
 let mockBalanceMap: BalanceMap = new Map();
 let mockBalancesLoading = false;
 let mockBalancesError: Error | null = null;
-let mockBtcRate = 50_000;
+let mockBtcRate: number | undefined = 50_000;
+let mockBtcRateCurrency: FiatCurrency = FiatCurrency.USD;
 let mockEnabledChains: ChainId[] = [];
 jest.mock('@/services/balances', () => {
   const actual = jest.requireActual('@/services/balances');
@@ -123,6 +124,7 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     mockBalancesLoading = false;
     mockBalancesError = null;
     mockBtcRate = 50_000;
+    mockBtcRateCurrency = FiatCurrency.USD;
     mockEnabledChains = [
       'ethereum',
       'bitcoin',
@@ -136,7 +138,7 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     jest.spyOn(pricingService, 'isReady').mockReturnValue(true);
     jest.spyOn(pricingService, 'initialize').mockResolvedValue(undefined);
     jest.spyOn(pricingService, 'getExchangeRate').mockImplementation((ticker, currency) => {
-      if (currency !== FiatCurrency.USD) return undefined;
+      if (currency !== mockBtcRateCurrency) return undefined;
       if (ticker === 'btc') return mockBtcRate;
       if (ticker === 'usdt') return 1;
       return undefined;
@@ -331,20 +333,44 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     await waitFor(() => expect(fiatDigits()).toBe('6000000'));
   });
 
+  it('shows unavailable fiat for a positive balance without a finite rate', () => {
+    mockBtcRate = undefined;
+
+    const missing = renderScreen();
+
+    expect(missing.getByTestId('asset-detail-total-crypto').props.children).toBe('1.00 BTC');
+    expect(missing.getByTestId('asset-detail-total-fiat').props.children).toBe('—');
+    expect(within(missing.getByTestId('holding-bitcoin-BTC')).getByText('—')).toBeTruthy();
+    expect(within(missing.getByTestId('holding-spark-BTC')).getByText('$ 0.00')).toBeTruthy();
+    expect(missing.getByText('dashboard.incompleteBalance')).toBeTruthy();
+    missing.unmount();
+
+    mockBtcRate = 50_000;
+    const available = renderScreen();
+    const totalFiat = String(available.getByTestId('asset-detail-total-fiat').props.children);
+
+    expect(totalFiat.replace(/\D/g, '')).toBe('5000000');
+    expect(within(available.getByTestId('holding-bitcoin-BTC')).queryByText('—')).toBeNull();
+    expect(available.queryByText('dashboard.incompleteBalance')).toBeNull();
+  });
+
   it('renders the dark backdrop when the theme is dark', () => {
     useThemeStore.setState({ mode: 'dark' });
     const { getByTestId } = renderScreen();
     expect(getByTestId('dark-backdrop')).toBeTruthy();
   });
 
-  it('formats a non-finite fiat total as 0.00', async () => {
+  it('shows unavailable fiat when a positive balance computes to a non-finite value', async () => {
     const presentation = jest.requireActual(
       '@/config/portfolio-presentation',
     ) as typeof import('@/config/portfolio-presentation');
     jest.spyOn(presentation, 'computeFiatValue').mockReturnValue(Number.NaN);
+    mockBtcRateCurrency = FiatCurrency.CHF;
     useWalletStore.setState({ selectedCurrency: 'CHF' });
-    const { getByTestId } = renderScreen();
+    const { getByTestId, getByText } = renderScreen();
     await act(async () => undefined);
-    expect(getByTestId('asset-detail-total-fiat').props.children).toBe('CHF 0.00');
+    expect(getByTestId('asset-detail-total-fiat').props.children).toBe('—');
+    expect(within(getByTestId('holding-bitcoin-BTC')).getByText('—')).toBeTruthy();
+    expect(getByText('dashboard.incompleteBalance')).toBeTruthy();
   });
 });
