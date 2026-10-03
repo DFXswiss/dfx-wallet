@@ -79,13 +79,15 @@ export function maskPngRegions(
     throw new Error('Screenshot pixel buffer is smaller than its dimensions');
   }
 
-  for (const rect of rects) {
+  for (const [index, rect] of rects.entries()) {
     if (
       ![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) ||
       rect.width <= 0 ||
       rect.height <= 0
     ) {
-      continue;
+      throw new Error(
+        `Screenshot mask rect ${index} has no positive-area intersection with the image`,
+      );
     }
 
     const startX = clamp(Math.floor(rect.x * pixelsPerPoint), 0, png.width);
@@ -93,7 +95,11 @@ export function maskPngRegions(
     const endX = clamp(Math.ceil((rect.x + rect.width) * pixelsPerPoint), 0, png.width);
     const endY = clamp(Math.ceil((rect.y + rect.height) * pixelsPerPoint), 0, png.height);
 
-    if (endX <= startX || endY <= startY) continue;
+    if (endX <= startX || endY <= startY) {
+      throw new Error(
+        `Screenshot mask rect ${index} has no positive-area intersection with the image`,
+      );
+    }
 
     for (let y = startY; y < endY; y += 1) {
       for (let x = startX; x < endX; x += 1) {

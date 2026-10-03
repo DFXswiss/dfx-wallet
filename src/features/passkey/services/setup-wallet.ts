@@ -4,8 +4,9 @@ import { secureStorage, StorageKeys } from '@/services/storage';
 /**
  * Derive the mnemonic, read and preserve the previous wallet origin, then mark
  * passkey setup as pending before initializing the WDK wallet. A failed origin
- * read aborts before mutation or initialization. If initialization fails, the
- * previous origin is restored, or the marker is removed when no origin existed.
+ * read aborts before mutation or initialization. If initialization fails with
+ * no encrypted seed present, the previous origin is restored or the marker is
+ * removed. A detected or unverifiable wallet keeps the pending marker.
  *
  * Order matters: an interrupted metadata write must stay fail-closed and
  * cannot be mistaken for a seed wallet.
@@ -16,6 +17,7 @@ export async function setupPasskeyWallet(
   prfOutput: Uint8Array,
   credentialId: string,
   initializeWallet: (mnemonic: string) => Promise<unknown>,
+  walletExists: () => Promise<boolean> = async () => true,
 ): Promise<void> {
   const mnemonic = deriveMnemonicFromPrf(prfOutput);
 
@@ -24,14 +26,22 @@ export async function setupPasskeyWallet(
   try {
     await initializeWallet(mnemonic);
   } catch (error) {
+    let restorePreviousOrigin = false;
     try {
-      if (previousOrigin !== null) {
-        await secureStorage.set(StorageKeys.WALLET_ORIGIN, previousOrigin);
-      } else {
-        await secureStorage.remove(StorageKeys.WALLET_ORIGIN);
-      }
+      restorePreviousOrigin = !(await walletExists());
     } catch {
-      // Preserve the initialization failure even if origin restoration fails.
+      // Keep the pending marker when wallet persistence cannot be verified.
+    }
+    if (restorePreviousOrigin) {
+      try {
+        if (previousOrigin !== null) {
+          await secureStorage.set(StorageKeys.WALLET_ORIGIN, previousOrigin);
+        } else {
+          await secureStorage.remove(StorageKeys.WALLET_ORIGIN);
+        }
+      } catch {
+        // Preserve the initialization failure even if origin restoration fails.
+      }
     }
     throw error;
   }

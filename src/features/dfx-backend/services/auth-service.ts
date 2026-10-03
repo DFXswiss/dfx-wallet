@@ -55,23 +55,23 @@ export class DfxAuthService {
   private signatureCache: Map<string, SignatureCacheEntry> = new Map();
 
   /**
-   * Capture the current session generation for an authentication flow. Only
+   * Start an authentication flow and capture its session ownership. Only
    * `logout` and `adoptStoredToken` bump the generation because they replace
-   * the session from outside a flow. Clearing a Bearer for a fresh login stays
-   * within the same session so concurrent flows remain eligible to finish.
+   * the session from outside a flow. Every flow bumps the mutation counter so
+   * only the latest-started flow remains eligible to install a token.
    */
   private beginFlow(clearToken = false): AuthFlow {
+    this.mutation += 1;
     if (clearToken) {
       this.accessToken = null;
-      this.mutation += 1;
       dfxApi.clearAuthToken();
     }
     return { generation: this.generation, mutationAfterBegin: this.mutation };
   }
 
-  /** Install a token or reject a flow interrupted by an external session replacement. */
+  /** Install a token only while this remains the latest-started flow in the same session. */
   private installToken(token: string, flow: AuthFlow): void {
-    if (flow.generation !== this.generation) {
+    if (flow.generation !== this.generation || flow.mutationAfterBegin !== this.mutation) {
       throw new DfxAuthFlowInvalidatedError();
     }
     this.accessToken = token;

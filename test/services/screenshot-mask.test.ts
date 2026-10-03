@@ -52,19 +52,28 @@ describe('screenshot masking', () => {
     expect(PNG.sync.read(encoded).data.every((channel: number) => channel === 0)).toBe(true);
   });
 
-  it('clamps rounded edges and ignores empty or negative regions', () => {
+  it('leaves the image unchanged when no masks are requested', () => {
+    const png = createPng(2, 2, 7);
+
+    maskPngRegions(png, [], 2);
+
+    expect(png.data.every((channel) => channel === 7)).toBe(true);
+  });
+
+  it.each([
+    ['zero-size', { x: 1, y: 1, width: 0, height: 1 }],
+    ['negative-size', { x: 1, y: 1, width: 1, height: -1 }],
+    ['fully off-image', { x: 10, y: 10, width: 1, height: 1 }],
+  ])('rejects a %s sensitive rect', (_description, rect) => {
     const png = createPng(3, 2, 7);
 
-    maskPngRegions(
-      png,
-      [
-        { x: -0.4, y: -0.4, width: 1, height: 1 },
-        { x: 1, y: 1, width: 0, height: 1 },
-        { x: 1, y: 1, width: 1, height: -1 },
-        { x: 10, y: 10, width: 1, height: 1 },
-      ],
-      2,
-    );
+    expect(() => maskPngRegions(png, [rect], 2)).toThrow('Screenshot mask rect 0');
+  });
+
+  it('clamps and masks a partially off-image rect', () => {
+    const png = createPng(3, 2, 7);
+
+    maskPngRegions(png, [{ x: -0.4, y: -0.4, width: 1, height: 1 }], 2);
 
     expect(pixelAt(png, 0, 0)).toEqual(Object.values(SCREENSHOT_MASK_RGBA));
     expect(pixelAt(png, 1, 1)).toEqual(Object.values(SCREENSHOT_MASK_RGBA));
@@ -111,6 +120,23 @@ describe('screenshot masking', () => {
     });
 
     expect(() => maskArtifactInPlace('/tmp/artifact.png', [], 390, fsApi, mask)).toThrow(error);
+    expect(fsApi.writeFileSync).not.toHaveBeenCalled();
+    expect(fsApi.rmSync).toHaveBeenCalledWith('/tmp/artifact.png', { force: true });
+  });
+
+  it('removes the raw artifact when a sensitive rect is invalid', () => {
+    const source = new PNG({ width: 2, height: 2 });
+    source.data.fill(0);
+    const fsApi = createFsApi(PNG.sync.write(source));
+
+    expect(() =>
+      maskArtifactInPlace(
+        '/tmp/artifact.png',
+        [{ x: 0, y: 0, width: 0, height: 1 }],
+        2,
+        fsApi,
+      ),
+    ).toThrow('Screenshot mask rect 0');
     expect(fsApi.writeFileSync).not.toHaveBeenCalled();
     expect(fsApi.rmSync).toHaveBeenCalledWith('/tmp/artifact.png', { force: true });
   });

@@ -144,6 +144,38 @@ describe('copySensitive', () => {
     expect(subscription.remove).toHaveBeenCalledTimes(1);
   });
 
+  it('invalidates an in-flight clear before writing a new sensitive value', async () => {
+    const pendingRead = deferred<string>();
+    const pendingSecondWrite = deferred<boolean>();
+    jest
+      .mocked(Clipboard.getStringAsync)
+      .mockReturnValueOnce(pendingRead.promise)
+      .mockResolvedValue('second');
+    jest.mocked(Clipboard.setStringAsync).mockImplementation((value) => {
+      if (value === 'second') return pendingSecondWrite.promise;
+      return Promise.resolve(true);
+    });
+    await copySensitive('first', 500);
+    const firstSubscription = mockSubscriptions[0]!;
+    await jest.advanceTimersByTimeAsync(500);
+
+    const secondCopy = copySensitive('second', 500);
+    pendingRead.resolve('first');
+    await flushClipboardCleanup();
+
+    expect(firstSubscription.remove).toHaveBeenCalledTimes(1);
+    expect(Clipboard.setStringAsync).toHaveBeenCalledTimes(2);
+    expect(Clipboard.setStringAsync).not.toHaveBeenCalledWith('');
+
+    pendingSecondWrite.resolve(true);
+    await secondCopy;
+    const secondSubscription = mockSubscriptions[1]!;
+    await jest.advanceTimersByTimeAsync(500);
+
+    expect(Clipboard.setStringAsync).toHaveBeenNthCalledWith(3, '');
+    expect(secondSubscription.remove).toHaveBeenCalledTimes(1);
+  });
+
   it('preserves clipboard content that changed before the custom timeout', async () => {
     jest.mocked(Clipboard.getStringAsync).mockResolvedValue('new content');
 

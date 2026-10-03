@@ -68,6 +68,8 @@
 /e2e/utils/mask-artifact.ts  @Danswar @davidleomay @TaprootFreak
 /e2e/utils/mask-png.ts       @Danswar @davidleomay @TaprootFreak
 /e2e/utils/screenshot.ts     @Danswar @davidleomay @TaprootFreak
+/e2e/visual/                 @Danswar @davidleomay @TaprootFreak
+/e2e/__baselines__/          @Danswar @davidleomay @TaprootFreak
 
 # CI and the gates themselves (a gate nobody guards is not a gate)
 /.github/                    @Danswar @davidleomay @TaprootFreak

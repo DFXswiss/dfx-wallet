@@ -60,6 +60,7 @@ export function useScreenCaptureProtection(
         setState('active');
       })
       .catch(() => {
+        releaseProtection();
         if (!cancelled) setState('unavailable');
       });
 

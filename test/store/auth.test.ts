@@ -303,6 +303,62 @@ describe('useAuthStore', () => {
       });
     });
 
+    it('serializes concurrent failure persistence and rehydrates the strongest state', async () => {
+      type PendingWrite = {
+        key: string;
+        value: string;
+        resolve: () => void;
+      };
+      const persisted: Record<string, string> = { pinHash: 'stored-hash' };
+      const pendingWrites: PendingWrite[] = [];
+      setItemMock.mockImplementation(
+        (key: string, value: string) =>
+          new Promise<void>((resolve) => {
+            pendingWrites.push({
+              key,
+              value,
+              resolve: () => {
+                persisted[key] = value;
+                resolve();
+              },
+            });
+          }),
+      );
+      let resolveVerification!: (value: boolean) => void;
+      const verification = new Promise<boolean>((resolve) => {
+        resolveVerification = resolve;
+      });
+      verifyPinHashMock
+        .mockImplementationOnce(() => verification)
+        .mockImplementationOnce(() => verification);
+      useAuthStore.setState({ pinHash: 'stored-hash', failedAttempts: 4, lockedUntil: null });
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+
+      const attempts = [
+        useAuthStore.getState().verifyPin('111111'),
+        useAuthStore.getState().verifyPin('222222'),
+      ];
+      resolveVerification(false);
+
+      await waitFor(() => expect(useAuthStore.getState().failedAttempts).toBe(6));
+      await waitFor(() => expect(pendingWrites).toHaveLength(2));
+      pendingWrites.splice(0).reverse().forEach((write) => write.resolve());
+      await waitFor(() => expect(pendingWrites).toHaveLength(2));
+      pendingWrites.splice(0).reverse().forEach((write) => write.resolve());
+      await expect(Promise.all(attempts)).resolves.toEqual([false, false]);
+
+      expect(persisted.pinFailedAttempts).toBe('6');
+      expect(persisted.pinLockedUntil).toBe('1060000');
+
+      getItemMock.mockImplementation(async (key: string) => persisted[key] ?? null);
+      useAuthStore.setState({ pinHash: null, failedAttempts: 0, lockedUntil: null });
+      await useAuthStore.getState().hydrate();
+
+      expect(useAuthStore.getState().failedAttempts).toBe(6);
+      expect(useAuthStore.getState().lockedUntil).toBe(1_060_000);
+      now.mockRestore();
+    });
+
     it('locks a legacy PIN after five wrong counted attempts', async () => {
       const legacyHash = await legacyHashPin('1234');
       const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
