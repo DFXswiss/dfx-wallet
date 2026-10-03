@@ -156,10 +156,12 @@ until they are. `always` rows must reach `full` for the MVP to ship.
 Every `deferred` row in the matrix above is gated by one of these
 build-time flags. They are **off by default**. A flag flips to "on by
 default" only once every function it gates is `full` in the test
-matrix. Each flag isolates the code path so that a build with the flag
-off does not execute the deferred module. Its source remains in the
-JavaScript bundle as an unevaluated factory, as described above; the
-runtime gate provides crash-safety, not source removal.
+matrix. Except for the two static-import cases above (the OpenCryptoPay
+route and the authenticated layout's DFX services barrel), each flag
+isolates the code path so that a build with the flag off does not execute
+the deferred module. Its source remains in the JavaScript bundle as an
+unevaluated factory, as described above; the runtime gate provides
+crash-safety, not source removal.
 
 | Flag                                 | Gated functions                                                                                                                                                     | Default |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |

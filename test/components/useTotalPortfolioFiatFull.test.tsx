@@ -282,13 +282,36 @@ describe('useTotalPortfolioFiat (full)', () => {
       complete: false,
       known: true,
     });
+    useWalletStore.setState({ totalBalanceFiat: '987.65' });
 
     const { result } = renderHook(() => useTotalPortfolioFiat());
 
     await waitFor(() => expect(result.current.totalFiat).toBe(10));
     expect(result.current.isIncomplete).toBe(true);
-    act(() => useWalletStore.setState({ totalBalanceFiat: '987.65' }));
     expect(useWalletStore.getState().totalBalanceFiat).toBe('987.65');
+  });
+
+  it('does not persist a linked-wallet total when discovery is unknown but marked complete', async () => {
+    setCompleteZeroBalances();
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    mockGetUser.mockResolvedValue({ addresses: [LINKED_A], activeAddress: null });
+    mockDiscovery.set(LINKED_A.address.toLowerCase(), {
+      address: LINKED_A.address.toLowerCase(),
+      assets: [],
+      totalFiat: 10,
+      complete: true,
+      known: false,
+    });
+
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+
+    await waitFor(() => expect(mockIsSelected).toHaveBeenCalledWith(LINKED_A.address));
+    expect(result.current.totalFiat).toBe(0);
+    expect(result.current.isIncomplete).toBe(true);
+
+    act(() => useWalletStore.setState({ totalBalanceFiat: '987.65' }));
+    act(() => pricingService.reset());
+    await waitFor(() => expect(useWalletStore.getState().totalBalanceFiat).toBe('987.65'));
   });
 
   it('treats a missing addresses array as empty', async () => {

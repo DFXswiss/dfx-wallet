@@ -150,6 +150,23 @@ export const formatCryptoAmount = (n: number): string =>
     ? n.toLocaleString('de-CH', { minimumFractionDigits: 0, maximumFractionDigits: 8 })
     : '0';
 
+export function isFiatPriceAvailable(
+  balance: number,
+  canonicalSymbol: string,
+  fiatCurrency: FiatCurrency,
+  pricingReady: boolean,
+): boolean {
+  if (balance <= 0) return true;
+  if (canonicalSymbol === fiatCurrency) return true;
+  if (!pricingReady) return false;
+
+  const ticker = SYMBOL_TO_TICKER.get(canonicalSymbol);
+  if (!ticker) return false;
+
+  const rate = pricingService.getExchangeRate(ticker, fiatCurrency);
+  return typeof rate === 'number' && Number.isFinite(rate);
+}
+
 /**
  * Convert a token balance into the user's display fiat currency.
  *

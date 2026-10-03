@@ -2,9 +2,9 @@ import { useEffect, useMemo } from 'react';
 import {
   computeFiatValue,
   formatBalance,
+  isFiatPriceAvailable,
   resolveFiatCurrency,
   toNumeric,
-  SYMBOL_TO_TICKER,
 } from '@/config/portfolio-presentation';
 import {
   assetIncludedInEvmBalanceQuery,
@@ -74,13 +74,7 @@ export function useTotalPortfolioFiat(): PortfolioFiatResult {
         isIncomplete = true;
       const rawBalance = getRawBalance(balances, asset.getId());
       const balanceNum = toNumeric(formatBalance(rawBalance, asset.getDecimals()));
-      const isOwnCurrency = meta.canonicalSymbol === fiatCurrency;
-      const ticker = SYMBOL_TO_TICKER.get(meta.canonicalSymbol);
-      if (
-        balanceNum > 0 &&
-        !isOwnCurrency &&
-        (!pricingReady || !ticker || pricingService.getExchangeRate(ticker, fiatCurrency) == null)
-      ) {
+      if (!isFiatPriceAvailable(balanceNum, meta.canonicalSymbol, fiatCurrency, pricingReady)) {
         isIncomplete = true;
       }
       sum += computeFiatValue(balanceNum, meta.canonicalSymbol, fiatCurrency, pricingReady);

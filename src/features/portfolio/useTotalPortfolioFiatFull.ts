@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   computeFiatValue,
   formatBalance,
+  isFiatPriceAvailable,
   resolveFiatCurrency,
   toNumeric,
-  SYMBOL_TO_TICKER,
 } from '@/config/portfolio-presentation';
 import {
   assetIncludedInEvmBalanceQuery,
@@ -48,7 +48,7 @@ export function useTotalPortfolioFiat() {
 
   const [linkedAddresses, setLinkedAddresses] = useState<UserAddressDto[]>([]);
   const [activeAddress, setActiveAddress] = useState<string | null>(null);
-  const [linkedUserIncomplete, setLinkedUserIncomplete] = useState(false);
+  const [linkedUserIncomplete, setLinkedUserIncomplete] = useState(isDfxAuthenticated);
 
   useEffect(() => {
     if (pricingService.isReady()) {
@@ -125,13 +125,7 @@ export function useTotalPortfolioFiat() {
         isIncomplete = true;
       const rawBalance = getRawBalance(balances, asset.getId());
       const balanceNum = toNumeric(formatBalance(rawBalance, asset.getDecimals()));
-      const isOwnCurrency = meta.canonicalSymbol === fiatCurrency;
-      const ticker = SYMBOL_TO_TICKER.get(meta.canonicalSymbol);
-      if (
-        balanceNum > 0 &&
-        !isOwnCurrency &&
-        (!pricingReady || !ticker || pricingService.getExchangeRate(ticker, fiatCurrency) == null)
-      ) {
+      if (!isFiatPriceAvailable(balanceNum, meta.canonicalSymbol, fiatCurrency, pricingReady)) {
         isIncomplete = true;
       }
       sum += computeFiatValue(balanceNum, meta.canonicalSymbol, fiatCurrency, pricingReady);
@@ -139,7 +133,7 @@ export function useTotalPortfolioFiat() {
     for (const wallet of linkedWallets) {
       const entry = linkedDiscovery.get(wallet.address.toLowerCase());
       if (entry?.known) sum += entry.totalFiat;
-      if (!entry?.complete || entry.assets.some((asset) => asset.fiatValue == null))
+      if (!entry?.known || !entry.complete || entry.assets.some((asset) => asset.fiatValue == null))
         isIncomplete = true;
     }
     return { totalFiat: sum, isIncomplete };

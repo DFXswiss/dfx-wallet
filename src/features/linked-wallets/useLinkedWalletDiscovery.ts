@@ -60,7 +60,7 @@ export type WalletDiscovery = {
   address: string;
   assets: DiscoveredAsset[];
   totalFiat: number;
-  /** True when every supported chain and asset balance query succeeded. */
+  /** True when every requested chain is supported and every asset balance query succeeded. */
   complete: boolean;
   /** True when at least one chain scan succeeded, false when every scan
    *  errored — drives the `—` placeholder on the Portfolio card. */
@@ -161,15 +161,20 @@ export function useLinkedWalletDiscovery(
         const blockchains = wallet.blockchains?.length ? wallet.blockchains : [wallet.blockchain];
 
         const chains: ChainId[] = [];
+        let hasUnmappedBlockchain = false;
         for (const bc of blockchains) {
           // eslint-disable-next-line security/detect-object-injection -- BLOCKCHAIN_TO_CHAIN is a closed lookup; misses fall through
           const c = BLOCKCHAIN_TO_CHAIN[bc];
-          if (c && !chains.includes(c)) chains.push(c);
+          if (!c) {
+            hasUnmappedBlockchain = true;
+            continue;
+          }
+          if (!chains.includes(c)) chains.push(c);
         }
 
         const assets: DiscoveredAsset[] = [];
         let anyKnown = false;
-        let complete = true;
+        let complete = !hasUnmappedBlockchain;
 
         for (const chain of chains) {
           if (chain === 'bitcoin') {
