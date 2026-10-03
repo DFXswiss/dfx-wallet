@@ -196,6 +196,10 @@ jobs:
       # patched release (latest 2.0.2, repo archived) — allowlist only those.
       # node-forge GHSA-86w9-cpqp-85rv: no published patched release (affects <=1.4.0, latest 1.4.0);
       # only reached through expo -> @expo/cli build tooling, not the app bundle — allowlist only that ID.
+      # braces GHSA-vfj7-8cjw-p6xm: no published patched release (affects <=3.0.3, latest 3.0.3);
+      # only reached through micromatch in jest, metro and @expo/cli tooling, not the app bundle.
+      # stream-json GHSA-528h-pc64-c93x: moderate, only reached through detox (E2E tooling); listed
+      # here because the high braces finding on @wix-pilot/detox pulls it into the same entry.
       - name: npm audit (high+)
         run: |
           set +e
@@ -207,6 +211,8 @@ jobs:
               "GHSA-86W9-CPQP-85RV",
               "GHSA-W3RX-R6R6-PGPR",
               "GHSA-5P2G-FCMC-QVQQ",
+              "GHSA-VFJ7-8CJW-P6XM",
+              "GHSA-528H-PC64-C93X",
           }
           GHSA_RE = re.compile(r"GHSA-[a-z0-9]+-[a-z0-9]+-[a-z0-9]+", re.I)
           try:
