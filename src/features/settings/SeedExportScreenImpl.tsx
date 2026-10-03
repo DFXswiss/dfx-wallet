@@ -46,15 +46,23 @@ export default function SeedExportScreen() {
     if (isPasskey) {
       setIsLoading(true);
       try {
+        const credentialId = await secureStorage.get(StorageKeys.PASSKEY_CREDENTIAL_ID);
+        if (!credentialId || !getMnemonic) {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Alert.alert(t('common.error'), t('seedExport.passkeyVerificationUnavailable'));
+          return;
+        }
         const versionStr = await secureStorage.get(StorageKeys.PASSKEY_DERIVATION_VERSION);
         const version = versionStr ? parseInt(versionStr, 10) : 1;
-        const credentialId = await secureStorage.get(StorageKeys.PASSKEY_CREDENTIAL_ID);
-        const { prfOutput } = await authenticatePasskey(
-          credentialId !== null ? { credentialId } : {},
-        );
+        const { prfOutput } = await authenticatePasskey({ credentialId });
         const mnemonic = deriveMnemonicFromPrf(prfOutput, version);
-        const wdkMnemonic = getMnemonic ? await getMnemonic('default') : null;
-        if (wdkMnemonic && mnemonic !== wdkMnemonic) {
+        const wdkMnemonic = await getMnemonic('default');
+        if (!wdkMnemonic) {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Alert.alert(t('common.error'), t('seedExport.passkeyVerificationUnavailable'));
+          return;
+        }
+        if (mnemonic !== wdkMnemonic) {
           void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           Alert.alert(t('common.error'), t('seedExport.seedMismatch'));
           return;

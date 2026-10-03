@@ -235,34 +235,53 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   reset: async () => {
+    const cleanupTasks: (() => void | Promise<void>)[] = [
+      () => secureStorage.remove(StorageKeys.ACCOUNTS),
+      () => secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS),
+      () => secureStorage.remove(StorageKeys.PIN_HASH),
+      () => secureStorage.remove(StorageKeys.IS_ONBOARDED),
+      () => secureStorage.remove(StorageKeys.ENCRYPTED_SEED),
+      () => secureStorage.remove(StorageKeys.DFX_AUTH_TOKEN),
+      () => secureStorage.remove(StorageKeys.WALLET_ORIGIN),
+      () => secureStorage.remove(StorageKeys.PASSKEY_CREDENTIAL_ID),
+      () => secureStorage.remove(StorageKeys.PASSKEY_DERIVATION_VERSION),
+      () => secureStorage.remove(StorageKeys.PIN_FAILED_ATTEMPTS),
+      () => secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL),
+      () => secureStorage.remove(StorageKeys.WALLET_TYPE),
+      () => secureStorage.remove(BIOMETRIC_KEY),
+    ];
     if (dfxModule) {
-      dfxModule.dfxApi.clearAuthToken();
-      dfxModule.dfxAuthService.adoptStoredToken(null);
+      cleanupTasks.push(
+        () => dfxModule.dfxApi.clearAuthToken(),
+        () => dfxModule.dfxAuthService.adoptStoredToken(null),
+      );
     }
-    await Promise.all([
-      secureStorage.remove(StorageKeys.ACCOUNTS),
-      secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS),
-      secureStorage.remove(StorageKeys.PIN_HASH),
-      secureStorage.remove(StorageKeys.IS_ONBOARDED),
-      secureStorage.remove(StorageKeys.ENCRYPTED_SEED),
-      secureStorage.remove(StorageKeys.DFX_AUTH_TOKEN),
-      secureStorage.remove(StorageKeys.WALLET_ORIGIN),
-      secureStorage.remove(StorageKeys.PASSKEY_CREDENTIAL_ID),
-      secureStorage.remove(StorageKeys.PASSKEY_DERIVATION_VERSION),
-      secureStorage.remove(StorageKeys.PIN_FAILED_ATTEMPTS),
-      secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL),
-      secureStorage.remove(StorageKeys.WALLET_TYPE),
-      secureStorage.remove(BIOMETRIC_KEY),
-    ]);
-    set({
-      isOnboarded: false,
-      isAuthenticated: false,
-      isDfxAuthenticated: false,
-      biometricEnabled: false,
-      pinHash: null,
-      failedAttempts: 0,
-      lockedUntil: null,
-      hydrateError: null,
-    });
+
+    let failures: unknown[] = [];
+    try {
+      const results = await Promise.allSettled(
+        cleanupTasks.map(async (cleanup) => {
+          await cleanup();
+        }),
+      );
+      failures = results
+        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+        .map((result) => result.reason);
+    } finally {
+      set({
+        isOnboarded: false,
+        isAuthenticated: false,
+        isDfxAuthenticated: false,
+        biometricEnabled: false,
+        pinHash: null,
+        failedAttempts: 0,
+        lockedUntil: null,
+        hydrateError: null,
+      });
+    }
+
+    if (failures.length > 0) {
+      throw new AggregateError(failures, 'Failed to clear all wallet access data');
+    }
   },
 }));
