@@ -61,6 +61,9 @@ export class DfxTransactionService {
       { userAddress: params.userAddress },
       { responseType: 'text' },
     );
+    if (typeof fileKey !== 'string' || fileKey.trim().length === 0) {
+      throw new Error('DFX transaction CSV export returned an empty file key.');
+    }
     return {
       fileKey,
       downloadUrl: `${dfxApi.baseUrlPublic()}/v1/transaction/csv?key=${encodeURIComponent(fileKey)}`,

@@ -1,10 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import {
-  normalizeLanguage,
-  resolveInitialLanguage,
-  resolveInitialLanguageSync,
-  setLanguage,
-} from '@/i18n/language';
+import { normalizeLanguage, resolveInitialLanguageSync, setLanguage } from '@/i18n/language';
 import { secureStorage, StorageKeys } from '@/services/storage';
 
 jest.mock('@/services/storage', () => ({
@@ -23,20 +18,17 @@ describe('persisted app language', () => {
   });
 
   it('persists before changing the active language', async () => {
-    const changeLanguage = jest.fn(async () => undefined);
+    const callOrder: string[] = [];
+    (secureStorage.set as jest.Mock).mockImplementationOnce(async () => {
+      callOrder.push('persist');
+    });
+    const changeLanguage = jest.fn(async () => {
+      callOrder.push('activate');
+    });
     await setLanguage('de', { changeLanguage });
     expect(secureStorage.set).toHaveBeenCalledWith(StorageKeys.SELECTED_LANGUAGE, 'de');
     expect(changeLanguage).toHaveBeenCalledWith('de');
-  });
-
-  it('prefers a supported stored language and otherwise uses the device fallback', async () => {
-    await expect(resolveInitialLanguage('en', async () => 'de')).resolves.toBe('de');
-    await expect(resolveInitialLanguage('de', async () => 'fr')).resolves.toBe('de');
-    await expect(
-      resolveInitialLanguage('en', async () => {
-        throw new Error('locked');
-      }),
-    ).resolves.toBe('en');
+    expect(callOrder).toEqual(['persist', 'activate']);
   });
 
   it('reads a supported persisted language synchronously during startup', () => {

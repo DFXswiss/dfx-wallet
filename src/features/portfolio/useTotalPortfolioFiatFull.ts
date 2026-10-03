@@ -36,12 +36,13 @@ export function useTotalPortfolioFiat() {
   const { isSelected } = useLinkedWalletSelection();
 
   const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const { data: balances } = useBalances(assetConfigs);
+  const { data: balances, isLoading: balancesLoading } = useBalances(assetConfigs);
   const [pricingReady, setPricingReady] = useState(pricingService.isReady());
   const [pricingRevision, setPricingRevision] = useState(0);
 
   const [linkedAddresses, setLinkedAddresses] = useState<UserAddressDto[]>([]);
   const [activeAddress, setActiveAddress] = useState<string | null>(null);
+  const [linkedUserIncomplete, setLinkedUserIncomplete] = useState(false);
 
   useEffect(() => {
     if (pricingService.isReady()) {
@@ -68,10 +69,10 @@ export function useTotalPortfolioFiat() {
   // having to bring its own fetch.
   useEffect(() => {
     if (!isDfxAuthenticated) {
-      setLinkedAddresses([]);
-      setActiveAddress(null);
+      setLinkedUserIncomplete(false);
       return;
     }
+    setLinkedUserIncomplete(true);
     let cancelled = false;
     void dfxUserService
       .getUser()
@@ -79,11 +80,11 @@ export function useTotalPortfolioFiat() {
         if (cancelled) return;
         setLinkedAddresses(user.addresses ?? []);
         setActiveAddress(user.activeAddress?.address ?? null);
+        setLinkedUserIncomplete(false);
       })
       .catch(() => {
         if (cancelled) return;
-        setLinkedAddresses([]);
-        setActiveAddress(null);
+        setLinkedUserIncomplete(true);
       });
     return () => {
       cancelled = true;
@@ -91,13 +92,14 @@ export function useTotalPortfolioFiat() {
   }, [isDfxAuthenticated]);
 
   const linkedWallets = useMemo(() => {
+    if (!isDfxAuthenticated) return [];
     const lcActive = activeAddress?.toLowerCase() ?? null;
     return linkedAddresses.filter((a) => {
       const lc = a.address.toLowerCase();
       if (lc === lcActive) return false;
       return isSelected(a.address);
     });
-  }, [linkedAddresses, activeAddress, isSelected]);
+  }, [linkedAddresses, activeAddress, isDfxAuthenticated, isSelected]);
 
   const fiatCurrency = resolveFiatCurrency(selectedCurrency);
 
@@ -110,12 +112,19 @@ export function useTotalPortfolioFiat() {
   const result = useMemo(() => {
     void pricingRevision;
     let sum = 0;
-    let isIncomplete = false;
+    let isIncomplete = balancesLoading || linkedUserIncomplete;
     for (const asset of assetConfigs) {
       const meta = getAssetMeta(asset.getId());
       if (!meta || meta.category === 'native') continue;
       const balanceEntry = balances.get(asset.getId());
-      if (balanceEntry?.status === 'error' || balanceEntry?.status === 'stale') isIncomplete = true;
+      if (
+        !balanceEntry ||
+        balanceEntry.status === 'idle' ||
+        balanceEntry.status === 'loading' ||
+        balanceEntry.status === 'error' ||
+        balanceEntry.status === 'stale'
+      )
+        isIncomplete = true;
       const rawBalance = getRawBalance(balances, asset.getId());
       const balanceNum = toNumeric(formatBalance(rawBalance, asset.getDecimals()));
       const isOwnCurrency = meta.canonicalSymbol === fiatCurrency;
@@ -139,11 +148,13 @@ export function useTotalPortfolioFiat() {
   }, [
     assetConfigs,
     balances,
+    balancesLoading,
     fiatCurrency,
     pricingReady,
     pricingRevision,
     linkedWallets,
     linkedDiscovery,
+    linkedUserIncomplete,
   ]);
 
   useEffect(() => {

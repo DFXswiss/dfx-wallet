@@ -17,9 +17,9 @@ describe('buy and sell quote display', () => {
     expect(getQuoteErrorCode(null)).toBeNull();
   });
 
-  it('uses the final invalid payment-info error code with a generic fallback', () => {
+  it('uses the final invalid payment-info error code with a no-code fallback', () => {
     expect(getPaymentInfoErrorCode({ isValid: false, error: 'KycRequired' })).toBe('KycRequired');
-    expect(getPaymentInfoErrorCode({ isValid: false })).toBe('generic');
+    expect(getPaymentInfoErrorCode({ isValid: false })).toBe('noCode');
     expect(getPaymentInfoErrorCode({ isValid: true, error: 'KycRequired' })).toBeNull();
     expect(getPaymentInfoErrorCode(null)).toBeNull();
   });

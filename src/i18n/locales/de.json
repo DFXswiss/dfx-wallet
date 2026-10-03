@@ -38,6 +38,7 @@
       "LimitExceeded": "Limit überschritten.",
       "NameRequired": "Name erforderlich.",
       "NationalityNotAllowed": "Käufe für deine Nationalität sind nicht möglich.",
+      "noCode": "Angebot konnte nicht erstellt werden.",
       "PaymentMethodNotAllowed": "Zahlungsmethode nicht zulässig.",
       "RecommendationRequired": "Empfehlungscode erforderlich."
     },
@@ -386,7 +387,7 @@
       "title": "Multi-Signatur planen"
     },
     "manage": {
-      "addAnotherCta": "Weiteren Tresor einrichten",
+      "addAnotherCta": "Weiteren lokalen Plan einrichten",
       "cosignerLabel": "Mitunterzeichner {{n}}",
       "emptyBody": "Du hast noch keine lokale Mitunterzeichnerliste. Eine Liste erstellt keine Multi-Signatur-Wallet.",
       "emptyTitle": "Noch kein Multi-Sig",
@@ -394,7 +395,7 @@
       "quorumMeta": "Geplantes Quorum: {{required}} von {{total}}",
       "removeBody": "Möchtest du \"{{name}}\" wirklich entfernen? Die Konfiguration wird gelöscht.",
       "removeConfirm": "Entfernen",
-      "removeTitle": "Tresor entfernen?",
+      "removeTitle": "Lokalen Plan entfernen?",
       "setupCta": "Multi-Sig einrichten",
       "summaryLabel": "Gespeicherte Pläne",
       "summaryValue": "{{count}} lokale Mitunterzeichnerliste(n)",
@@ -410,9 +411,9 @@
       "option_2_2_desc": "Plane beide Mitunterzeichner ein. Noch nicht technisch erzwungen.",
       "option_2_2_title": "Paar-Wallet",
       "option_2_3_desc": "Plane zwei von drei Mitunterzeichnern ein. Noch nicht technisch erzwungen.",
-      "option_2_3_title": "Familien-Tresor",
+      "option_2_3_title": "Familienplan",
       "option_3_5_desc": "Plane drei von fünf Mitunterzeichnern ein. Noch nicht technisch erzwungen.",
-      "option_3_5_title": "Team-Tresor",
+      "option_3_5_title": "Teamplan",
       "option_custom_desc": "Erfasse ein eigenes geplantes Quorum für bis zu 9 Personen.",
       "option_custom_title": "Eigenes Setup",
       "title": "Wähle dein Setup"
@@ -586,6 +587,7 @@
       "LimitExceeded": "Limit überschritten.",
       "NameRequired": "Name erforderlich.",
       "NationalityNotAllowed": "Verkäufe für deine Nationalität sind nicht möglich.",
+      "noCode": "Angebot konnte nicht erstellt werden.",
       "PaymentMethodNotAllowed": "Zahlungsmethode nicht zulässig.",
       "RecommendationRequired": "Empfehlungscode erforderlich."
     },

@@ -1,18 +1,20 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { BalanceEntry, BalanceMap, BalanceSourceResult } from '@/services/balances';
+import { getAssets } from '@/config/tokens';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import type { WalletDiscovery } from '@/features/linked-wallets/useLinkedWalletDiscovery';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { useAuthStore, useWalletStore } from '@/store';
 
 let mockBalanceMap: BalanceMap = new Map();
+let mockBalancesLoading = false;
 jest.mock('@/services/balances', () => {
   const actual = jest.requireActual('@/services/balances');
   return {
     ...actual,
     useBalances: (): BalanceSourceResult => ({
       data: mockBalanceMap,
-      isLoading: false,
+      isLoading: mockBalancesLoading,
       error: null,
     }),
   };
@@ -85,6 +87,12 @@ function setBalances(entries: Record<string, string>) {
   mockBalanceMap = new Map(Object.entries(entries).map(([k, v]) => [k, makeEntry(k, v)]));
 }
 
+function setCompleteZeroBalances() {
+  mockBalanceMap = new Map(
+    getAssets(['ethereum']).map((asset) => [asset.getId(), makeEntry(asset.getId(), '0')]),
+  );
+}
+
 const LINKED_A: UserAddressDto = {
   address: '0xAAAAaaaaAAAAaaaaAAAAaaaaAAAAaaaaAAAAaaaa',
   blockchain: 'Ethereum',
@@ -103,6 +111,7 @@ const ACTIVE: UserAddressDto = {
 
 describe('useTotalPortfolioFiat (full)', () => {
   beforeEach(() => {
+    mockBalancesLoading = false;
     setBalances({});
     mockDiscovery.clear();
     mockIsSelected.mockReset();
@@ -231,11 +240,53 @@ describe('useTotalPortfolioFiat (full)', () => {
     await waitFor(() => expect(result.current.totalFiat).toBe(0));
   });
 
-  it('clears linked wallets when getUser rejects', async () => {
+  it('keeps the last successful linked wallets and marks the total incomplete when getUser rejects', async () => {
+    setCompleteZeroBalances();
     useAuthStore.setState({ isDfxAuthenticated: true });
-    mockGetUser.mockRejectedValue(new Error('401'));
+    mockGetUser.mockResolvedValueOnce({ addresses: [LINKED_A], activeAddress: null });
+    mockDiscovery.set(LINKED_A.address.toLowerCase(), {
+      address: LINKED_A.address.toLowerCase(),
+      assets: [],
+      totalFiat: 10,
+      known: true,
+    });
     const { result } = renderHook(() => useTotalPortfolioFiat());
+    await waitFor(() => expect(result.current.totalFiat).toBe(10));
+    expect(result.current.isIncomplete).toBe(false);
+
+    act(() => useAuthStore.setState({ isDfxAuthenticated: false }));
     await waitFor(() => expect(result.current.totalFiat).toBe(0));
+
+    mockGetUser.mockRejectedValueOnce(new Error('401'));
+    act(() => useAuthStore.setState({ isDfxAuthenticated: true }));
+
+    await waitFor(() => expect(result.current.isIncomplete).toBe(true));
+    expect(result.current.totalFiat).toBe(10);
+  });
+
+  it('marks the total incomplete while the shared balances are loading', async () => {
+    setCompleteZeroBalances();
+    mockBalancesLoading = true;
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+    await waitFor(() => expect(result.current.isIncomplete).toBe(true));
+  });
+
+  it('marks the total incomplete when an expected balance entry is missing', async () => {
+    setCompleteZeroBalances();
+    const balances = new Map(mockBalanceMap);
+    balances.delete(USDT_ETH_ID);
+    mockBalanceMap = balances;
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+    await waitFor(() => expect(result.current.isIncomplete).toBe(true));
+  });
+
+  it('marks the total incomplete when a balance entry is idle', async () => {
+    setCompleteZeroBalances();
+    const balances = new Map(mockBalanceMap);
+    balances.set(USDT_ETH_ID, { ...makeEntry(USDT_ETH_ID, '0'), status: 'idle' });
+    mockBalanceMap = balances;
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+    await waitFor(() => expect(result.current.isIncomplete).toBe(true));
   });
 
   it('does not apply a late getUser result after unmount', async () => {

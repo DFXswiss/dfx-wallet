@@ -28,6 +28,32 @@ async function buildCurrencyRef(name: string) {
   return { id: fiat.id };
 }
 
+function abortError(): Error {
+  const error = new Error('The operation was aborted.');
+  error.name = 'AbortError';
+  return error;
+}
+
+async function raceWithAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) throw abortError();
+
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(abortError());
+    signal.addEventListener('abort', onAbort, { once: true });
+    void promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 export class DfxPaymentService {
   // --- Buy ---
 
@@ -40,10 +66,13 @@ export class DfxPaymentService {
     },
     options?: { signal?: AbortSignal },
   ): Promise<BuyPaymentInfoDto> {
-    const [currency, asset] = await Promise.all([
-      buildCurrencyRef(params.currency),
-      buildAssetRef(params.asset, params.blockchain),
-    ]);
+    const [currency, asset] = await raceWithAbort(
+      Promise.all([
+        buildCurrencyRef(params.currency),
+        buildAssetRef(params.asset, params.blockchain),
+      ]),
+      options?.signal,
+    );
     return dfxApi.put<BuyPaymentInfoDto>(
       '/v1/buy/quote',
       {
@@ -66,10 +95,13 @@ export class DfxPaymentService {
     },
     options?: { signal?: AbortSignal },
   ): Promise<BuyPaymentInfoDto> {
-    const [currency, asset] = await Promise.all([
-      buildCurrencyRef(params.currency),
-      buildAssetRef(params.asset, params.blockchain),
-    ]);
+    const [currency, asset] = await raceWithAbort(
+      Promise.all([
+        buildCurrencyRef(params.currency),
+        buildAssetRef(params.asset, params.blockchain),
+      ]),
+      options?.signal,
+    );
     // `paymentMethod` and `exactPrice` are marked `@IsNotEmpty()` on DFX'
     // `GetBuyPaymentInfoDto`. The class has default initializers (`Bank`,
     // `false`) so the validator passes even when we omit them — but the
@@ -107,10 +139,13 @@ export class DfxPaymentService {
     },
     options?: { signal?: AbortSignal },
   ): Promise<SellPaymentInfoDto> {
-    const [currency, asset] = await Promise.all([
-      buildCurrencyRef(params.currency),
-      buildAssetRef(params.asset, params.blockchain),
-    ]);
+    const [currency, asset] = await raceWithAbort(
+      Promise.all([
+        buildCurrencyRef(params.currency),
+        buildAssetRef(params.asset, params.blockchain),
+      ]),
+      options?.signal,
+    );
     return dfxApi.put<SellPaymentInfoDto>(
       '/v1/sell/quote',
       {
@@ -133,10 +168,13 @@ export class DfxPaymentService {
     },
     options?: { signal?: AbortSignal },
   ): Promise<SellPaymentInfoDto> {
-    const [currency, asset] = await Promise.all([
-      buildCurrencyRef(params.currency),
-      buildAssetRef(params.asset, params.blockchain),
-    ]);
+    const [currency, asset] = await raceWithAbort(
+      Promise.all([
+        buildCurrencyRef(params.currency),
+        buildAssetRef(params.asset, params.blockchain),
+      ]),
+      options?.signal,
+    );
     return dfxApi.put<SellPaymentInfoDto>(
       '/v1/sell/paymentInfos',
       {

@@ -4,6 +4,7 @@ import {
   formatCryptoAmount,
   formatFiat,
   formatNumber,
+  normalizeDecimalAmount,
   parseUnits,
   resolveFiatCurrency,
   toNumeric,
@@ -62,6 +63,36 @@ describe('toNumeric', () => {
     expect(toNumeric('')).toBe(0);
     expect(toNumeric('abc')).toBe(0);
     expect(toNumeric('NaN')).toBe(0);
+  });
+});
+
+describe('normalizeDecimalAmount', () => {
+  it.each([
+    ['100,50', '100.50'],
+    ['1,5', '1.5'],
+    ['0,001', '0.001'],
+    ['42', '42'],
+    ['100.50', '100.50'],
+  ])('normalizes %s to %s', (input, expected) => {
+    expect(normalizeDecimalAmount(input)).toBe(expected);
+  });
+
+  it.each([
+    '',
+    '1,000.50',
+    '1.2.3',
+    '1,,5',
+    'abc',
+    '-1',
+    '.5',
+    '1.',
+    ',5',
+    '1,',
+    '1.5,',
+    ' 1',
+    '1 ',
+  ])('rejects malformed amount %s', (input) => {
+    expect(normalizeDecimalAmount(input)).toBeNull();
   });
 });
 

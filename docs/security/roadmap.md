@@ -64,7 +64,8 @@ makes later phases possible. None of it requires design or product input.
       `security-and-quality` query suite, weekly schedule + on push/PR
       to `main`/`develop` (`.github/workflows/codeql.yml`).
 - **Acceptance**: scheduled scans are visible in the Security tab and a
-  high-severity audit finding blocks the pull request.
+  high-severity audit finding not covered by the narrow GHSA allowlist in
+  `.github/workflows/ci.yml` blocks the pull request.
 
 ### P0.6 — Branch protection
 
