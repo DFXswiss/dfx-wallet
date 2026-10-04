@@ -101,20 +101,24 @@ describe('useLinkedWalletReauth', () => {
     });
   });
 
-  it('logs in with the LDS Lightning identity when the requested LNURL matches (case-insensitive, trimmed)', async () => {
-    const { result } = renderHook(() => useLinkedWalletReauth());
+  it(
+    'logs in with the LDS Lightning identity when the requested LNURL matches (case-insensitive, trimmed)',
+    async () => {
+      mockGetAccessToken.mockReturnValue(token);
+      const { result } = renderHook(() => useLinkedWalletReauth());
 
-    await expect(result.current.reauthAs('  lnurl1abc ', 'Lightning')).resolves.toEqual({
-      ok: true,
-      token,
-    });
-    expect(mockLoginAsLnurlAddressOwner).toHaveBeenCalledTimes(1);
-    expect(mockLoginAsLnurlAddressOwner).toHaveBeenCalledWith('LNURL1ABC', ownershipProof, {
-      wallet: 'DFX Bitcoin',
-      blockchain: 'Lightning',
-    });
-    expect(mockSecureStorageSet).toHaveBeenCalledWith(StorageKeys.DFX_AUTH_TOKEN, token);
-  });
+      await expect(result.current.reauthAs('  lnurl1abc ', 'Lightning')).resolves.toEqual({
+        ok: true,
+        token,
+      });
+      expect(mockLoginAsLnurlAddressOwner).toHaveBeenCalledTimes(1);
+      expect(mockLoginAsLnurlAddressOwner).toHaveBeenCalledWith('LNURL1ABC', ownershipProof, {
+        wallet: 'DFX Bitcoin',
+        blockchain: 'Lightning',
+      });
+      expect(mockSecureStorageSet).toHaveBeenCalledWith(StorageKeys.DFX_AUTH_TOKEN, token);
+    },
+  );
 
   it('rejects the Lightning fallback with addressMismatch when the requested LNURL is not the local LDS identity', async () => {
     const { result } = renderHook(() => useLinkedWalletReauth());
@@ -145,6 +149,7 @@ describe('useLinkedWalletReauth', () => {
       await useAuthStore.getState().reset();
       useAuthStore.setState({ isAuthenticated: true, isOnboarded: true });
     });
+    mockSecureStorageGet.mockClear();
     mockGetAccessToken.mockReturnValue('stale-change-token');
     mockSecureStorageRemove.mockClear();
     await act(async () => pendingChange.resolve('stale-change-token'));
@@ -204,6 +209,7 @@ describe('useLinkedWalletReauth', () => {
       await useAuthStore.getState().reset();
       useAuthStore.setState({ isAuthenticated: true, isOnboarded: true });
     });
+    mockSecureStorageGet.mockClear();
     mockGetAccessToken.mockReturnValue('stale-lightning-token');
     mockSecureStorageRemove.mockClear();
     await act(async () => pendingLogin.resolve('stale-lightning-token'));

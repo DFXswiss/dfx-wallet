@@ -176,7 +176,7 @@ describe('SeedExportScreenImpl', () => {
       });
       expect(mockRequestReauth).toHaveBeenCalledTimes(1);
       await waitFor(() => expect(getAllByText('abandon').length).toBeGreaterThan(0));
-      expect(mockPrevent).toHaveBeenCalledWith('seed-export');
+      expect(mockPrevent).toHaveBeenCalledWith(expect.stringMatching(/^seed-export:/));
       expect(Haptics.impactAsync).toHaveBeenCalled();
 
       await act(async () => {
@@ -528,7 +528,9 @@ describe('SeedExportScreenImpl', () => {
       fireEvent.press(getByText('seedExport.revealSeed'));
     });
 
-    await waitFor(() => expect(mockPrevent).toHaveBeenCalledWith('seed-export'));
+    await waitFor(() =>
+      expect(mockPrevent).toHaveBeenCalledWith(expect.stringMatching(/^seed-export:/)),
+    );
     expect(getByTestId('seed-export-protection-loading')).toBeTruthy();
     expect(queryAllByText('abandon')).toHaveLength(0);
 
@@ -559,7 +561,8 @@ describe('SeedExportScreenImpl', () => {
       fireEvent.press(getByText('seedExport.revealSeed'));
     });
     await waitFor(() => expect(mockPrevent).toHaveBeenCalled());
+    const protectionTag = mockPrevent.mock.calls[0]![0]!;
     unmount();
-    await waitFor(() => expect(mockAllow).toHaveBeenCalledWith('seed-export'));
+    await waitFor(() => expect(mockAllow).toHaveBeenCalledWith(protectionTag));
   });
 });

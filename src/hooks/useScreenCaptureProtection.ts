@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type ScreenCaptureApi = {
   preventScreenCaptureAsync: (key?: string) => Promise<unknown>;
@@ -8,6 +8,7 @@ type ScreenCaptureApi = {
 export type ScreenCaptureProtectionState = 'pending' | 'active' | 'unavailable';
 
 let screenCaptureModule: ScreenCaptureApi | null = null;
+let nextScreenCaptureProtectionId = 1;
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   screenCaptureModule = require('expo-screen-capture') as ScreenCaptureApi;
@@ -20,6 +21,12 @@ export function useScreenCaptureProtection(
   key: string,
 ): ScreenCaptureProtectionState {
   const [state, setState] = useState<ScreenCaptureProtectionState>('pending');
+  const instanceId = useRef<number | null>(null);
+  if (instanceId.current === null) {
+    instanceId.current = nextScreenCaptureProtectionId;
+    nextScreenCaptureProtectionId += 1;
+  }
+  const protectionTag = `${key}:${instanceId.current}`;
 
   useEffect(() => {
     const module = screenCaptureModule;
@@ -45,12 +52,12 @@ export function useScreenCaptureProtection(
 
     const releaseProtection = () => {
       void Promise.resolve()
-        .then(() => module.allowScreenCaptureAsync(key))
+        .then(() => module.allowScreenCaptureAsync(protectionTag))
         .catch(() => undefined);
     };
 
     void Promise.resolve()
-      .then(() => module.preventScreenCaptureAsync(key))
+      .then(() => module.preventScreenCaptureAsync(protectionTag))
       .then(() => {
         if (cancelled) {
           releaseProtection();
@@ -68,7 +75,7 @@ export function useScreenCaptureProtection(
       cancelled = true;
       if (isProtected) releaseProtection();
     };
-  }, [active, key]);
+  }, [active, protectionTag]);
 
   return state;
 }
