@@ -27,15 +27,7 @@ const ALLOWED_HOSTS = new Set([
   'go.idnow.de',
 ]);
 
-const DFX_OWNED_HOSTS = new Set([
-  'dfx.swiss',
-  'app.dfx.swiss',
-  'services.dfx.swiss',
-  'api.dfx.swiss',
-  'docs.dfx.swiss',
-  'lightning.space',
-  'lightning.dfx.swiss',
-]);
+const DFX_TOKEN_HOSTS = new Set(['app.dfx.swiss', 'services.dfx.swiss', 'api.dfx.swiss']);
 
 function parseUrl(raw: string): URL | null {
   try {
@@ -69,12 +61,13 @@ export function isAllowedDfxHost(raw: string): boolean {
   return false;
 }
 
-export function isDfxOwnedHost(raw: string): boolean {
+/**
+ * Hosts that may receive the DFX bearer token. Unlike the broader navigation
+ * allow-list, this is an exact-host check so subdomains cannot inherit auth.
+ */
+export function isDfxTokenHost(raw: string): boolean {
   const parsed = parseUrl(raw);
-  if (!parsed || parsed.protocol !== 'https:') return false;
-  const host = parsed.hostname.toLowerCase();
-  for (const allowed of DFX_OWNED_HOSTS) {
-    if (host === allowed || host.endsWith(`.${allowed}`)) return true;
-  }
-  return false;
+  return (
+    !!parsed && parsed.protocol === 'https:' && DFX_TOKEN_HOSTS.has(parsed.hostname.toLowerCase())
+  );
 }

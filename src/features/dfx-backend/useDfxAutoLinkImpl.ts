@@ -2,6 +2,10 @@ import { useEffect, useRef } from 'react';
 import { useAccount } from '@tetherto/wdk-react-native-core';
 import { dfxAuthService, jwtCoversBlockchain } from '@/features/dfx-backend/services';
 import {
+  createDfxSessionGuard,
+  isLocalSessionEndedError,
+} from '@/features/dfx-backend/session-guard';
+import {
   EVM_AUTH_ADDRESS_PROBE_MESSAGE,
   recoverPersonalSignAddress,
 } from '@/services/evm/signature';
@@ -95,8 +99,13 @@ export function useDfxAutoLink() {
     if (!btc.address && !eth.address && !lds.user) return;
 
     const run = async () => {
+      const guard = createDfxSessionGuard();
+      let latestToken: string | undefined;
+      const assertFlowActive = () =>
+        latestToken === undefined ? guard.assertActive() : guard.assertActive(latestToken);
       inFlight.current = true;
       try {
+        await guard.assertActive();
         const cached = await secureStorage.get(StorageKeys.DFX_LINKED_CHAINS);
         const linked: Record<string, true> = cached
           ? (JSON.parse(cached) as Record<string, true>)
@@ -106,6 +115,7 @@ export function useDfxAutoLink() {
         // `user.blockchains`. This is the source of truth — the cache is
         // just an optimisation for offline-fast paths.
         const token = await secureStorage.get(StorageKeys.DFX_AUTH_TOKEN);
+        await guard.assertActive();
 
         let cacheChanged = false;
         for (const c of CHAINS) {
@@ -131,7 +141,8 @@ export function useDfxAutoLink() {
                 },
                 { wallet: 'DFX Wallet', blockchain: c.blockchain },
               );
-              await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, newToken);
+              latestToken = newToken;
+              await guard.persistToken(newToken);
               linked[c.chain] = true;
               cacheChanged = true;
             } else if (c.kind === 'wdk-evm') {
@@ -167,7 +178,8 @@ export function useDfxAutoLink() {
                 },
                 { wallet: 'DFX Wallet', blockchain: c.blockchain },
               );
-              await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, newToken);
+              latestToken = newToken;
+              await guard.persistToken(newToken);
               linked[c.chain] = true;
               cacheChanged = true;
             } else {
@@ -180,18 +192,27 @@ export function useDfxAutoLink() {
                 lds.user.lightning.addressOwnershipProof,
                 { wallet: 'DFX Bitcoin', blockchain: c.blockchain },
               );
-              await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, newToken);
+              latestToken = newToken;
+              await guard.persistToken(newToken);
               linked[c.chain] = true;
               cacheChanged = true;
             }
-          } catch {
+          } catch (error) {
+            if (isLocalSessionEndedError(error)) {
+              throw error;
+            }
+            await assertFlowActive();
             // Swallow — the linkChain modal in buy/sell handles failure
             // when the user actually tries that chain.
           }
         }
         if (cacheChanged) {
+          await assertFlowActive();
           await secureStorage.set(StorageKeys.DFX_LINKED_CHAINS, JSON.stringify(linked));
         }
+      } catch (error) {
+        if (isLocalSessionEndedError(error)) return;
+        throw error;
       } finally {
         inFlight.current = false;
       }

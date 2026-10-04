@@ -11,7 +11,7 @@ In rough order of value to an attacker.
 
 | Asset                                         | Where it lives                                                         | Loss impact                                          |
 | --------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------- |
-| Seed / mnemonic                               | `expo-secure-store` (Keychain / Keystore), JS heap during signing      | Total loss of all funds across all chains            |
+| Seed / mnemonic                               | WDK secure storage (encrypted; Keychain / Keystore), JS heap on export | Total loss of all funds across all chains            |
 | PIN                                           | Hashed in `expo-secure-store`; PIN itself only in JS heap during entry | Bypass of app-level auth → seed access               |
 | Signing context (PSBT, EIP-712, etc.)         | JS heap, briefly in WDK Bare worklet                                   | Funds stolen via swapped recipient/amount            |
 | BitBox pairing state (Noise XX static pubkey) | `expo-secure-store` (planned)                                          | MITM on hardware-wallet channel                      |
@@ -27,13 +27,14 @@ We design against, in increasing capability:
    PIN + biometric + auto-lock + screen-capture protection.
 2. **Targeted attacker with the phone** — has the locked phone and time.
    Defeated by full-device encryption (OS responsibility) + brute-force
-   resistance on the PIN (hash + rate-limit + wipe-after-N).
+   resistance on the PIN (hash + persistent backoff without wipe).
 3. **Malicious app on the same device** — installed by user, no root.
    Defeated by Keychain/Keystore isolation, no clear-text storage, deep-link
    validation, no broadcast-leakable intents.
 4. **Network attacker** — can MITM any plaintext or unauthenticated channel.
    Defeated by TLS, certificate pinning for `api.dfx.swiss` (planned), Noise
    handshake on BitBox transports.
+   The Electrum client disables certificate validation, so TLS protects against passive eavesdropping, not an active MITM.
 5. **Supply-chain attacker** — compromises an npm package, GitHub Action, or
    build artifact. Defeated by lockfile integrity, audit gates, pinned action
    SHAs, signed releases (planned), reproducible builds (planned).
@@ -53,7 +54,7 @@ We design against, in increasing capability:
 | Local storage                        | Wrong storage class (MMKV vs. SecureStore), stale data after uninstall, plaintext spillover |
 | PIN entry & biometric                | Shoulder-surfing, screen recording, screenshots, fault injection on retry counter           |
 | Clipboard                            | Other apps reading recipient addresses, mnemonic copies left behind                         |
-| Deep links                           | Malicious `dfx://` URLs that pre-fill send forms, hijack KYC callbacks                      |
+| Deep links                           | Malicious `dfxwallet://` URLs that pre-fill send forms, hijack KYC callbacks                |
 | WebView (KYC iframe, embedded flows) | JS injection, file access, third-party cookie leakage                                       |
 | BitBox transport                     | BLE MITM during pairing, USB driver vulnerabilities, fake pairing UI                        |
 | WDK Bare worklet                     | Worklet bundle tampering at build time, IPC boundary errors                                 |
@@ -71,13 +72,14 @@ from `~`/`✗` to `✓`.
 | -------------------------------------------------------------------------------------------------------- | ---------- |
 | Strict TypeScript (incl. `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`) | ✓          |
 | Lint guardrails (`no-floating-promises`, `security`, `no-secrets`, `no-console`)                         | ✓ (PR #12) |
-| Seed/PIN in `expo-secure-store` only, never MMKV                                                         | ✓          |
-| PIN bruteforce backoff + wipe-after-N                                                                    | ✗          |
+| WDK encrypted seed/entropy in Keychain / Keystore; PIN in `expo-secure-store`; never MMKV                | ✓          |
+| Persistent PIN brute-force backoff (no wallet wipe)                                                      | ~          |
 | Biometric re-auth before signing operations                                                              | ✗          |
-| Screen-capture / FLAG_SECURE on seed, PIN, balance                                                       | ✗          |
-| App-backgrounding blur on sensitive screens                                                              | ✗          |
-| Clipboard auto-clear after copy of address / mnemonic                                                    | ✗          |
-| Deep-link strict allowlist + signed Universal Links for KYC                                              | ✗          |
+| Screen-capture / FLAG_SECURE on seed creation, restore entry and export (PIN and balance pending)        | ~          |
+| Global app-backgrounding blur (device task-switcher verification pending)                                | ~          |
+| Auto-lock after more than 60 seconds in the background (PIN builds only)                                 | ~          |
+| Clipboard auto-clear after mnemonic copy (address copy and confirmation UI pending)                      | ~          |
+| Deep-link route allowlist (signed Universal Links for KYC pending)                                       | ~          |
 | WebView hardening (originWhitelist, no file access, no injectedJS leakage)                               | ✗          |
 | BitBox Noise pubkey pinning after first pairing                                                          | ✗          |
 | Hardware-display ↔ UI parity check before signing                                                        | ~          |

@@ -23,7 +23,7 @@ export default function LegalDisclaimerScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
-  const { setAuthenticated, setOnboarded } = useAuthStore();
+  const setOnboarded = useAuthStore((state) => state.setOnboarded);
   const [accepted, setAccepted] = useState(false);
 
   const openLegalLink = async (url: string) => {
@@ -33,7 +33,6 @@ export default function LegalDisclaimerScreen() {
 
   const handleContinue = async () => {
     await setOnboarded(true);
-    setAuthenticated(true);
     router.replace('/(auth)/(tabs)/dashboard');
   };
 
