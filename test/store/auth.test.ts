@@ -280,6 +280,73 @@ describe('useAuthStore', () => {
       });
     });
 
+    // Red mutation: hash the PIN before the pessimistic counter write succeeds.
+    it('refuses to hash when the pessimistic counter write fails', async () => {
+      useAuthStore.setState({ pinHash: 'stored-hash', failedAttempts: 2, lockedUntil: null });
+      setItemMock.mockImplementationOnce(async () => {
+        throw new Error('keychain unavailable');
+      });
+
+      await expect(useAuthStore.getState().verifyPin('123456')).resolves.toBe(false);
+
+      expect(verifyPinHashMock).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().failedAttempts).toBe(2);
+      expect(useAuthStore.getState().lockedUntil).toBeNull();
+    });
+
+    // Red mutations: write only after hashing, or omit the successful-verification reset.
+    it('persists the attempt before hashing and clears it after successful verification', async () => {
+      const persisted: Record<string, string> = {};
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+      setItemMock.mockImplementation(async (key: string, value: string) => {
+        persisted[key] = value;
+      });
+      deleteItemMock.mockImplementation(async (key: string) => {
+        delete persisted[key];
+      });
+      useAuthStore.setState({ pinHash: 'stored-hash', failedAttempts: 4, lockedUntil: null });
+      verifyPinHashMock.mockImplementationOnce(async () => {
+        expect(persisted.pinFailedAttempts).toBe('5');
+        expect(persisted.pinLockedUntil).toBe('1030000');
+        return true;
+      });
+
+      await expect(useAuthStore.getState().verifyPin('123456')).resolves.toBe(true);
+
+      expect(deleteItemMock).toHaveBeenCalledWith('pinFailedAttempts');
+      expect(deleteItemMock).toHaveBeenCalledWith('pinLockedUntil');
+      expect(persisted.pinFailedAttempts).toBeUndefined();
+      expect(persisted.pinLockedUntil).toBeUndefined();
+      expect(useAuthStore.getState().failedAttempts).toBe(0);
+      expect(useAuthStore.getState().lockedUntil).toBeNull();
+      now.mockRestore();
+    });
+
+    // Red mutation: persist the counter only after PIN hashing completes.
+    it('rehydrates an attempt persisted before PIN verification crashes', async () => {
+      const persisted: Record<string, string> = { pinHash: 'stored-hash' };
+      setItemMock.mockImplementation(async (key: string, value: string) => {
+        persisted[key] = value;
+      });
+      deleteItemMock.mockImplementation(async (key: string) => {
+        delete persisted[key];
+      });
+      getItemMock.mockImplementation(async (key: string) => persisted[key] ?? null);
+      const verificationError = new Error('verification interrupted');
+      verifyPinHashMock.mockImplementationOnce(async () => {
+        throw verificationError;
+      });
+      useAuthStore.setState({ pinHash: 'stored-hash', failedAttempts: 0, lockedUntil: null });
+
+      await expect(useAuthStore.getState().verifyPin('123456')).rejects.toBe(verificationError);
+      expect(persisted.pinFailedAttempts).toBe('1');
+
+      useAuthStore.setState({ pinHash: null, failedAttempts: 0, lockedUntil: null });
+      await useAuthStore.getState().hydrate();
+
+      expect(useAuthStore.getState().failedAttempts).toBe(1);
+    });
+
     it('counts overlapping failed PIN verifications independently', async () => {
       let resolveVerification!: (value: boolean) => void;
       const verification = new Promise<boolean>((resolve) => {
@@ -301,6 +368,74 @@ describe('useAuthStore', () => {
       expect(setItemMock).toHaveBeenLastCalledWith('pinFailedAttempts', '2', {
         keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
       });
+    });
+
+    // Red mutation: remove the lockout re-check inside the verification queue.
+    it('refuses queued PIN verifications after an overlapping attempt locks the wallet', async () => {
+      const actualVerifyPinHash = jest.requireActual<typeof import('@/services/pin')>(
+        '@/services/pin',
+      ).verifyPin;
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+      for (let attempt = 0; attempt < FIRST_LOCKOUT_ATTEMPT + 1; attempt++) {
+        verifyPinHashMock.mockImplementationOnce(async () => false);
+      }
+      useAuthStore.setState({ pinHash: 'stored-hash', failedAttempts: 0, lockedUntil: null });
+
+      try {
+        const results = await Promise.all(
+          Array.from({ length: FIRST_LOCKOUT_ATTEMPT + 1 }, (_, attempt) =>
+            useAuthStore.getState().verifyPin(String(attempt)),
+          ),
+        );
+
+        expect(results).toEqual(Array(FIRST_LOCKOUT_ATTEMPT + 1).fill(false));
+        expect(results.at(-1)).toBe(false);
+        expect(verifyPinHashMock).toHaveBeenCalledTimes(FIRST_LOCKOUT_ATTEMPT);
+        expect(useAuthStore.getState().failedAttempts).toBe(FIRST_LOCKOUT_ATTEMPT);
+        expect(useAuthStore.getState().lockedUntil).toBe(1_030_000);
+        const failedAttemptWrites = setItemMock.mock.calls.filter(
+          ([key]) => key === 'pinFailedAttempts',
+        );
+        expect(failedAttemptWrites).toHaveLength(FIRST_LOCKOUT_ATTEMPT);
+        expect(failedAttemptWrites.at(-1)?.[1]).toBe('5');
+      } finally {
+        verifyPinHashMock.mockReset();
+        verifyPinHashMock.mockImplementation(actualVerifyPinHash);
+        now.mockRestore();
+      }
+    });
+
+    // Red mutation: remove the PIN-hash re-check inside the verification queue.
+    it('refuses a queued verification when its PIN hash is reset while waiting', async () => {
+      const actualVerifyPinHash = jest.requireActual<typeof import('@/services/pin')>(
+        '@/services/pin',
+      ).verifyPin;
+      let resolveVerification!: (value: boolean) => void;
+      const verification = new Promise<boolean>((resolve) => {
+        resolveVerification = resolve;
+      });
+      verifyPinHashMock
+        .mockImplementationOnce(() => verification)
+        .mockImplementationOnce(async () => false);
+      useAuthStore.setState({ pinHash: 'stored-hash', failedAttempts: 0, lockedUntil: null });
+
+      try {
+        const firstAttempt = useAuthStore.getState().verifyPin('111111');
+        await waitFor(() => expect(verifyPinHashMock).toHaveBeenCalledTimes(1));
+        const queuedAttempt = useAuthStore.getState().verifyPin('222222');
+        useAuthStore.setState({ pinHash: null });
+        setItemMock.mockClear();
+        deleteItemMock.mockClear();
+        resolveVerification(false);
+
+        await expect(Promise.all([firstAttempt, queuedAttempt])).resolves.toEqual([false, false]);
+        expect(verifyPinHashMock).toHaveBeenCalledTimes(1);
+        expect(setItemMock).not.toHaveBeenCalled();
+        expect(deleteItemMock).not.toHaveBeenCalled();
+      } finally {
+        verifyPinHashMock.mockReset();
+        verifyPinHashMock.mockImplementation(actualVerifyPinHash);
+      }
     });
 
     it('serializes concurrent failure persistence and rehydrates the strongest state', async () => {
@@ -328,9 +463,7 @@ describe('useAuthStore', () => {
       const verification = new Promise<boolean>((resolve) => {
         resolveVerification = resolve;
       });
-      verifyPinHashMock
-        .mockImplementationOnce(() => verification)
-        .mockImplementationOnce(() => verification);
+      verifyPinHashMock.mockImplementationOnce(() => verification);
       useAuthStore.setState({ pinHash: 'stored-hash', failedAttempts: 4, lockedUntil: null });
       const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
 
@@ -338,24 +471,27 @@ describe('useAuthStore', () => {
         useAuthStore.getState().verifyPin('111111'),
         useAuthStore.getState().verifyPin('222222'),
       ];
+      await waitFor(() => expect(pendingWrites).toHaveLength(1));
+      pendingWrites.shift()?.resolve();
+      await waitFor(() => expect(pendingWrites).toHaveLength(1));
+      pendingWrites.shift()?.resolve();
+      await waitFor(() => expect(verifyPinHashMock).toHaveBeenCalledTimes(1));
       resolveVerification(false);
+      await waitFor(() => expect(useAuthStore.getState().failedAttempts).toBe(5));
 
-      await waitFor(() => expect(useAuthStore.getState().failedAttempts).toBe(6));
-      await waitFor(() => expect(pendingWrites).toHaveLength(2));
-      pendingWrites.splice(0).reverse().forEach((write) => write.resolve());
-      await waitFor(() => expect(pendingWrites).toHaveLength(2));
-      pendingWrites.splice(0).reverse().forEach((write) => write.resolve());
       await expect(Promise.all(attempts)).resolves.toEqual([false, false]);
 
-      expect(persisted.pinFailedAttempts).toBe('6');
-      expect(persisted.pinLockedUntil).toBe('1060000');
+      expect(verifyPinHashMock).toHaveBeenCalledTimes(1);
+      expect(pendingWrites).toHaveLength(0);
+      expect(persisted.pinFailedAttempts).toBe('5');
+      expect(persisted.pinLockedUntil).toBe('1030000');
 
       getItemMock.mockImplementation(async (key: string) => persisted[key] ?? null);
       useAuthStore.setState({ pinHash: null, failedAttempts: 0, lockedUntil: null });
       await useAuthStore.getState().hydrate();
 
-      expect(useAuthStore.getState().failedAttempts).toBe(6);
-      expect(useAuthStore.getState().lockedUntil).toBe(1_060_000);
+      expect(useAuthStore.getState().failedAttempts).toBe(5);
+      expect(useAuthStore.getState().lockedUntil).toBe(1_030_000);
       now.mockRestore();
     });
 
@@ -373,7 +509,7 @@ describe('useAuthStore', () => {
       now.mockRestore();
     });
 
-    it('keeps the failed attempt and lockout in memory when persistence rejects', async () => {
+    it('keeps the prior attempt and lockout in memory when pessimistic persistence rejects', async () => {
       await useAuthStore.getState().setPin('123456');
       useAuthStore.setState({ failedAttempts: 4, lockedUntil: null });
       setItemMock.mockClear();
@@ -384,8 +520,9 @@ describe('useAuthStore', () => {
 
       await expect(useAuthStore.getState().verifyPin('999999')).resolves.toBe(false);
 
-      expect(useAuthStore.getState().failedAttempts).toBe(5);
-      expect(useAuthStore.getState().lockedUntil).toBe(1_030_000);
+      expect(verifyPinHashMock).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().failedAttempts).toBe(4);
+      expect(useAuthStore.getState().lockedUntil).toBeNull();
       now.mockRestore();
     });
 
@@ -399,6 +536,8 @@ describe('useAuthStore', () => {
       await expect(useAuthStore.getState().verifyPin('123456')).resolves.toBe(false);
 
       expect(verifyPinHashMock).not.toHaveBeenCalled();
+      expect(setItemMock).not.toHaveBeenCalled();
+      expect(deleteItemMock).not.toHaveBeenCalled();
     });
 
     it('clears persisted failures and lockout after a successful verification', async () => {
@@ -686,6 +825,95 @@ describe('useAuthStore', () => {
       expect(s.hydrateError).toBeNull();
     });
 
+    // Red mutations: skip the read-back or skip the one allowed removal retry.
+    it('retries a critical removal that remains present and resolves when the retry succeeds', async () => {
+      const persisted: Record<string, string> = {
+        dfxAuthToken: 'token',
+        isOnboarded: 'true',
+        passkeyCredentialId: 'credential',
+        passkeyDerivationVersion: '1',
+        pinHash: 'hash',
+        walletOrigin: 'passkey',
+      };
+      let onboardingRemovalAttempts = 0;
+      deleteItemMock.mockImplementation(async (key: string) => {
+        if (key === 'isOnboarded') {
+          onboardingRemovalAttempts += 1;
+          if (onboardingRemovalAttempts === 1) throw new Error('transient removal failure');
+        }
+        delete persisted[key];
+      });
+      getItemMock.mockImplementation(async (key: string) => persisted[key] ?? null);
+
+      await expect(useAuthStore.getState().reset()).resolves.toBeUndefined();
+
+      expect(onboardingRemovalAttempts).toBe(2);
+      expect(persisted).toEqual({});
+      expect(getItemMock).toHaveBeenCalledWith('isOnboarded');
+      expect(getItemMock).toHaveBeenCalledWith('pinHash');
+      expect(getItemMock).toHaveBeenCalledWith('dfxAuthToken');
+      expect(getItemMock).toHaveBeenCalledWith('walletOrigin');
+      expect(getItemMock).toHaveBeenCalledWith('passkeyCredentialId');
+      expect(getItemMock).toHaveBeenCalledWith('passkeyDerivationVersion');
+    });
+
+    // Red mutation: omit the critical-key removal retry.
+    it('rejects after a critical key remains present following the retry', async () => {
+      const persisted: Record<string, string> = { pinHash: 'hash' };
+      getItemMock.mockImplementation(async (key: string) => persisted[key] ?? null);
+      deleteItemMock.mockImplementation(async (key: string) => {
+        if (key !== 'pinHash') delete persisted[key];
+      });
+      useAuthStore.setState({ isOnboarded: true, pinHash: 'hash' });
+
+      await expect(useAuthStore.getState().reset()).rejects.toBeInstanceOf(AggregateError);
+
+      expect(deleteItemMock.mock.calls.filter(([key]) => key === 'pinHash')).toHaveLength(2);
+      expect(useAuthStore.getState().isOnboarded).toBe(false);
+      expect(useAuthStore.getState().pinHash).toBeNull();
+    });
+
+    // Red mutation: trust the failed initial removal without read-back and retry verification.
+    it('reports both removal and verification failures for a persistently failing critical key', async () => {
+      const removalError = new Error('persistent removal failure');
+      getItemMock.mockImplementation(async (key: string) =>
+        key === 'pinHash' ? 'hash' : null,
+      );
+      deleteItemMock.mockImplementation(async (key: string) => {
+        if (key === 'pinHash') throw removalError;
+      });
+
+      let thrown: unknown;
+      try {
+        await useAuthStore.getState().reset();
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(AggregateError);
+      expect((thrown as AggregateError).errors).toEqual([removalError, removalError]);
+      expect(deleteItemMock.mock.calls.filter(([key]) => key === 'pinHash')).toHaveLength(2);
+    });
+
+    // Red mutation: skip the post-removal read-back.
+    it('rejects when reading back a critical key fails', async () => {
+      const readError = new Error('keychain read unavailable');
+      getItemMock.mockImplementation(async (key: string) => {
+        if (key === 'pinHash') throw readError;
+        return null;
+      });
+
+      let thrown: unknown;
+      try {
+        await useAuthStore.getState().reset();
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(AggregateError);
+      expect((thrown as AggregateError).errors).toContain(readError);
+    });
+
     it('clears in-memory auth and continues cleanup when one storage removal fails', async () => {
       const removalError = new Error('keychain unavailable');
       const clearAuthToken = jest.spyOn(dfxApi, 'clearAuthToken');
@@ -694,7 +922,7 @@ describe('useAuthStore', () => {
       clearAuthToken.mockClear();
       adoptStoredToken.mockClear();
       deleteItemMock.mockImplementation(async (key: string) => {
-        if (key === 'pinHash') throw removalError;
+        if (key === 'accounts') throw removalError;
       });
       useAuthStore.setState({
         isOnboarded: true,

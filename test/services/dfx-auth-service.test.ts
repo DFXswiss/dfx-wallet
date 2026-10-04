@@ -655,6 +655,30 @@ describe('dfxAuthService signature cache', () => {
     dfxAuthService.logout();
   });
 
+  async function expectPendingSignatureNotCached(resetSession: () => void): Promise<void> {
+    getSpy.mockResolvedValue({ message: backendSignMessage('0xabc') });
+    postSpy.mockResolvedValue({ accessToken: 'T' });
+    const signStarted = deferred<void>();
+    const pendingSignature = deferred<string>();
+    const signFn = jest
+      .fn<Promise<string>, [string]>()
+      .mockImplementationOnce(() => {
+        signStarted.resolve(undefined);
+        return pendingSignature.promise;
+      })
+      .mockResolvedValue('FRESH_SIGNATURE');
+
+    const interruptedLogin = dfxAuthService.login('0xabc', signFn);
+    await signStarted.promise;
+    resetSession();
+    pendingSignature.resolve('LATE_SIGNATURE');
+
+    await expect(interruptedLogin).rejects.toBeInstanceOf(DfxAuthFlowInvalidatedError);
+    await dfxAuthService.login('0xabc', signFn);
+
+    expect(signFn).toHaveBeenCalledTimes(2);
+  }
+
   it('reuses a cached signature for the same address+challenge within TTL', async () => {
     getSpy.mockResolvedValue({ message: backendSignMessage('0xabc') });
     postSpy.mockResolvedValue({ accessToken: 'T' });
@@ -707,6 +731,31 @@ describe('dfxAuthService signature cache', () => {
     await dfxAuthService.login('0xabc', signFn);
 
     expect(signFn).toHaveBeenCalledTimes(2); // cache was cleared, so it re-signed
+  });
+
+  // Red mutation: omit the signature-cache clear from adoptStoredToken.
+  it('forgets cached signatures when adopting a stored token', async () => {
+    getSpy.mockResolvedValue({ message: backendSignMessage('0xabc') });
+    postSpy.mockResolvedValue({ accessToken: 'T' });
+    const signFn = jest.fn().mockResolvedValue('SIG');
+
+    await dfxAuthService.login('0xabc', signFn);
+    dfxAuthService.adoptStoredToken('STORED_TOKEN');
+    await dfxAuthService.login('0xabc', signFn);
+
+    expect(signFn).toHaveBeenCalledTimes(2);
+  });
+
+  // Red mutation: cache a signature after its captured service generation changes.
+  it('does not cache a pending signature that resolves after logout', async () => {
+    await expectPendingSignatureNotCached(() => dfxAuthService.logout());
+  });
+
+  // Red mutation: cache a signature after its captured service generation changes.
+  it('does not cache a pending signature that resolves after adopting a token', async () => {
+    await expectPendingSignatureNotCached(() =>
+      dfxAuthService.adoptStoredToken('REPLACEMENT_TOKEN'),
+    );
   });
 
   it('does not restore a Bearer when a login without prior session fails', async () => {

@@ -78,7 +78,9 @@ describe('CreateWalletScreen', () => {
     expect(queryByTestId('create-wallet-seed-container')).toBeNull();
     expect(getByTestId('create-wallet-protection-loading')).toBeTruthy();
     await waitFor(() =>
-      expect(mockPreventScreenCapture).toHaveBeenCalledWith('create-wallet-seed'),
+      expect(mockPreventScreenCapture).toHaveBeenCalledWith(
+        expect.stringMatching(/^create-wallet-seed:/),
+      ),
     );
 
     await act(async () => {
@@ -103,10 +105,9 @@ describe('CreateWalletScreen', () => {
     const view = render(<CreateWalletScreen />);
     fireEvent.press(view.getByTestId('create-wallet-reveal-button'));
     await waitFor(() => expect(view.getByTestId('create-wallet-seed-container')).toBeTruthy());
+    const protectionTag = mockPreventScreenCapture.mock.calls[0]![0]!;
     view.unmount();
-    await waitFor(() =>
-      expect(mockAllowScreenCapture).toHaveBeenCalledWith('create-wallet-seed'),
-    );
+    await waitFor(() => expect(mockAllowScreenCapture).toHaveBeenCalledWith(protectionTag));
   });
 
   it('disables the continue CTA before the seed is revealed', () => {

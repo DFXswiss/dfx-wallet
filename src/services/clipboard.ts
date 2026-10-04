@@ -46,7 +46,8 @@ async function clearClipboardIfUnchanged(cleanup: PendingClipboardCleanup): Prom
     if (pendingCleanup === cleanup) {
       cleanup.attempts += 1;
       if (cleanup.attempts >= MAX_CLEAR_ATTEMPTS) {
-        cancelPendingCleanup();
+        if (cleanup.timeout !== null) clearTimeout(cleanup.timeout);
+        cleanup.timeout = null;
       } else if (AppState.currentState === 'active') {
         scheduleClipboardClear(cleanup);
       }

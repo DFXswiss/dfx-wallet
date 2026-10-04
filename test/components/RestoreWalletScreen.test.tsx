@@ -12,7 +12,12 @@ jest.mock('expo-screen-capture', () => ({
 }));
 
 jest.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, options?: { count?: number; total?: number }) =>
+      key === 'onboarding.seedWordCount'
+        ? `${key}:${options?.count}/${options?.total}`
+        : key,
+  }),
 }));
 
 const mockPush = jest.fn();
@@ -97,7 +102,9 @@ describe('RestoreWalletScreen', () => {
     render(<RestoreWalletScreen />);
 
     await waitFor(() =>
-      expect(mockPreventScreenCapture).toHaveBeenCalledWith('restore-wallet-mnemonic'),
+      expect(mockPreventScreenCapture).toHaveBeenCalledWith(
+        expect.stringMatching(/^restore-wallet-mnemonic:/),
+      ),
     );
   });
 
@@ -105,12 +112,11 @@ describe('RestoreWalletScreen', () => {
   it('releases mnemonic screen-capture protection on unmount', async () => {
     const view = render(<RestoreWalletScreen />);
     await waitFor(() => expect(mockPreventScreenCapture).toHaveBeenCalled());
+    const protectionTag = mockPreventScreenCapture.mock.calls[0]![0]!;
 
     view.unmount();
 
-    await waitFor(() =>
-      expect(mockAllowScreenCapture).toHaveBeenCalledWith('restore-wallet-mnemonic'),
-    );
+    await waitFor(() => expect(mockAllowScreenCapture).toHaveBeenCalledWith(protectionTag));
   });
 
   // Red mutation: render the mnemonic input while protection is pending.
@@ -156,10 +162,17 @@ describe('RestoreWalletScreen', () => {
     expect(mockRestoreWallet).not.toHaveBeenCalled();
   });
 
+  // Red mutations: render a constant count or stop updating it after input changes.
   it('tracks the entered word count', async () => {
-    const { findByTestId, getByTestId } = render(<RestoreWalletScreen />);
+    const { findByTestId, getByText, queryByText } = render(<RestoreWalletScreen />);
     await typeSeed(findByTestId, 'alpha bravo charlie');
-    expect(getByTestId('restore-wallet-word-count')).toBeTruthy();
+
+    expect(getByText('onboarding.seedWordCount:3/12')).toBeTruthy();
+
+    await typeSeed(findByTestId, 'alpha bravo charlie delta');
+
+    expect(queryByText('onboarding.seedWordCount:3/12')).toBeNull();
+    expect(getByText('onboarding.seedWordCount:4/12')).toBeTruthy();
   });
 
   it('restores from a valid seed and routes to setup-pin', async () => {
@@ -176,6 +189,26 @@ describe('RestoreWalletScreen', () => {
     expect(mockDeleteWallet).not.toHaveBeenCalled();
     expect(Alert.alert).not.toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith('/(onboarding)/setup-pin');
+  });
+
+  // Red mutation: swallow the post-restore reset failure and continue navigation.
+  it('shows an error and does not navigate when post-restore auth reset fails', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockResetAuth.mockImplementationOnce(async () => {
+      throw new Error('wallet access data remained');
+    });
+    const { findByTestId, getByTestId } = render(<RestoreWalletScreen />);
+    await typeSeed(findByTestId, VALID_SEED);
+
+    await act(async () => {
+      fireEvent.press(getByTestId('restore-wallet-continue-button'));
+    });
+
+    expect(mockRestoreWallet).toHaveBeenCalledTimes(1);
+    expect(mockResetAuth).toHaveBeenCalledTimes(1);
+    expect(getByTestId('restore-wallet-error')).toBeTruthy();
+    expect(mockPush).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('warns that replacement deletes the current wallet before importing the new one', async () => {

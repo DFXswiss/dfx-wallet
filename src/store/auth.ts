@@ -105,6 +105,20 @@ export function getPostPinDestination(
 const BIOMETRIC_KEY = 'biometricEnabled';
 let pinFailurePersistence = Promise.resolve();
 
+const RESET_VERIFICATION_KEYS = [
+  StorageKeys.IS_ONBOARDED,
+  StorageKeys.PIN_HASH,
+  StorageKeys.DFX_AUTH_TOKEN,
+  StorageKeys.WALLET_ORIGIN,
+  StorageKeys.PASSKEY_CREDENTIAL_ID,
+  StorageKeys.PASSKEY_DERIVATION_VERSION,
+] as const;
+
+type ResetCleanupTask = {
+  cleanup: () => void | Promise<void>;
+  verificationKey?: (typeof RESET_VERIFICATION_KEYS)[number];
+};
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   isOnboarded: false,
   isAuthenticated: false,
@@ -208,47 +222,57 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { pinHash, lockedUntil } = get();
     if (!pinHash) return false;
     if (lockedUntil && lockedUntil > Date.now()) return false;
-    const ok = await verifyPinHash(pin, pinHash);
-    if (!ok) {
+
+    const verification = pinFailurePersistence.then(async () => {
+      const { pinHash: currentPinHash, lockedUntil: currentLockedUntil } = get();
+      if (!currentPinHash) return false;
+      if (currentLockedUntil && currentLockedUntil > Date.now()) return false;
+
       const nextAttempts = get().failedAttempts + 1;
       const lockoutMs = pinLockoutMs(nextAttempts);
       const nextLockedUntil = lockoutMs > 0 ? Date.now() + lockoutMs : null;
-      set({ failedAttempts: nextAttempts, lockedUntil: nextLockedUntil });
-      const persistence = pinFailurePersistence.then(async () => {
-        const { failedAttempts, lockedUntil: currentLockedUntil } = get();
-        await Promise.all([
-          secureStorage.set(StorageKeys.PIN_FAILED_ATTEMPTS, String(failedAttempts)),
-          currentLockedUntil
-            ? secureStorage.set(StorageKeys.PIN_LOCKED_UNTIL, String(currentLockedUntil))
-            : secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL),
-        ]);
-      });
-      pinFailurePersistence = persistence.catch(() => undefined);
+
       try {
-        await persistence;
+        await secureStorage.set(StorageKeys.PIN_FAILED_ATTEMPTS, String(nextAttempts));
+        if (nextLockedUntil) {
+          await secureStorage.set(StorageKeys.PIN_LOCKED_UNTIL, String(nextLockedUntil));
+        } else {
+          await secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL);
+        }
       } catch {
         return false;
       }
-      return false;
-    }
-    await Promise.all([
-      secureStorage.remove(StorageKeys.PIN_FAILED_ATTEMPTS),
-      secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL),
-    ]);
-    set({ failedAttempts: 0, lockedUntil: null });
-    if (ok && needsPinRehash(pinHash)) {
-      void (async () => {
-        try {
-          const migratedHash = await hashPin(pin);
-          await secureStorage.set(StorageKeys.PIN_HASH, migratedHash);
-          if (get().pinHash === pinHash) set({ pinHash: migratedHash });
-        } catch {
-          // Authentication succeeded; keep the legacy hash and retry migration
-          // on the next successful unlock rather than locking out the user.
-        }
-      })();
-    }
-    return ok;
+
+      const ok = await verifyPinHash(pin, currentPinHash);
+      if (!ok) {
+        set({ failedAttempts: nextAttempts, lockedUntil: nextLockedUntil });
+        return false;
+      }
+
+      await Promise.all([
+        secureStorage.remove(StorageKeys.PIN_FAILED_ATTEMPTS),
+        secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL),
+      ]);
+      set({ failedAttempts: 0, lockedUntil: null });
+      if (needsPinRehash(currentPinHash)) {
+        void (async () => {
+          try {
+            const migratedHash = await hashPin(pin);
+            await secureStorage.set(StorageKeys.PIN_HASH, migratedHash);
+            if (get().pinHash === currentPinHash) set({ pinHash: migratedHash });
+          } catch {
+            // Authentication succeeded; keep the legacy hash and retry migration
+            // on the next successful unlock rather than locking out the user.
+          }
+        })();
+      }
+      return true;
+    });
+    pinFailurePersistence = verification.then(
+      () => undefined,
+      () => undefined,
+    );
+    return verification;
   },
 
   authenticateBiometric: async (options) => {
@@ -272,38 +296,93 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   reset: async () => {
     set((state) => ({ sessionEpoch: state.sessionEpoch + 1 }));
-    const cleanupTasks: (() => void | Promise<void>)[] = [
-      () => secureStorage.remove(StorageKeys.ACCOUNTS),
-      () => secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS),
-      () => secureStorage.remove(StorageKeys.PIN_HASH),
-      () => secureStorage.remove(StorageKeys.IS_ONBOARDED),
-      () => secureStorage.remove(StorageKeys.ENCRYPTED_SEED),
-      () => secureStorage.remove(StorageKeys.DFX_AUTH_TOKEN),
-      () => secureStorage.remove(StorageKeys.WALLET_ORIGIN),
-      () => secureStorage.remove(StorageKeys.PASSKEY_CREDENTIAL_ID),
-      () => secureStorage.remove(StorageKeys.PASSKEY_DERIVATION_VERSION),
-      () => secureStorage.remove(StorageKeys.PIN_FAILED_ATTEMPTS),
-      () => secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL),
-      () => secureStorage.remove(StorageKeys.WALLET_TYPE),
-      () => secureStorage.remove(BIOMETRIC_KEY),
+    const cleanupTasks: ResetCleanupTask[] = [
+      { cleanup: () => secureStorage.remove(StorageKeys.ACCOUNTS) },
+      { cleanup: () => secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS) },
+      {
+        cleanup: () => secureStorage.remove(StorageKeys.PIN_HASH),
+        verificationKey: StorageKeys.PIN_HASH,
+      },
+      {
+        cleanup: () => secureStorage.remove(StorageKeys.IS_ONBOARDED),
+        verificationKey: StorageKeys.IS_ONBOARDED,
+      },
+      { cleanup: () => secureStorage.remove(StorageKeys.ENCRYPTED_SEED) },
+      {
+        cleanup: () => secureStorage.remove(StorageKeys.DFX_AUTH_TOKEN),
+        verificationKey: StorageKeys.DFX_AUTH_TOKEN,
+      },
+      {
+        cleanup: () => secureStorage.remove(StorageKeys.WALLET_ORIGIN),
+        verificationKey: StorageKeys.WALLET_ORIGIN,
+      },
+      {
+        cleanup: () => secureStorage.remove(StorageKeys.PASSKEY_CREDENTIAL_ID),
+        verificationKey: StorageKeys.PASSKEY_CREDENTIAL_ID,
+      },
+      {
+        cleanup: () => secureStorage.remove(StorageKeys.PASSKEY_DERIVATION_VERSION),
+        verificationKey: StorageKeys.PASSKEY_DERIVATION_VERSION,
+      },
+      { cleanup: () => secureStorage.remove(StorageKeys.PIN_FAILED_ATTEMPTS) },
+      { cleanup: () => secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL) },
+      { cleanup: () => secureStorage.remove(StorageKeys.WALLET_TYPE) },
+      { cleanup: () => secureStorage.remove(BIOMETRIC_KEY) },
     ];
     if (dfxModule) {
       cleanupTasks.push(
-        () => dfxModule.dfxApi.clearAuthToken(),
-        () => dfxModule.dfxAuthService.adoptStoredToken(null),
+        { cleanup: () => dfxModule.dfxApi.clearAuthToken() },
+        { cleanup: () => dfxModule.dfxAuthService.adoptStoredToken(null) },
       );
     }
 
-    let failures: unknown[] = [];
+    const failures: unknown[] = [];
     try {
-      const results = await Promise.allSettled(
-        cleanupTasks.map(async (cleanup) => {
-          await cleanup();
+      const results = await Promise.all(
+        cleanupTasks.map(async (task) => {
+          try {
+            await task.cleanup();
+            return { status: 'fulfilled' as const, task };
+          } catch (reason) {
+            return { status: 'rejected' as const, task, reason };
+          }
         }),
       );
-      failures = results
-        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
-        .map((result) => result.reason);
+      const criticalRemovalFailures = new Map<(typeof RESET_VERIFICATION_KEYS)[number], unknown>();
+      results.forEach((result) => {
+        if (result.status !== 'rejected') return;
+        const verificationKey = result.task.verificationKey;
+        if (verificationKey) {
+          criticalRemovalFailures.set(verificationKey, result.reason);
+        } else {
+          failures.push(result.reason);
+        }
+      });
+
+      const verificationResults = await Promise.all(
+        RESET_VERIFICATION_KEYS.map(async (key) => {
+          try {
+            const storedValue = await secureStorage.get(key);
+            if (storedValue !== null) {
+              await secureStorage.remove(key);
+              if ((await secureStorage.get(key)) !== null) {
+                throw new Error(`Secure storage key remained after reset: ${key}`);
+              }
+            }
+            return { key, status: 'fulfilled' as const };
+          } catch (reason) {
+            return { key, status: 'rejected' as const, reason };
+          }
+        }),
+      );
+      verificationResults.forEach((result) => {
+        if (result.status !== 'rejected') return;
+        const verificationKey = result.key;
+        if (criticalRemovalFailures.has(verificationKey)) {
+          failures.push(criticalRemovalFailures.get(verificationKey));
+        }
+        failures.push(result.reason);
+      });
     } finally {
       set({
         isOnboarded: false,

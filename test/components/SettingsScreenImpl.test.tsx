@@ -403,6 +403,9 @@ describe('SettingsScreenImpl', () => {
   });
 
   it('leaves the authenticated screen and warns when cleanup is incomplete after deletion', async () => {
+    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
+      key === StorageKeys.PIN_HASH ? 'hash' : null,
+    );
     (secureStorage.remove as jest.Mock).mockImplementation(async (key: string) => {
       if (key === StorageKeys.PIN_HASH) throw new Error('keychain unavailable');
     });

@@ -57,7 +57,9 @@ describe('useScreenCaptureProtection', () => {
 
     const view = render(<Harness active captureKey="seed" />);
     expect(view.getByTestId('capture-state').props.children).toBe('pending');
-    await waitFor(() => expect(mockPrevent).toHaveBeenCalledWith('seed'));
+    await waitFor(() =>
+      expect(mockPrevent).toHaveBeenCalledWith(expect.stringMatching(/^seed:/)),
+    );
 
     await act(async () => {
       resolveProtection!();
@@ -85,7 +87,7 @@ describe('useScreenCaptureProtection', () => {
     );
   });
 
-  // Red mutation: omit allow after a rejected prevent; the second mount short-circuits to active.
+  // Red mutation: omit allow after a rejected prevent; the rejected tag remains registered.
   it('releases a rejected tag so a same-key remount retries native protection', async () => {
     mockNativePrevent
       .mockRejectedValueOnce(new Error('first native failure'))
@@ -95,8 +97,9 @@ describe('useScreenCaptureProtection', () => {
     await waitFor(() =>
       expect(firstView.getByTestId('capture-state').props.children).toBe('unavailable'),
     );
-    await waitFor(() => expect(mockAllow).toHaveBeenCalledWith('seed'));
-    expect(mockActiveTags.has('seed')).toBe(false);
+    const firstTag = mockPrevent.mock.calls[0]![0]!;
+    await waitFor(() => expect(mockAllow).toHaveBeenCalledWith(firstTag));
+    expect(mockActiveTags.has(firstTag)).toBe(false);
     firstView.unmount();
 
     const secondView = render(<Harness active captureKey="seed" />);
@@ -105,6 +108,35 @@ describe('useScreenCaptureProtection', () => {
       expect(secondView.getByTestId('capture-state').props.children).toBe('unavailable'),
     );
     expect(mockNativePrevent).toHaveBeenCalledTimes(2);
+  });
+
+  // Red mutation: use the static key; unmounting the first instance releases the shared tag.
+  it('keeps same-key concurrent mounts protected until both instances unmount', async () => {
+    const firstView = render(<Harness active captureKey="seed-export" />);
+    const secondView = render(<Harness active captureKey="seed-export" />);
+
+    await waitFor(() => expect(mockPrevent).toHaveBeenCalledTimes(2));
+    const firstTag = mockPrevent.mock.calls[0]![0]!;
+    const secondTag = mockPrevent.mock.calls[1]![0]!;
+    expect(firstTag).toMatch(/^seed-export:/);
+    expect(secondTag).toMatch(/^seed-export:/);
+    expect(firstTag).not.toBe(secondTag);
+    expect(mockActiveTags.has(firstTag)).toBe(true);
+    expect(mockActiveTags.has(secondTag)).toBe(true);
+
+    firstView.unmount();
+
+    await waitFor(() => expect(mockAllow).toHaveBeenCalledWith(firstTag));
+    expect(mockAllow).not.toHaveBeenCalledWith(secondTag);
+    expect(mockActiveTags.has(firstTag)).toBe(false);
+    expect(mockActiveTags.has(secondTag)).toBe(true);
+    expect(mockNativeAllow).not.toHaveBeenCalled();
+
+    secondView.unmount();
+
+    await waitFor(() => expect(mockAllow).toHaveBeenCalledWith(secondTag));
+    expect(mockActiveTags.size).toBe(0);
+    expect(mockNativeAllow).toHaveBeenCalledTimes(1);
   });
 
   // Red mutation: omit allow from the cancelled rejection path; the tag remains registered.
@@ -124,8 +156,9 @@ describe('useScreenCaptureProtection', () => {
       rejectProtection!(new Error('native failure'));
     });
 
-    await waitFor(() => expect(mockAllow).toHaveBeenCalledWith('seed'));
-    expect(mockActiveTags.has('seed')).toBe(false);
+    const protectionTag = mockPrevent.mock.calls[0]![0]!;
+    await waitFor(() => expect(mockAllow).toHaveBeenCalledWith(protectionTag));
+    expect(mockActiveTags.has(protectionTag)).toBe(false);
   });
 
   it('protects only while active and releases the same key', async () => {
@@ -136,9 +169,10 @@ describe('useScreenCaptureProtection', () => {
     await waitFor(() =>
       expect(view.getByTestId('capture-state').props.children).toBe('active'),
     );
+    const protectionTag = mockPrevent.mock.calls[0]![0]!;
 
     view.rerender(<Harness active={false} captureKey="seed" />);
-    await waitFor(() => expect(mockAllow).toHaveBeenCalledWith('seed'));
+    await waitFor(() => expect(mockAllow).toHaveBeenCalledWith(protectionTag));
   });
 
   it('releases active protection on unmount and contains cleanup rejection', async () => {
@@ -147,9 +181,10 @@ describe('useScreenCaptureProtection', () => {
     await waitFor(() =>
       expect(view.getByTestId('capture-state').props.children).toBe('active'),
     );
+    const protectionTag = mockPrevent.mock.calls[0]![0]!;
 
     view.unmount();
 
-    await waitFor(() => expect(mockAllow).toHaveBeenCalledWith('export'));
+    await waitFor(() => expect(mockAllow).toHaveBeenCalledWith(protectionTag));
   });
 });

@@ -124,6 +124,10 @@ ship per-screen or per-flow.
 - [~] `expo-screen-capture` protection is active while the seed is visible
       during wallet creation, mnemonic entry during restore, and seed export.
       Seed verify, PIN entry/setup, and the balance card remain open.
+      Protection is requested before sensitive content is shown; seed words
+      render only after the native call has settled. If activation fails or the
+      native module is unavailable, content remains reachable with a visible
+      warning pending a product decision.
 - **Acceptance**: manual verification on device + emulator; Android
   screenshots return blank, iOS screen-recording obscures the view.
 
