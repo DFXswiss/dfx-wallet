@@ -1,7 +1,4 @@
-import {
-  isWalletAlreadyExistsError,
-  restoreWalletFlow,
-} from '@/features/restore/services/restore-wallet';
+import { restoreWalletFlow } from '@/features/restore/services/restore-wallet';
 
 function createDependencies() {
   const calls: string[] = [];
@@ -24,25 +21,6 @@ function createDependencies() {
   };
 }
 
-describe('isWalletAlreadyExistsError', () => {
-  it('recognises already-exists errors case-insensitively within a longer message', () => {
-    expect(isWalletAlreadyExistsError(new Error('Wallet ALREADY EXISTS for this identifier'))).toBe(
-      true,
-    );
-  });
-
-  it.each(['Wallet already exists', { message: 'Wallet already exists' }, null, undefined])(
-    'rejects non-Error value %p',
-    (value) => {
-      expect(isWalletAlreadyExistsError(value)).toBe(false);
-    },
-  );
-
-  it('rejects unrelated Error messages', () => {
-    expect(isWalletAlreadyExistsError(new Error('Wallet creation failed'))).toBe(false);
-  });
-});
-
 describe('restoreWalletFlow', () => {
   it('restores and resets without confirmation when no wallet exists', async () => {
     const dependencies = createDependencies();
@@ -56,6 +34,26 @@ describe('restoreWalletFlow', () => {
 
     expect(dependencies.confirm).not.toHaveBeenCalled();
     expect(dependencies.deleteWallet).not.toHaveBeenCalled();
+    expect(dependencies.calls).toEqual(['restore', 'reset']);
+  });
+
+  // Red mutation: swallow reset failures after a successful restore.
+  it('surfaces a reset failure after a successful restore', async () => {
+    const dependencies = createDependencies();
+    const resetError = new Error('wallet access data remained');
+    dependencies.reset.mockImplementationOnce(async () => {
+      dependencies.calls.push('reset');
+      throw resetError;
+    });
+
+    await expect(
+      restoreWalletFlow({
+        ...dependencies,
+        hasExistingWallet: false,
+        hasWalletToDelete: false,
+      }),
+    ).rejects.toBe(resetError);
+
     expect(dependencies.calls).toEqual(['restore', 'reset']);
   });
 

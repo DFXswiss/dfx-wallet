@@ -1,3 +1,5 @@
+import { isWalletAlreadyExistsError } from '@/services/wallet/wallet-errors';
+
 export type RestoreWalletFlowResult = 'cancelled' | 'restored';
 
 type RemainingWalletItems = {
@@ -51,10 +53,6 @@ async function bestEffortReset(reset: () => Promise<void>): Promise<void> {
   } catch {
     // Preserve the failure that left the wallet unavailable.
   }
-}
-
-export function isWalletAlreadyExistsError(error: unknown): boolean {
-  return error instanceof Error && error.message.toLowerCase().includes('already exists');
 }
 
 export async function restoreWalletFlow({
