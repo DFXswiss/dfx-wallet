@@ -19,7 +19,7 @@ import type { AuthRequestDto, AuthResponseDto, SignMessageDto } from './dto';
  * hardware-wallet sign path would otherwise trigger.
  *
  * Mirrors realunit-app's `SessionCache.signature` pattern; kept tight
- * (5-minute TTL, evicted on logout) so a stale challenge can never be
+ * (5-minute TTL, evicted on session replacement) so a stale challenge can never be
  * replayed past its server-side expiry.
  */
 const SIGNATURE_TTL_MS = 5 * 60 * 1000;
@@ -110,6 +110,7 @@ export class DfxAuthService {
     this.accessToken = token;
     this.generation += 1;
     this.mutation += 1;
+    this.signatureCache.clear();
   }
 
   /** Get the sign message challenge for an address */
@@ -131,7 +132,7 @@ export class DfxAuthService {
    * Sign `message` for `address`, reusing a cached signature when possible.
    * If the cache has a signature for the same exact challenge string and
    * it's still inside TTL, return it without invoking signFn. Otherwise
-   * sign fresh and update the cache.
+   * sign fresh and update the cache if the session generation is unchanged.
    */
   private async signWithCache(
     address: string,
@@ -142,8 +143,11 @@ export class DfxAuthService {
     if (cached && cached.message === message && Date.now() - cached.ts < SIGNATURE_TTL_MS) {
       return cached.signature;
     }
+    const generation = this.generation;
     const signature = await signFn(message);
-    this.signatureCache.set(address, { message, signature, ts: Date.now() });
+    if (generation === this.generation) {
+      this.signatureCache.set(address, { message, signature, ts: Date.now() });
+    }
     return signature;
   }
 

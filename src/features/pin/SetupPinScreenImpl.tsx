@@ -21,7 +21,7 @@ export default function SetupPinScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
-  const { isOnboarded, setPin, setAuthenticated, setOnboarded } = useAuthStore();
+  const { setPin, setAuthenticated, setOnboarded } = useAuthStore();
   const { status, unlock } = useWalletManager();
   const [shouldUnlockWallet] = useState(() => status !== 'UNLOCKED');
   const [pin, setPinValue] = useState('');
