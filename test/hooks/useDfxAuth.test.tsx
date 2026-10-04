@@ -188,6 +188,7 @@ describe('useDfxAuth', () => {
       await useAuthStore.getState().reset();
       useAuthStore.setState({ isAuthenticated: true, isOnboarded: true });
     });
+    mockSecureStorageGet.mockClear();
     const rejection = expect(authentication).rejects.toThrow(LOCAL_SESSION_ENDED_MESSAGE);
     await act(async () => {
       pendingLogin.resolve('stale-token');
@@ -302,6 +303,7 @@ describe('useDfxAuth', () => {
       await useAuthStore.getState().reset();
       useAuthStore.setState({ isAuthenticated: true, isOnboarded: true });
     });
+    mockSecureStorageGet.mockClear();
     const rejection = expect(authentication).rejects.toThrow(LOCAL_SESSION_ENDED_MESSAGE);
     await act(async () => {
       pendingLogin.resolve('stale-owner-token');
