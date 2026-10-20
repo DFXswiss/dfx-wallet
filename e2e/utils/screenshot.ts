@@ -34,7 +34,7 @@ export async function expectScreenToMatchBaseline(name: string): Promise<void> {
     customDiffDir: DIFF_DIR,
     // Allow 1% pixel difference to absorb anti-aliasing, font rendering,
     // and GPU differences across local machines and CI runners.
-    failureThreshold: 1,
+    failureThreshold: 0.01,
     failureThresholdType: 'percent',
   });
 }

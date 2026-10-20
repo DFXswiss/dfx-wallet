@@ -243,7 +243,7 @@ describe('Visual Regression (full variant)', () => {
 
     it('shows the sell amount entry state', () =>
       device
-        .openURL({ url: 'dfxwallet://sell' })
+        .openURL({ url: 'dfxwallet://sell?asset=BTC&chain=bitcoin' })
         .then(() =>
           waitFor(element(by.id('sell-screen')))
             .toBeVisible()
