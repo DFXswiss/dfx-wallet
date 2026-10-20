@@ -37,7 +37,7 @@ import { dfxAuthService, DfxApiError } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
 import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
-import TradeModeTabs from './TradeModeTabs';
+import { TradeModeTabs } from '@/features/buy-sell/TradeModeTabs';
 
 type BuyStep = 'amount' | 'payment' | 'confirm';
 

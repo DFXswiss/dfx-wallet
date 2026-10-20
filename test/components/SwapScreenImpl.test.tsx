@@ -37,7 +37,7 @@ jest.mock('../../src/features/buy-sell/TradeModeTabs', () => {
   const { View } = jest.requireActual('react-native');
   return {
     __esModule: true,
-    default: ({ active }: { active: string }) => (
+    TradeModeTabs: ({ active }: { active: string }) => (
       <View accessibilityLabel={active} testID="trade-mode-tabs" />
     ),
   };

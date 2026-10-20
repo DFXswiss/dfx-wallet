@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import { Typography, useColors } from '@/theme';
+import { Radius, Spacing, Typography, useColors } from '@/theme';
 
 export type TradeMode = 'buy' | 'sell' | 'swap';
 
@@ -19,7 +19,7 @@ const tradeModes = [
 const keepNonEmptyString = (value: unknown) =>
   typeof value === 'string' && value.length > 0 ? value : undefined;
 
-export default function TradeModeTabs({ active }: TradeModeTabsProps) {
+export function TradeModeTabs({ active }: TradeModeTabsProps) {
   const router = useRouter();
   const { asset, chain, targetAddress, targetBlockchain } = useLocalSearchParams();
   const { t } = useTranslation();
@@ -61,7 +61,7 @@ export default function TradeModeTabs({ active }: TradeModeTabsProps) {
                 router.replace({ pathname: mode.route, params });
               }
             }}
-            style={[styles.tab, { backgroundColor: selected ? colors.card : 'transparent' }]}
+            style={[styles.tab, { backgroundColor: selected ? colors.card : colors.transparent }]}
             testID={`trade-tab-${mode.key}`}
           >
             <Text style={[styles.label, { color: selected ? colors.text : colors.textTertiary }]}>
@@ -77,15 +77,15 @@ export default function TradeModeTabs({ active }: TradeModeTabsProps) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    borderRadius: 15,
-    padding: 4,
+    borderRadius: Radius.md,
+    padding: Spacing.xs,
     borderWidth: 1,
-    marginBottom: 14,
+    marginBottom: Spacing.md,
   },
   tab: {
     flex: 1,
-    borderRadius: 11,
-    paddingVertical: 10,
+    borderRadius: Radius.sm,
+    paddingVertical: Spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppHeader, DarkBackdrop, Icon } from '@/components';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
-import TradeModeTabs from './TradeModeTabs';
+import { Spacing, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { TradeModeTabs } from '@/features/buy-sell/TradeModeTabs';
 
 export default function SwapScreenImpl() {
   const { t } = useTranslation();
@@ -49,29 +49,29 @@ const makeStyles = (colors: ThemeColors) =>
       flex: 1,
     },
     progressSpacer: {
-      height: 20,
+      height: Spacing.lg,
     },
     content: {
       flex: 1,
-      paddingHorizontal: 20,
+      paddingHorizontal: Spacing.lg,
     },
     placeholder: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: 24,
-      paddingBottom: 48,
+      paddingHorizontal: Spacing.xl,
+      paddingBottom: Spacing.huge,
     },
     title: {
       ...Typography.headlineSmall,
       color: colors.text,
-      marginTop: 16,
+      marginTop: Spacing.base,
       textAlign: 'center',
     },
     description: {
       ...Typography.bodyLarge,
       color: colors.textTertiary,
-      marginTop: 8,
+      marginTop: Spacing.sm,
       textAlign: 'center',
     },
   });

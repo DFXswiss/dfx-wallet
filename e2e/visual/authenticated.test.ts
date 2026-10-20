@@ -182,6 +182,17 @@ describe('Visual Regression (full variant)', () => {
         .withTimeout(30_000);
       await pause();
       await expectScreenToMatchBaseline('trade-mode-swap');
+      // Swap sits on receive, which sits on the dashboard. The next case
+      // opens settings from the dashboard menu, so return there explicitly.
+      await element(by.id('swap-screen-header-back')).tap();
+      await waitFor(element(by.id('receive-screen')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await element(by.id('receive-screen-back')).tap();
+      await waitFor(element(by.id('dashboard-screen')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await pause();
     });
 
     // --- Settings and its sub-screens (reached from the dashboard menu) ---

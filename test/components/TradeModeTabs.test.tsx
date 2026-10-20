@@ -1,6 +1,6 @@
 import { fireEvent, render } from '@testing-library/react-native';
 
-import TradeModeTabs from '../../src/features/buy-sell/TradeModeTabs';
+import { TradeModeTabs } from '../../src/features/buy-sell/TradeModeTabs';
 
 const mockReplace = jest.fn();
 let mockSearchParams: Record<string, string | string[] | undefined> = {};
@@ -14,18 +14,24 @@ jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-jest.mock('@/theme', () => ({
-  Typography: {
-    bodyMedium: { fontSize: 14, lineHeight: 20, fontWeight: '400' },
-  },
-  useColors: () => ({
-    border: '#dddddd',
-    card: '#ffffff',
-    surfaceLight: '#f5f5f5',
-    text: '#111111',
-    textTertiary: '#777777',
-  }),
-}));
+jest.mock('@/theme', () => {
+  const actualTheme = jest.requireActual<typeof import('@/theme')>('@/theme');
+  return {
+    Typography: {
+      bodyMedium: { fontSize: 14, lineHeight: 20, fontWeight: '400' },
+    },
+    Spacing: actualTheme.Spacing,
+    Radius: actualTheme.Radius,
+    useColors: () => ({
+      border: '#dddddd',
+      card: '#ffffff',
+      surfaceLight: '#f5f5f5',
+      text: '#111111',
+      textTertiary: '#777777',
+      transparent: 'transparent',
+    }),
+  };
+});
 
 describe('TradeModeTabs', () => {
   beforeEach(() => {
