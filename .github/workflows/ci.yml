@@ -199,12 +199,10 @@ jobs:
       # braces GHSA-vfj7-8cjw-p6xm: no published patched release (affects <=3.0.3, latest 3.0.3);
       # only reached through micromatch in jest, metro, @expo/cli and patch-package tooling
       # (patch-package -> find-yarn-workspace-root -> micromatch -> braces), not the app bundle.
-      # stream-json GHSA-528h-pc64-c93x: moderate, patched in 3.5.0, but detox's ^1.7.4 range resolves
-      # to 1.9.1 in the lockfile, so an override would be a two-major jump inside E2E tooling;
-      # only reached through detox, not the app bundle.
-      # npm audit reports @wix-pilot/detox (a dependency of detox that peer-depends on it) as high
-      # due to braces and collects the stream-json ID in that entry too, so it must be allowlisted here.
       # Unidentified advisories, unresolved package references and unknown via types fail closed.
+      # The classifier is validated against synthetic audit fixtures so a
+      # refactor cannot quietly stop catching mixed-severity or fail-closed cases.
+      - run: node scripts/check-audit-gate.mjs --self-test
       - name: npm audit (high+)
         run: |
           set +e
@@ -217,7 +215,6 @@ jobs:
               "GHSA-W3RX-R6R6-PGPR",
               "GHSA-5P2G-FCMC-QVQQ",
               "GHSA-VFJ7-8CJW-P6XM",
-              "GHSA-528H-PC64-C93X",
           }
           GHSA_RE = re.compile(r"GHSA-[a-z0-9]+-[a-z0-9]+-[a-z0-9]+", re.I)
           try:
@@ -243,6 +240,13 @@ jobs:
               found = set()
               for via in vulns[name].get("via") or []:
                   if isinstance(via, dict):
+                      # Mixed-severity ancestry: info/low/moderate direct advisories
+                      # stay below this job's high+ cut and must not block just
+                      # because a high parent also has an excepted high sibling.
+                      raw_sev = via.get("severity")
+                      sev = raw_sev.lower() if isinstance(raw_sev, str) else ""
+                      if sev in ("info", "low", "moderate"):
+                          continue
                       advisory_ghsas = set()
                       for key in ("url", "source"):
                           val = via.get(key)

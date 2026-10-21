@@ -141,6 +141,10 @@
       "status": "baselined",
       "baselines": ["sell-no-balance"]
     },
+    "(auth)/swap/index.tsx": {
+      "status": "baselined",
+      "baselines": ["trade-mode-swap"]
+    },
     "(auth)/kyc/index.tsx": {
       "status": "pending",
       "tracking": "DFXswiss/dfx-wallet#186",

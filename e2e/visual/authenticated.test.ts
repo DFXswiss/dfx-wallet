@@ -152,6 +152,49 @@ describe('Visual Regression (full variant)', () => {
       await pause();
     });
 
+    it('switches between buy, sell, and swap modes', async () => {
+      await element(by.id('dashboard-action-receive')).tap();
+      await waitFor(element(by.id('receive-destination-bank')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await element(by.id('receive-destination-bank')).tap();
+      await waitFor(element(by.id('buy-screen')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await waitFor(element(by.id('trade-tab-buy')))
+        .toBeVisible()
+        .withTimeout(30_000);
+
+      await element(by.id('trade-tab-sell')).tap();
+      await waitFor(element(by.id('sell-screen')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await waitFor(element(by.id('trade-tab-sell')))
+        .toBeVisible()
+        .withTimeout(30_000);
+
+      await element(by.id('trade-tab-swap')).tap();
+      await waitFor(element(by.id('swap-screen')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await waitFor(element(by.id('trade-tab-swap')))
+        .toBeVisible()
+        .withTimeout(30_000);
+      await pause();
+      await expectScreenToMatchBaseline('trade-mode-swap');
+      // Swap sits on receive, which sits on the dashboard. The next case
+      // opens settings from the dashboard menu, so return there explicitly.
+      await element(by.id('swap-screen-header-back')).tap();
+      await waitFor(element(by.id('receive-screen')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await element(by.id('receive-screen-back')).tap();
+      await waitFor(element(by.id('dashboard-screen')))
+        .toBeVisible()
+        .withTimeout(60_000);
+      await pause();
+    });
+
     // --- Settings and its sub-screens (reached from the dashboard menu) ---
     it('shows the settings screen', async () => {
       await openSettings();
@@ -211,7 +254,7 @@ describe('Visual Regression (full variant)', () => {
 
     it('shows the sell amount entry state', () =>
       device
-        .openURL({ url: 'dfxwallet://sell' })
+        .openURL({ url: 'dfxwallet://sell?asset=BTC&chain=bitcoin' })
         .then(() =>
           waitFor(element(by.id('sell-screen')))
             .toBeVisible()

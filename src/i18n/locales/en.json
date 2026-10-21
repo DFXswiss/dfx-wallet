@@ -639,6 +639,10 @@
     "sendError": "Message could not be sent. Please try again.",
     "title": "Support"
   },
+  "swap": {
+    "comingSoon": "Swap is coming soon.",
+    "title": "Swap"
+  },
   "taxReport": {
     "cta": "Download tax report",
     "downloadFailed": "Could not generate tax report.",
