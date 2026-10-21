@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/xml/rn_dev_preferences.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-react-android-0.81.5-release-21:/xml/rn_dev_preferences.xml"
+    },
+    {
+        "merged": "swiss.dfx.wallet.bitbox.bitbox-hid-release-28:/xml/usb_device_filter.xml",
+        "source": "swiss.dfx.wallet.bitbox.bitbox-hid-main-29:/xml/usb_device_filter.xml"
+    }
+]

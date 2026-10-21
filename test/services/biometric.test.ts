@@ -2,7 +2,7 @@ import {
   isBiometricAvailable,
   getBiometricType,
   authenticateWithBiometric,
-} from '../../src/services/biometric';
+} from '../../src/features/biometric/biometric';
 import * as LA from 'expo-local-authentication';
 
 const hasHardware = LA.hasHardwareAsync as jest.Mock;

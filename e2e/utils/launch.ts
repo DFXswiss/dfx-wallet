@@ -1,33 +1,27 @@
-import { execSync } from 'child_process';
 import { by, device, element, waitFor } from 'detox';
 
 /**
- * Resets the iOS Simulator Keychain.
- *
- * expo-secure-store persists data in the Keychain, which can survive
- * app uninstall/reinstall. This must run AFTER the simulator is booted
- * (i.e. after the first `device.launchApp()` call).
- */
-function clearKeychain(): void {
-  execSync('xcrun simctl keychain booted reset', { stdio: 'ignore' });
-}
-
-/**
  * Launches the app fresh and waits for the welcome screen.
+ *
+ * App files and the iOS Keychain are independent stores: expo-secure-store
+ * survives uninstall/reinstall (`delete: true`). Reset both together so an
+ * MMKV onboarded-flag cannot disagree with a leftover seed (or the reverse).
  *
  * Synchronization is disabled because the WDK keeps the main queue
  * permanently busy with background tasks. This is expected and safe —
  * we use explicit `waitFor` calls throughout the tests instead.
  *
  * Launch sequence:
- * 1. First launchApp boots the simulator (needed for keychain access)
- * 2. Clear Keychain to remove stale expo-secure-store data
- * 3. Relaunch with clean state
+ * 1. First launchApp boots the simulator (needed for keychain / app-state APIs)
+ * 2. Terminate, then reset app data and the Keychain together
+ * 3. Relaunch with both stores empty
  */
 export async function launchAndWaitForWelcome(): Promise<void> {
   await device.launchApp({ newInstance: true, delete: true });
-  clearKeychain();
-  await device.launchApp({ newInstance: true, delete: true });
+  await device.terminateApp();
+  await device.resetAppState();
+  await device.clearKeychain();
+  await device.launchApp({ newInstance: true });
   await device.disableSynchronization();
   await waitFor(element(by.id('welcome-screen')))
     .toBeVisible()

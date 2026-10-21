@@ -1,63 +1,23 @@
-import { useEffect } from 'react';
-import { useRouter } from 'expo-router';
-import * as Linking from 'expo-linking';
+import { FEATURES } from '@/config/features';
 
 /**
- * Handle deep links: dfxwallet://buy, dfxwallet://receive, etc.
+ * Public `useDeepLink` re-export. Resolves to one of two siblings under
+ * `src/features/deep-link/` at build time via the conditional `require()`:
  *
- * Supported paths:
- *   dfxwallet://buy         → Buy screen
- *   dfxwallet://sell        → Sell screen
- *   dfxwallet://send?to=... → Send screen with prefilled recipient
- *   dfxwallet://receive     → Receive screen
- *   dfxwallet://kyc         → KYC screen
- *   dfxwallet://settings    → Settings
+ *   - `useDeepLinkImpl`     — the real handler, registers a URL listener
+ *                             and routes `dfxwallet://buy|sell|send|…`
+ *                             paths to the corresponding screen.
+ *   - `useDeepLinkDisabled` — a no-op hook, registers nothing.
+ *
+ * The call site in `app/(auth)/_layout.tsx` invokes `useDeepLink()`
+ * unconditionally — the conditional resolution happens here so React's
+ * rules-of-hooks are not violated, while Metro's dead-code elimination
+ * can still drop the unused branch from the bundle.
  */
-export function useDeepLink() {
-  const router = useRouter();
+const useDeepLink: () => void = FEATURES.DEEPLINKS
+  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('@/features/deep-link/useDeepLinkImpl').useDeepLink
+  : // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('@/features/deep-link/useDeepLinkDisabled').useDeepLink;
 
-  useEffect(() => {
-    const handleUrl = (event: { url: string }) => {
-      const parsed = Linking.parse(event.url);
-      const path = parsed.path;
-
-      switch (path) {
-        case 'buy':
-          router.push('/(auth)/buy');
-          break;
-        case 'sell':
-          router.push('/(auth)/sell');
-          break;
-        case 'send':
-          router.push({
-            pathname: '/(auth)/send',
-            params: parsed.queryParams ?? {},
-          } as never);
-          break;
-        case 'receive':
-          router.push('/(auth)/receive');
-          break;
-        case 'kyc':
-          router.push('/(auth)/kyc');
-          break;
-        case 'settings':
-          router.push('/(auth)/(tabs)/settings');
-          break;
-      }
-    };
-
-    const subscription = Linking.addEventListener('url', handleUrl);
-
-    // Handle initial URL (app opened via deep link).
-    // .catch keeps a rejection from getInitialURL out of the unhandled queue.
-    Linking.getInitialURL()
-      .then((url) => {
-        if (url) handleUrl({ url });
-      })
-      .catch((err: unknown) => {
-        console.warn('useDeepLink: getInitialURL failed', err);
-      });
-
-    return () => subscription.remove();
-  }, [router]);
-}
+export { useDeepLink };
