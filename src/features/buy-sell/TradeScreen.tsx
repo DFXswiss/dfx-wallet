@@ -26,6 +26,10 @@ function metaFor(mode: TradeMode): { headerTestID: string; steps: readonly strin
   }
 }
 
+function keepNonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
 /** Shallow-compares the fields that matter for "did the shell actually
  *  change" — deliberately excludes `onBack`. `onBack` is a fresh closure on
  *  every adapter render (it closes over `step`/`router`), so comparing it by
@@ -95,11 +99,20 @@ export default function TradeScreen({
     setShell((prev) => (shellEquals(prev, next) ? prev : next));
   }, []);
 
-  // Security-critical: `asset`/`chain`/`targetAddress`/`targetBlockchain`
-  // only ever reach the adapter for the mode the screen was opened with. A
-  // deep-link's target wallet must never silently follow the user into a
-  // different mode after they switch tabs (see AUFTRAG "Params-Regel").
-  const initialModeProps = { asset, chain, targetAddress, targetBlockchain };
+  // Deep-link params stay on Buy and Sell across in-place tab switches,
+  // including a detour through Swap. Only non-empty strings are forwarded.
+  // A prefilled target wallet stays gated: that mode shows its banner, and
+  // submit still opens the confirm modal before anything is sent.
+  const assetParam = keepNonEmptyString(asset);
+  const chainParam = keepNonEmptyString(chain);
+  const targetAddressParam = keepNonEmptyString(targetAddress);
+  const targetBlockchainParam = keepNonEmptyString(targetBlockchain);
+  const routeParams = {
+    ...(assetParam === undefined ? {} : { asset: assetParam }),
+    ...(chainParam === undefined ? {} : { chain: chainParam }),
+    ...(targetAddressParam === undefined ? {} : { targetAddress: targetAddressParam }),
+    ...(targetBlockchainParam === undefined ? {} : { targetBlockchain: targetBlockchainParam }),
+  };
 
   return (
     <>
@@ -113,18 +126,10 @@ export default function TradeScreen({
       >
         {shell.showTabs ? <TradeModeTabs active={mode} onChange={handleModeChange} /> : null}
         {mode === 'buy' ? (
-          <BuyTradeAdapter
-            key="buy"
-            {...(initialMode === 'buy' ? initialModeProps : {})}
-            onShellChange={handleShellChange}
-          />
+          <BuyTradeAdapter key="buy" {...routeParams} onShellChange={handleShellChange} />
         ) : null}
         {mode === 'sell' ? (
-          <SellTradeAdapter
-            key="sell"
-            {...(initialMode === 'sell' ? initialModeProps : {})}
-            onShellChange={handleShellChange}
-          />
+          <SellTradeAdapter key="sell" {...routeParams} onShellChange={handleShellChange} />
         ) : null}
         {mode === 'swap' ? <SwapTradeAdapter key="swap" onShellChange={handleShellChange} /> : null}
       </TradeScreenShell>
