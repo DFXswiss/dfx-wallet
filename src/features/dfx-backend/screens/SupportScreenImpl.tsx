@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useState, useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { EmptyState, PrimaryButton, ScreenContainer, Skeleton } from '@/components';
+import {
+  EmptyState,
+  GlassCard,
+  GlassInputField,
+  PrimaryButton,
+  ScreenContainer,
+  Skeleton,
+} from '@/components';
 import { dfxSupportService, type SupportIssueDto } from '@/features/dfx-backend/services';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 
@@ -114,9 +121,10 @@ export default function SupportScreen() {
       ) : (
         <ScrollView contentContainerStyle={styles.ticketList} showsVerticalScrollIndicator={false}>
           {issues.map((issue) => (
-            <Pressable
+            <GlassCard
               key={issue.id}
-              style={styles.ticketItem}
+              contentStyle={styles.ticketItem}
+              testID={`support-ticket-card-${issue.id}`}
               onPress={() => {
                 setSelectedIssue(issue);
                 setView('chat');
@@ -137,7 +145,7 @@ export default function SupportScreen() {
               >
                 <Text style={styles.statusText}>{issue.state}</Text>
               </View>
-            </Pressable>
+            </GlassCard>
           ))}
         </ScrollView>
       )}
@@ -150,20 +158,13 @@ export default function SupportScreen() {
     <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>{t('support.createTicket')}</Text>
 
-      <TextInput
-        style={styles.input}
-        value={subject}
-        onChangeText={setSubject}
-        placeholder="Subject"
-        placeholderTextColor={colors.textTertiary}
-      />
+      <GlassInputField value={subject} onChangeText={setSubject} placeholder="Subject" />
 
-      <TextInput
-        style={[styles.input, styles.messageInput]}
+      <GlassInputField
+        style={styles.messageInput}
         value={message}
         onChangeText={setMessage}
         placeholder="Describe your issue..."
-        placeholderTextColor={colors.textTertiary}
         multiline
         textAlignVertical="top"
       />
@@ -186,28 +187,33 @@ export default function SupportScreen() {
       <Text style={styles.stepTitle}>{selectedIssue?.reason}</Text>
 
       <ScrollView style={styles.chatMessages} showsVerticalScrollIndicator={false}>
-        {selectedIssue?.messages.map((msg) => (
-          <View
-            key={msg.id}
-            style={[
-              styles.chatBubble,
-              msg.author === 'User' ? styles.userBubble : styles.supportBubble,
-            ]}
-          >
-            <Text style={styles.chatAuthor}>{msg.author}</Text>
-            <Text style={styles.chatText}>{msg.message}</Text>
-            <Text style={styles.chatDate}>{new Date(msg.createdDate).toLocaleString()}</Text>
-          </View>
-        ))}
+        {selectedIssue?.messages.map((msg) =>
+          msg.author === 'User' ? (
+            <View key={msg.id} style={[styles.chatBubble, styles.userBubble]}>
+              <Text style={styles.chatAuthor}>{msg.author}</Text>
+              <Text style={styles.chatText}>{msg.message}</Text>
+              <Text style={styles.chatDate}>{new Date(msg.createdDate).toLocaleString()}</Text>
+            </View>
+          ) : (
+            <GlassCard
+              key={msg.id}
+              style={[styles.chatBubble, styles.supportBubble]}
+              testID={`support-chat-bubble-${msg.id}`}
+            >
+              <Text style={styles.chatAuthor}>{msg.author}</Text>
+              <Text style={styles.chatText}>{msg.message}</Text>
+              <Text style={styles.chatDate}>{new Date(msg.createdDate).toLocaleString()}</Text>
+            </GlassCard>
+          ),
+        )}
       </ScrollView>
 
       <View style={styles.chatInputRow}>
-        <TextInput
-          style={[styles.input, styles.chatInput]}
+        <GlassInputField
+          containerStyle={styles.chatInput}
           value={chatMessage}
           onChangeText={setChatMessage}
           placeholder="Type a message..."
-          placeholderTextColor={colors.textTertiary}
         />
         <Pressable style={styles.sendButton} onPress={handleSendMessage}>
           <Text style={styles.sendText}>Send</Text>
@@ -307,9 +313,6 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      padding: 16,
-      backgroundColor: colors.surface,
-      borderRadius: 12,
     },
     ticketInfo: {
       flex: 1,
@@ -334,13 +337,6 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '600',
       color: colors.black,
     },
-    input: {
-      backgroundColor: colors.surface,
-      borderRadius: 12,
-      padding: 16,
-      color: colors.text,
-      ...Typography.bodyLarge,
-    },
     messageInput: {
       minHeight: 160,
     },
@@ -348,17 +344,16 @@ const makeStyles = (colors: ThemeColors) =>
       flex: 1,
     },
     chatBubble: {
-      padding: 12,
-      borderRadius: 12,
       marginBottom: 8,
       maxWidth: '85%',
     },
     userBubble: {
       backgroundColor: colors.primary,
+      borderRadius: 12,
+      padding: 12,
       alignSelf: 'flex-end',
     },
     supportBubble: {
-      backgroundColor: colors.surface,
       alignSelf: 'flex-start',
     },
     chatAuthor: {

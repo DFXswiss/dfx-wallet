@@ -54,7 +54,12 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 
+// eslint-disable-next-line import/first
 import ReceiveScreen from '../../app/(auth)/receive/index';
+// eslint-disable-next-line import/first
+import { GlassCard } from '../../src/components/GlassCard';
+// eslint-disable-next-line import/first
+import { GlassSurface } from '../../src/components/GlassSurface';
 
 beforeEach(() => {
   mockPush.mockReset();
@@ -77,6 +82,11 @@ describe('ReceiveScreen', () => {
     expect(getAllByText('CHF').length).toBeGreaterThanOrEqual(1);
     expect(getAllByText('USD').length).toBeGreaterThanOrEqual(1);
     expect(getByText('Euro')).toBeTruthy();
+  });
+
+  it('renders the asset cards on glass surfaces', () => {
+    const { UNSAFE_queryAllByType } = render(<ReceiveScreen />);
+    expect(UNSAFE_queryAllByType(GlassCard).length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows the "buy from bank" affordance only when FEATURES.BUY_SELL is on', () => {
@@ -172,23 +182,22 @@ describe('ReceiveScreen', () => {
     expect(getByText('receive.selectAsset')).toBeTruthy();
   });
 
-  it('exercises the pressed-state style fn on every function-style Pressable', () => {
-    const { UNSAFE_root } = render(<ReceiveScreen />);
-    // Walk the entire tree, find any Pressable whose `style` is a function
-    // and invoke it with pressed=true so each `pressed && styles.pressed`
-    // branch evaluates.
-    let invoked = 0;
-    const walk = (node: { props?: { style?: unknown }; children?: unknown[] }) => {
-      if (typeof node.props?.style === 'function') {
-        node.props.style({ pressed: true });
-        invoked += 1;
-      }
-      for (const child of node.children ?? []) {
-        if (typeof child === 'object' && child) walk(child as typeof node);
-      }
-    };
-    walk(UNSAFE_root);
-    expect(invoked).toBeGreaterThanOrEqual(2);
+  it('drives the pressed "lead" feedback on the asset card and the bank-destination card', () => {
+    // The asset/destination cards are `GlassCard onPress` now (G5) instead of
+    // a hand-rolled `Pressable style={({pressed}) => …}` — press feedback is
+    // real `onPressIn`/`onPressOut` state inside `GlassCard`, so it's driven
+    // and asserted the same way here.
+    const { getByTestId } = render(<ReceiveScreen />);
+    for (const id of ['receive-asset-btc', 'receive-destination-bank']) {
+      const surfaceAtRest = getByTestId(id).findByType(GlassSurface);
+      expect(surfaceAtRest.props.variant).not.toBe('lead');
+
+      fireEvent(getByTestId(id), 'pressIn');
+      expect(getByTestId(id).findByType(GlassSurface).props.variant).toBe('lead');
+
+      fireEvent(getByTestId(id), 'pressOut');
+      expect(getByTestId(id).findByType(GlassSurface).props.variant).not.toBe('lead');
+    }
   });
 });
 

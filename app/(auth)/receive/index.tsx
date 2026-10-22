@@ -1,16 +1,24 @@
 import { useMemo, useState } from 'react';
-import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useAccount } from '@tetherto/wdk-react-native-core';
-import { AppHeader, DarkBackdrop, Icon, PrimaryButton, QrCode } from '@/components';
+import {
+  AppHeader,
+  GlassCard,
+  GlassPill,
+  Icon,
+  PrimaryButton,
+  QrCode,
+  ScreenBackdrop,
+} from '@/components';
 import type { ChainId } from '@/config/chains';
 import { FEATURES } from '@/config/features';
 import { useLdsWallet } from '@/hooks';
-import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Layout, Typography, useColors, type ThemeColors } from '@/theme';
 
 type ReceiveStep = 'asset' | 'qr';
 
@@ -55,7 +63,6 @@ export default function ReceiveScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const receiveAssets = useMemo(buildReceiveAssets, []);
   const [step, setStep] = useState<ReceiveStep>('asset');
@@ -94,33 +101,32 @@ export default function ReceiveScreen() {
     <View style={styles.stepContent}>
       <Text style={styles.stepSubtitle}>{t('receive.selectAsset')}</Text>
       <View style={styles.assetList} testID="receive-asset-list">
-        {receiveAssets.map((asset) => (
-          <Pressable
-            key={asset.symbol}
-            testID={`receive-asset-${asset.symbol.toLowerCase()}`}
-            style={({ pressed }) => [
-              styles.assetCard,
-              selectedAsset?.symbol === asset.symbol && styles.assetCardActive,
-              pressed && styles.pressed,
-            ]}
-            onPress={() => handleAssetSelect(asset)}
-          >
-            <Text
-              style={[
-                styles.assetSymbol,
-                selectedAsset?.symbol === asset.symbol && styles.assetSymbolActive,
-              ]}
+        {receiveAssets.map((asset) => {
+          const active = selectedAsset?.symbol === asset.symbol;
+          return (
+            <GlassCard
+              key={asset.symbol}
+              testID={`receive-asset-${asset.symbol.toLowerCase()}`}
+              variant={active ? 'lead' : 'default'}
+              tone={active ? 'accent' : 'default'}
+              padding={18}
+              contentStyle={styles.assetCard}
+              onPress={() => handleAssetSelect(asset)}
             >
-              {asset.symbol}
-            </Text>
-            <Text style={styles.assetLabel}>{asset.label}</Text>
-          </Pressable>
-        ))}
+              <Text style={[styles.assetSymbol, active && styles.assetSymbolActive]}>
+                {asset.symbol}
+              </Text>
+              <Text style={styles.assetLabel}>{asset.label}</Text>
+            </GlassCard>
+          );
+        })}
       </View>
 
       {FEATURES.BUY_SELL && (
-        <Pressable
-          style={({ pressed }) => [styles.destinationCard, pressed && styles.pressed]}
+        <GlassCard
+          padding={16}
+          tone="accent"
+          contentStyle={styles.destinationCard}
           onPress={() => router.push('/(auth)/buy')}
           testID="receive-destination-bank"
           accessibilityRole="button"
@@ -134,7 +140,7 @@ export default function ReceiveScreen() {
             <Text style={styles.destinationSubtitle}>{t('receive.buyFromBankSubtitle')}</Text>
           </View>
           <Icon name="chevron-right" size={18} color={colors.textTertiary} />
-        </Pressable>
+        </GlassCard>
       )}
     </View>
   );
@@ -142,14 +148,12 @@ export default function ReceiveScreen() {
   const renderQrStep = (asset: AssetOption) => {
     return (
       <View style={styles.stepContent}>
-        <Pressable
-          testID="receive-selected-asset-pill"
-          style={styles.selectedAssetPill}
-          onPress={() => setStep('asset')}
-        >
-          <Text style={styles.selectedAssetText}>{asset.symbol}</Text>
-          <Icon name="chevron-right" size={14} color={colors.textTertiary} />
-        </Pressable>
+        <GlassPill selected testID="receive-selected-asset-pill" onPress={() => setStep('asset')}>
+          <View style={styles.selectedAssetContent}>
+            <Text style={styles.selectedAssetText}>{asset.symbol}</Text>
+            <Icon name="chevron-right" size={14} color={colors.textTertiary} />
+          </View>
+        </GlassPill>
 
         {asset.chains.length > 1 && (
           <ScrollView
@@ -159,10 +163,11 @@ export default function ReceiveScreen() {
             style={styles.chainBar}
           >
             {asset.chains.map((c) => (
-              <Pressable
+              <GlassPill
                 key={c.chain}
                 testID={`receive-chain-${c.chain}`}
-                style={[styles.chainChip, selectedChain === c.chain && styles.chainChipActive]}
+                selected={selectedChain === c.chain}
+                style={styles.chainChip}
                 onPress={() => setSelectedChain(c.chain)}
               >
                 <Text
@@ -173,7 +178,7 @@ export default function ReceiveScreen() {
                 >
                   {c.label}
                 </Text>
-              </Pressable>
+              </GlassPill>
             ))}
           </ScrollView>
         )}
@@ -182,20 +187,20 @@ export default function ReceiveScreen() {
           {address ? (
             <QrCode value={address} size={200} />
           ) : (
-            <View style={styles.qrPlaceholder}>
+            <GlassCard variant="quiet" style={styles.qrPlaceholder}>
               <Text style={styles.qrPlaceholderText}>{t('receive.noAddress')}</Text>
-            </View>
+            </GlassCard>
           )}
         </View>
 
-        <View style={styles.addressContainer}>
+        <GlassCard padding={20} style={styles.addressContainer}>
           <Text style={styles.addressLabel}>
             {t('receive.yourAddress', { chain: selectedChain })}
           </Text>
           <Text testID="receive-address" style={styles.address} selectable numberOfLines={2}>
             {address || t('receive.walletNotInitialized')}
           </Text>
-        </View>
+        </GlassCard>
 
         <PrimaryButton
           testID="receive-copy-button"
@@ -233,15 +238,7 @@ export default function ReceiveScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>
@@ -280,19 +277,7 @@ const makeStyles = (colors: ThemeColors) =>
     assetCard: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      padding: 18,
       gap: 14,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    assetCardActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
-    },
-    pressed: {
-      opacity: 0.7,
     },
     assetSymbol: {
       ...Typography.headlineSmall,
@@ -307,14 +292,9 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodyLarge,
       color: colors.textSecondary,
     },
-    selectedAssetPill: {
+    selectedAssetContent: {
       flexDirection: 'row',
       alignItems: 'center',
-      alignSelf: 'flex-start',
-      backgroundColor: colors.primaryLight,
-      borderRadius: 12,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
       gap: 6,
     },
     selectedAssetText: {
@@ -326,17 +306,7 @@ const makeStyles = (colors: ThemeColors) =>
       flexGrow: 0,
     },
     chainChip: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 10,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
       marginRight: 8,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
-    },
-    chainChipActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
     },
     chainChipText: {
       ...Typography.bodyMedium,
@@ -354,8 +324,6 @@ const makeStyles = (colors: ThemeColors) =>
     qrPlaceholder: {
       width: 200,
       height: 200,
-      borderRadius: 16,
-      backgroundColor: colors.surface,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -364,17 +332,8 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textTertiary,
     },
     addressContainer: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 20,
       gap: 8,
       alignItems: 'center',
-      shadowColor: colors.shadow,
-      shadowOpacity: 0.04,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 3 },
     },
     addressLabel: {
       ...Typography.bodySmall,
@@ -391,12 +350,7 @@ const makeStyles = (colors: ThemeColors) =>
     destinationCard: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      padding: 16,
       gap: 14,
-      borderWidth: 1,
-      borderColor: colors.primary,
     },
     destinationIcon: {
       width: 40,
