@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
-import TradeModeTabs, { type TradeMode } from './TradeModeTabs';
+import { TradeModeTabs, type TradeMode } from './TradeModeTabs';
 import { TradeScreenShell, type TradeShellReport } from './TradeScreenShell';
 import { BuyTradeAdapter } from './BuyTradeAdapter';
 import { SellTradeAdapter } from './SellTradeAdapter';

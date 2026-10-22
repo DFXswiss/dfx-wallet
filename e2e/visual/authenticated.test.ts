@@ -173,14 +173,14 @@ describe('Visual Regression (full variant)', () => {
         .toBeVisible()
         .withTimeout(60_000);
       await pause();
-      await expectScreenToMatchBaseline('swap-placeholder');
+      await expectScreenToMatchBaseline('trade-mode-swap');
       await expect(element(by.id('swap-amount-panels'))).toBeVisible();
       await expect(element(by.id('swap-fees-panel'))).toBeVisible();
       await element(by.id('swap-header-back')).tap();
       await waitFor(element(by.id('receive-asset-list')))
         .toBeVisible()
         .withTimeout(60_000);
-      await element(by.id('receive-header-back')).tap();
+      await element(by.id('receive-screen-back')).tap();
       await waitFor(element(by.id('dashboard-screen')))
         .toBeVisible()
         .withTimeout(60_000);

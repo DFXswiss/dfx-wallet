@@ -7,16 +7,10 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@/theme', () => {
-  const actual = jest.requireActual('@/theme');
+  const actual = jest.requireActual<typeof import('@/theme')>('@/theme');
   return {
     ...actual,
-    useColors: () => ({
-      border: '#dddddd',
-      card: '#ffffff',
-      surfaceLight: '#f5f5f5',
-      text: '#111111',
-      textTertiary: '#777777',
-    }),
+    useColors: () => actual.lightColors,
   };
 });
 

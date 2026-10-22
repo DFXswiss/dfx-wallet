@@ -24,7 +24,14 @@ export function SwapTradeAdapter({ onShellChange }: SwapTradeAdapterProps) {
   const styles = makeStyles(colors);
   const router = useRouter();
 
-  const onBack = useCallback(() => router.back(), [router]);
+  // No earlier step, so back leaves the screen. A deep link mounts the route
+  // on an empty stack, and `router.back()` then throws. The shell always
+  // passes `onBack`, which skips AppHeader's empty-stack fallback, so the
+  // same fallback lives on the action this adapter reports.
+  const onBack = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(auth)/(tabs)/dashboard');
+  }, [router]);
 
   // Swap has a single, always-active step — report the shell chrome once on
   // mount (and again whenever `t`/`onBack` change identity; harmless, see
