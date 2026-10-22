@@ -85,11 +85,11 @@ jobs:
           # from contending with PIN hashing on hosted simulator runners.
           echo "EXPO_PUBLIC_E2E=true" >> .env
 
-      - name: Enable all feature flags (full variant only)
+      - name: Enable feature flags except PIN and legal (full variant only)
         if: matrix.variant == 'full'
-        run: |
+        run: | # PIN and LEGAL stay off: with PIN on, onboarding stops at the PIN unlock screen
           for f in BIOMETRIC BUY_SELL DEEPLINKS DFX_BACKEND HARDWARE_WALLET \
-                   LEGAL LINKED_WALLETS MULTISIG PASSKEY PAY PIN PORTFOLIO \
+                   LINKED_WALLETS MULTISIG PASSKEY PAY PORTFOLIO \
                    RESTORE SETTINGS TAX_REPORT TX_HISTORY WEBVIEW; do
             echo "EXPO_PUBLIC_ENABLE_${f}=true" >> .env
           done
