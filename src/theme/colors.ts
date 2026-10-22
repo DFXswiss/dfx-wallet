@@ -14,7 +14,11 @@ export type ThemeColors = {
   textTertiary: string;
 
   success: string;
+  /** Soft halo around a success mark (the check circle of the send flow). */
+  successGlow: string;
   warning: string;
+  warningSurface: string;
+  warningBorder: string;
   error: string;
   info: string;
 
@@ -46,6 +50,39 @@ export type ThemeColors = {
   divider: string;
   shadow: string;
   statusBar: 'dark' | 'light';
+
+  /**
+   * Shared scrim scale for anything that dims content behind a modal or a
+   * cutout (all on the brand-navy base `rgb(11, 20, 38)`). Replaces the
+   * five identical `rgba(11, 20, 38, …)` literals that used to be copied
+   * into each modal's stylesheet.
+   */
+  scrimStrong: string; // 0.45 — full-screen modal backdrops
+  scrimMedium: string; // 0.35 — side-sheet backdrops (MenuModal)
+  scrimSoft: string; // 0.18 — in-content cutouts (Pay QR window)
+
+  /**
+   * Wordmark ink for `BrandLogo` / `DfxLogoLoader`. The icon-circle
+   * gradients themselves are scheme-invariant (see `theme/brand.ts`) — only
+   * the lettering switches per scheme.
+   */
+  logoInk: string;
+
+  /**
+   * Transaction-type chip backgrounds (the icon-chip fill in
+   * `TransactionRow`), one per `TransactionDto['type']`. Foregrounds reuse
+   * `success` / `error` / `primary` directly (Buy/Receive → success,
+   * Sell/Send → error, Swap → primary) since those already carry the right
+   * per-scheme value; only Pay's accent has no existing analog, hence
+   * `payChipFg`.
+   */
+  buyChipBg: string;
+  sellChipBg: string;
+  swapChipBg: string;
+  payChipBg: string;
+  payChipFg: string;
+  sendChipBg: string;
+  receiveChipBg: string;
 };
 
 export const lightColors: ThemeColors = {
@@ -64,7 +101,10 @@ export const lightColors: ThemeColors = {
   textTertiary: '#8D98AA',
 
   success: '#16A34A',
+  successGlow: 'rgba(22,163,74,0.38)',
   warning: '#EAB308',
+  warningSurface: 'rgba(234,179,8,0.16)',
+  warningBorder: 'rgba(234,179,8,0.45)',
   error: '#DC2626',
   info: '#2F7CF7',
 
@@ -84,6 +124,20 @@ export const lightColors: ThemeColors = {
   divider: '#DDE5F0',
   shadow: '#0B1426',
   statusBar: 'dark',
+
+  scrimStrong: 'rgba(11, 20, 38, 0.45)',
+  scrimMedium: 'rgba(11, 20, 38, 0.35)',
+  scrimSoft: 'rgba(11, 20, 38, 0.18)',
+
+  logoInk: '#072440',
+
+  buyChipBg: '#DCFCE7',
+  sellChipBg: '#FEE2E2',
+  swapChipBg: '#DCEAFE',
+  payChipBg: '#EDE9FE',
+  payChipFg: '#7C3AED',
+  sendChipBg: '#FEE2E2',
+  receiveChipBg: '#DCFCE7',
 };
 
 /**
@@ -95,6 +149,9 @@ export const lightColors: ThemeColors = {
 export const Interaction = {
   pressedOpacity: 0.85,
   pressedCardOpacity: 0.92,
+  /** Shared dim for any disabled pressable — matches the pre-existing 0.5
+   *  literal every disabled style in the app already converged on. */
+  disabledOpacity: 0.5,
 } as const;
 
 // DFX brand-navy dark palette — sourced from the DFX Design Pod
@@ -124,7 +181,10 @@ export const darkColors: ThemeColors = {
   textTertiary: '#8A99B7',
 
   success: '#34D399',
+  successGlow: 'rgba(52,211,153,0.42)',
   warning: '#FBBF24',
+  warningSurface: 'rgba(251,191,36,0.16)',
+  warningBorder: 'rgba(251,191,36,0.45)',
   error: '#F87171',
   info: '#5FA8FF',
 
@@ -144,6 +204,20 @@ export const darkColors: ThemeColors = {
   divider: 'rgba(255,255,255,0.10)',
   shadow: '#000000',
   statusBar: 'light',
+
+  scrimStrong: 'rgba(11, 20, 38, 0.45)',
+  scrimMedium: 'rgba(11, 20, 38, 0.35)',
+  scrimSoft: 'rgba(11, 20, 38, 0.18)',
+
+  logoInk: '#F1F4F9',
+
+  buyChipBg: 'rgba(52,211,153,0.16)',
+  sellChipBg: 'rgba(248,113,113,0.16)',
+  swapChipBg: 'rgba(95,168,255,0.16)',
+  payChipBg: 'rgba(167,139,250,0.18)',
+  payChipFg: '#A78BFA',
+  sendChipBg: 'rgba(248,113,113,0.16)',
+  receiveChipBg: 'rgba(52,211,153,0.16)',
 };
 
 // Backwards-compat alias for screens that still consume the static colour

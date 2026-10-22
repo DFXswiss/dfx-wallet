@@ -31,11 +31,22 @@ jest.mock('@/features/dfx-backend/services', () => ({
   },
 }));
 
+const mockGlassCard = jest.fn();
 jest.mock('@/components', () => {
   const ReactActual = jest.requireActual('react');
-  const { View } = jest.requireActual('react-native');
+  const { TextInput, View } = jest.requireActual('react-native');
   return {
     EmptyState: () => null,
+    GlassCard: (props: { children?: React.ReactNode; testID?: string; style?: unknown }) => {
+      mockGlassCard(props);
+      return ReactActual.createElement(
+        View,
+        { testID: props.testID, style: props.style },
+        props.children,
+      );
+    },
+    GlassInputField: (props: Record<string, unknown>) =>
+      ReactActual.createElement(TextInput, props),
     PrimaryButton: () => null,
     ScreenContainer: ({ children }: { children?: React.ReactNode }) =>
       ReactActual.createElement(View, null, children),
@@ -67,6 +78,7 @@ function badgeBackground(
 
 beforeEach(() => {
   mockGetIssues.mockReset();
+  mockGlassCard.mockClear();
 });
 
 describe('SupportScreenImpl status colours', () => {
@@ -100,5 +112,19 @@ describe('SupportScreenImpl status colours', () => {
     });
 
     expect(badgeBackground(getByTestId, 9)).toBe(lightColors.textTertiary);
+  });
+
+  it('renders each ticket row as a GlassCard', async () => {
+    mockGetIssues.mockResolvedValueOnce([issue({ id: 1, state: 'Open' })]);
+
+    const { getByTestId } = render(<SupportScreen />);
+
+    await waitFor(() => {
+      expect(getByTestId('support-ticket-card-1')).toBeTruthy();
+    });
+
+    expect(mockGlassCard).toHaveBeenCalledWith(
+      expect.objectContaining({ testID: 'support-ticket-card-1' }),
+    );
   });
 });

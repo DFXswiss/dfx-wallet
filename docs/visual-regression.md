@@ -144,14 +144,14 @@ await waitFor(element(by.id('receive-qr')))
   .toBeVisible()
   .withTimeout(30_000);
 
-// ✅ receive-selected-asset-pill is the topmost element on the QR step,
-// always fully visible, sufficient signal that the step transition fired
-await waitFor(element(by.id('receive-selected-asset-pill')))
+// ✅ receive-asset-btc is the topmost content control on the one-screen flow,
+// always fully visible, sufficient signal that Receive finished rendering
+await waitFor(element(by.id('receive-asset-btc')))
   .toBeVisible()
   .withTimeout(30_000);
 ```
 
-Pick top-of-screen anchors (header back buttons, the topmost card in a list, the selected-asset pill) over wrapper Views or content sitting deeper in a scroll view.
+Pick top-of-screen anchors (header back buttons, the topmost card in a list, the asset selector) over wrapper Views or content sitting deeper in a scroll view.
 
 ### `disableSynchronization` + back navigation
 

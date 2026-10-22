@@ -1,11 +1,13 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import type { ReactTestInstance } from 'react-test-renderer';
+import { BlurView } from 'expo-blur';
 import type { BalanceEntry, BalanceMap, BalanceSourceResult } from '@/services/balances';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
-import { Skeleton } from '@/components';
-import { Card, IconTile, ThemeProvider, lightColors } from '@/theme';
+import { GlassSurface, Skeleton } from '@/components';
+import { Card, IconTile, ThemeProvider } from '@/theme';
 import { useAuthStore, useWalletStore } from '@/store';
 import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 
@@ -113,6 +115,23 @@ function flattenStyle(style: unknown): Record<string, unknown> {
   return StyleSheet.flatten(resolved) as Record<string, unknown>;
 }
 
+function flattenSurface(pressable: ReactTestInstance): Record<string, unknown> {
+  const glass = pressable.findByType(GlassSurface);
+  const host = glass.children[0];
+  if (host == null || typeof host === 'string') {
+    throw new Error('GlassSurface host view missing');
+  }
+  return flattenStyle(host.props.style);
+}
+
+// Light mode replaced the opaque `cardOverlay` fill/border with the same
+// blurred-glass mechanism dark mode already used. The shared "same card
+// metrics" contract now shows up as: both screens' GlassSurface render a
+// BlurView tinted alike, instead of both carrying the same opaque border.
+function glassBlurTint(pressable: ReactTestInstance): unknown {
+  return pressable.findByType(GlassSurface).findByType(BlurView).props.tint;
+}
+
 function renderPortfolio() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -160,20 +179,32 @@ describe('portfolio list-row tokens', () => {
   it('renders portfolio cards and asset-detail holdings with the same card metrics', async () => {
     const portfolio = renderPortfolio();
     await waitFor(() => expect(portfolio.getByTestId('portfolio-asset-BTC')).toBeTruthy());
-    const card = flattenStyle(portfolio.getByTestId('portfolio-asset-BTC').props.style);
+    const portfolioCard = portfolio.getByTestId('portfolio-asset-BTC');
+    const card = flattenSurface(portfolioCard);
 
     const detail = renderDetail();
-    const holding = flattenStyle(detail.getByTestId('holding-bitcoin-BTC').props.style);
+    fireEvent.press(detail.getByTestId('asset-detail-expand'));
+    const holdingRow = detail.getByTestId('holding-bitcoin-BTC');
+    const holding = flattenSurface(holdingRow);
 
     expect(card.borderRadius).toBe(holding.borderRadius);
     expect(card.padding).toBe(holding.padding);
     expect(card.gap).toBe(holding.gap);
-    expect(card.borderColor).toBe(holding.borderColor);
 
     expect(card.borderRadius).toBe(Card.radius);
     expect(card.padding).toBe(Card.padding);
     expect(card.gap).toBe(Card.gap);
-    expect(card.borderColor).toBe(lightColors.cardOverlayBorder);
+
+    // Light mode now renders the same blurred-glass surface dark mode
+    // always used, not the old opaque `cardOverlay` fill/border — so the
+    // "same card metrics" contract shows up as: no opaque fill on either
+    // screen, and both render the identical glass mechanism (BlurView
+    // tinted the same way), instead of both carrying the same flat border.
+    expect(card.backgroundColor).toBeUndefined();
+    expect(holding.backgroundColor).toBeUndefined();
+    const cardTint = glassBlurTint(portfolioCard);
+    expect(cardTint).toBe('light');
+    expect(glassBlurTint(holdingRow)).toBe(cardTint);
   });
 
   it('keeps the skeleton tile the same size and radius as the loaded asset tile', async () => {

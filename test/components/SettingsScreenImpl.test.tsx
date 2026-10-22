@@ -36,6 +36,22 @@ jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
 }));
 
+const mockFeatures = { BUY_SELL: true };
+// The factory runs while imports are evaluated, before `mockFeatures` is initialised, so the
+// flag is read lazily through a getter instead of being captured eagerly.
+jest.mock('@/config/features', () => {
+  const actual = jest.requireActual('@/config/features');
+  return {
+    ...actual,
+    FEATURES: {
+      ...actual.FEATURES,
+      get BUY_SELL() {
+        return mockFeatures.BUY_SELL;
+      },
+    },
+  };
+});
+
 jest.mock('expo-haptics', () => ({
   selectionAsync: jest.fn(),
   impactAsync: jest.fn(),
@@ -83,14 +99,18 @@ jest.mock('@/components', () => {
   return {
     ...actual,
     Icon: ({ name }: { name: string }) => ReactActual.createElement(Text, null, name),
-    DarkBackdrop: () => ReactActual.createElement(View, { testID: 'dark-backdrop' }),
+    ScreenBackdrop: () => ReactActual.createElement(View, { testID: 'screen-backdrop' }),
   };
 });
 
 // eslint-disable-next-line import/first
 import SettingsScreenImpl from '../../src/features/settings/SettingsScreenImpl';
+// eslint-disable-next-line import/first
+import { GlassListGroup } from '../../src/components/GlassListGroup';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { __i18n } = require('react-i18next') as { __i18n: { language: string; changeLanguage: jest.Mock } };
+const { __i18n } = require('react-i18next') as {
+  __i18n: { language: string; changeLanguage: jest.Mock };
+};
 
 function renderScreen() {
   return render(
@@ -114,6 +134,7 @@ describe('SettingsScreenImpl', () => {
     mockReplace.mockReset();
     mockCanGoBack.mockReset();
     mockCanGoBack.mockReturnValue(true);
+    mockFeatures.BUY_SELL = true;
     __i18n.language = 'en';
     __i18n.changeLanguage.mockReset();
     __i18n.changeLanguage.mockResolvedValue(undefined);
@@ -142,9 +163,12 @@ describe('SettingsScreenImpl', () => {
   });
 
   it('renders the settings sections and navigates a route row', async () => {
-    const { getByTestId, getByText } = renderScreen();
+    const { getByTestId, getByText, UNSAFE_getAllByType } = renderScreen();
     await waitFor(() => expect(getByTestId('settings-user-data')).toBeTruthy());
     expect(getByText('settings.title')).toBeTruthy();
+    // Every section renders on the shared glass list module, not a one-off
+    // opaque card (JK: "alle Karten ... müssen Glas design haben").
+    expect(UNSAFE_getAllByType(GlassListGroup).length).toBeGreaterThan(0);
     fireEvent.press(getByTestId('settings-user-data'));
     expect(mockPush).toHaveBeenCalledWith('/(auth)/kyc');
   });
@@ -154,6 +178,7 @@ describe('SettingsScreenImpl', () => {
     await waitFor(() => expect(getByTestId('settings-email')).toBeTruthy());
     const routes: [string, string][] = [
       ['settings-email', '/(auth)/email'],
+      ['settings-bank-accounts', '/(auth)/bank-accounts'],
       ['settings-dfx-wallets', '/(auth)/wallets'],
       ['settings-seed', '/(auth)/seed-export'],
       ['settings-hardware-wallet', '/(auth)/hardware-connect'],
@@ -168,6 +193,19 @@ describe('SettingsScreenImpl', () => {
       fireEvent.press(getByTestId(id));
       expect(mockPush).toHaveBeenCalledWith(route);
     }
+  });
+
+  it('shows bank accounts only while buy/sell is enabled', async () => {
+    const enabled = renderScreen();
+    await waitFor(() => expect(enabled.getByTestId('settings-bank-accounts')).toBeTruthy());
+    fireEvent.press(enabled.getByTestId('settings-bank-accounts'));
+    expect(mockPush).toHaveBeenCalledWith('/(auth)/bank-accounts');
+    enabled.unmount();
+
+    mockFeatures.BUY_SELL = false;
+    const disabled = renderScreen();
+    await waitFor(() => expect(disabled.getByTestId('settings-user-data')).toBeTruthy());
+    expect(disabled.queryByTestId('settings-bank-accounts')).toBeNull();
   });
 
   it('cycles language, currency and appearance', async () => {
@@ -307,24 +345,25 @@ describe('SettingsScreenImpl', () => {
   });
 
   it('goes back when history exists and replaces the dashboard otherwise', async () => {
-    const { getByText, unmount } = renderScreen();
+    const { getByText, getByLabelText, unmount } = renderScreen();
     await waitFor(() => expect(getByText('settings.title')).toBeTruthy());
-    // The back button is the first pressable in the header (no testID).
-    fireEvent.press(getByText('arrow-left'));
+    // The back button is `GlassIconButton` / `AppHeader` now — it carries no
+    // visible icon text, so it's found by its accessibility label instead.
+    fireEvent.press(getByLabelText('Back'));
     expect(mockBack).toHaveBeenCalled();
     unmount();
 
     mockCanGoBack.mockReturnValue(false);
     const again = renderScreen();
     await waitFor(() => expect(again.getByText('settings.title')).toBeTruthy());
-    fireEvent.press(again.getByText('arrow-left'));
+    fireEvent.press(again.getByLabelText('Back'));
     expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard');
   });
 
-  it('renders the dark backdrop when the theme is dark', async () => {
+  it('renders the screen backdrop', async () => {
     useThemeStore.setState({ mode: 'dark' });
     const { getByTestId } = renderScreen();
-    await waitFor(() => expect(getByTestId('dark-backdrop')).toBeTruthy());
+    await waitFor(() => expect(getByTestId('screen-backdrop')).toBeTruthy());
   });
 
   it('cycles an unknown stored currency back onto the CHF/EUR/USD ring', async () => {

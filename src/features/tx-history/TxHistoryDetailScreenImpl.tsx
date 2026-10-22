@@ -1,34 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  ImageBackground,
-  Linking,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader, DarkBackdrop, Icon } from '@/components';
+import { AppHeader, GlassListGroup, GlassPill, Icon, ScreenBackdrop } from '@/components';
+import { getExplorerTxUrl } from '@/config/explorer';
 import { CHAIN_LABELS } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/features/dfx-backend/services';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
-
-const EXPLORER_BASE = new Map<string, string>([
-  ['ethereum', 'https://etherscan.io/tx/'],
-  ['arbitrum', 'https://arbiscan.io/tx/'],
-  ['polygon', 'https://polygonscan.com/tx/'],
-  ['base', 'https://basescan.org/tx/'],
-  ['plasma', 'https://explorer.plasma.to/tx/'],
-  ['sepolia', 'https://sepolia.etherscan.io/tx/'],
-]);
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 export default function TransactionDetailScreen() {
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const stateColors = useMemo(
     () =>
@@ -66,9 +48,10 @@ export default function TransactionDetailScreen() {
     };
   }, [id]);
 
-  const explorerBase =
-    network && typeof network === 'string' ? EXPLORER_BASE.get(network) : undefined;
-  const explorerUrl = explorerBase && tx?.txId ? `${explorerBase}${tx.txId}` : undefined;
+  const explorerUrl =
+    network && typeof network === 'string' && tx?.txId
+      ? getExplorerTxUrl(network, tx.txId)
+      : undefined;
 
   const body = (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -108,7 +91,7 @@ export default function TransactionDetailScreen() {
             </View>
           </View>
 
-          <View style={styles.detailCard}>
+          <GlassListGroup>
             {tx.counterparty ? (
               <DetailRow
                 label={counterpartyLabel(tx.type, t)}
@@ -146,18 +129,20 @@ export default function TransactionDetailScreen() {
                 styles={styles}
               />
             ) : null}
-          </View>
+          </GlassListGroup>
 
           {explorerUrl ? (
-            <Pressable
-              style={({ pressed }) => [styles.explorerButton, pressed && styles.explorerPressed]}
+            <GlassPill
               onPress={() => void Linking.openURL(explorerUrl)}
               testID="tx-explorer-button"
+              style={styles.explorerButton}
             >
-              <Icon name="document" size={18} color={colors.primary} />
-              <Text style={styles.explorerText}>{t('transactions.viewOnExplorer')}</Text>
-              <Icon name="chevron-right" size={18} color={colors.primary} />
-            </Pressable>
+              <View style={styles.explorerContent}>
+                <Icon name="document" size={18} color={colors.primary} />
+                <Text style={styles.explorerText}>{t('transactions.viewOnExplorer')}</Text>
+                <Icon name="chevron-right" size={18} color={colors.primary} />
+              </View>
+            </GlassPill>
           ) : null}
         </ScrollView>
       )}
@@ -168,15 +153,7 @@ export default function TransactionDetailScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>
@@ -186,7 +163,7 @@ export default function TransactionDetailScreen() {
 function DetailRow({
   label,
   value,
-  isLast,
+  isLast = false,
   styles,
 }: {
   label: string;
@@ -195,12 +172,12 @@ function DetailRow({
   styles: ReturnType<typeof makeStyles>;
 }) {
   return (
-    <View style={[styles.detailRow, !isLast && styles.detailRowDivider]}>
+    <GlassListGroup.Row last={isLast} style={styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
       <Text style={styles.detailValue} selectable>
         {value}
       </Text>
-    </View>
+    </GlassListGroup.Row>
   );
 }
 
@@ -285,16 +262,6 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '500',
       marginTop: 2,
     },
-    detailCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      overflow: 'hidden',
-      shadowColor: colors.shadow,
-      shadowOpacity: 0.04,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 3 },
-      elevation: 1,
-    },
     detailRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -302,10 +269,6 @@ const makeStyles = (colors: ThemeColors) =>
       paddingVertical: 14,
       paddingHorizontal: 16,
       gap: 12,
-    },
-    detailRowDivider: {
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
     },
     detailLabel: {
       ...Typography.bodyMedium,
@@ -319,20 +282,12 @@ const makeStyles = (colors: ThemeColors) =>
       flexShrink: 1,
     },
     explorerButton: {
+      alignSelf: 'center',
+    },
+    explorerContent: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
       gap: 10,
-      paddingVertical: 14,
-      backgroundColor: colors.surface,
-      borderRadius: 999,
-      shadowColor: colors.shadow,
-      shadowOpacity: 0.05,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 2 },
-    },
-    explorerPressed: {
-      opacity: 0.7,
     },
     explorerText: {
       ...Typography.bodyLarge,

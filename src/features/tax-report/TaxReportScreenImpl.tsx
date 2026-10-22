@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Directory, File, Paths } from 'expo-file-system';
-import { AppHeader, PrimaryButton, ScreenContainer } from '@/components';
+import { AppHeader, GlassListGroup, GlassPill, PrimaryButton, ScreenContainer } from '@/components';
 import {
   decodeDfxJwt,
   dfxTransactionService,
@@ -121,28 +121,29 @@ export default function TaxReportScreen() {
           {yearOptions.map((y) => {
             const active = y === year;
             return (
-              <Pressable
+              <GlassPill
                 key={y}
-                style={[styles.chip, active && styles.chipActive]}
+                selected={active}
                 onPress={() => setYear(y)}
                 testID={`tax-report-year-${y}`}
+                style={styles.chip}
               >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{y}</Text>
-              </Pressable>
+                {String(y)}
+              </GlassPill>
             );
           })}
         </View>
 
         <Text style={styles.sectionLabel}>{t('taxReport.formatLabel')}</Text>
-        <View style={styles.formatList}>
+        <GlassListGroup>
           {REPORT_TYPES.map((entry) => {
             const active = entry.kind === reportType;
             return (
-              <Pressable
+              <GlassListGroup.Row
                 key={entry.kind}
-                style={[styles.formatRow, active && styles.formatRowActive]}
                 onPress={() => setReportType(entry.kind)}
                 testID={`tax-report-type-${entry.kind}`}
+                style={styles.formatRow}
               >
                 <View style={[styles.radio, active && styles.radioActive]}>
                   {active ? <View style={styles.radioDot} /> : null}
@@ -151,10 +152,10 @@ export default function TaxReportScreen() {
                   <Text style={styles.formatTitle}>{t(entry.titleKey)}</Text>
                   <Text style={styles.formatDesc}>{t(entry.bodyKey)}</Text>
                 </View>
-              </Pressable>
+              </GlassListGroup.Row>
             );
           })}
-        </View>
+        </GlassListGroup>
 
         <PrimaryButton
           title={t('taxReport.cta')}
@@ -199,40 +200,12 @@ const makeStyles = (colors: ThemeColors) =>
     },
     chip: {
       flex: 1,
-      backgroundColor: colors.surface,
-      paddingVertical: 12,
-      borderRadius: 12,
-      alignItems: 'center',
-      borderWidth: 1.5,
-      borderColor: 'transparent',
-    },
-    chipActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
-    },
-    chipText: {
-      ...Typography.bodyMedium,
-      color: colors.textSecondary,
-      fontWeight: '600',
-    },
-    chipTextActive: {
-      color: colors.primary,
-    },
-    formatList: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      overflow: 'hidden',
     },
     formatRow: {
       flexDirection: 'row',
       alignItems: 'flex-start',
       padding: 14,
       gap: 12,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-    formatRowActive: {
-      backgroundColor: colors.primaryLight,
     },
     radio: {
       width: 20,

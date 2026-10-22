@@ -63,6 +63,7 @@ module.exports = {
       transform: sharedTransform,
       setupFiles: ['<rootDir>/test/setup-globals.ts'],
       testMatch: [
+        '<rootDir>/test/features/**/*.test.ts',
         '<rootDir>/test/services/**/*.test.ts',
         '<rootDir>/test/store/**/*.test.ts',
         '<rootDir>/test/theme/**/*.test.ts',
