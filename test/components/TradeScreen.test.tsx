@@ -1,12 +1,13 @@
 // TradeScreen is the container that holds `mode` state and renders one
 // `TradeScreenShell` + `TradeModeTabs` + exactly one adapter (Buy/Sell/
-// Swap) — see AUFTRAG "Soll (Option A)". These tests cover what only the
-// assembled container can prove: tab switches are pure state (no
-// navigation), the inactive adapter is unmounted, the shell stays the same
-// instance across a switch, and a deep-link's target-wallet params never
-// leak into a mode the screen didn't start on.
+// Swap). These tests cover what only the assembled container can prove:
+// tab switches are pure state (no navigation), the inactive adapter is
+// unmounted, the shell stays the same instance across a switch, and
+// non-empty deep-link params stay on Buy and Sell across tab switches
+// (including a Swap detour). A prefilled target wallet is still confirmed
+// via that mode's banner and the confirm modal.
 import React from 'react';
-import { act, fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render, within } from '@testing-library/react-native';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -237,9 +238,13 @@ jest.mock('../../src/features/buy-sell/useBuyFlow', () => ({
   useBuyFlow: () => mockUseBuyFlow(),
 }));
 
+const sellFlowState = {
+  paymentInfo: null as Record<string, unknown> | null,
+  quoteKey: null as string | null,
+};
 const mockUseSellFlow = jest.fn(() => ({
-  paymentInfo: null,
-  quoteKey: null,
+  paymentInfo: sellFlowState.paymentInfo,
+  quoteKey: sellFlowState.quoteKey,
   errorKey: null,
   actionErrorKey: null,
   isLoading: false,
@@ -267,6 +272,8 @@ beforeEach(() => {
   mockBuyCreatePaymentInfo.mockReset();
   buyFlowState.paymentInfo = null;
   buyFlowState.quoteKey = null;
+  sellFlowState.paymentInfo = null;
+  sellFlowState.quoteKey = null;
 });
 
 describe('TradeScreen', () => {
@@ -317,8 +324,13 @@ describe('TradeScreen', () => {
     expect(mockUseBuyFlow).not.toHaveBeenCalled();
   });
 
-  it('does not leak a deep-linked target wallet into a mode switched to from Sell', () => {
-    const { getByTestId, queryByTestId } = render(
+  it('keeps a deep-linked target wallet when switching from Sell to Buy', () => {
+    // Buy's CTA stays disabled until the quote key matches the typed amount
+    // on the default selection (BTC / Bitcoin / bitcoin, currency CHF). A
+    // disabled press never opens the confirm modal.
+    buyFlowState.paymentInfo = PAYMENT_INFO;
+    buyFlowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
+    const { getByTestId } = render(
       <TradeScreen
         initialMode="sell"
         targetAddress="0x1234567890123456789012345678901234567890"
@@ -329,20 +341,40 @@ describe('TradeScreen', () => {
 
     fireEvent.press(getByTestId('trade-tab-buy'));
 
-    expect(queryByTestId('buy-target-wallet-banner')).toBeNull();
+    expect(getByTestId('buy-target-wallet-banner')).toBeTruthy();
     fireEvent.changeText(getByTestId('buy-amount-input'), '100');
     fireEvent.press(getByTestId('buy-cta'));
-    expect(queryByTestId('confirm-target-wallet-modal')).toBeNull();
+    expect(getByTestId('confirm-target-wallet-modal')).toBeTruthy();
   });
 
-  // Mirror of the test above: the leaked-params guard is a per-adapter
-  // check (`initialMode === '<mode>' ? initialModeProps : {}`), one branch
-  // per adapter — this one only exercises the Sell branch. Without it, a
-  // mutation that drops the Sell branch's own `initialMode === 'sell'`
-  // check (e.g. always spreading `initialModeProps` onto `SellTradeAdapter`)
-  // stays green, because every other params-leak test here starts on Sell
-  // or Buy, never *switches into* Sell from a different `initialMode`.
-  it('does not leak a deep-linked target wallet into a mode switched to from Buy', () => {
+  // Sell is a separate `{...routeParams}` spread. This test is the one that
+  // goes red if that spread is put back behind `initialMode === 'sell'`.
+  // `asset`/`chain` are here because Sell's amount field is not editable
+  // until an asset is selected, so the CTA path cannot run without them.
+  // The quote key is the selection those params produce (BTC on bitcoin).
+  it('keeps a deep-linked target wallet when switching from Buy to Sell', () => {
+    sellFlowState.paymentInfo = PAYMENT_INFO;
+    sellFlowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
+    const { getByTestId } = render(
+      <TradeScreen
+        initialMode="buy"
+        asset="BTC"
+        chain="bitcoin"
+        targetAddress="0x1234567890123456789012345678901234567890"
+        targetBlockchain="Ethereum"
+      />,
+    );
+    expect(getByTestId('buy-target-wallet-banner')).toBeTruthy();
+
+    fireEvent.press(getByTestId('trade-tab-sell'));
+
+    expect(getByTestId('sell-target-wallet-banner')).toBeTruthy();
+    fireEvent.changeText(getByTestId('sell-amount-input'), '100');
+    fireEvent.press(getByTestId('sell-cta'));
+    expect(getByTestId('confirm-target-wallet-modal')).toBeTruthy();
+  });
+
+  it('keeps a deep-linked target wallet across Buy → Swap → Sell', () => {
     const { getByTestId, queryByTestId } = render(
       <TradeScreen
         initialMode="buy"
@@ -352,12 +384,36 @@ describe('TradeScreen', () => {
     );
     expect(getByTestId('buy-target-wallet-banner')).toBeTruthy();
 
+    fireEvent.press(getByTestId('trade-tab-swap'));
+    expect(getByTestId('swap-cta')).toBeTruthy();
+    expect(queryByTestId('buy-target-wallet-banner')).toBeNull();
+    expect(queryByTestId('sell-target-wallet-banner')).toBeNull();
+
     fireEvent.press(getByTestId('trade-tab-sell'));
 
+    expect(getByTestId('sell-target-wallet-banner')).toBeTruthy();
+  });
+
+  it('drops an empty target address and keeps a deep-linked asset after a tab switch', () => {
+    const { getByTestId, queryByTestId } = render(
+      <TradeScreen
+        initialMode="sell"
+        asset="EUR"
+        chain="polygon"
+        targetAddress=""
+        targetBlockchain="Ethereum"
+      />,
+    );
     expect(queryByTestId('sell-target-wallet-banner')).toBeNull();
-    fireEvent.changeText(getByTestId('sell-amount-input'), '1');
-    fireEvent.press(getByTestId('sell-cta'));
-    expect(queryByTestId('confirm-target-wallet-modal')).toBeNull();
+
+    fireEvent.press(getByTestId('trade-tab-buy'));
+
+    expect(queryByTestId('buy-target-wallet-banner')).toBeNull();
+    const pill = getByTestId('buy-receive-asset-pill');
+    // Token symbol and chain label are what BuyTradeAdapter renders for
+    // `asset="EUR"` + `chain="polygon"` (catalog: dEURO on Polygon).
+    expect(within(pill).getByText('dEURO')).toBeTruthy();
+    expect(within(pill).getByText('Polygon')).toBeTruthy();
   });
 
   it('shows the target-wallet banner when the screen opens directly in that mode', () => {
