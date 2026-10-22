@@ -168,6 +168,7 @@ describe('Visual Regression (full variant)', () => {
       await waitFor(element(by.id('trade-tab-swap')))
         .toBeVisible()
         .withTimeout(60_000);
+      await pause();
       await element(by.id('trade-tab-swap')).tap();
       await waitFor(element(by.id('swap-header')))
         .toBeVisible()
@@ -177,7 +178,7 @@ describe('Visual Regression (full variant)', () => {
       await expect(element(by.id('swap-amount-panels'))).toBeVisible();
       await expect(element(by.id('swap-fees-panel'))).toBeVisible();
       await element(by.id('swap-header-back')).tap();
-      await waitFor(element(by.id('receive-asset-list')))
+      await waitFor(element(by.id('receive-screen')))
         .toBeVisible()
         .withTimeout(60_000);
       await element(by.id('receive-screen-back')).tap();
@@ -235,7 +236,6 @@ describe('Visual Regression (full variant)', () => {
             .toBeVisible()
             .withTimeout(60_000),
         )
-        .then(() => element(by.text('BTC')).tap())
         .then(() =>
           waitFor(element(by.id('buy-amount-input')))
             .toBeVisible()
