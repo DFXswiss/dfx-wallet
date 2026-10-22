@@ -3,8 +3,16 @@ import { StyleSheet } from 'react-native';
 import { TRADE_STEP_GAP } from '../../src/features/buy-sell/tradePanelStyles';
 import { SwapTradeAdapter } from '../../src/features/buy-sell/SwapTradeAdapter';
 
+const mockBack = jest.fn();
+const mockCanGoBack = jest.fn();
+const mockReplace = jest.fn();
+
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ back: jest.fn() }),
+  useRouter: () => ({
+    back: mockBack,
+    canGoBack: mockCanGoBack,
+    replace: mockReplace,
+  }),
 }));
 
 jest.mock('react-i18next', () => ({
@@ -20,20 +28,10 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@/theme', () => {
-  const actual = jest.requireActual('@/theme');
+  const actual = jest.requireActual<typeof import('@/theme')>('@/theme');
   return {
     ...actual,
-    useColors: () => ({
-      background: '#ffffff',
-      border: '#dddddd',
-      borderLight: '#eeeeee',
-      cardOverlay: '#ffffff',
-      primary: '#0066ff',
-      primaryLight: '#e6f0ff',
-      surface: '#ffffff',
-      text: '#111111',
-      textTertiary: '#777777',
-    }),
+    useColors: () => actual.lightColors,
     useResolvedScheme: () => 'light',
   };
 });
@@ -50,10 +48,20 @@ jest.mock('../../src/components/Icon', () => {
 const mockOnShellChange = jest.fn();
 
 beforeEach(() => {
+  mockBack.mockReset();
+  mockCanGoBack.mockReset();
+  mockReplace.mockReset();
   mockOnShellChange.mockReset();
 });
 
 describe('SwapTradeAdapter', () => {
+  const invokeReportedBack = () => {
+    const calls = mockOnShellChange.mock.calls;
+    const shell = calls[calls.length - 1]?.[0] as { onBack: () => void } | undefined;
+    expect(shell).toEqual(expect.objectContaining({ headerTestID: 'swap-header' }));
+    shell?.onBack();
+  };
+
   it('renders the swap placeholder content, disabled CTA, and reports its shell chrome', () => {
     const { getByTestId, getAllByText } = render(
       <SwapTradeAdapter onShellChange={mockOnShellChange} />,
@@ -83,23 +91,22 @@ describe('SwapTradeAdapter', () => {
     );
   });
 
-  it('navigates back from the header when navigation history exists', () => {
+  it('pops history from the reported back action when the stack is not empty', () => {
     mockCanGoBack.mockReturnValue(true);
-    const { getByTestId } = render(<SwapScreenImpl />);
+    render(<SwapTradeAdapter onShellChange={mockOnShellChange} />);
 
-    expect(getByTestId('swap-screen-header')).toBeTruthy();
-    fireEvent.press(getByTestId('swap-screen-header-back'));
+    invokeReportedBack();
 
     expect(mockCanGoBack).toHaveBeenCalledTimes(1);
     expect(mockBack).toHaveBeenCalledTimes(1);
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
-  it('returns to the dashboard from the header when navigation history is empty', () => {
+  it('replaces to the dashboard from the reported back action when the stack is empty', () => {
     mockCanGoBack.mockReturnValue(false);
-    const { getByTestId } = render(<SwapScreenImpl />);
+    render(<SwapTradeAdapter onShellChange={mockOnShellChange} />);
 
-    fireEvent.press(getByTestId('swap-screen-header-back'));
+    invokeReportedBack();
 
     expect(mockCanGoBack).toHaveBeenCalledTimes(1);
     expect(mockBack).not.toHaveBeenCalled();

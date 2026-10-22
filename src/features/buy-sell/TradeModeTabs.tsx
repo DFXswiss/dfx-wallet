@@ -16,20 +16,9 @@ const tradeModes = [
   { key: 'swap', label: 'swap.title' },
 ] as const;
 
-export default function TradeModeTabs({ active, onChange }: TradeModeTabsProps) {
+export function TradeModeTabs({ active, onChange }: TradeModeTabsProps) {
   const { t } = useTranslation();
   const colors = useColors();
-
-  const assetParam = keepNonEmptyString(asset);
-  const chainParam = keepNonEmptyString(chain);
-  const targetAddressParam = keepNonEmptyString(targetAddress);
-  const targetBlockchainParam = keepNonEmptyString(targetBlockchain);
-  const params = {
-    ...(assetParam === undefined ? {} : { asset: assetParam }),
-    ...(chainParam === undefined ? {} : { chain: chainParam }),
-    ...(targetAddressParam === undefined ? {} : { targetAddress: targetAddressParam }),
-    ...(targetBlockchainParam === undefined ? {} : { targetBlockchain: targetBlockchainParam }),
-  };
 
   return (
     <View
@@ -56,7 +45,7 @@ export default function TradeModeTabs({ active, onChange }: TradeModeTabsProps) 
                 onChange(mode.key);
               }
             }}
-            style={[styles.tab, { backgroundColor: selected ? colors.card : 'transparent' }]}
+            style={[styles.tab, { backgroundColor: selected ? colors.card : colors.transparent }]}
             testID={`trade-tab-${mode.key}`}
           >
             <Text style={[styles.label, { color: selected ? colors.text : colors.textTertiary }]}>
