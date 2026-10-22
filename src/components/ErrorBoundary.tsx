@@ -1,9 +1,15 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import i18next from 'i18next';
 import { DfxColors, Typography } from '@/theme';
 
 type Props = { children: ReactNode };
 type State = { hasError: boolean; error: Error | null };
+
+function translate(key: string) {
+  // eslint-disable-next-line import/no-named-as-default-member -- non-React code must use the initialized default i18next instance
+  return i18next.t(key);
+}
 
 export class ErrorBoundary extends Component<Props, State> {
   override state: State = { hasError: false, error: null };
@@ -24,10 +30,10 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <View style={styles.container}>
-          <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.message}>{this.state.error?.message ?? 'Unknown error'}</Text>
+          <Text style={styles.title}>{translate('errorBoundary.title')}</Text>
+          <Text style={styles.message}>{translate('errorBoundary.message')}</Text>
           <Pressable style={styles.button} onPress={this.handleReset}>
-            <Text style={styles.buttonText}>Try Again</Text>
+            <Text style={styles.buttonText}>{translate('common.retry')}</Text>
           </Pressable>
         </View>
       );

@@ -90,7 +90,9 @@ jest.mock('@/components', () => {
 // eslint-disable-next-line import/first
 import SettingsScreenImpl from '../../src/features/settings/SettingsScreenImpl';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { __i18n } = require('react-i18next') as { __i18n: { language: string; changeLanguage: jest.Mock } };
+const { __i18n } = require('react-i18next') as {
+  __i18n: { language: string; changeLanguage: jest.Mock };
+};
 
 function renderScreen() {
   return render(
@@ -103,6 +105,14 @@ function renderScreen() {
 function pressConfirm(alertSpy: jest.SpyInstance) {
   const buttons = alertSpy.mock.calls[0]![2] as { onPress?: () => void | Promise<void> }[];
   return buttons.find((b) => b.onPress)?.onPress?.();
+}
+
+function createDeferred() {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }
 
 describe('SettingsScreenImpl', () => {
@@ -123,6 +133,7 @@ describe('SettingsScreenImpl', () => {
     (dfxUserService.updateUser as jest.Mock).mockResolvedValue(undefined);
     (secureStorage.get as jest.Mock).mockReset();
     (secureStorage.get as jest.Mock).mockResolvedValue(null);
+    (secureStorage.set as jest.Mock).mockReset();
     (secureStorage.set as jest.Mock).mockResolvedValue(undefined);
     deleteWallet.mockReset();
     deleteWallet.mockResolvedValue(undefined);
@@ -175,7 +186,8 @@ describe('SettingsScreenImpl', () => {
     await waitFor(() => expect(getByTestId('settings-language')).toBeTruthy());
 
     fireEvent.press(getByTestId('settings-language'));
-    expect(__i18n.changeLanguage).toHaveBeenCalledWith('de');
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('de'));
+    expect(secureStorage.set).toHaveBeenCalledWith(StorageKeys.SELECTED_LANGUAGE, 'de');
 
     fireEvent.press(getByTestId('settings-currencies'));
     expect(useWalletStore.getState().selectedCurrency).toBe('EUR');
@@ -200,6 +212,123 @@ describe('SettingsScreenImpl', () => {
     await waitFor(() => expect(dfxUserService.updateUser).toHaveBeenCalled());
   });
 
+  it('syncs the language to DFX only after the local language change succeeds', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    let resolveLanguageChange: () => void = () => undefined;
+    __i18n.changeLanguage.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveLanguageChange = resolve;
+      }),
+    );
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-language'));
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('de'));
+    expect(secureStorage.set).not.toHaveBeenCalled();
+    expect(dfxUserService.updateUser).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveLanguageChange();
+    });
+    await waitFor(() =>
+      expect(secureStorage.set).toHaveBeenCalledWith(StorageKeys.SELECTED_LANGUAGE, 'de'),
+    );
+    await waitFor(() =>
+      expect(dfxUserService.updateUser).toHaveBeenCalledWith({ language: { symbol: 'DE' } }),
+    );
+  });
+
+  it('syncs only the latest language after rapid toggles', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    const firstPersist = createDeferred();
+    const secondPersist = createDeferred();
+    (secureStorage.set as jest.Mock)
+      .mockImplementationOnce(() => firstPersist.promise)
+      .mockImplementationOnce(() => secondPersist.promise);
+    __i18n.changeLanguage.mockImplementation(async (language: string) => {
+      __i18n.language = language;
+    });
+    const screen = renderScreen();
+    await waitFor(() => expect(screen.getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('settings-language'));
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('de'));
+    await waitFor(() => expect(secureStorage.set).toHaveBeenCalledTimes(1));
+
+    screen.rerender(
+      <ThemeProvider>
+        <SettingsScreenImpl />
+      </ThemeProvider>,
+    );
+    fireEvent.press(screen.getByTestId('settings-language'));
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('en'));
+
+    secondPersist.resolve();
+    await act(async () => {
+      firstPersist.resolve();
+    });
+
+    await waitFor(() => expect(secureStorage.set).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(dfxUserService.updateUser).toHaveBeenCalledTimes(1));
+    expect(dfxUserService.updateUser).toHaveBeenCalledWith({ language: { symbol: 'EN' } });
+  });
+
+  it('serializes currency syncs and skips superseded selections', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    const firstSync = createDeferred();
+    const latestSync = createDeferred();
+    (dfxUserService.updateUser as jest.Mock)
+      .mockImplementationOnce(() => firstSync.promise)
+      .mockImplementationOnce(() => latestSync.promise);
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-currencies')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-currencies'));
+    await waitFor(() =>
+      expect(dfxUserService.updateUser).toHaveBeenCalledWith({ currency: { name: 'EUR' } }),
+    );
+
+    fireEvent.press(getByTestId('settings-currencies'));
+    fireEvent.press(getByTestId('settings-currencies'));
+    expect(useWalletStore.getState().selectedCurrency).toBe('CHF');
+    expect(dfxUserService.updateUser).toHaveBeenCalledTimes(1);
+
+    latestSync.resolve();
+    await act(async () => {
+      firstSync.resolve();
+    });
+
+    await waitFor(() => expect(dfxUserService.updateUser).toHaveBeenCalledTimes(2));
+    expect(dfxUserService.updateUser).toHaveBeenLastCalledWith({ currency: { name: 'CHF' } });
+  });
+
+  it('does not sync the language to DFX when the local language change fails', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    __i18n.changeLanguage.mockRejectedValueOnce(new Error('language unavailable'));
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-language'));
+
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('de'));
+    expect(secureStorage.set).not.toHaveBeenCalled();
+    expect(dfxUserService.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('does not sync the language to DFX when persistence fails', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    (secureStorage.set as jest.Mock).mockRejectedValueOnce(new Error('storage unavailable'));
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-language'));
+
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('de'));
+    await waitFor(() => expect(secureStorage.set).toHaveBeenCalled());
+    expect(dfxUserService.updateUser).not.toHaveBeenCalled();
+  });
+
   it('does not call DFX when flipping language/currency while logged out', async () => {
     useAuthStore.setState({ isDfxAuthenticated: false });
     const { getByTestId } = renderScreen();
@@ -214,7 +343,7 @@ describe('SettingsScreenImpl', () => {
     const { getByTestId } = renderScreen();
     await waitFor(() => expect(getByTestId('settings-language')).toBeTruthy());
     fireEvent.press(getByTestId('settings-language'));
-    expect(__i18n.changeLanguage).toHaveBeenCalledWith('en');
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('en'));
   });
 
   it('alerts and still persists when enabling biometrics without hardware', async () => {

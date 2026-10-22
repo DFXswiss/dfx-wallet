@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ChainId } from '@/config/chains';
 import { dfxPaymentService, interpretDfxAuthError } from '@/features/dfx-backend/services';
 import type { DfxAuthGateState } from '@/features/dfx-backend/services';
+import { DfxApiTimeoutError } from '@/features/dfx-backend/services/api';
 import type { BuyPaymentInfoDto } from '@/features/dfx-backend/services/dto';
 
 type QuoteParams = {
@@ -15,6 +17,7 @@ type QuoteParams = {
    */
   chain: ChainId;
 };
+type RetryAction = { kind: 'quote' | 'paymentInfo'; params: QuoteParams };
 
 /**
  * Discriminated quote status. `BuyState.status` lets the screen `switch`
@@ -73,15 +76,16 @@ function deriveStatus(s: Omit<BuyState, 'status'>): BuyStatus {
  * CancelableOperation pattern.
  */
 export function useBuyFlow() {
+  const { t } = useTranslation();
   const [state, setState] = useState<BuyState>(INITIAL_STATE);
 
   const setBuyState = (next: Omit<BuyState, 'status'>) => {
     setState({ ...next, status: deriveStatus(next) });
   };
 
-  // Remember the last attempted call so we can replay it after the user
-  // clears the auth gate via the sign-in modal.
-  const lastAction = useRef<{ kind: 'quote' | 'paymentInfo'; params: QuoteParams } | null>(null);
+  // Remember only the call that caused an auth gate so focus changes cannot
+  // replay successful or ordinary failed payment requests.
+  const lastAction = useRef<RetryAction | null>(null);
   // Track the most recent in-flight quote so a newer request supersedes
   // older ones — older responses are dropped instead of clobbering the
   // newer state.
@@ -96,106 +100,128 @@ export function useBuyFlow() {
     };
   }, []);
 
-  const handleError = (err: unknown, fallback: string) => {
-    // AbortError is expected when a newer quote supersedes an older one;
-    // do not flip the screen into an error state for it.
-    if (err instanceof Error && err.name === 'AbortError') return;
-    const gate = interpretDfxAuthError(err);
-    if (gate) {
-      // Attach the WDK chain id of the last attempted call so the linkChain
-      // gate can sign with the right wallet.
-      const enriched: DfxAuthGateState =
-        gate.kind === 'linkChain' && lastAction.current
-          ? { ...gate, chain: lastAction.current.params.chain }
-          : gate;
+  const handleError = useCallback(
+    (err: unknown, fallback: string, action?: RetryAction) => {
+      // AbortError is expected when a newer quote supersedes an older one;
+      // do not flip the screen into an error state for it.
+      if (err instanceof Error && err.name === 'AbortError') return;
+      const gate = interpretDfxAuthError(err);
+      if (gate) {
+        lastAction.current = action ?? null;
+        // Attach the WDK chain id of the last attempted call so the linkChain
+        // gate can sign with the right wallet.
+        const enriched: DfxAuthGateState =
+          gate.kind === 'linkChain' && action ? { ...gate, chain: action.params.chain } : gate;
+        setState((s) => ({
+          ...s,
+          isLoading: false,
+          authGate: enriched,
+          error: null,
+          status: 'authGate',
+        }));
+        return;
+      }
+      lastAction.current = null;
+      const msg =
+        err instanceof DfxApiTimeoutError
+          ? t('common.requestTimeout')
+          : err instanceof Error
+            ? err.message
+            : fallback;
+      setState((s) => ({ ...s, isLoading: false, error: msg, status: 'error' }));
+    },
+    [t],
+  );
+
+  const getQuote = useCallback(
+    async (params: QuoteParams) => {
+      const action: RetryAction = { kind: 'quote', params };
+      lastAction.current = null;
+
+      // Cancel any predecessor and start a fresh window.
+      quoteAbortRef.current?.abort();
+      const controller = new AbortController();
+      quoteAbortRef.current = controller;
+
       setState((s) => ({
         ...s,
-        isLoading: false,
-        authGate: enriched,
-        error: null,
-        status: 'authGate',
-      }));
-      return;
-    }
-    const msg = err instanceof Error ? err.message : fallback;
-    setState((s) => ({ ...s, isLoading: false, error: msg, status: 'error' }));
-  };
-
-  const getQuote = useCallback(async (params: QuoteParams) => {
-    lastAction.current = { kind: 'quote', params };
-
-    // Cancel any predecessor and start a fresh window.
-    quoteAbortRef.current?.abort();
-    const controller = new AbortController();
-    quoteAbortRef.current = controller;
-
-    setState((s) => ({
-      ...s,
-      isLoading: true,
-      error: null,
-      authGate: null,
-      status: s.paymentInfo ? 'loading' : 'loading',
-    }));
-    try {
-      const info = await dfxPaymentService.getBuyQuote(params, { signal: controller.signal });
-      // If we were superseded between the await and now, the abort signal
-      // would already have triggered — but double-check via ref identity.
-      if (quoteAbortRef.current !== controller) return null;
-      // Normalise: DFX' BuyQuoteDto returns `errors` as an array; older
-      // responses use a singular `error`. Collapse to one field for the
-      // screen.
-      const firstError = info.errors && info.errors.length > 0 ? info.errors[0] : undefined;
-      const normalised = info.error || !firstError ? info : { ...info, error: firstError };
-      setBuyState({
-        isLoading: false,
-        paymentInfo: normalised,
+        isLoading: true,
         error: null,
         authGate: null,
-      });
-      return normalised;
-    } catch (err) {
-      if (quoteAbortRef.current !== controller) return null;
-      handleError(err, 'Quote failed');
-      return null;
-    }
-  }, []);
-
-  const createPaymentInfo = useCallback(async (params: QuoteParams) => {
-    lastAction.current = { kind: 'paymentInfo', params };
-    // /paymentInfos commits the order — we do NOT want a previous quote
-    // race to cancel it. Use its own controller, scoped just to this call.
-    const controller = new AbortController();
-    setState((s) => ({ ...s, isLoading: true, error: null, authGate: null, status: 'loading' }));
-    try {
-      const info = await dfxPaymentService.createBuyPaymentInfo(params, {
-        signal: controller.signal,
-      });
-      setBuyState({ isLoading: false, paymentInfo: info, error: null, authGate: null });
-      return info;
-    } catch (err) {
-      handleError(err, 'Failed to create payment info');
-      return null;
-    }
-  }, []);
-
-  const confirmPayment = useCallback(async (id: number) => {
-    setState((s) => ({ ...s, isLoading: true, error: null, authGate: null, status: 'loading' }));
-    try {
-      await dfxPaymentService.confirmBuy(id);
-      setState((s) => ({
-        ...s,
-        isLoading: false,
-        status: deriveStatus({ ...s, isLoading: false }),
+        status: s.paymentInfo ? 'loading' : 'loading',
       }));
-      return true;
-    } catch (err) {
-      handleError(err, 'Confirmation failed');
-      return false;
-    }
-  }, []);
+      try {
+        const info = await dfxPaymentService.getBuyQuote(params, { signal: controller.signal });
+        // If we were superseded between the await and now, the abort signal
+        // would already have triggered — but double-check via ref identity.
+        if (quoteAbortRef.current !== controller) return null;
+        // Normalise: DFX' BuyQuoteDto returns `errors` as an array; older
+        // responses use a singular `error`. Collapse to one field for the
+        // screen.
+        const firstError = info.errors && info.errors.length > 0 ? info.errors[0] : undefined;
+        const normalised = info.error || !firstError ? info : { ...info, error: firstError };
+        lastAction.current = null;
+        setBuyState({
+          isLoading: false,
+          paymentInfo: normalised,
+          error: null,
+          authGate: null,
+        });
+        return normalised;
+      } catch (err) {
+        if (quoteAbortRef.current !== controller) return null;
+        handleError(err, 'Quote failed', action);
+        return null;
+      }
+    },
+    [handleError],
+  );
 
-  const dismissAuthGate = useCallback(() => {
+  const createPaymentInfo = useCallback(
+    async (params: QuoteParams) => {
+      const action: RetryAction = { kind: 'paymentInfo', params };
+      lastAction.current = null;
+      // /paymentInfos commits the order — we do NOT want a previous quote
+      // race to cancel it. Use its own controller, scoped just to this call.
+      const controller = new AbortController();
+      setState((s) => ({ ...s, isLoading: true, error: null, authGate: null, status: 'loading' }));
+      try {
+        const info = await dfxPaymentService.createBuyPaymentInfo(params, {
+          signal: controller.signal,
+        });
+        lastAction.current = null;
+        setBuyState({ isLoading: false, paymentInfo: info, error: null, authGate: null });
+        return info;
+      } catch (err) {
+        handleError(err, 'Failed to create payment info', action);
+        return null;
+      }
+    },
+    [handleError],
+  );
+
+  const confirmPayment = useCallback(
+    async (id: number) => {
+      setState((s) => ({ ...s, isLoading: true, error: null, authGate: null, status: 'loading' }));
+      try {
+        await dfxPaymentService.confirmBuy(id);
+        setState((s) => ({
+          ...s,
+          isLoading: false,
+          status: deriveStatus({ ...s, isLoading: false }),
+        }));
+        return true;
+      } catch (err) {
+        handleError(err, 'Confirmation failed');
+        return false;
+      }
+    },
+    [handleError],
+  );
+
+  const dismissAuthGate = useCallback((gate?: DfxAuthGateState) => {
     setState((s) => {
+      if (gate !== undefined && s.authGate !== gate) return s;
       const next = { ...s, authGate: null };
       return { ...next, status: deriveStatus(next) };
     });
@@ -208,12 +234,11 @@ export function useBuyFlow() {
    */
   const retryLast = useCallback(async () => {
     const last = lastAction.current;
-    if (!last) return;
+    if (!last) return null;
     if (last.kind === 'quote') {
-      await getQuote(last.params);
-    } else {
-      await createPaymentInfo(last.params);
+      return { kind: 'quote' as const, info: await getQuote(last.params) };
     }
+    return { kind: 'paymentInfo' as const, info: await createPaymentInfo(last.params) };
   }, [getQuote, createPaymentInfo]);
 
   const reset = useCallback(() => {

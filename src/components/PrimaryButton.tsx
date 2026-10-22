@@ -39,7 +39,7 @@ export function PrimaryButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isFilled ? colors.white : colors.primary} />
+        <ActivityIndicator color={isFilled ? colors.onPrimary : colors.primary} />
       ) : (
         <View style={styles.content}>
           <Text style={[styles.text, !isFilled && styles.outlinedText]}>{title}</Text>
@@ -87,7 +87,7 @@ const makeStyles = (colors: ThemeColors) =>
     text: {
       ...Typography.bodyLarge,
       fontWeight: '600',
-      color: colors.white,
+      color: colors.onPrimary,
     },
     outlinedText: {
       color: colors.primary,

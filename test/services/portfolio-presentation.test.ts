@@ -4,6 +4,9 @@ import {
   formatCryptoAmount,
   formatFiat,
   formatNumber,
+  hasExcessPrecision,
+  isFiatPriceAvailable,
+  normalizeDecimalAmount,
   parseUnits,
   resolveFiatCurrency,
   toNumeric,
@@ -65,7 +68,43 @@ describe('toNumeric', () => {
   });
 });
 
+describe('normalizeDecimalAmount', () => {
+  it.each([
+    ['100,50', '100.50'],
+    ['1,5', '1.5'],
+    ['0,001', '0.001'],
+    ['42', '42'],
+    ['100.50', '100.50'],
+  ])('normalizes %s to %s', (input, expected) => {
+    expect(normalizeDecimalAmount(input)).toBe(expected);
+  });
+
+  it.each([
+    '',
+    '1,000.50',
+    '1.2.3',
+    '1,,5',
+    'abc',
+    '-1',
+    '.5',
+    '1.',
+    ',5',
+    '1,',
+    '1.5,',
+    ' 1',
+    '1 ',
+  ])('rejects malformed amount %s', (input) => {
+    expect(normalizeDecimalAmount(input)).toBeNull();
+  });
+});
+
 describe('parseUnits', () => {
+  it('accepts a comma decimal separator without accepting thousands separators', () => {
+    expect(parseUnits('1,25', 6)).toBe('1250000');
+    expect(parseUnits(',5', 8)).toBe('50000000');
+    expect(parseUnits('1,234,56', 6)).toBe('0');
+    expect(parseUnits('1.234,56', 6)).toBe('0');
+  });
   it('scales a whole-number amount to base units', () => {
     expect(parseUnits('1', 6)).toBe('1000000');
     expect(parseUnits('123', 18)).toBe('123000000000000000000');
@@ -76,9 +115,18 @@ describe('parseUnits', () => {
     expect(parseUnits('1.000001', 6)).toBe('1000001');
   });
 
-  it('truncates fractional digits past the asset decimals (never sends more than the user typed)', () => {
-    // 1.0000001 with 6 decimals → 1.000000 in base units → "1000000".
-    expect(parseUnits('1.0000001', 6)).toBe('1000000');
+  it.each([
+    ['1.000001', false],
+    ['1,000001', false],
+    ['1.0000001', true],
+    ['1,0000001', true],
+  ])('detects whether %s has excess precision', (amount, expected) => {
+    expect(hasExcessPrecision(amount, 6)).toBe(expected);
+  });
+
+  it('rejects fractional digits past the asset decimals instead of truncating', () => {
+    expect(parseUnits('1.0000001', 6)).toBe('0');
+    expect(parseUnits('1,0000001', 6)).toBe('0');
   });
 
   it('returns "0" for empty / nonsense / dot-only input', () => {
@@ -154,6 +202,38 @@ describe('formatCryptoAmount', () => {
 
   it('returns "0" for non-finite input', () => {
     expect(formatCryptoAmount(NaN)).toBe('0');
+  });
+});
+
+describe('isFiatPriceAvailable', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('short-circuits without a rate lookup when conversion is unnecessary or unavailable', () => {
+    const spy = jest.spyOn(pricingService, 'getExchangeRate');
+
+    expect(isFiatPriceAvailable(0, 'BTC', FiatCurrency.CHF, true)).toBe(true);
+    expect(isFiatPriceAvailable(1, 'CHF', FiatCurrency.CHF, false)).toBe(true);
+    expect(isFiatPriceAvailable(1, 'BTC', FiatCurrency.CHF, false)).toBe(false);
+    expect(isFiatPriceAvailable(1, 'NOPE', FiatCurrency.CHF, true)).toBe(false);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('accepts a finite exchange rate', () => {
+    const spy = jest.spyOn(pricingService, 'getExchangeRate').mockReturnValue(50_000);
+
+    expect(isFiatPriceAvailable(1, 'BTC', FiatCurrency.CHF, true)).toBe(true);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith('btc', FiatCurrency.CHF);
+  });
+
+  it.each([NaN, Infinity, -Infinity])('rejects the non-finite exchange rate %s', (rate) => {
+    const spy = jest.spyOn(pricingService, 'getExchangeRate').mockReturnValue(rate);
+
+    expect(isFiatPriceAvailable(1, 'BTC', FiatCurrency.CHF, true)).toBe(false);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith('btc', FiatCurrency.CHF);
   });
 });
 

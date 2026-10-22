@@ -41,6 +41,8 @@ module.exports = {
     // but must still be measured (and is pinned in .coverage-floors.json).
     'src/features/biometric/biometric.ts',
     // Portfolio logic + screens (full-area coverage).
+    'src/features/portfolio/portfolio-completeness.ts',
+    'src/features/portfolio/useLinkedWalletProfile.ts',
     'src/features/portfolio/useTotalPortfolioFiatFull.ts',
     'src/features/portfolio/useEnabledChains.ts',
     'src/features/portfolio/PortfolioScreenImpl.tsx',
