@@ -81,32 +81,32 @@ export default function SetupPinScreen() {
 
   return (
     <View style={styles.screen}>
-    <DfxBackgroundScreen
-      backdropVariant="pin"
-      contentStyle={styles.content}
-      testID={step === 'create' ? 'setup-pin-screen' : 'setup-pin-confirm-screen'}
-    >
-      <BrandLogo size="auth" style={styles.logo} />
-      <OnboardingStepIndicator current={2} />
-      <Text style={styles.title}>{step === 'create' ? t('pin.create') : t('pin.confirm')}</Text>
-      <Text style={styles.description}>
-        {step === 'create' ? t('pin.createDescription') : t('pin.confirmDescription')}
-      </Text>
-      {error && (
-        <Text style={styles.error} testID="setup-pin-error">
-          {error === 'save' ? t('pin.saveError') : t('pin.mismatch')}
+      <DfxBackgroundScreen
+        backdropVariant="pin"
+        contentStyle={styles.content}
+        testID={step === 'create' ? 'setup-pin-screen' : 'setup-pin-confirm-screen'}
+      >
+        <BrandLogo size="auth" style={styles.logo} />
+        <OnboardingStepIndicator current={2} />
+        <Text style={styles.title}>{step === 'create' ? t('pin.create') : t('pin.confirm')}</Text>
+        <Text style={styles.description}>
+          {step === 'create' ? t('pin.createDescription') : t('pin.confirmDescription')}
         </Text>
-      )}
+        {error && (
+          <Text style={styles.error} testID="setup-pin-error">
+            {error === 'save' ? t('pin.saveError') : t('pin.mismatch')}
+          </Text>
+        )}
 
-      <PinPad
-        value={pin}
-        error={error !== null}
-        onDigit={handleDigit}
-        onDelete={handleDelete}
-        dotsTestID="setup-pin-dots"
-      />
-    </DfxBackgroundScreen>
-    {processing && <PinProcessingOverlay />}
+        <PinPad
+          value={pin}
+          error={error !== null}
+          onDigit={handleDigit}
+          onDelete={handleDelete}
+          dotsTestID="setup-pin-dots"
+        />
+      </DfxBackgroundScreen>
+      {processing && <PinProcessingOverlay />}
     </View>
   );
 }
