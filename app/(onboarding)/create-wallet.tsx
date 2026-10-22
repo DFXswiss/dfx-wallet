@@ -8,8 +8,10 @@ import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import {
   AppHeader,
   DfxBackgroundScreen,
+  GlassCard,
   OnboardingStepIndicator,
   PrimaryButton,
+  SeedWordTile,
 } from '@/components';
 import { generateSeedPhrase, wordsToSeed } from '@/services/wallet';
 import { Typography, useColors, type ThemeColors } from '@/theme';
@@ -82,28 +84,29 @@ export default function CreateWalletScreen() {
         <Text style={styles.warning}>{t('onboarding.seedBackupWarning')}</Text>
       </View>
 
-      <View style={styles.seedCard}>
+      <GlassCard radius={12}>
         {!revealed ? (
-          <Pressable
+          <GlassCard
             testID="create-wallet-reveal-button"
-            style={styles.revealButton}
+            variant="quiet"
+            padding={24}
+            contentStyle={styles.revealButton}
             onPress={handleReveal}
           >
             <Text style={styles.revealText}>{t('onboarding.seedReveal')}</Text>
             <Text style={styles.revealHint}>{t('onboarding.seedRevealHint')}</Text>
-          </Pressable>
+          </GlassCard>
         ) : (
           <>
             <View style={styles.seedContainer} testID="create-wallet-seed-container">
               {seedWords.map((word, index) => (
-                <View
+                <SeedWordTile
                   key={index}
-                  style={styles.wordCard}
+                  index={index}
+                  word={word}
+                  style={styles.wordCardWrap}
                   testID={`create-wallet-word-${index + 1}`}
-                >
-                  <Text style={styles.wordIndex}>{index + 1}.</Text>
-                  <Text style={styles.word}>{word}</Text>
-                </View>
+                />
               ))}
             </View>
 
@@ -118,7 +121,7 @@ export default function CreateWalletScreen() {
             </Pressable>
           </>
         )}
-      </View>
+      </GlassCard>
 
       {error && <Text style={styles.error}>{error}</Text>}
 
@@ -155,23 +158,10 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.text,
       textAlign: 'center',
     },
-    seedCard: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 16,
-    },
     revealButton: {
       minHeight: 168,
-      borderRadius: 8,
-      backgroundColor: colors.surfaceLight,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderStyle: 'dashed',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: 24,
       gap: 8,
     },
     revealText: {
@@ -189,24 +179,8 @@ const makeStyles = (colors: ThemeColors) =>
       flexWrap: 'wrap',
       gap: 8,
     },
-    wordCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.surfaceLight,
-      borderRadius: 8,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      gap: 6,
+    wordCardWrap: {
       width: '31%',
-    },
-    wordIndex: {
-      ...Typography.bodySmall,
-      color: colors.textTertiary,
-      width: 24,
-    },
-    word: {
-      ...Typography.bodyMedium,
-      color: colors.text,
     },
     copyButton: {
       alignSelf: 'center',

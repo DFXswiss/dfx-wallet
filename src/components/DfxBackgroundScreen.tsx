@@ -1,12 +1,13 @@
 import { ReactNode, useMemo } from 'react';
-import { ImageBackground, ScrollView, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import { ScrollView, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Edge, SafeAreaView } from 'react-native-safe-area-context';
 import { Layout, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
-import { DarkBackdrop } from './DarkBackdrop';
+import { ScreenBackdrop, type ScreenBackdropVariant } from './ScreenBackdrop';
 
 type Props = {
   children: ReactNode;
+  backdropVariant?: ScreenBackdropVariant;
   contentStyle?: StyleProp<ViewStyle>;
   edges?: Edge[];
   scrollable?: boolean;
@@ -15,6 +16,7 @@ type Props = {
 
 export function DfxBackgroundScreen({
   children,
+  backdropVariant,
   contentStyle,
   edges = ['top', 'left', 'right', 'bottom'],
   scrollable = false,
@@ -43,21 +45,10 @@ export function DfxBackgroundScreen({
     </SafeAreaView>
   );
 
-  // Dark: the navy DarkBackdrop replaces the (light) mountain photo so the
-  // 11 screens still on this container read as DFX navy, not as a light
-  // sheet floating in a dark app. Light keeps the Swiss-mountain hero image.
   return (
     <View style={styles.background}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
-      {scheme === 'dark' ? (
-        <DarkBackdrop baseColor={colors.background} />
-      ) : (
-        <ImageBackground
-          source={require('../../assets/dashboard-bg.png')}
-          style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-        />
-      )}
+      <ScreenBackdrop {...(backdropVariant ? { variant: backdropVariant } : {})} />
       {inner}
     </View>
   );

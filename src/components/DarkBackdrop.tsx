@@ -18,7 +18,7 @@ export function DarkBackdrop({ baseColor }: { baseColor: string }) {
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: baseColor }]}>
       <Image
         source={require('../../assets/dashboard-bg-dark.jpg')}
-        style={StyleSheet.absoluteFill}
+        style={[StyleSheet.absoluteFill, { width: W, height: H }]}
         resizeMode="cover"
       />
       <Svg width={W} height={H} style={StyleSheet.absoluteFill}>

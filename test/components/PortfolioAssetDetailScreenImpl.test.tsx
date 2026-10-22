@@ -35,7 +35,15 @@ jest.mock('react-native-safe-area-context', () => {
 
 jest.mock('@/features/portfolio/useEnabledChains', () => ({
   useEnabledChains: () => ({
-    enabledChains: ['ethereum', 'bitcoin', 'bitcoin-taproot', 'spark', 'arbitrum', 'polygon', 'base'],
+    enabledChains: [
+      'ethereum',
+      'bitcoin',
+      'bitcoin-taproot',
+      'spark',
+      'arbitrum',
+      'polygon',
+      'base',
+    ],
     setEnabledChains: jest.fn(),
     toggleChain: jest.fn(),
   }),
@@ -50,7 +58,7 @@ jest.mock('@/components', () => {
     AssetActions: ({ testID }: { testID?: string }) =>
       ReactActual.createElement(View, { testID }, ReactActual.createElement(Text, null, 'actions')),
     Icon: ({ name }: { name: string }) => ReactActual.createElement(Text, null, name),
-    DarkBackdrop: () => ReactActual.createElement(View, { testID: 'dark-backdrop' }),
+    ScreenBackdrop: () => ReactActual.createElement(View, { testID: 'screen-backdrop' }),
   };
 });
 
@@ -178,10 +186,10 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     expect(getByTestId('holding-bitcoin-BTC')).toBeTruthy();
   });
 
-  it('renders the dark backdrop when the theme is dark', () => {
+  it('renders the screen backdrop', () => {
     useThemeStore.setState({ mode: 'dark' });
     const { getByTestId } = renderScreen();
-    expect(getByTestId('dark-backdrop')).toBeTruthy();
+    expect(getByTestId('screen-backdrop')).toBeTruthy();
   });
 
   it('formats a non-finite fiat total as 0.00', async () => {
