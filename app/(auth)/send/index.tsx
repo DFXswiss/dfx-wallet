@@ -1,44 +1,43 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import {
-  ImageBackground,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
-import { AppHeader, DarkBackdrop, Icon, PrimaryButton, ShortcutAction } from '@/components';
+import {
+  AppHeader,
+  GlassCard,
+  GlassInputField,
+  GlassPill,
+  Icon,
+  PrimaryButton,
+  ScreenBackdrop,
+  ShortcutAction,
+} from '@/components';
 import { QrScanner } from '@/components/QrScanner';
+import { AssetPickerStep } from '@/features/transfer/AssetPickerStep';
 import { useSendFlow } from '@/hooks';
 import type { ChainId } from '@/config/chains';
 import { getPaymasterTokenInfo } from '@/config/chains';
 import { FEATURES } from '@/config/features';
 import { formatBalance } from '@/config/portfolio-presentation';
 import { getSendAssetForCanonical } from '@/config/tokens';
-import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type SendStep = 'asset' | 'input' | 'confirm' | 'success';
 
 type AssetOption = {
   symbol: string;
-  label: string;
   chains: { chain: ChainId; label: string }[];
 };
 
 const SEND_ASSETS: AssetOption[] = [
   {
     symbol: 'BTC',
-    label: 'Bitcoin',
     chains: [{ chain: 'spark', label: 'Bitcoin' }],
   },
   {
     symbol: 'CHF',
-    label: 'CHF',
     chains: [
       { chain: 'ethereum', label: 'Ethereum' },
       { chain: 'arbitrum', label: 'Arbitrum' },
@@ -48,7 +47,6 @@ const SEND_ASSETS: AssetOption[] = [
   },
   {
     symbol: 'EUR',
-    label: 'Euro',
     chains: [
       { chain: 'ethereum', label: 'Ethereum' },
       { chain: 'arbitrum', label: 'Arbitrum' },
@@ -58,7 +56,6 @@ const SEND_ASSETS: AssetOption[] = [
   },
   {
     symbol: 'USD',
-    label: 'Dollar',
     chains: [
       { chain: 'ethereum', label: 'Ethereum' },
       { chain: 'arbitrum', label: 'Arbitrum' },
@@ -72,7 +69,6 @@ export default function SendScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [step, setStep] = useState<SendStep>('asset');
   // Start unselected so no card has a border on first render — the active
@@ -101,7 +97,9 @@ export default function SendScreen() {
   const paymasterToken = useMemo(() => getPaymasterTokenInfo(selectedChain), [selectedChain]);
   const isValidAddress = recipient.length >= 26;
 
-  const handleAssetSelect = (asset: AssetOption) => {
+  const handleAssetSelect = (symbol: string) => {
+    const asset = SEND_ASSETS.find((a) => a.symbol === symbol);
+    if (!asset) return;
     setSelectedAsset(asset);
     setSelectedChain(asset.chains[0]!.chain);
     setStep('input');
@@ -132,75 +130,50 @@ export default function SendScreen() {
   };
 
   const renderAssetStep = () => (
-    <View style={styles.stepContent}>
-      <Text style={styles.stepSubtitle}>{t('send.sendToCrypto')}</Text>
-      <View style={styles.assetList} testID="send-asset-list">
-        {SEND_ASSETS.map((asset) => (
-          <Pressable
-            key={asset.symbol}
-            testID={`send-asset-${asset.symbol.toLowerCase()}`}
-            style={({ pressed }) => [
-              styles.assetCard,
-              selectedAsset?.symbol === asset.symbol && styles.assetCardActive,
-              pressed && styles.pressed,
-            ]}
-            onPress={() => handleAssetSelect(asset)}
-          >
-            <Text
-              style={[
-                styles.assetSymbol,
-                selectedAsset?.symbol === asset.symbol && styles.assetSymbolActive,
-              ]}
-            >
-              {asset.symbol}
-            </Text>
-            <Text style={styles.assetLabel}>{asset.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {FEATURES.BUY_SELL && (
-        <Pressable
-          style={({ pressed }) => [styles.destinationCard, pressed && styles.pressed]}
-          onPress={() => router.push('/(auth)/sell')}
-          testID="send-destination-bank"
-          accessibilityRole="button"
-          accessibilityLabel={t('send.sendToBank')}
-        >
-          <View style={styles.destinationIcon}>
-            <Icon name="document" size={20} color={colors.primary} strokeWidth={2.2} />
-          </View>
-          <View style={styles.destinationText}>
-            <Text style={styles.destinationTitle}>{t('send.sendToBank')}</Text>
-            <Text style={styles.destinationSubtitle}>{t('send.sendToBankSubtitle')}</Text>
-          </View>
-          <Icon name="chevron-right" size={18} color={colors.textTertiary} />
-        </Pressable>
-      )}
-    </View>
+    <AssetPickerStep
+      heading={t('send.sendToCrypto')}
+      assets={SEND_ASSETS}
+      onSelect={handleAssetSelect}
+      testIDPrefix="send"
+      {...(selectedAsset ? { selectedSymbol: selectedAsset.symbol } : {})}
+      {...(FEATURES.BUY_SELL
+        ? {
+            bankAction: {
+              title: t('send.sendToBank'),
+              subtitle: t('send.sendToBankSubtitle'),
+              onPress: () => router.push('/(auth)/sell'),
+              testID: 'send-destination-bank',
+            },
+          }
+        : {})}
+    />
   );
 
   const renderInputStep = (asset: AssetOption) => {
     return (
       <View style={styles.stepContent} testID="send-input-step">
-        <Pressable
+        <GlassPill
+          selected
           testID="send-selected-asset-pill"
           style={styles.selectedAssetPill}
           onPress={() => setStep('asset')}
         >
-          <Text style={styles.selectedAssetText}>{asset.symbol}</Text>
-          <Icon name="chevron-right" size={14} color={colors.textTertiary} />
-        </Pressable>
+          <View style={styles.selectedAssetContent}>
+            <Text style={styles.selectedAssetText}>{asset.symbol}</Text>
+            <Icon name="chevron-right" size={14} color={colors.textTertiary} />
+          </View>
+        </GlassPill>
 
         {asset.chains.length > 1 && (
           <View style={styles.inputGroup} testID="send-chain-bar">
             <Text style={styles.inputLabel}>{t('send.network')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainBar}>
               {asset.chains.map((c) => (
-                <Pressable
+                <GlassPill
                   key={c.chain}
                   testID={`send-chain-${c.chain}`}
-                  style={[styles.chainChip, selectedChain === c.chain && styles.chainChipActive]}
+                  selected={selectedChain === c.chain}
+                  style={styles.chainChip}
                   onPress={() => setSelectedChain(c.chain)}
                 >
                   <Text
@@ -211,7 +184,7 @@ export default function SendScreen() {
                   >
                     {c.label}
                   </Text>
-                </Pressable>
+                </GlassPill>
               ))}
             </ScrollView>
           </View>
@@ -220,23 +193,19 @@ export default function SendScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>{t('send.recipient')}</Text>
           <View style={styles.recipientRow}>
-            <TextInput
-              testID="send-recipient-input"
-              style={[styles.input, styles.recipientInput]}
-              value={recipient}
-              onChangeText={setRecipient}
-              placeholder={t('send.addressPlaceholder')}
-              placeholderTextColor={colors.textTertiary}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <Pressable
-              testID="send-recipient-scan-button"
-              style={styles.scanButton}
-              onPress={() => setScannerVisible(true)}
-            >
+            <View style={styles.recipientInputWrap}>
+              <GlassInputField
+                testID="send-recipient-input"
+                value={recipient}
+                onChangeText={setRecipient}
+                placeholder={t('send.addressPlaceholder')}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+            <GlassPill testID="send-recipient-scan-button" onPress={() => setScannerVisible(true)}>
               <Text style={styles.scanText}>{t('send.scan')}</Text>
-            </Pressable>
+            </GlassPill>
           </View>
         </View>
 
@@ -244,13 +213,11 @@ export default function SendScreen() {
           <Text style={styles.inputLabel}>
             {t('send.amount')} ({symbol})
           </Text>
-          <TextInput
+          <GlassInputField
             testID="send-amount-input"
-            style={styles.input}
             value={amount}
             onChangeText={setAmount}
             placeholder="0.00"
-            placeholderTextColor={colors.textTertiary}
             keyboardType="decimal-pad"
           />
         </View>
@@ -286,7 +253,7 @@ export default function SendScreen() {
     <View style={styles.stepContent} testID="send-confirm-step">
       <Text style={styles.stepTitle}>{t('send.confirmTransaction')}</Text>
 
-      <View style={styles.summary}>
+      <GlassCard padding={20} style={styles.summary}>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>{t('send.network')}</Text>
           <Text style={styles.summaryValue}>{selectedChain}</Text>
@@ -313,7 +280,7 @@ export default function SendScreen() {
               `${formatBalance(feeState.fee, paymasterToken.decimals)} ${paymasterToken.symbol}`}
           </Text>
         </View>
-      </View>
+      </GlassCard>
 
       <Text style={styles.warning}>{t('send.irreversible')}</Text>
 
@@ -407,15 +374,7 @@ export default function SendScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>
@@ -446,86 +405,13 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.headlineSmall,
       color: colors.text,
     },
-    stepSubtitle: {
-      ...Typography.bodyLarge,
-      color: colors.textSecondary,
-      fontWeight: '500',
-      marginBottom: 4,
-    },
-    destinationCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      padding: 16,
-      gap: 14,
-      borderWidth: 1,
-      borderColor: colors.primary,
-    },
-    destinationIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: colors.primaryLight,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    destinationText: {
-      flex: 1,
-      gap: 2,
-    },
-    destinationTitle: {
-      ...Typography.bodyLarge,
-      color: colors.text,
-      fontWeight: '600',
-    },
-    destinationSubtitle: {
-      ...Typography.bodySmall,
-      color: colors.textSecondary,
-    },
-    assetList: {
-      gap: Layout.listGap,
-    },
-    assetCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      padding: 18,
-      gap: 14,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    assetCardActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
-    },
-    pressed: {
-      opacity: 0.7,
-    },
-    assetSymbol: {
-      ...Typography.headlineSmall,
-      color: colors.text,
-      fontWeight: '700',
-      width: 56,
-    },
-    assetSymbolActive: {
-      color: colors.primary,
-    },
-    assetLabel: {
-      ...Typography.bodyLarge,
-      color: colors.textSecondary,
-    },
     selectedAssetPill: {
+      marginBottom: 4,
+    },
+    selectedAssetContent: {
       flexDirection: 'row',
       alignItems: 'center',
-      alignSelf: 'flex-start',
-      backgroundColor: colors.primaryLight,
-      borderRadius: 12,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
       gap: 6,
-      marginBottom: 4,
     },
     selectedAssetText: {
       ...Typography.bodyMedium,
@@ -536,17 +422,7 @@ const makeStyles = (colors: ThemeColors) =>
       flexGrow: 0,
     },
     chainChip: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 10,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
       marginRight: 8,
-      borderWidth: 1.5,
-      borderColor: 'transparent',
-    },
-    chainChipActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
     },
     chainChipText: {
       ...Typography.bodyMedium,
@@ -567,29 +443,12 @@ const makeStyles = (colors: ThemeColors) =>
       textTransform: 'uppercase',
       letterSpacing: 1,
     },
-    input: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 16,
-      color: colors.text,
-      ...Typography.bodyLarge,
-    },
     recipientRow: {
       flexDirection: 'row',
       gap: 8,
     },
-    recipientInput: {
+    recipientInputWrap: {
       flex: 1,
-    },
-    scanButton: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      paddingHorizontal: 16,
-      justifyContent: 'center',
     },
     scanText: {
       ...Typography.bodyMedium,
@@ -597,11 +456,6 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.primary,
     },
     summary: {
-      backgroundColor: colors.cardOverlay,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 20,
       gap: 16,
     },
     summaryRow: {

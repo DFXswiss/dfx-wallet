@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
 import Svg, { ClipPath, Defs, G, LinearGradient, Path, Stop, Circle } from 'react-native-svg';
-import { useResolvedScheme } from '@/theme';
+import { logoGradientInner, logoGradientOuter, useColors } from '@/theme';
 
 /**
  * Semantic size tokens for the wordmark across screens.
@@ -35,8 +35,10 @@ type Props = {
  * signature and is recognisable on either surface.
  */
 export function BrandLogo({ size = 'header', height, style }: Props) {
-  const scheme = useResolvedScheme();
-  const wordmarkFill = scheme === 'dark' ? '#F1F4F9' : '#072440';
+  const colors = useColors();
+  const wordmarkFill = colors.logoInk;
+  const innerStops = logoGradientInner(colors);
+  const outerStops = logoGradientOuter(colors);
   // Resolve final height: explicit prop wins; otherwise look up the size token.
   // eslint-disable-next-line security/detect-object-injection -- size is a typed BrandLogoSizeToken; lookup yields a number from a static map
   const resolvedHeight = height ?? BrandLogoSize[size];
@@ -61,12 +63,9 @@ export function BrandLogo({ size = 'header', height, style }: Props) {
           y2="103.949"
           gradientUnits="userSpaceOnUse"
         >
-          <Stop offset="0.04" stopColor="#F5516C" />
-          <Stop offset="0.14" stopColor="#C74863" />
-          <Stop offset="0.31" stopColor="#853B57" />
-          <Stop offset="0.44" stopColor="#55324E" />
-          <Stop offset="0.55" stopColor="#382D49" />
-          <Stop offset="0.61" stopColor="#2D2B47" />
+          {innerStops.map((stop) => (
+            <Stop key={stop.offset} offset={stop.offset} stopColor={stop.stopColor} />
+          ))}
         </LinearGradient>
         <LinearGradient
           id="dfx-outer-circle"
@@ -76,8 +75,9 @@ export function BrandLogo({ size = 'header', height, style }: Props) {
           y2="122.952"
           gradientUnits="userSpaceOnUse"
         >
-          <Stop offset="0.2" stopColor="#F5516C" />
-          <Stop offset="1" stopColor="#6B3753" />
+          {outerStops.map((stop) => (
+            <Stop key={stop.offset} offset={stop.offset} stopColor={stop.stopColor} />
+          ))}
         </LinearGradient>
         <ClipPath id="dfx-clip">
           <Path d="M0 0H544V170H0z" />

@@ -1,16 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { GlassInputField } from './GlassInputField';
+import { GlassSheet } from './GlassSheet';
 import { useColors, type ThemeColors, Typography } from '@/theme';
 
 type Props = {
@@ -60,94 +52,69 @@ export function RenameWalletModal({
   }, [visible, initialName]);
 
   return (
-    <Modal
+    <GlassSheet
       visible={visible}
-      animationType="fade"
-      transparent
       onRequestClose={() => {
         if (!loading) onClose();
       }}
+      position="center"
+      avoidKeyboard
     >
-      <KeyboardAvoidingView
-        style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={styles.card}>
-          <Text style={styles.title}>{t('linkedWallet.rename.title')}</Text>
-          <Text style={styles.body}>{t('linkedWallet.rename.body')}</Text>
+      <View style={styles.content}>
+        <Text style={styles.title}>{t('linkedWallet.rename.title')}</Text>
+        <Text style={styles.body}>{t('linkedWallet.rename.body')}</Text>
 
-          <TextInput
-            value={value}
-            onChangeText={setValue}
-            placeholder={defaultName}
-            placeholderTextColor={colors.textTertiary}
-            style={styles.input}
-            autoFocus
-            returnKeyType="done"
-            onSubmitEditing={() => {
-              if (!loading) onSave(value);
-            }}
-            maxLength={48}
-            testID="rename-wallet-input"
-          />
+        <GlassInputField
+          value={value}
+          onChangeText={setValue}
+          placeholder={defaultName}
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={() => {
+            if (!loading) onSave(value);
+          }}
+          maxLength={48}
+          testID="rename-wallet-input"
+        />
 
-          <Text style={styles.address}>{walletAddressShort}</Text>
+        <Text style={styles.address}>{walletAddressShort}</Text>
 
-          <View style={styles.actions}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.button,
-                styles.buttonGhost,
-                pressed && styles.pressed,
-              ]}
-              onPress={onClose}
-              disabled={loading}
-              testID="rename-wallet-cancel"
-            >
-              <Text style={[styles.buttonLabel, styles.buttonGhostLabel]}>
-                {t('common.cancel')}
+        <View style={styles.actions}>
+          <Pressable
+            style={({ pressed }) => [styles.button, styles.buttonGhost, pressed && styles.pressed]}
+            onPress={onClose}
+            disabled={loading}
+            testID="rename-wallet-cancel"
+          >
+            <Text style={[styles.buttonLabel, styles.buttonGhostLabel]}>{t('common.cancel')}</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              styles.buttonPrimary,
+              pressed && styles.pressed,
+            ]}
+            onPress={() => onSave(value)}
+            disabled={loading}
+            testID="rename-wallet-save"
+          >
+            {loading ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={[styles.buttonLabel, styles.buttonPrimaryLabel]}>
+                {t('common.save')}
               </Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [
-                styles.button,
-                styles.buttonPrimary,
-                pressed && styles.pressed,
-              ]}
-              onPress={() => onSave(value)}
-              disabled={loading}
-              testID="rename-wallet-save"
-            >
-              {loading ? (
-                <ActivityIndicator color={colors.white} />
-              ) : (
-                <Text style={[styles.buttonLabel, styles.buttonPrimaryLabel]}>
-                  {t('common.save')}
-                </Text>
-              )}
-            </Pressable>
-          </View>
+            )}
+          </Pressable>
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
+      </View>
+    </GlassSheet>
   );
 }
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    overlay: {
-      flex: 1,
-      backgroundColor: 'rgba(11, 20, 38, 0.45)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 24,
-    },
-    card: {
-      width: '100%',
-      maxWidth: 380,
-      backgroundColor: colors.surface,
-      borderRadius: 20,
-      padding: 22,
+    content: {
       gap: 14,
     },
     title: {
@@ -158,16 +125,6 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodyMedium,
       color: colors.textSecondary,
       lineHeight: 22,
-    },
-    input: {
-      ...Typography.bodyLarge,
-      backgroundColor: colors.background,
-      borderRadius: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      color: colors.text,
-      borderWidth: 1.5,
-      borderColor: colors.border,
     },
     address: {
       ...Typography.bodySmall,

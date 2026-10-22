@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import * as Clipboard from 'expo-clipboard';
 
 // react-i18next's `t()` returns the key verbatim when no i18n instance is
@@ -54,7 +54,12 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 
+// eslint-disable-next-line import/first
 import ReceiveScreen from '../../app/(auth)/receive/index';
+// eslint-disable-next-line import/first
+import { GlassListGroup } from '../../src/components/GlassListGroup';
+// eslint-disable-next-line import/first
+import { GlassSurface } from '../../src/components/GlassSurface';
 
 beforeEach(() => {
   mockPush.mockReset();
@@ -68,25 +73,36 @@ beforeEach(() => {
 describe('ReceiveScreen', () => {
 
   it('renders the asset picker with the static RECEIVE_ASSETS list', () => {
-    const { getAllByText, getByText } = render(<ReceiveScreen />);
-    // BTC has distinct symbol + label ("BTC" / "Bitcoin"); CHF / USD reuse
-    // the same string for both — use getAllByText so we don't trip on the
-    // duplicate.
+    // The row title is the bare symbol; the subtitle is the i18n full name
+    // (`transfer.assetName.<SYMBOL>`), which the mocked `t()` above returns
+    // as the raw key instead of the translated string.
+    const { getByText } = render(<ReceiveScreen />);
     expect(getByText('BTC')).toBeTruthy();
-    expect(getByText('Bitcoin')).toBeTruthy();
-    expect(getAllByText('CHF').length).toBeGreaterThanOrEqual(1);
-    expect(getAllByText('USD').length).toBeGreaterThanOrEqual(1);
-    expect(getByText('Euro')).toBeTruthy();
+    expect(getByText('transfer.assetName.BTC')).toBeTruthy();
+    expect(getByText('CHF')).toBeTruthy();
+    expect(getByText('transfer.assetName.CHF')).toBeTruthy();
+    expect(getByText('EUR')).toBeTruthy();
+    expect(getByText('transfer.assetName.EUR')).toBeTruthy();
+    expect(getByText('USD')).toBeTruthy();
+    expect(getByText('transfer.assetName.USD')).toBeTruthy();
   });
 
-  it('shows the "buy from bank" affordance only when FEATURES.BUY_SELL is on', () => {
+  it('renders the asset list on a glass list surface', () => {
+    // Assets moved from individual `GlassCard`s to rows in one shared
+    // `GlassListGroup` (`AssetPickerStep`).
+    const { UNSAFE_queryAllByType } = render(<ReceiveScreen />);
+    expect(UNSAFE_queryAllByType(GlassListGroup).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('shows the "buy from bank" affordance with its label only when FEATURES.BUY_SELL is on', () => {
     // The test runtime sets every feature flag to true in `test/setup-globals.ts`,
     // so the affordance must render. The branch with the flag off is verified
     // implicitly by the `FEATURES.BUY_SELL && …` JSX guard — exercising the
     // off-state would require restarting the module with the env unset, which
     // we leave to the bundle-level CI.
-    const { getByTestId } = render(<ReceiveScreen />);
+    const { getByTestId, getByText } = render(<ReceiveScreen />);
     expect(getByTestId('receive-destination-bank')).toBeTruthy();
+    expect(getByText('receive.buyFromBank')).toBeTruthy();
   });
 
   it('navigates to the buy screen when the bank-receive affordance is pressed', () => {
@@ -95,17 +111,18 @@ describe('ReceiveScreen', () => {
     expect(mockPush).toHaveBeenCalledWith('/(auth)/buy');
   });
 
-  it('switches to the QR step after picking an asset', () => {
-    const { getByText, queryByText } = render(<ReceiveScreen />);
+  it('switches to the QR step after tapping the BTC asset row', () => {
+    const { getByText, getByTestId, queryByText } = render(<ReceiveScreen />);
 
     // Before the tap: the subtitle for the asset step is visible.
     expect(getByText('receive.selectAsset')).toBeTruthy();
 
-    fireEvent.press(getByText('BTC'));
+    fireEvent.press(getByTestId('receive-asset-btc'));
 
     // After the tap: the asset-step subtitle is gone and the selected-asset
     // pill carries the chosen symbol.
     expect(queryByText('receive.selectAsset')).toBeNull();
+    expect(getByTestId('receive-selected-asset-pill')).toBeTruthy();
     expect(getByText('BTC')).toBeTruthy();
   });
 
@@ -172,23 +189,19 @@ describe('ReceiveScreen', () => {
     expect(getByText('receive.selectAsset')).toBeTruthy();
   });
 
-  it('exercises the pressed-state style fn on every function-style Pressable', () => {
-    const { UNSAFE_root } = render(<ReceiveScreen />);
-    // Walk the entire tree, find any Pressable whose `style` is a function
-    // and invoke it with pressed=true so each `pressed && styles.pressed`
-    // branch evaluates.
-    let invoked = 0;
-    const walk = (node: { props?: { style?: unknown }; children?: unknown[] }) => {
-      if (typeof node.props?.style === 'function') {
-        node.props.style({ pressed: true });
-        invoked += 1;
-      }
-      for (const child of node.children ?? []) {
-        if (typeof child === 'object' && child) walk(child as typeof node);
-      }
-    };
-    walk(UNSAFE_root);
-    expect(invoked).toBeGreaterThanOrEqual(2);
+  it('drives the pressed "lead" feedback on the bank-destination card', () => {
+    // The bank-destination card is still a `GlassCard onPress` — press
+    // feedback is real `onPressIn`/`onPressOut` state inside `GlassCard`.
+    const { getByTestId } = render(<ReceiveScreen />);
+    const id = 'receive-destination-bank';
+    const surfaceAtRest = getByTestId(id).findByType(GlassSurface);
+    expect(surfaceAtRest.props.variant).not.toBe('lead');
+
+    fireEvent(getByTestId(id), 'pressIn');
+    expect(getByTestId(id).findByType(GlassSurface).props.variant).toBe('lead');
+
+    fireEvent(getByTestId(id), 'pressOut');
+    expect(getByTestId(id).findByType(GlassSurface).props.variant).not.toBe('lead');
   });
 });
 

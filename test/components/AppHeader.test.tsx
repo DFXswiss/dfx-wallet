@@ -13,7 +13,10 @@ jest.mock('expo-router', () => ({
   }),
 }));
 
+// eslint-disable-next-line import/first
 import { AppHeader } from '../../src/components/AppHeader';
+// eslint-disable-next-line import/first
+import { GlassSurface } from '../../src/components/GlassSurface';
 
 describe('AppHeader', () => {
   beforeEach(() => {
@@ -26,6 +29,11 @@ describe('AppHeader', () => {
   it('renders the title and the back-button', () => {
     const { getByText } = render(<AppHeader title="Receive" testID="hdr" />);
     expect(getByText('Receive')).toBeTruthy();
+  });
+
+  it('renders the back button on a glass surface', () => {
+    const { UNSAFE_queryAllByType } = render(<AppHeader title="Receive" testID="hdr" />);
+    expect(UNSAFE_queryAllByType(GlassSurface).length).toBeGreaterThanOrEqual(1);
   });
 
   it('fires the provided onBack callback when the back button is pressed', () => {

@@ -1,14 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { BrandLogo, DarkBackdrop, Icon, PinProcessingOverlay, PrimaryButton } from '@/components';
+import {
+  BrandLogo,
+  GlassPill,
+  Icon,
+  PinPad,
+  PinProcessingOverlay,
+  PrimaryButton,
+  ScreenBackdrop,
+} from '@/components';
 import { needsPinRehash } from '@/services/pin';
 import { useAuthStore } from '@/store';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 const MAX_ATTEMPTS = 5;
 
@@ -27,7 +35,6 @@ export default function VerifyPinScreen() {
     useAuthStore();
   const { unlock } = useWalletManager();
   const colors = useColors();
-  const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [pin, setPinValue] = useState('');
   const [error, setError] = useState(false);
@@ -148,17 +155,20 @@ export default function VerifyPinScreen() {
         ) : (
           <>
             {biometricEnabled && (
-              <Pressable
+              <GlassPill
                 testID="verify-pin-biometric-button"
-                style={({ pressed }) => [styles.biometricPill, pressed && styles.pressed]}
+                selected
                 onPress={tryBiometric}
                 disabled={biometricInFlight}
+                style={styles.biometricPill}
                 accessibilityRole="button"
                 accessibilityLabel={t('pin.biometricCta')}
               >
-                <Icon name="user" size={18} color={colors.primary} />
-                <Text style={styles.biometricText}>{t('pin.biometricCta')}</Text>
-              </Pressable>
+                <View style={styles.biometricContent}>
+                  <Icon name="user" size={18} color={colors.primary} />
+                  <Text style={styles.biometricText}>{t('pin.biometricCta')}</Text>
+                </View>
+              </GlassPill>
             )}
 
             {unlockFailed && (
@@ -181,36 +191,14 @@ export default function VerifyPinScreen() {
               </Text>
             )}
 
-            <View style={styles.dots} testID="verify-pin-dots">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <View
-                  key={i}
-                  style={[styles.dot, i < pin.length && styles.dotFilled, error && styles.dotError]}
-                />
-              ))}
-            </View>
-
-            <View style={styles.numpad}>
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map((key) => {
-                if (key === '') {
-                  return <View key={key} style={styles.numpadKey} />;
-                }
-                return (
-                  <Pressable
-                    key={key}
-                    testID={key === 'del' ? 'pin-key-delete' : `pin-key-${key}`}
-                    style={({ pressed }) => [styles.numpadKey, pressed && styles.numpadKeyPressed]}
-                    disabled={isLocked}
-                    onPress={() => (key === 'del' ? handleDelete() : handleDigit(key))}
-                    android_ripple={{ color: colors.surfaceLight, borderless: false, radius: 36 }}
-                    accessibilityRole="button"
-                    accessibilityLabel={key === 'del' ? 'Delete' : key}
-                  >
-                    <Text style={styles.numpadText}>{key === 'del' ? '⌫' : key}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <PinPad
+              value={pin}
+              error={error}
+              disabled={isLocked}
+              onDigit={handleDigit}
+              onDelete={handleDelete}
+              dotsTestID="verify-pin-dots"
+            />
           </>
         )}
       </View>
@@ -219,15 +207,7 @@ export default function VerifyPinScreen() {
 
   return (
     <View style={styles.bg}>
-      {scheme === 'dark' ? (
-        <DarkBackdrop baseColor={colors.background} />
-      ) : (
-        <ImageBackground
-          source={require('../../../assets/dashboard-bg.png')}
-          style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-        />
-      )}
+      <ScreenBackdrop variant="pin" />
       {body}
       {processing && <PinProcessingOverlay />}
     </View>
@@ -271,69 +251,16 @@ const makeStyles = (colors: ThemeColors) =>
       marginTop: 48,
     },
     biometricPill: {
+      alignSelf: 'center',
+    },
+    biometricContent: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-      paddingHorizontal: 18,
-      paddingVertical: 10,
-      borderRadius: 999,
-      backgroundColor: colors.primaryLight,
-    },
-    pressed: {
-      opacity: 0.7,
     },
     biometricText: {
       ...Typography.bodyMedium,
       color: colors.primary,
       fontWeight: '700',
-    },
-    dots: {
-      flexDirection: 'row',
-      gap: 16,
-      marginVertical: 24,
-    },
-    dot: {
-      width: 16,
-      height: 16,
-      borderRadius: 8,
-      borderWidth: 2,
-      borderColor: colors.primary,
-    },
-    dotFilled: {
-      backgroundColor: colors.primary,
-    },
-    dotError: {
-      borderColor: colors.error,
-    },
-    numpad: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      justifyContent: 'center',
-      width: 280,
-      marginTop: 32,
-    },
-    numpadKey: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      margin: 8,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.cardOverlay,
-    },
-    // Brand-coloured pressed state — PIN entry is high-confidence and the
-    // tap should feel definite, not subtle. `primaryLight` is the same
-    // tint used on Settings row icons so the interaction language is
-    // consistent across the app.
-    numpadKeyPressed: {
-      backgroundColor: colors.primaryLight,
-    },
-    numpadText: {
-      color: colors.text,
-      fontSize: 28,
-      fontWeight: '600',
-      lineHeight: 32,
-      textAlign: 'center',
-      includeFontPadding: false,
     },
   });
