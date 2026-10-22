@@ -5,11 +5,18 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { BrandLogo, GlassPill, Icon, PinPad, PrimaryButton, ScreenBackdrop } from '@/components';
+import {
+  BrandLogo,
+  GlassPill,
+  Icon,
+  PinPad,
+  PinProcessingOverlay,
+  PrimaryButton,
+  ScreenBackdrop,
+} from '@/components';
 import { needsPinRehash } from '@/services/pin';
 import { useAuthStore } from '@/store';
 import { Typography, useColors, type ThemeColors } from '@/theme';
-import { PinProcessingOverlay } from '@/components';
 
 const MAX_ATTEMPTS = 5;
 
