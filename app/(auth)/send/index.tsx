@@ -20,7 +20,14 @@ import { getPaymasterTokenInfo } from '@/config/chains';
 import { FEATURES } from '@/config/features';
 import { formatBalance } from '@/config/portfolio-presentation';
 import { getSendAssetForCanonical } from '@/config/tokens';
-import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import {
+  Layout,
+  MonospaceFontFamily,
+  Typography,
+  useColors,
+  useResolvedScheme,
+  type ThemeColors,
+} from '@/theme';
 
 type SendStep = 'asset' | 'input' | 'confirm' | 'success';
 
@@ -656,7 +663,7 @@ const makeStyles = (colors: ThemeColors) =>
     txHash: {
       ...Typography.bodySmall,
       color: colors.textTertiary,
-      fontFamily: 'monospace',
+      fontFamily: MonospaceFontFamily,
       marginTop: 8,
     },
     spacer: {
