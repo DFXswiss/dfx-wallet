@@ -25,7 +25,14 @@ import {
 } from '@/components';
 import { CHAIN_LABELS } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/features/dfx-backend/services';
-import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import {
+  Layout,
+  MonospaceFontFamily,
+  Typography,
+  useColors,
+  useResolvedScheme,
+  type ThemeColors,
+} from '@/theme';
 
 type FilterType = 'all' | 'in' | 'out' | 'pay';
 
@@ -289,7 +296,7 @@ const makeStyles = (colors: ThemeColors) =>
     addressText: {
       ...Typography.bodyLarge,
       color: colors.text,
-      fontFamily: 'monospace',
+      fontFamily: MonospaceFontFamily,
       fontWeight: '500',
       textAlign: 'center',
     },

@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useColors, type ThemeColors, Typography } from '@/theme';
+import { useColors, type ThemeColors, Typography, MonospaceFontFamily } from '@/theme';
 
 type Props = {
   visible: boolean;
@@ -172,7 +172,7 @@ const makeStyles = (colors: ThemeColors) =>
     address: {
       ...Typography.bodySmall,
       color: colors.textSecondary,
-      fontFamily: 'monospace',
+      fontFamily: MonospaceFontFamily,
     },
     actions: {
       flexDirection: 'row',

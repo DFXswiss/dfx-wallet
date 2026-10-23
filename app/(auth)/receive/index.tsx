@@ -10,7 +10,14 @@ import { AppHeader, DarkBackdrop, Icon, PrimaryButton, QrCode } from '@/componen
 import type { ChainId } from '@/config/chains';
 import { FEATURES } from '@/config/features';
 import { useLdsWallet } from '@/hooks';
-import { Layout, Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import {
+  Layout,
+  MonospaceFontFamily,
+  Typography,
+  useColors,
+  useResolvedScheme,
+  type ThemeColors,
+} from '@/theme';
 
 type ReceiveStep = 'asset' | 'qr';
 
@@ -386,7 +393,7 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodyMedium,
       color: colors.text,
       textAlign: 'center',
-      fontFamily: 'monospace',
+      fontFamily: MonospaceFontFamily,
     },
     destinationCard: {
       flexDirection: 'row',
