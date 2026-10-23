@@ -22,7 +22,13 @@ import { dfxUserService } from '@/features/dfx-backend/services';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { useWalletStore } from '@/store';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import {
+  MonospaceFontFamily,
+  Typography,
+  useColors,
+  useResolvedScheme,
+  type ThemeColors,
+} from '@/theme';
 
 const truncate = (addr: string): string =>
   addr.length <= 18 ? addr : `${addr.slice(0, 10)}…${addr.slice(-6)}`;
@@ -422,7 +428,7 @@ const makeStyles = (colors: ThemeColors) =>
     addressMono: {
       flex: 1,
       ...Typography.bodyLarge,
-      fontFamily: 'monospace',
+      fontFamily: MonospaceFontFamily,
       color: colors.text,
     },
     addressMeta: {
