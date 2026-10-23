@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import {
   AppHeader,
@@ -10,26 +10,55 @@ import {
   OnboardingStepIndicator,
   PrimaryButton,
 } from '@/components';
+import { restoreWalletFlow } from '@/features/restore/services/restore-wallet';
+import { useScreenCaptureProtection } from '@/hooks/useScreenCaptureProtection';
 import { validateSeedPhrase, seedToWords, wordsToSeed } from '@/services/wallet';
+import { useAuthStore } from '@/store';
 import { Typography, useColors, type ThemeColors } from '@/theme';
-
-function isWalletAlreadyExistsError(err: unknown): boolean {
-  return err instanceof Error && err.message.toLowerCase().includes('already exists');
-}
 
 export default function RestoreWalletScreen() {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
-  const { restoreWallet, deleteWallet } = useWalletManager();
+  const {
+    activeWalletId,
+    restoreWallet,
+    deleteWallet,
+    getEncryptedEntropy,
+    getEncryptedSeed,
+    getEncryptionKey,
+  } = useWalletManager();
+  const isOnboarded = useAuthStore((state) => state.isOnboarded);
   const { t } = useTranslation();
   const [seedPhrase, setSeedPhrase] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
+  const captureProtection = useScreenCaptureProtection(true, 'restore-wallet-mnemonic');
 
   const words = seedToWords(seedPhrase);
   const isValid = validateSeedPhrase(words);
   const wordCount = words.length;
+
+  const confirmReplacement = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      Alert.alert(
+        t('onboarding.restoreConfirmTitle'),
+        t('onboarding.restoreConfirmMessage'),
+        [
+          {
+            text: t('common.cancel'),
+            style: 'cancel',
+            onPress: () => resolve(false),
+          },
+          {
+            text: t('onboarding.restoreConfirmAction'),
+            style: 'destructive',
+            onPress: () => resolve(true),
+          },
+        ],
+        { cancelable: true, onDismiss: () => resolve(false) },
+      );
+    });
 
   const handleContinue = async () => {
     if (!isValid) {
@@ -42,14 +71,27 @@ export default function RestoreWalletScreen() {
     setError(null);
     try {
       const seed = wordsToSeed(words);
-      try {
-        await restoreWallet(seed, 'default');
-      } catch (err) {
-        if (!isWalletAlreadyExistsError(err)) throw err;
-
-        await deleteWallet('default');
-        await restoreWallet(seed, 'default');
-      }
+      const result = await restoreWalletFlow({
+        hasExistingWallet: Boolean(activeWalletId) || isOnboarded,
+        hasWalletToDelete: Boolean(activeWalletId),
+        confirm: confirmReplacement,
+        reset: () => useAuthStore.getState().reset(),
+        deleteWallet: () => deleteWallet('default'),
+        getRemainingWalletItems: async () => {
+          const [key, encryptedSeed, encryptedEntropy] = await Promise.all([
+            getEncryptionKey('default'),
+            getEncryptedSeed('default'),
+            getEncryptedEntropy('default'),
+          ]);
+          return {
+            key: key !== null,
+            seed: encryptedSeed !== null,
+            entropy: encryptedEntropy !== null,
+          };
+        },
+        restoreWallet: () => restoreWallet(seed, 'default'),
+      });
+      if (result === 'cancelled') return;
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.push('/(onboarding)/setup-pin');
     } catch (err) {
@@ -78,26 +120,42 @@ export default function RestoreWalletScreen() {
       </View>
 
       <View style={styles.inputCard}>
-        <TextInput
-          testID="restore-wallet-seed-input"
-          style={styles.input}
-          value={seedPhrase}
-          onChangeText={(text) => {
-            setSeedPhrase(text);
-            setError(null);
-          }}
-          placeholder={t('onboarding.restoreSeedPlaceholder')}
-          placeholderTextColor={colors.textTertiary}
-          multiline
-          blurOnSubmit
-          returnKeyType="done"
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="off"
-        />
-        <Text style={styles.wordCount} testID="restore-wallet-word-count">
-          {t('onboarding.seedWordCount', { count: wordCount, total: wordCount > 12 ? 24 : 12 })}
-        </Text>
+        {captureProtection === 'pending' ? (
+          <ActivityIndicator testID="restore-wallet-protection-loading" color={colors.primary} />
+        ) : (
+          <>
+            {captureProtection === 'unavailable' && (
+              <View style={styles.captureWarning} testID="restore-wallet-capture-warning">
+                <Text style={styles.captureWarningText}>
+                  {t('common.screenCaptureUnavailable')}
+                </Text>
+              </View>
+            )}
+            <TextInput
+              testID="restore-wallet-seed-input"
+              style={styles.input}
+              value={seedPhrase}
+              onChangeText={(text) => {
+                setSeedPhrase(text);
+                setError(null);
+              }}
+              placeholder={t('onboarding.restoreSeedPlaceholder')}
+              placeholderTextColor={colors.textTertiary}
+              multiline
+              blurOnSubmit
+              returnKeyType="done"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+            />
+            <Text style={styles.wordCount} testID="restore-wallet-word-count">
+              {t('onboarding.seedWordCount', {
+                count: wordCount,
+                total: wordCount > 12 ? 24 : 12,
+              })}
+            </Text>
+          </>
+        )}
       </View>
 
       {error && (
@@ -146,6 +204,17 @@ const makeStyles = (colors: ThemeColors) =>
       borderColor: colors.border,
       padding: 14,
       gap: 10,
+    },
+    captureWarning: {
+      backgroundColor: colors.surfaceLight,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.warning,
+      padding: 12,
+    },
+    captureWarningText: {
+      ...Typography.bodyMedium,
+      color: colors.warning,
     },
     input: {
       backgroundColor: colors.surfaceLight,

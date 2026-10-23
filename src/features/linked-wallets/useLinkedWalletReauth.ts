@@ -1,7 +1,11 @@
 import { useCallback } from 'react';
 import { useAccount } from '@tetherto/wdk-react-native-core';
+import {
+  createDfxSessionGuard,
+  isLocalSessionEndedError,
+  LOCAL_SESSION_ENDED_MESSAGE,
+} from '@/features/dfx-backend/session-guard';
 import { dfxAuthService } from '@/features/dfx-backend/services';
-import { secureStorage, StorageKeys } from '@/services/storage';
 import { useLdsWallet } from '@/hooks';
 
 export type ReauthResult = { ok: true; token: string } | { ok: false; error: string };
@@ -36,6 +40,7 @@ export function useLinkedWalletReauth() {
 
   const reauthAs = useCallback(
     async (address: string, blockchain: string): Promise<ReauthResult> => {
+      const guard = createDfxSessionGuard();
       // Path 1: cheap server-side switch via /v2/user/change. Works for
       // any wallet linked to the same DFX account, regardless of where
       // it was originally signed in from. We try this first because the
@@ -45,9 +50,15 @@ export function useLinkedWalletReauth() {
       let path1Error: string | null = null;
       try {
         const token = await dfxAuthService.changeActiveAddress(address);
-        await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
+        await guard.persistToken(token);
         return { ok: true, token };
       } catch (err) {
+        if (isLocalSessionEndedError(err)) {
+          return {
+            ok: false,
+            error: err instanceof Error ? err.message : LOCAL_SESSION_ENDED_MESSAGE,
+          };
+        }
         // Capture so we can surface it if Path 2 also fails — silently
         // swallowing the message made it impossible to tell why the
         // server-side switch was refused (different DFX account, blocked
@@ -63,12 +74,15 @@ export function useLinkedWalletReauth() {
         if (blockchain === 'Lightning') {
           const user = lds.user ?? (await lds.signIn());
           if (!user) return { ok: false, error: annotate('LDS not ready') };
+          if (user.lightning.addressLnurl.trim().toLowerCase() !== address.trim().toLowerCase()) {
+            return { ok: false, error: annotate('addressMismatch') };
+          }
           const token = await dfxAuthService.loginAsLnurlAddressOwner(
             user.lightning.addressLnurl,
             user.lightning.addressOwnershipProof,
             { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
           );
-          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
+          await guard.persistToken(token);
           return { ok: true, token };
         }
 
@@ -86,7 +100,7 @@ export function useLinkedWalletReauth() {
             },
             { wallet: 'DFX Wallet', blockchain: 'Bitcoin' },
           );
-          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
+          await guard.persistToken(token);
           return { ok: true, token };
         }
 
@@ -109,12 +123,18 @@ export function useLinkedWalletReauth() {
             },
             { wallet: 'DFX Wallet', blockchain },
           );
-          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
+          await guard.persistToken(token);
           return { ok: true, token };
         }
 
         return { ok: false, error: annotate(`Unsupported blockchain ${blockchain}`) };
       } catch (err) {
+        if (isLocalSessionEndedError(err)) {
+          return {
+            ok: false,
+            error: err instanceof Error ? err.message : LOCAL_SESSION_ENDED_MESSAGE,
+          };
+        }
         return {
           ok: false,
           error: annotate(err instanceof Error ? err.message : 'Reauth failed'),

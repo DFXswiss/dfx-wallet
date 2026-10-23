@@ -1,5 +1,9 @@
 import { useCallback, useRef, useState } from 'react';
 import { useAccount } from '@tetherto/wdk-react-native-core';
+import {
+  createDfxSessionGuard,
+  isLocalSessionEndedError,
+} from '@/features/dfx-backend/session-guard';
 import { dfxAuthService } from '@/features/dfx-backend/services';
 import {
   EVM_AUTH_ADDRESS_PROBE_MESSAGE,
@@ -69,16 +73,19 @@ export function useDfxAuth() {
 
   const authenticate = useCallback(
     async (options?: { wallet?: string }): Promise<string> => {
+      const guard = createDfxSessionGuard();
       setIsAuthenticating(true);
       setError(null);
 
       try {
         const walletAddress = await resolveAuthAddress();
+        await guard.assertActive();
         const token = await dfxAuthService.login(walletAddress, signMessage, {
           wallet: options?.wallet ?? 'DFX Wallet',
         });
+        await guard.assertActive(token);
 
-        await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
+        await guard.persistToken(token);
         setDfxAuthenticated(true);
         return token;
       } catch (err) {
@@ -96,7 +103,10 @@ export function useDfxAuth() {
   const authenticateSilent = useCallback(async (): Promise<string | null> => {
     try {
       return await authenticate();
-    } catch {
+    } catch (err) {
+      if (isLocalSessionEndedError(err)) {
+        setError(null);
+      }
       return null;
     }
   }, [authenticate]);
@@ -110,19 +120,23 @@ export function useDfxAuth() {
    * returns the same 403 again.
    */
   const reauthenticateAsOwner = useCallback(async (): Promise<string> => {
+    const guard = createDfxSessionGuard();
     setIsAuthenticating(true);
     setError(null);
 
     try {
       const walletAddress = await resolveAuthAddress();
+      await guard.assertActive();
       const token = await dfxAuthService.loginAsAddressOwner(walletAddress, signMessage, {
         wallet: 'DFX Wallet',
       });
+      await guard.assertActive(token);
 
-      await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
+      await guard.persistToken(token);
       // Different user → invalidate per-chain link cache so auto-link
       // re-evaluates against the new JWT.
       await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
+      await guard.assertActive(token);
       setDfxAuthenticated(true);
       return token;
     } catch (err) {

@@ -1,38 +1,56 @@
-import { useEffect, useState, useMemo } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
-import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import { AppHeader, DfxBackgroundScreen } from '@/components';
+import { AppHeader, DfxBackgroundScreen, ReauthPinModal } from '@/components';
 import {
   authenticatePasskey,
   deriveMnemonicFromPrf,
   PasskeyPrfUnsupportedError,
 } from '@/features/passkey/services';
+import { useReauthenticate } from '@/hooks/useReauthenticate';
+import { useScreenCaptureProtection } from '@/hooks/useScreenCaptureProtection';
+import { copySensitive } from '@/services/clipboard';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { seedToWords } from '@/services/wallet';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 
-/**
- * Soft import for expo-screen-capture — the native module isn't linked yet
- * in dev/sim builds (`expo prebuild` hasn't run since the package was added).
- * Without this guard the static `import * as ScreenCapture` blows up the
- * whole screen bundle with "Cannot find native module 'ExpoScreenCapture'",
- * which manifests as an Unmatched Route. Once iOS is rebuilt the require
- * succeeds and capture protection kicks in automatically.
- */
-type ScreenCaptureApi = {
-  preventScreenCaptureAsync: (key?: string) => Promise<unknown>;
-  allowScreenCaptureAsync: (key?: string) => Promise<unknown>;
+type WalletOriginState = 'loading' | 'seed' | 'passkey' | 'error';
+
+type WalletMetadata = {
+  credentialId: string | null;
+  derivationVersion: string | null;
+  origin: string | null;
+  state: Exclude<WalletOriginState, 'loading'>;
 };
-let screenCaptureModule: ScreenCaptureApi | null = null;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  screenCaptureModule = require('expo-screen-capture') as ScreenCaptureApi;
-} catch {
-  screenCaptureModule = null;
+
+async function readWalletMetadata(): Promise<WalletMetadata> {
+  const [origin, credentialId, derivationVersion] = await Promise.all([
+    secureStorage.get(StorageKeys.WALLET_ORIGIN),
+    secureStorage.get(StorageKeys.PASSKEY_CREDENTIAL_ID),
+    secureStorage.get(StorageKeys.PASSKEY_DERIVATION_VERSION),
+  ]);
+  const state: WalletMetadata['state'] =
+    origin === 'passkey' ||
+    origin === 'passkey-pending' ||
+    credentialId !== null ||
+    derivationVersion !== null
+      ? 'passkey'
+      : origin === null
+        ? 'seed'
+        : 'error';
+
+  return { credentialId, derivationVersion, origin, state };
 }
 
 export default function SeedExportScreen() {
@@ -40,43 +58,84 @@ export default function SeedExportScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { t } = useTranslation();
   const router = useRouter();
-  const [walletOrigin, setWalletOrigin] = useState<string | null>(null);
+  const [walletOrigin, setWalletOrigin] = useState<WalletOriginState>('loading');
   const [seedWords, setSeedWords] = useState<string[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const { requestReauth, modalProps } = useReauthenticate();
   // Defensive — older WDK versions don't always have getMnemonic. Bind via
   // the hook return rather than destructuring at the top so a missing
   // method doesn't take down the entire screen render.
   const wallet = useWalletManager();
+  const getMnemonic = wallet?.getMnemonic?.bind(wallet);
 
   useEffect(() => {
-    void secureStorage.get(StorageKeys.WALLET_ORIGIN).then(setWalletOrigin);
+    let mounted = true;
+    void readWalletMetadata()
+      .then((metadata) => {
+        if (mounted) setWalletOrigin(metadata.state);
+      })
+      .catch(() => {
+        if (mounted) setWalletOrigin('error');
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  // Block screenshots and the iOS app-switcher snapshot whenever the seed
-  // is on screen. expo-screen-capture wires into FLAG_SECURE on Android
-  // and the iOS UIScreen capture observer; both are no-ops in the
-  // simulator but enforced on real devices. Released on unmount or when
-  // the seed is hidden again. Skipped silently if the native module isn't
-  // linked yet — that's expected in dev until the next iOS rebuild.
-  useEffect(() => {
-    if (!seedWords || !screenCaptureModule) return;
-    void screenCaptureModule.preventScreenCaptureAsync('seed-export');
-    return () => {
-      void screenCaptureModule!.allowScreenCaptureAsync('seed-export');
-    };
-  }, [seedWords]);
+  const captureProtection = useScreenCaptureProtection(seedWords !== null, 'seed-export');
 
   const isPasskey = walletOrigin === 'passkey';
+  const isOriginReady = walletOrigin === 'seed' || walletOrigin === 'passkey';
+  const canRenderSeed = seedWords !== null && captureProtection !== 'pending';
 
   const handleReveal = async () => {
+    if (!isOriginReady) return;
+    if (!(await requestReauth())) return;
+
+    let metadata: WalletMetadata;
+    try {
+      metadata = await readWalletMetadata();
+    } catch {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(t('common.error'), t('seedExport.deriveFailed'));
+      return;
+    }
+
+    if (
+      metadata.state === 'error' ||
+      metadata.state !== walletOrigin ||
+      (metadata.state === 'passkey' && metadata.origin !== 'passkey')
+    ) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(t('common.error'), t('seedExport.passkeyVerificationUnavailable'));
+      return;
+    }
+
     if (isPasskey) {
       setIsLoading(true);
       try {
-        const versionStr = await secureStorage.get(StorageKeys.PASSKEY_DERIVATION_VERSION);
+        const credentialId = metadata.credentialId;
+        if (!credentialId || !getMnemonic) {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Alert.alert(t('common.error'), t('seedExport.passkeyVerificationUnavailable'));
+          return;
+        }
+        const versionStr = metadata.derivationVersion;
         const version = versionStr ? parseInt(versionStr, 10) : 1;
-        const { prfOutput } = await authenticatePasskey();
+        const { prfOutput } = await authenticatePasskey({ credentialId });
         const mnemonic = deriveMnemonicFromPrf(prfOutput, version);
+        const wdkMnemonic = await getMnemonic('default');
+        if (!wdkMnemonic) {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Alert.alert(t('common.error'), t('seedExport.passkeyVerificationUnavailable'));
+          return;
+        }
+        if (mnemonic !== wdkMnemonic) {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Alert.alert(t('common.error'), t('seedExport.seedMismatch'));
+          return;
+        }
         setSeedWords(seedToWords(mnemonic));
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       } catch (error) {
@@ -102,7 +161,6 @@ export default function SeedExportScreen() {
       // mnemonic from WDK' authoritative store instead.
       setIsLoading(true);
       try {
-        const getMnemonic = wallet?.getMnemonic;
         const mnemonic = getMnemonic ? await getMnemonic('default') : null;
         if (mnemonic) {
           setSeedWords(seedToWords(mnemonic));
@@ -130,7 +188,7 @@ export default function SeedExportScreen() {
 
   const handleCopy = async () => {
     if (!seedWords) return;
-    await Clipboard.setStringAsync(seedWords.join(' '));
+    await copySensitive(seedWords.join(' '));
     setCopied(true);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTimeout(() => setCopied(false), 2000);
@@ -150,20 +208,33 @@ export default function SeedExportScreen() {
 
         {!seedWords ? (
           <Pressable
-            style={[styles.revealButton, isLoading && styles.revealButtonDisabled]}
+            testID="seed-export-reveal-button"
+            style={[
+              styles.revealButton,
+              (isLoading || !isOriginReady) && styles.revealButtonDisabled,
+            ]}
             onPress={handleReveal}
-            disabled={isLoading}
+            disabled={isLoading || !isOriginReady}
           >
             <Text style={styles.revealText}>
-              {isLoading
+              {walletOrigin === 'loading' || isLoading
                 ? t('common.loading')
-                : isPasskey
-                  ? t('seedExport.revealPasskey')
-                  : t('seedExport.revealSeed')}
+                : walletOrigin === 'error'
+                  ? t('common.error')
+                  : isPasskey
+                    ? t('seedExport.revealPasskey')
+                    : t('seedExport.revealSeed')}
             </Text>
           </Pressable>
+        ) : !canRenderSeed ? (
+          <ActivityIndicator testID="seed-export-protection-loading" color={colors.primary} />
         ) : (
           <>
+            {captureProtection === 'unavailable' && (
+              <View style={styles.warningContainer} testID="seed-export-capture-warning">
+                <Text style={styles.warningText}>{t('common.screenCaptureUnavailable')}</Text>
+              </View>
+            )}
             <View style={styles.warningContainer}>
               <Text style={styles.warningText}>{t('seedExport.warning')}</Text>
             </View>
@@ -183,6 +254,7 @@ export default function SeedExportScreen() {
           </>
         )}
       </View>
+      <ReauthPinModal {...modalProps} />
     </DfxBackgroundScreen>
   );
 }

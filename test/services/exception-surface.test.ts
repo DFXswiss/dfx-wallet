@@ -16,8 +16,16 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DfxApiError } from '@/features/dfx-backend/services/api';
-import { PasskeyPrfUnsupportedError } from '@/features/passkey/services/passkey-service';
+import {
+  DfxAuthFlowInvalidatedError,
+  DfxSignMessageMismatchError,
+} from '@/features/dfx-backend/services/auth-service';
+import {
+  PasskeyCredentialMismatchError,
+  PasskeyPrfUnsupportedError,
+} from '@/features/passkey/services/passkey-service';
 import { OpenCryptoPayError } from '@/services/opencryptopay/opencryptopay-service';
+import { PinOverwriteNotAllowedError } from '@/store/auth';
 
 /** Recursively list every non-test .ts/.tsx file under a directory. */
 function tsSourceFiles(dir: string): string[] {
@@ -56,7 +64,15 @@ describe('exception surface', () => {
 
     // One entry per typed exception. Adding a new `extends Error` class?
     // Register it below AND add identity tests for it in this file.
-    const registered = ['DfxApiError', 'PasskeyPrfUnsupportedError', 'OpenCryptoPayError'];
+    const registered = [
+      'DfxApiError',
+      'DfxAuthFlowInvalidatedError',
+      'DfxSignMessageMismatchError',
+      'PasskeyPrfUnsupportedError',
+      'PasskeyCredentialMismatchError',
+      'OpenCryptoPayError',
+      'PinOverwriteNotAllowedError',
+    ];
 
     expect(declarations).toHaveLength(registered.length);
     for (const cls of registered) {
@@ -98,6 +114,38 @@ describe('exception surface', () => {
     });
   });
 
+  describe('DfxSignMessageMismatchError', () => {
+    it('keeps its identity and fixed message', () => {
+      const err = new DfxSignMessageMismatchError();
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(DfxSignMessageMismatchError);
+      expect(err.name).toBe('DfxSignMessageMismatchError');
+      expect(err.message).toBe('DFX sign-message challenge does not match the requested address');
+    });
+  });
+
+  describe('DfxAuthFlowInvalidatedError', () => {
+    it('keeps its identity and fixed message', () => {
+      const err = new DfxAuthFlowInvalidatedError();
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(DfxAuthFlowInvalidatedError);
+      expect(err.name).toBe('DfxAuthFlowInvalidatedError');
+      expect(err.message).toBe('DFX authentication was invalidated by a session change');
+    });
+  });
+
+  describe('PasskeyCredentialMismatchError', () => {
+    it('keeps its identity and fixed message', () => {
+      const err = new PasskeyCredentialMismatchError();
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(PasskeyCredentialMismatchError);
+      expect(err.name).toBe('PasskeyCredentialMismatchError');
+      expect(err.message).toBe(
+        'Authenticated passkey credential does not match the stored credential',
+      );
+    });
+  });
+
   describe('OpenCryptoPayError', () => {
     it('keeps its identity across the instanceof and name channels, and carries its code', () => {
       const err = new OpenCryptoPayError('invalid-qr', 'Not an OpenCryptoPay QR code');
@@ -106,6 +154,16 @@ describe('exception surface', () => {
       expect(err.name).toBe('OpenCryptoPayError');
       expect(err.message).toBe('Not an OpenCryptoPay QR code');
       expect(err.code).toBe('invalid-qr');
+    });
+  });
+
+  describe('PinOverwriteNotAllowedError', () => {
+    it('keeps its identity and fixed message', () => {
+      const err = new PinOverwriteNotAllowedError();
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(PinOverwriteNotAllowedError);
+      expect(err.name).toBe('PinOverwriteNotAllowedError');
+      expect(err.message).toBe('An existing PIN cannot be replaced while the wallet is locked');
     });
   });
 });

@@ -91,7 +91,10 @@ module.exports = {
       displayName: 'components',
       preset: 'jest-expo',
       transform: sharedTransform,
-      testMatch: ['<rootDir>/test/components/**/*.test.tsx'],
+      testMatch: [
+        '<rootDir>/test/components/**/*.test.tsx',
+        '<rootDir>/test/hooks/**/*.test.tsx',
+      ],
       // Same global flag setup as the unit project: pin every
       // EXPO_PUBLIC_ENABLE_* to "true" before any feature wrapper loads,
       // so `FEATURES.X` resolves to the real implementation in the
