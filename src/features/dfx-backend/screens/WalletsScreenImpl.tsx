@@ -20,7 +20,7 @@ import {
   useLinkedWalletNames,
 } from '@/features/linked-wallets/useLinkedWalletNames';
 import { useLinkedWalletSelection } from '@/features/linked-wallets/useLinkedWalletSelection';
-import { Typography, useColors, type ThemeColors } from '@/theme';
+import { MonospaceFontFamily, Typography, useColors, type ThemeColors } from '@/theme';
 
 type LinkableChain = {
   network: 'bitcoin';
@@ -430,7 +430,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
     addressMono: {
       ...Typography.bodyMedium,
-      fontFamily: 'monospace',
+      fontFamily: MonospaceFontFamily,
       color: colors.text,
     },
     addressMeta: {

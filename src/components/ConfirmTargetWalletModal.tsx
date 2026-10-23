@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useColors, type ThemeColors, Typography } from '@/theme';
+import { useColors, type ThemeColors, Typography, MonospaceFontFamily } from '@/theme';
 
 type Props = {
   visible: boolean;
@@ -152,7 +152,7 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodyMedium,
       color: colors.text,
       fontWeight: '600',
-      fontFamily: 'monospace',
+      fontFamily: MonospaceFontFamily,
     },
     walletBlockchain: {
       ...Typography.bodySmall,
