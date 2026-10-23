@@ -98,7 +98,7 @@ rm e2e/__baselines__/dashboard.png
 npm run e2e:test:ios
 ```
 
-Then commit the new PNG.
+Inspect the PNG locally. Do not commit it. Committed baselines are recorded on the CI runner; see [Refreshing baselines on the CI runner](#refreshing-baselines-on-the-ci-runner).
 
 ## Feature-gated `describe` blocks
 
@@ -122,15 +122,15 @@ A build with the feature off skips the block instead of running it against the `
 ## Adding a new screenshot
 
 1. Add a new `it` block that taps to the screen and calls `expectScreenToMatchBaseline('your-name')`.
-2. Capture the baseline locally (see [Running locally](#running-locally)); CI will not write a missing baseline.
+2. Record the baseline on the CI runner (see [Refreshing baselines on the CI runner](#refreshing-baselines-on-the-ci-runner)). A normal CI run will not write a missing baseline.
 3. Inspect the PNG under `e2e/__diffs__/` or the local Detox `artifacts/` tree:
    ```bash
    ls e2e/__diffs__ e2e/__baselines__
    ```
 4. Find your screenshot under the local Detox artifacts directory named after the test. A masked screenshot has no raw artifact there (it is deleted after masking); inspect the matcher-written baseline instead.
 5. Inspect the PNG — make sure it captures the state you actually want to baseline (not an error screen, not a half-loaded WDK, etc.).
-6. For screenshots without masked test IDs, copy it into `e2e/__baselines__/your-name.png`. For screenshots using `maskTestIDs`, let the matcher write the baseline during the first local run or an update-snapshot run; never copy a raw Detox artifact into `e2e/__baselines__/`.
-7. For a masked screenshot, open the matcher-written baseline and visually confirm that every sensitive area is fully covered before committing it.
+6. Commit the PNG from the runner artifact (`visual-baselines-mvp` or `visual-baselines-full`), not a copy out of the local Detox artifacts directory. The matcher writes that PNG after applying `maskTestIDs`, so masked areas are already covered.
+7. Open every masked baseline and confirm that each sensitive area is fully covered before committing it.
 8. Push and re-trigger the visual workflow (see [Triggering visual regression](#triggering-visual-regression) below).
 
 ## Pitfalls
@@ -143,7 +143,7 @@ A build with the feature off skips the block instead of running it against the `
 New snapshot was not written. The update flag must be explicitly passed to write a new snapshot.
 ```
 
-This is by design — it prevents merging a green run that only passes because it silently wrote the baseline. Adding a baseline is a local capture (see [Adding a new screenshot](#adding-a-new-screenshot)), not a CI download pass.
+This is by design — it prevents merging a green run that only passes because it silently wrote the baseline. A normal CI run still does not write baselines. Recording them is a separate dispatch; see [Refreshing baselines on the CI runner](#refreshing-baselines-on-the-ci-runner).
 
 ### Detox `toBeVisible` is strict (>75% on screen)
 
@@ -196,7 +196,7 @@ This is fragile: a failure in the preceding block leaves the next one starting f
 
 ## CI
 
-`.github/workflows/visual-regression.yml` runs the suite on `macos-latest`.
+`.github/workflows/visual-regression.yml` runs the suite on the pinned `macos-26` runner. Baselines are produced only in that environment: macOS 26, Xcode 26.6, iPhone 17 Pro, iOS 26.5.
 
 ### Triggering visual regression
 
@@ -213,9 +213,21 @@ To re-trigger after a push:
 gh pr edit <pr> --remove-label needs-visual && gh pr edit <pr> --add-label needs-visual
 ```
 
+### Refreshing baselines on the CI runner
+
+Baselines are produced only in the pinned environment: `macos-26`, Xcode 26.6, iPhone 17 Pro on iOS 26.5. A capture from any other Xcode or simulator runtime will not match this runner.
+
+Start the workflow on the branch that should own the new PNGs:
+
+```bash
+gh workflow run visual-regression.yml --ref <branch> -f update_baselines=true
+```
+
+When the run finishes, download the artifacts `visual-baselines-mvp` and `visual-baselines-full`. Look at every image and confirm that masked regions are fully covered. Commit only the PNGs that changed. Then start the workflow once more without `update_baselines` and keep that run as the evidence that the committed baselines match.
+
 ### Artifacts
 
-On failure those trees stay on the runner and are not uploaded. A local Detox run writes the actual screenshot for each test under a directory named after the test:
+On failure the diff trees stay on the runner and are not uploaded. Recorded baselines are uploaded only when the workflow is dispatched with `update_baselines`. A local Detox run writes the actual screenshot for each test under a directory named after the test:
 
 ```
 detox-artifacts/ios.release.<ts>Z/
@@ -224,4 +236,4 @@ detox-artifacts/ios.release.<ts>Z/
 └── …
 ```
 
-For unmasked screenshots, the `✗`-prefixed directories contain the artifacts you copy into `e2e/__baselines__/` when [adding a new screenshot](#adding-a-new-screenshot). For screenshots using `maskTestIDs`, always use the baseline written by the matcher instead.
+The `✗`-prefixed directories are local failures. The PNG that gets committed comes from the runner artifact, written by the matcher (masked where `maskTestIDs` is set); see [Refreshing baselines on the CI runner](#refreshing-baselines-on-the-ci-runner).
