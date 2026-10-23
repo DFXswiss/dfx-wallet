@@ -23,13 +23,14 @@ type ScreenshotOptions = {
 };
 
 async function getMaskFrames(testIDs: readonly string[]): Promise<ScreenshotMaskRect[]> {
-  const frameGroups = await Promise.all(
-    testIDs.map(async (testID) => {
-      const attributes = await element(by.id(testID)).getAttributes();
-      return elementFramesFromAttributes(attributes, `mask testID "${testID}"`);
-    }),
-  );
-  return frameGroups.flat();
+  // Detox rejects overlapping interactions, so each test ID is queried only
+  // after the previous getAttributes() has settled.
+  const frames: ScreenshotMaskRect[] = [];
+  for (const testID of testIDs) {
+    const attributes = await element(by.id(testID)).getAttributes();
+    frames.push(...elementFramesFromAttributes(attributes, `mask testID "${testID}"`));
+  }
+  return frames;
 }
 
 async function getWindowWidth(): Promise<number> {
