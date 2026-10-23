@@ -2,6 +2,11 @@ name: Visual Regression
 
 on:
   workflow_dispatch:
+    inputs:
+      update_baselines:
+        description: Record baselines on the runner and upload them as an artifact
+        type: boolean
+        default: false
   schedule:
     # Nightly drift check on develop. 03:00 UTC = low-traffic window.
     - cron: '0 3 * * *'
@@ -38,7 +43,7 @@ jobs:
       (github.event_name == 'pull_request' &&
        github.event.pull_request.draft != true &&
        (github.event.action != 'labeled' || github.event.label.name == 'needs-visual'))
-    runs-on: macos-latest
+    runs-on: macos-26
     timeout-minutes: 90
     # QUARANTINE: the `full` (authenticated) variant has never gone green on CI
     # since it was introduced in #186 — the full-feature build hangs during fresh
@@ -60,6 +65,14 @@ jobs:
         variant: ${{ github.event_name == 'pull_request' && fromJSON('["mvp"]') || fromJSON('["mvp", "full"]') }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # macos-26 ships several Xcodes. Select 26.6 before any xcodebuild so the
+      # simulator runtime matches the baselines, and print it for the log.
+      - name: Select Xcode 26.6
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app
+          xcodebuild -version
+          xcrun simctl list runtimes
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -112,9 +125,23 @@ jobs:
         # wedged detox CLI fails here instead of burning the job to its 90-min
         # ceiling with tests already passed.
         timeout-minutes: 30
+        env:
+          UPDATE_BASELINES: ${{ inputs.update_baselines == true }}
         run: |
           if [ "${{ matrix.variant }}" = "full" ]; then
-            npm run e2e:test:ios -- e2e/visual/authenticated.test.ts
+            specs=(e2e/visual/authenticated.test.ts)
           else
-            npm run e2e:test:ios -- e2e/visual/onboarding.test.ts
+            specs=(e2e/visual/onboarding.test.ts)
           fi
+          if [ "$UPDATE_BASELINES" = "true" ]; then
+            specs+=(--updateSnapshot)
+          fi
+          npm run e2e:test:ios -- "${specs[@]}"
+
+      - name: Upload recorded baselines
+        if: ${{ always() && inputs.update_baselines }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: visual-baselines-${{ matrix.variant }}
+          path: e2e/__baselines__/
+          retention-days: 1
