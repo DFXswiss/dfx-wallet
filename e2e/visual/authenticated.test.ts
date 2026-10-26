@@ -14,8 +14,8 @@ const pause = (ms = 1_000) => new Promise((r) => setTimeout(r, ms));
  * snapshotted there. This suite is captured against the `full` matrix leg of
  * .github/workflows/visual-regression.yml, which enables every flag except PIN
  * and LEGAL, so each screen resolves to its real implementation. The PIN and
- * legal screens are covered only when both flags are on (see
- * docs/visual-regression.md).
+ * legal screens are not captured in CI (see docs/visual-regression.md,
+ * Feature-gated describe blocks).
  *
  * Baseline names here are disjoint from the MVP suite's, so the two share
  * e2e/__baselines__/ without clobbering each other — enforced by

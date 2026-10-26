@@ -120,6 +120,8 @@ describePinLegal('Create wallet flow with PIN + legal', () => {
 
 A build with the feature off skips the block instead of running it against the `*Disabled` stub. The MVP `describe`s — Welcome, Create-wallet-MVP, Dashboard-navigation-MVP — stay unconditional and end at the dashboard via the `SetupPinDisabled` redirect.
 
+Neither CI leg enables both PIN and LEGAL: `mvp` leaves every flag off, and `full` keeps PIN and LEGAL off so fresh onboarding reaches the dashboard. `describePinLegal` and `describePin` are therefore skipped in CI, and their baselines (`setup-pin*`, `verify-pin*`, `legal-disclaimer`, `pin-unlock-dashboard`) are not compared there. `describeRestoreFlow` needs restore or passkey as well as PIN and LEGAL, so it is skipped in CI too, and its baselines (`restore-wallet`, `restore-wallet-filled`) are not compared there. `describeRestoreToggle` (`welcome-restore-expanded`) needs restore or passkey, which only `full` enables, and `full` runs `authenticated.test.ts`, not `onboarding.test.ts`, so it is skipped in CI as well. Run the PIN and legal screens locally with both flags on when you change them; run `describeRestoreFlow` with restore or passkey on as well.
+
 ## Adding a new screenshot
 
 1. Add a new `it` block that taps to the screen and calls `expectScreenToMatchBaseline('your-name')`.
