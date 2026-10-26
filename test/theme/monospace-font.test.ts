@@ -42,7 +42,20 @@ jest.mock('react-native', () => ({ Platform: platformStub }));
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const MONOSPACE_LITERAL = /fontFamily\s*:\s*['"]monospace['"]/;
+// Whole file, not one line: `\s` includes newlines. Optional quotes cover
+// "fontFamily" and 'fontFamily'. The value quotes include backticks.
+const MONOSPACE_LITERAL = /['"]?fontFamily['"]?\s*:\s*['"`]monospace['"`]/g;
+
+function hitsInText(file: string, text: string): string[] {
+  const hits: string[] = [];
+  MONOSPACE_LITERAL.lastIndex = 0;
+  for (const match of text.matchAll(MONOSPACE_LITERAL)) {
+    const start = match.index ?? 0;
+    const line = text.slice(0, start).split('\n').length;
+    hits.push(`${file}:${line}`);
+  }
+  return hits;
+}
 
 function loadMonospaceFontFamily(): string | undefined {
   let loaded: string | undefined;
@@ -73,11 +86,8 @@ function literalHits(root: string): string[] {
   const hits: string[] = [];
   for (const file of tsSourceFiles(root)) {
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- `file` comes only from the literal-rooted tsSourceFiles walk, no external input
-    readFileSync(file, 'utf8')
-      .split('\n')
-      .forEach((line, index) => {
-        if (MONOSPACE_LITERAL.test(line)) hits.push(`${file}:${index + 1}`);
-      });
+    const text = readFileSync(file, 'utf8');
+    hits.push(...hitsInText(file, text));
   }
   return hits;
 }
@@ -96,6 +106,30 @@ describe('MonospaceFontFamily', () => {
   it('is re-exported next to Typography', () => {
     const src = readFileSync('src/theme/index.ts', 'utf8');
     expect(src).toContain("export { Typography, MonospaceFontFamily } from './typography';");
+  });
+});
+
+describe('MONOSPACE_LITERAL', () => {
+  it.each([
+    ['a backtick template', 'fontFamily: `monospace`'],
+    ['a line break between property and value', "fontFamily:\n  'monospace'"],
+    ['a double-quoted key', `"fontFamily": 'monospace'`],
+    ['a single-quoted key', `'fontFamily': "monospace"`],
+  ])('matches %s and names file and line', (_label, sample) => {
+    expect(hitsInText('sample.tsx', sample)).toEqual(['sample.tsx:1']);
+  });
+
+  it('names the line the property starts on when the value is on the next line', () => {
+    const text = "export const styles = {\n  fontFamily:\n    'monospace',\n};\n";
+    expect(hitsInText('src/example.tsx', text)).toEqual(['src/example.tsx:2']);
+  });
+
+  it('does not match the token expression', () => {
+    expect(hitsInText('sample.tsx', 'fontFamily: MonospaceFontFamily')).toEqual([]);
+  });
+
+  it('does not match the word monospace in a comment', () => {
+    expect(hitsInText('sample.tsx', '// Menlo is the iOS monospace face')).toEqual([]);
   });
 });
 
