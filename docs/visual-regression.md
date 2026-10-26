@@ -99,7 +99,7 @@ rm e2e/__baselines__/dashboard.png
 npm run e2e:test:ios
 ```
 
-Inspect the PNG locally. Do not commit it. Committed baselines are recorded on the CI runner; see [Refreshing baselines on the CI runner](#refreshing-baselines-on-the-ci-runner).
+Inspect the PNG locally. Do not commit it. Baselines that CI compares are recorded on the CI runner; see [Refreshing baselines on the CI runner](#refreshing-baselines-on-the-ci-runner).
 
 ## Feature-gated `describe` blocks
 
@@ -120,7 +120,7 @@ describePinLegal('Create wallet flow with PIN + legal', () => {
 
 A build with the feature off skips the block instead of running it against the `*Disabled` stub. The MVP `describe`s — Welcome, Create-wallet-MVP, Dashboard-navigation-MVP — stay unconditional and end at the dashboard via the `SetupPinDisabled` redirect.
 
-Neither CI leg enables both PIN and LEGAL: `mvp` leaves every flag off, and `full` keeps PIN and LEGAL off so fresh onboarding reaches the dashboard. `describePinLegal` and `describePin` are therefore skipped in CI, and their baselines (`setup-pin*`, `verify-pin*`, `legal-disclaimer`, `pin-unlock-dashboard`) are not compared there. `describeRestoreFlow` needs restore or passkey as well as PIN and LEGAL, so it is skipped in CI too, and its baselines (`restore-wallet`, `restore-wallet-filled`) are not compared there. `describeRestoreToggle` (`welcome-restore-expanded`) needs restore or passkey, which only `full` enables, and `full` runs `authenticated.test.ts`, not `onboarding.test.ts`, so it is skipped in CI as well. Run the PIN and legal screens locally with both flags on when you change them; run `describeRestoreFlow` with restore or passkey on as well.
+Neither CI leg enables both PIN and LEGAL: `mvp` leaves every flag off, and `full` keeps PIN and LEGAL off so fresh onboarding reaches the dashboard. `describePinLegal` and `describePin` are therefore skipped in CI, and their baselines (`setup-pin*`, `verify-pin*`, `legal-disclaimer`, `pin-unlock-dashboard`, and the not yet committed `dashboard-with-pin-legal`) are not compared there. `describeRestoreFlow` needs restore or passkey as well as PIN and LEGAL, so it is skipped in CI too, and its baselines (`restore-wallet`, `restore-wallet-filled`) are not compared there. `describeRestoreToggle` (`welcome-restore-expanded`) needs restore or passkey, which only `full` enables, and `full` runs `authenticated.test.ts`, not `onboarding.test.ts`, so it is skipped in CI as well. Run the PIN and legal screens locally with both flags on when you change them; run `describeRestoreFlow` with restore or passkey on as well.
 
 ## Adding a new screenshot
 
@@ -198,7 +198,7 @@ This is fragile: a failure in the preceding block leaves the next one starting f
 
 ## CI
 
-`.github/workflows/visual-regression.yml` runs the suite on the pinned `macos-26` runner. Baselines are produced only in that environment: macOS 26, Xcode 26.6, iPhone 17 Pro, iOS 26.5.
+`.github/workflows/visual-regression.yml` runs the suite on the pinned `macos-26` runner. Baselines are produced only in that environment: macOS 26, Xcode 26.6, iPhone 17 Pro, iOS 26.5. The gated PIN, legal and restore baselines listed under Feature-gated `describe` blocks are older local captures (#77) that no CI leg compares; re-record them on the runner once a leg enables those flags.
 
 ### Triggering visual regression
 

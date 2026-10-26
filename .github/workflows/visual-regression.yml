@@ -94,7 +94,7 @@ jobs:
         run: |
           cp .env.testnet .env
           # Keep visual builds deterministic and prevent live background work
-          # from contending with PIN hashing on hosted simulator runners.
+          # from contending with the UI on hosted simulator runners.
           echo "EXPO_PUBLIC_E2E=true" >> .env
 
       - name: Enable feature flags except PIN and legal (full variant only)
