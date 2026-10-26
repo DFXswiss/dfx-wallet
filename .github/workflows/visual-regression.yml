@@ -46,7 +46,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 90
     # QUARANTINE: the `full` (authenticated) variant never went green on CI after it
-    # was introduced in #186. With PIN on, fresh onboarding stopped at the PIN unlock
+    # was introduced in #186. With PIN on, fresh onboarding stopped at the PIN setup
     # screen and the suite timed out at "reaches the dashboard", on develop's nightly
     # run and on unrelated PRs alike. The `full` build now keeps PIN and LEGAL off, so
     # the run reaches the dashboard. Keep `continue-on-error` until the nightly runs
@@ -99,7 +99,7 @@ jobs:
 
       - name: Enable feature flags except PIN and legal (full variant only)
         if: matrix.variant == 'full'
-        run: | # PIN and LEGAL stay off: with PIN on, onboarding stops at the PIN unlock screen
+        run: | # PIN and LEGAL stay off: with PIN on, onboarding stops at the PIN setup screen
           for f in BIOMETRIC BUY_SELL DEEPLINKS DFX_BACKEND HARDWARE_WALLET \
                    LINKED_WALLETS MULTISIG PASSKEY PAY PORTFOLIO \
                    RESTORE SETTINGS TAX_REPORT TX_HISTORY WEBVIEW; do
