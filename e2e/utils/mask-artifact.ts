@@ -23,13 +23,21 @@ const defaultArtifactFs: ArtifactFs = {
   },
 };
 
-function removeRawArtifact(fsApi: ArtifactFs, artifactPath: string): void {
+function rethrowAfterDeletingRawArtifact(
+  fsApi: ArtifactFs,
+  artifactPath: string,
+  originalError: unknown,
+): never {
   try {
     // eslint-disable-next-line security/detect-non-literal-fs-filename
     fsApi.rmSync(artifactPath, { force: true });
-  } catch {
-    // Preserve the original read or mask error.
+  } catch (cleanupError) {
+    throw new AggregateError(
+      [originalError, cleanupError],
+      `Unmasked screenshot may still remain at ${artifactPath}`,
+    );
   }
+  throw originalError;
 }
 
 /**
@@ -37,8 +45,9 @@ function removeRawArtifact(fsApi: ArtifactFs, artifactPath: string): void {
  *
  * Detox writes the capture into the OS temp directory. Writing the masked
  * bytes back would recreate that temp file, which CodeQL reports as an
- * insecure temporary file. The unmasked image is removed on every path,
- * including when reading or masking fails.
+ * insecure temporary file. Deletion is attempted on every path. A deletion
+ * error is never swallowed: with the original read or mask error it becomes
+ * an AggregateError, and on the success path it propagates on its own.
  */
 export function maskArtifactInPlace(
   artifactPath: string,
@@ -52,16 +61,14 @@ export function maskArtifactInPlace(
     // eslint-disable-next-line security/detect-non-literal-fs-filename
     screenshot = fsApi.readFileSync(artifactPath);
   } catch (error) {
-    removeRawArtifact(fsApi, artifactPath);
-    throw error;
+    rethrowAfterDeletingRawArtifact(fsApi, artifactPath, error);
   }
 
   let maskedScreenshot: ArtifactBytes;
   try {
     maskedScreenshot = mask(screenshot, rects, windowWidth);
   } catch (error) {
-    removeRawArtifact(fsApi, artifactPath);
-    throw error;
+    rethrowAfterDeletingRawArtifact(fsApi, artifactPath, error);
   }
 
   // eslint-disable-next-line security/detect-non-literal-fs-filename

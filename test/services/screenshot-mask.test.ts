@@ -151,4 +151,57 @@ describe('screenshot masking', () => {
     expect(fsApi.writeFileSync).not.toHaveBeenCalled();
     expect(fsApi.rmSync).toHaveBeenCalledWith('/tmp/artifact.png', { force: true });
   });
+
+  it('combines a read failure with a deletion failure', () => {
+    const readError = new Error('read failed');
+    const cleanupError = new Error('delete failed');
+    const artifactPath = '/tmp/artifact.png';
+    const fsApi = createFsApi(Buffer.from('raw screenshot'));
+    fsApi.readFileSync.mockImplementationOnce(() => {
+      throw readError;
+    });
+    fsApi.rmSync.mockImplementationOnce(() => {
+      throw cleanupError;
+    });
+
+    let thrown: unknown;
+    try {
+      maskArtifactInPlace(artifactPath, [], 390, fsApi, jest.fn());
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(AggregateError);
+    if (!(thrown instanceof AggregateError)) {
+      throw new Error('expected AggregateError');
+    }
+    expect(thrown.errors).toEqual([readError, cleanupError]);
+    expect(thrown.message).toBe(`Unmasked screenshot may still remain at ${artifactPath}`);
+  });
+
+  it('combines a masking failure with a deletion failure', () => {
+    const maskError = new Error('mask failed');
+    const cleanupError = new Error('delete failed');
+    const artifactPath = '/tmp/artifact.png';
+    const fsApi = createFsApi(Buffer.from('raw screenshot'));
+    fsApi.rmSync.mockImplementationOnce(() => {
+      throw cleanupError;
+    });
+
+    let thrown: unknown;
+    try {
+      maskArtifactInPlace(artifactPath, [], 390, fsApi, () => {
+        throw maskError;
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(AggregateError);
+    if (!(thrown instanceof AggregateError)) {
+      throw new Error('expected AggregateError');
+    }
+    expect(thrown.errors).toEqual([maskError, cleanupError]);
+    expect(thrown.message).toBe(`Unmasked screenshot may still remain at ${artifactPath}`);
+  });
 });
