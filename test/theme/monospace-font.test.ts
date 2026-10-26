@@ -4,6 +4,9 @@
  * fresh via jest.isolateModules — same shape as test/services/platform.test.ts.
  * select mirrors React Native: the platform key wins, otherwise default.
  */
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 type FontSpec = {
   ios?: string;
   android?: string;
@@ -39,9 +42,6 @@ const platformStub = {
 };
 jest.mock('react-native', () => ({ Platform: platformStub }));
 
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 // Whole file, not one line: `\s` includes newlines. Optional quotes cover
 // "fontFamily" and 'fontFamily'. The value quotes include backticks.
 const MONOSPACE_LITERAL = /['"]?fontFamily['"]?\s*:\s*['"`]monospace['"`]/g;
@@ -60,9 +60,10 @@ function hitsInText(file: string, text: string): string[] {
 function loadMonospaceFontFamily(): string | undefined {
   let loaded: string | undefined;
   jest.isolateModules(() => {
-    loaded = (
-      require('../../src/theme/typography') as { MonospaceFontFamily: string | undefined }
-    ).MonospaceFontFamily;
+    loaded =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- isolateModules needs a synchronous require to re-evaluate Platform.select
+      (require('../../src/theme/typography') as { MonospaceFontFamily: string | undefined })
+        .MonospaceFontFamily;
   });
   return loaded;
 }
