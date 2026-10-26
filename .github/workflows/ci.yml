@@ -199,6 +199,15 @@ jobs:
       # braces GHSA-vfj7-8cjw-p6xm: no published patched release (affects <=3.0.3, latest 3.0.3);
       # only reached through micromatch in jest, metro, @expo/cli and patch-package tooling
       # (patch-package -> find-yarn-workspace-root -> micromatch -> braces), not the app bundle.
+      # zod GHSA-mrhx-c7xc-m3w5: memory exhaustion when an array schema without a length limit
+      # validates an oversized array. Affects every zod <4.6.6; no patched 3.x (latest 3.25.76).
+      # Reached through @tetherto/wdk-react-native-core 1.0.0-beta.9, which pins zod ^3.22.0.
+      # Every core release on zod 4 (beta.12 and later) requires Expo SDK 55/56 and react-native-bare-kit
+      # >=0.14.5, so this needs the SDK upgrade and is not an override.
+      # Neither the core's schemas (src/utils/schemas.ts, only string/number/object/record)
+      # nor app/ or src/ define an array schema. viem never imports abitype/zod.
+      # npm audit also reports @tetherto/wdk-react-native-core itself as high through zod and
+      # collects the same ID (as @wix-pilot/detox via braces). Remove this entry together with that upgrade.
       # Unidentified advisories, unresolved package references and unknown via types fail closed.
       # The classifier is validated against synthetic audit fixtures so a
       # refactor cannot quietly stop catching mixed-severity or fail-closed cases.
@@ -215,6 +224,7 @@ jobs:
               "GHSA-W3RX-R6R6-PGPR",
               "GHSA-5P2G-FCMC-QVQQ",
               "GHSA-VFJ7-8CJW-P6XM",
+              "GHSA-MRHX-C7XC-M3W5",
           }
           GHSA_RE = re.compile(r"GHSA-[a-z0-9]+-[a-z0-9]+-[a-z0-9]+", re.I)
           try:
