@@ -53,7 +53,8 @@ e2e/
 │   ├── pin.ts             # enterPin helper
 │   └── screenshot.ts      # expectScreenToMatchBaseline (the matcher)
 └── visual/
-    └── onboarding.test.ts # the actual `describe` blocks
+    ├── authenticated.test.ts # full variant, authenticated screens
+    └── onboarding.test.ts    # MVP variant
 ```
 
 `expectScreenToMatchBaseline(name)` is the only matcher the test files use:
@@ -123,15 +124,14 @@ A build with the feature off skips the block instead of running it against the `
 
 1. Add a new `it` block that taps to the screen and calls `expectScreenToMatchBaseline('your-name')`.
 2. Record the baseline on the CI runner (see [Refreshing baselines on the CI runner](#refreshing-baselines-on-the-ci-runner)). A normal CI run will not write a missing baseline.
-3. Inspect the PNG under `e2e/__diffs__/` or the local Detox `artifacts/` tree:
-   ```bash
-   ls e2e/__diffs__ e2e/__baselines__
-   ```
-4. Find your screenshot under the local Detox artifacts directory named after the test. A masked screenshot has no raw artifact there (it is deleted after masking); inspect the matcher-written baseline instead.
-5. Inspect the PNG — make sure it captures the state you actually want to baseline (not an error screen, not a half-loaded WDK, etc.).
+3. When the dispatched run finishes, download the `visual-baselines-<variant>` artifact.
+4. Find `your-name.png` in it.
+5. Inspect it, and check it is not an error screen or a half-loaded WDK.
 6. Commit the PNG from the runner artifact (`visual-baselines-mvp` or `visual-baselines-full`), not a copy out of the local Detox artifacts directory. The matcher writes that PNG after applying `maskTestIDs`, so masked areas are already covered.
 7. Open every masked baseline and confirm that each sensitive area is fully covered before committing it.
 8. Push and re-trigger the visual workflow (see [Triggering visual regression](#triggering-visual-regression) below).
+
+A local run stays useful for iterating on the test itself.
 
 ## Pitfalls
 
@@ -223,7 +223,7 @@ Start the workflow on the branch that should own the new PNGs:
 gh workflow run visual-regression.yml --ref <branch> -f update_baselines=true
 ```
 
-When the run finishes, download the artifacts `visual-baselines-mvp` and `visual-baselines-full`. Look at every image and confirm that masked regions are fully covered. Commit only the PNGs that changed. Then start the workflow once more without `update_baselines` and keep that run as the evidence that the committed baselines match.
+When the run finishes, download the artifacts `visual-baselines-mvp` and `visual-baselines-full`. Only a leg whose test step passed uploads its artifact, and a missing artifact means that leg failed and must be fixed first. Look at every image and confirm that masked regions are fully covered. Commit only the PNGs that changed. Then start the workflow once more without `update_baselines` and keep that run as the evidence that the committed baselines match.
 
 ### Artifacts
 

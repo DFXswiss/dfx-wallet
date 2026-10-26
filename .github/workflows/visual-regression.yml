@@ -45,23 +45,22 @@ jobs:
        (github.event.action != 'labeled' || github.event.label.name == 'needs-visual'))
     runs-on: macos-26
     timeout-minutes: 90
-    # QUARANTINE: the `full` (authenticated) variant has never gone green on CI
-    # since it was introduced in #186 — the full-feature build hangs during fresh
-    # wallet creation, so `setup-pin-screen` never appears and the whole suite
-    # times out (fails on develop's own nightly run and even on zero-code PRs like
-    # dependency bumps). It is not a required check, but a perpetually-red leg
-    # paints every PR red and drowns the signal. Until the suite is stabilised
-    # (tracking: #189 / #190) the `full` leg may fail without failing the check.
-    # The `mvp` leg stays a hard signal. Remove this once `full` is reliably green.
+    # QUARANTINE: the `full` (authenticated) variant never went green on CI after it
+    # was introduced in #186. With PIN on, fresh onboarding stopped at the PIN unlock
+    # screen and the suite timed out at "reaches the dashboard", on develop's nightly
+    # run and on unrelated PRs alike. The `full` build now keeps PIN and LEGAL off, so
+    # the run reaches the dashboard. Keep `continue-on-error` until the nightly runs
+    # confirm `full` is reliably green, then remove it (tracking: #189 / #190). The
+    # `mvp` leg stays a hard signal.
     continue-on-error: ${{ matrix.variant == 'full' }}
     strategy:
       fail-fast: false
       matrix:
         # `mvp` builds with every EXPO_PUBLIC_ENABLE_* unset (the MVP scope) and
-        # snapshots the unauthenticated/onboarding screens. `full` flips every
-        # flag on so the feature-gated authenticated screens resolve to their
-        # real implementations and can be snapshotted at all (onboarding.test.ts
-        # would only ever see the *Disabled stubs otherwise).
+        # snapshots the unauthenticated/onboarding screens. `full` enables every
+        # EXPO_PUBLIC_ENABLE_* flag except PIN and LEGAL and runs
+        # authenticated.test.ts, so those screens resolve to real implementations
+        # (onboarding.test.ts would only ever see the *Disabled stubs otherwise).
         variant: ${{ github.event_name == 'pull_request' && fromJSON('["mvp"]') || fromJSON('["mvp", "full"]') }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -139,7 +138,7 @@ jobs:
           npm run e2e:test:ios -- "${specs[@]}"
 
       - name: Upload recorded baselines
-        if: ${{ always() && inputs.update_baselines }}
+        if: ${{ success() && inputs.update_baselines }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: visual-baselines-${{ matrix.variant }}

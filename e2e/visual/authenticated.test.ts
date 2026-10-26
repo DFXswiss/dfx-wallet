@@ -11,9 +11,11 @@ const pause = (ms = 1_000) => new Promise((r) => setTimeout(r, ms));
  * The MVP visual run (onboarding.test.ts, on the default `.env.testnet` build)
  * builds with every EXPO_PUBLIC_ENABLE_* flag unset, so the authenticated,
  * feature-gated screens resolve to their `*Disabled` stubs and can never be
- * snapshotted there. This suite is captured against a build with every flag on
- * (the `full` matrix leg of .github/workflows/visual-regression.yml), so each
- * screen resolves to its real implementation.
+ * snapshotted there. This suite is captured against the `full` matrix leg of
+ * .github/workflows/visual-regression.yml, which enables every flag except PIN
+ * and LEGAL, so each screen resolves to its real implementation. The PIN and
+ * legal screens are covered only when both flags are on (see
+ * docs/visual-regression.md).
  *
  * Baseline names here are disjoint from the MVP suite's, so the two share
  * e2e/__baselines__/ without clobbering each other — enforced by
