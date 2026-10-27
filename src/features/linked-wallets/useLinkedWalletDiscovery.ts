@@ -402,11 +402,14 @@ export function useLinkedWalletDiscovery(
     enabled,
     staleTime: STALE_TIME_MS,
     refetchInterval: REFETCH_INTERVAL_MS,
-    // Keep the previous result for wallet/pricing-state changes in the same
-    // fiat currency. Reusing it across a currency change would temporarily
-    // label the old numeric totals with the newly selected currency.
-    placeholderData: (previousData, previousQuery) =>
-      previousQuery?.queryKey[3] === fiatCurrency ? previousData : undefined,
+    // Reuse the previous result only for the same wallet/chain signature
+    // (queryKey[2]) and fiat currency (queryKey[3]). pricingReady may change.
+    // A chain-list change is a different scan and must not keep the old total.
+    placeholderData: (previousData, previousQuery) => {
+      const sameWallet = previousQuery?.queryKey[2] === queryKey[2];
+      const sameFiat = previousQuery?.queryKey[3] === queryKey[3];
+      return sameWallet && sameFiat ? previousData : undefined;
+    },
   });
 
   const refetch = useMemo(

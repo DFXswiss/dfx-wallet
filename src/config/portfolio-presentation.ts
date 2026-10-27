@@ -150,6 +150,11 @@ export const formatCryptoAmount = (n: number): string =>
     ? n.toLocaleString('de-CH', { minimumFractionDigits: 0, maximumFractionDigits: 8 })
     : '0';
 
+/** A usable fiat rate is finite and strictly positive. Zero and negative rates are not prices. */
+function hasPositiveFiatRate(rate: number | undefined): rate is number {
+  return typeof rate === 'number' && Number.isFinite(rate) && rate > 0;
+}
+
 export function isFiatPriceAvailable(
   balance: number,
   canonicalSymbol: string,
@@ -164,7 +169,7 @@ export function isFiatPriceAvailable(
   if (!ticker) return false;
 
   const rate = pricingService.getExchangeRate(ticker, fiatCurrency);
-  return typeof rate === 'number' && Number.isFinite(rate);
+  return hasPositiveFiatRate(rate);
 }
 
 /**
@@ -210,5 +215,5 @@ export function computeFiatValue(
   const ticker = SYMBOL_TO_TICKER.get(canonicalSymbol);
   if (!ticker) return 0;
   const rate = pricingService.getExchangeRate(ticker, fiatCurrency);
-  return rate ? balance * rate : 0;
+  return hasPositiveFiatRate(rate) ? balance * rate : 0;
 }

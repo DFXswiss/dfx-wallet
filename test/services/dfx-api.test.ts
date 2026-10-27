@@ -364,6 +364,61 @@ describe('dfxApi request hardening', () => {
     );
   });
 
+  it('does not refresh a newer session when an in-flight request returns 401', async () => {
+    let resolveFetch!: (response: {
+      ok: boolean;
+      status: number;
+      json: () => Promise<{ statusCode: number; code: string; message: string }>;
+    }) => void;
+    const pendingFetch = new Promise<{
+      ok: boolean;
+      status: number;
+      json: () => Promise<{ statusCode: number; code: string; message: string }>;
+    }>((resolve) => {
+      resolveFetch = resolve;
+    });
+    const refresh = jest.fn(async () => 'REFRESHED_TOKEN');
+    dfxApi.setAuthToken('A');
+    dfxApi.setOnUnauthorized(refresh);
+    (globalThis.fetch as jest.Mock).mockReturnValueOnce(pendingFetch);
+
+    const request = dfxApi.get('/v1/user');
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect((globalThis.fetch as jest.Mock).mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer A' }),
+      }),
+    );
+
+    dfxApi.setAuthToken('B');
+    resolveFetch({
+      ok: false,
+      status: 401,
+      json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Expired' }),
+    });
+
+    await expect(request).rejects.toMatchObject({
+      name: 'DfxApiError',
+      statusCode: 401,
+      code: 'UNAUTHORIZED',
+      message: 'Expired',
+    });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+
+    (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '{}',
+    });
+    await dfxApi.get('/v1/asset');
+    expect((globalThis.fetch as jest.Mock).mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer B' }),
+      }),
+    );
+  });
+
   it('preserves a token set after a 401 before refresh login starts', async () => {
     let authGetSpy!: jest.SpyInstance;
     const clearAuthTokenSpy = jest.spyOn(dfxApi, 'clearAuthToken');

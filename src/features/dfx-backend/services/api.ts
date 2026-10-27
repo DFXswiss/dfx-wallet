@@ -37,6 +37,8 @@ type PendingResponse = {
   timeoutMs: number;
   /** True when this attempt's headers included Authorization. Captured at send time. */
   sentAuthorization: boolean;
+  /** `authGeneration` captured with the headers, before the response arrives. */
+  generation: number;
 };
 
 type AuthRefreshResult = {
@@ -55,6 +57,8 @@ class DfxApi {
     if (this.authToken !== null && constantTimeEqual(this.authToken, token)) return;
     this.authToken = token;
     this.authGeneration += 1;
+    // A refresh started for the previous generation must not be shared with the new session.
+    this.refreshPromise = null;
   }
 
   /** Base URL exposed for code that needs to construct unauth GET URLs
@@ -136,7 +140,13 @@ class DfxApi {
     // retry calls fetch again, so requireAuth reads the token the refresh
     // installed. Calls outside /v1/auth still refresh when they sent no Bearer.
     const authCallWithoutBearer = path.startsWith('/v1/auth') && !pending.sentAuthorization;
-    if (pending.response.status === 401 && this.onUnauthorized && !authCallWithoutBearer) {
+    const staleSession = pending.generation !== this.authGeneration;
+    if (
+      pending.response.status === 401 &&
+      this.onUnauthorized &&
+      !authCallWithoutBearer &&
+      !staleSession
+    ) {
       let refreshResult: AuthRefreshResult;
       try {
         refreshResult = await this.raceRefreshWithRequest(this.refreshAuthToken(), pending);
@@ -234,9 +244,10 @@ class DfxApi {
     }
     // Same path as getPublic: getHeaders omits Authorization when this is false.
     const attachAuth = authenticated && options?.anonymous !== true;
-    // Read with the headers, before the await. A refresh may clear authToken
-    // while this response is in flight; the 401 decision must follow the
-    // Bearer this attempt sent, not the token left afterwards.
+    // Read with the headers, before the await. A refresh, logout, or account
+    // switch may replace authToken while this response is in flight; the 401
+    // decision must follow the Bearer and generation this attempt sent.
+    const generation = this.authGeneration;
     const sentAuthorization = attachAuth && this.authToken !== null;
     const url = this.buildUrl(path);
     const controller = new AbortController();
@@ -267,6 +278,7 @@ class DfxApi {
         signal: controller.signal,
         timeoutMs,
         sentAuthorization,
+        generation,
       };
     } catch (error) {
       cleanup();

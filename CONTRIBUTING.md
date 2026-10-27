@@ -216,7 +216,7 @@ BitBox02 pairing is work in progress and remains disabled by default. Transactio
 - Protocol stack (Noise XX handshake and Protobuf framing) is transport-agnostic
 - Only the ReadWrite transport layer needs native implementation
 
-**Implementation**: `src/features/hardware-wallet/`
+**Implementation**: `src/features/hardware-wallet/services/`
 
 - `types.ts` — `HardwareWalletProvider`, `BitboxTransport` interfaces
 - `bitbox.ts` — `BitboxProvider` (scans USB + BLE, auto-selects transport)

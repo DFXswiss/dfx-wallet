@@ -142,7 +142,7 @@ The [React Native Quickstart](https://docs.wdk.tether.io/start-building/react-na
 requires:
 
 ```
-EXPO_PUBLIC_WDK_INDEXER_BASE_URL=https://wdk-api.tether.io
+EXPO_PUBLIC_WDK_INDEXER_URL=https://wdk-api.tether.io
 EXPO_PUBLIC_WDK_INDEXER_API_KEY=<key>
 ```
 
