@@ -18,6 +18,13 @@ export type RequestOptions = {
    * into an unauthenticated login.
    */
   requireAuth?: boolean;
+  /**
+   * Send no Authorization header, even when a token is set.
+   * Login posts set this so a Bearer adopted while the challenge is signed
+   * cannot turn POST /v1/auth into a link. Combining it with `requireAuth`
+   * is a programming error.
+   */
+  anonymous?: boolean;
 };
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -214,6 +221,11 @@ class DfxApi {
     options?: RequestOptions,
     authenticated = true,
   ): Promise<PendingResponse> {
+    if (options?.anonymous === true && options?.requireAuth === true) {
+      throw new Error('anonymous and requireAuth cannot be combined');
+    }
+    // Same path as getPublic: getHeaders omits Authorization when this is false.
+    const attachAuth = authenticated && options?.anonymous !== true;
     const url = this.buildUrl(path);
     const controller = new AbortController();
     let timedOut = false;
@@ -232,7 +244,7 @@ class DfxApi {
     try {
       const response = await fetch(url, {
         method,
-        headers: this.getHeaders(options?.headers, options?.requireAuth === true, authenticated),
+        headers: this.getHeaders(options?.headers, options?.requireAuth === true, attachAuth),
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
         signal: controller.signal,
       });

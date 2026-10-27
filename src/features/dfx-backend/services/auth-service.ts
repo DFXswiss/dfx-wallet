@@ -47,9 +47,9 @@ export class DfxAuthService {
     );
   }
 
-  /** Authenticate with a signed message and get a JWT */
+  /** Authenticate with a signed message and get a JWT. The post carries no Bearer. */
   async authenticate(request: AuthRequestDto, authGeneration?: number): Promise<string> {
-    const response = await dfxApi.post<AuthResponseDto>('/v1/auth', request);
+    const response = await dfxApi.post<AuthResponseDto>('/v1/auth', request, { anonymous: true });
     if (
       authGeneration !== undefined &&
       !dfxApi.setAuthTokenForRefresh(response.accessToken, authGeneration)
@@ -95,6 +95,9 @@ export class DfxAuthService {
     } else if (!dfxApi.clearAuthTokenForRefresh(authGeneration)) {
       throw new Error('Authentication changed before token refresh started.');
     }
+    // A fresh login nulls accessToken. A refresh leaves it and only clears the
+    // api token. Restore only while that cleared state is still current.
+    const sessionAfterClear = this.accessToken;
 
     try {
       const { message } = await this.getSignMessage(address);
@@ -111,11 +114,13 @@ export class DfxAuthService {
         authGeneration,
       );
     } catch (err) {
-      if (authGeneration === undefined) {
-        this.accessToken = previousToken;
-        if (previousToken) dfxApi.setAuthToken(previousToken);
-      } else if (previousToken) {
-        dfxApi.setAuthTokenForRefresh(previousToken, authGeneration);
+      if (this.accessToken === sessionAfterClear) {
+        if (authGeneration === undefined) {
+          this.accessToken = previousToken;
+          if (previousToken) dfxApi.setAuthToken(previousToken);
+        } else if (previousToken) {
+          dfxApi.setAuthTokenForRefresh(previousToken, authGeneration);
+        }
       }
       throw err;
     }
@@ -206,12 +211,16 @@ export class DfxAuthService {
     this.accessToken = null;
     dfxApi.clearAuthToken();
     try {
-      const response = await dfxApi.post<AuthResponseDto>('/v1/auth', {
-        address: lnurl.toUpperCase(),
-        signature: ownershipProof,
-        wallet: options?.wallet ?? 'DFX Bitcoin',
-        ...(options?.blockchain !== undefined ? { blockchain: options.blockchain } : {}),
-      });
+      const response = await dfxApi.post<AuthResponseDto>(
+        '/v1/auth',
+        {
+          address: lnurl.toUpperCase(),
+          signature: ownershipProof,
+          wallet: options?.wallet ?? 'DFX Bitcoin',
+          ...(options?.blockchain !== undefined ? { blockchain: options.blockchain } : {}),
+        },
+        { anonymous: true },
+      );
       this.accessToken = response.accessToken;
       dfxApi.setAuthToken(response.accessToken);
       return response.accessToken;
