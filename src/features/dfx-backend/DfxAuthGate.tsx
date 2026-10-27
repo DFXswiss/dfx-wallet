@@ -20,7 +20,8 @@ type Props = {
   /**
    * The user gave up, via the Cancel control or the back gesture. When
    * omitted, those gestures call `onClose`, so every other caller keeps
-   * today's behaviour. The primary action never calls this.
+   * today's behaviour. The primary action calls `onClose`, except the
+   * no-chain `linkChain` dead end, which counts as a cancel.
    */
   onCancel?: () => void;
   /**
@@ -46,7 +47,13 @@ export function DfxAuthGate({ gate, onClose, onCancel, onLinkChain }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const requestClose = onCancel ?? onClose;
+  // While the chain link (and the payment replay it awaits) is in flight,
+  // Cancel and the back gesture must not drop that call.
+  const requestClose = () => {
+    if (busy) return;
+    if (onCancel) onCancel();
+    else onClose();
+  };
 
   if (!gate) return null;
 
@@ -116,8 +123,16 @@ export function DfxAuthGate({ gate, onClose, onCancel, onLinkChain }: Props) {
               loading={busy}
               testID="dfx-auth-gate-primary"
             />
-            <Pressable onPress={requestClose} hitSlop={8} testID="dfx-auth-gate-cancel">
-              <Text style={styles.cancelButton}>{t('common.cancel')}</Text>
+            <Pressable
+              onPress={requestClose}
+              disabled={busy}
+              accessibilityState={{ disabled: busy }}
+              hitSlop={8}
+              testID="dfx-auth-gate-cancel"
+            >
+              <Text style={[styles.cancelButton, busy && styles.cancelButtonDisabled]}>
+                {t('common.cancel')}
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -179,5 +194,8 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textTertiary,
       textAlign: 'center',
       paddingVertical: 8,
+    },
+    cancelButtonDisabled: {
+      opacity: 0.4,
     },
   });

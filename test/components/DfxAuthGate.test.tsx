@@ -92,4 +92,49 @@ describe('DfxAuthGate', () => {
     expect(onClose).not.toHaveBeenCalled();
     expect(mockPush).not.toHaveBeenCalled();
   });
+
+  it('ignores Cancel and the back gesture while a chain link is in flight', async () => {
+    let resolveLink: () => void = () => {};
+    const linkPromise = new Promise<void>((resolve) => {
+      resolveLink = resolve;
+    });
+    const onClose = jest.fn();
+    const onCancel = jest.fn();
+    const view = render(
+      <ThemeProvider>
+        <DfxAuthGate
+          gate={{ kind: 'linkChain', message: 'link', chain: 'bitcoin' }}
+          onClose={onClose}
+          onCancel={onCancel}
+          onLinkChain={() => linkPromise}
+        />
+      </ThemeProvider>,
+    );
+
+    fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
+
+    const cancel = view.getByTestId('dfx-auth-gate-cancel');
+    expect(cancel.props.accessibilityState).toMatchObject({ disabled: true });
+
+    fireEvent.press(cancel);
+    act(() => {
+      view.UNSAFE_getByType(Modal).props.onRequestClose?.();
+    });
+
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveLink();
+      await linkPromise;
+    });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(view.getByTestId('dfx-auth-gate-cancel').props.accessibilityState?.disabled).toBe(false);
+
+    fireEvent.press(view.getByTestId('dfx-auth-gate-cancel'));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });

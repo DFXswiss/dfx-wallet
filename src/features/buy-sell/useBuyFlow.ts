@@ -98,12 +98,19 @@ export function useBuyFlow() {
   // started while that call was in flight still owns the latest quote id, so
   // the id alone cannot stop it from overwriting the IBAN.
   const committedPaymentSeqRef = useRef(0);
+  // Set to the current payment seq when the gate is cancelled. That call is
+  // not aborted — it may already be committed — but its auth error must not
+  // reopen a gate. A later payment seq is greater, so it can still gate.
+  const paymentGateBlockedSeqRef = useRef(0);
   // Track the most recent in-flight quote so a newer quote supersedes older
   // ones — older responses are dropped instead of clobbering newer state.
   const quoteAbortRef = useRef<AbortController | null>(null);
   // /paymentInfos commits an order. A newer quote must not abort it; a newer
   // payment-info call, reset(), or unmount does.
   const paymentAbortRef = useRef<AbortController | null>(null);
+  // confirmPayment. reset() and unmount bump it so a confirm that resolves
+  // afterwards cannot set state or open a gate.
+  const confirmSeqRef = useRef(0);
 
   // Abort any pending call when the hook unmounts so the screen tearing
   // down doesn't leave a dangling fetch that resolves into setState.
@@ -111,18 +118,34 @@ export function useBuyFlow() {
     return () => {
       quoteSeqRef.current += 1;
       paymentSeqRef.current += 1;
+      confirmSeqRef.current += 1;
       quoteAbortRef.current?.abort();
       paymentAbortRef.current?.abort();
     };
   }, []);
 
   const handleError = useCallback(
-    (err: unknown, fallback: string, action?: RetryAction) => {
+    (err: unknown, fallback: string, action?: RetryAction, paymentSeq?: number) => {
       // AbortError is expected when a newer quote supersedes an older one;
       // do not flip the screen into an error state for it.
       if (err instanceof Error && err.name === 'AbortError') return;
       const gate = interpretDfxAuthError(err);
       if (gate) {
+        if (
+          action?.kind === 'paymentInfo' &&
+          paymentSeq !== undefined &&
+          paymentSeq <= paymentGateBlockedSeqRef.current
+        ) {
+          // The response belongs to a payment the user already cancelled.
+          // Leave lastAction clear and do not open a gate. A success on this
+          // same seq still applies in createPaymentInfo.
+          setState((s) => {
+            if (!s.isLoading) return s;
+            const next = { ...s, isLoading: false };
+            return { ...next, status: deriveStatus(next) };
+          });
+          return;
+        }
         lastAction.current = action ?? null;
         // Attach the WDK chain id of the last attempted call so the linkChain
         // gate can sign with the right wallet.
@@ -131,9 +154,11 @@ export function useBuyFlow() {
         setState((s) => ({
           ...s,
           isLoading: false,
-          // A dismissed or cancelled gate must not fall back to an earlier
-          // order. deriveStatus would report that leftover IBAN as success.
-          paymentInfo: null,
+          // Quote and payment-info auth errors must not leave an earlier order
+          // in place: deriveStatus would report that leftover IBAN as success.
+          // A confirm auth error keeps the committed order.
+          paymentInfo:
+            action?.kind === 'quote' || action?.kind === 'paymentInfo' ? null : s.paymentInfo,
           authGate: enriched,
           error: null,
           status: 'authGate',
@@ -225,7 +250,7 @@ export function useBuyFlow() {
         return info;
       } catch (err) {
         if (!paymentApplies()) return null;
-        handleError(err, 'Failed to create payment info', action);
+        handleError(err, 'Failed to create payment info', action, paymentSeq);
         return null;
       }
     },
@@ -234,9 +259,11 @@ export function useBuyFlow() {
 
   const confirmPayment = useCallback(
     async (id: number) => {
+      const confirmSeq = confirmSeqRef.current;
       setState((s) => ({ ...s, isLoading: true, error: null, authGate: null, status: 'loading' }));
       try {
         await dfxPaymentService.confirmBuy(id);
+        if (confirmSeq !== confirmSeqRef.current) return false;
         setState((s) => ({
           ...s,
           isLoading: false,
@@ -244,6 +271,7 @@ export function useBuyFlow() {
         }));
         return true;
       } catch (err) {
+        if (confirmSeq !== confirmSeqRef.current) return false;
         handleError(err, 'Confirmation failed');
         return false;
       }
@@ -270,15 +298,24 @@ export function useBuyFlow() {
     [hideAuthGate],
   );
 
-  // Cancel drops the failed call. A later focus or link must not replay it.
-  const cancelAuthGate = useCallback(
-    (gate?: DfxAuthGateState) => {
-      if (gate !== undefined && authGateRef.current !== gate) return;
-      lastAction.current = null;
-      hideAuthGate(gate);
-    },
-    [hideAuthGate],
-  );
+  // Cancel drops the replay and invalidates an in-flight quote. The payment
+  // call is left alone so a committed order can still land. Its auth error
+  // cannot reopen the gate. Called with no gate, this still clears the replay
+  // — that is how an unauthenticated return abandons a hidden gate.
+  // dismissAuthGate does none of this.
+  const cancelAuthGate = useCallback((gate?: DfxAuthGateState) => {
+    if (gate !== undefined && authGateRef.current !== gate) return;
+    lastAction.current = null;
+    quoteSeqRef.current += 1;
+    quoteAbortRef.current?.abort();
+    paymentGateBlockedSeqRef.current = paymentSeqRef.current;
+    authGateRef.current = null;
+    setState((s) => {
+      if (gate !== undefined && s.authGate !== gate) return s;
+      const next = { ...s, authGate: null, isLoading: false };
+      return { ...next, status: deriveStatus(next) };
+    });
+  }, []);
 
   /**
    * Re-run the call that triggered the auth gate. Wired into the gate's
@@ -297,6 +334,7 @@ export function useBuyFlow() {
   const reset = useCallback(() => {
     quoteSeqRef.current += 1;
     paymentSeqRef.current += 1;
+    confirmSeqRef.current += 1;
     committedPaymentSeqRef.current = 0;
     lastAction.current = null;
     quoteAbortRef.current?.abort();

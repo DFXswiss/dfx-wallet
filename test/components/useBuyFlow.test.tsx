@@ -737,4 +737,212 @@ describe('useBuyFlow', () => {
     });
     expect(mockCreateBuyPaymentInfo).toHaveBeenCalledTimes(3);
   });
+
+  it('keeps payment info when confirm fails with an auth error', async () => {
+    const gate = { kind: 'login' as const, message: 'sign in' };
+    mockCreateBuyPaymentInfo.mockResolvedValueOnce(validInfo({ id: 8, iban: 'CH-KEEP' }));
+    mockConfirmBuy.mockRejectedValueOnce(new Error('401'));
+    mockInterpretDfxAuthError.mockReturnValueOnce(gate);
+    const { result } = renderHook(() => useBuyFlow());
+
+    await act(async () => {
+      await result.current.createPaymentInfo(QUOTE);
+    });
+    let ok: boolean | undefined;
+    await act(async () => {
+      ok = await result.current.confirmPayment(8);
+    });
+
+    expect(ok).toBe(false);
+    expect(result.current.paymentInfo).toMatchObject({ id: 8, iban: 'CH-KEEP' });
+    expect(result.current.authGate).toEqual(gate);
+    expect(result.current.error).toBeNull();
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it('ignores a confirm that settles after reset', async () => {
+    const gate = { kind: 'login' as const, message: 'sign in' };
+    const rejected = deferred<void>();
+    const resolved = deferred<void>();
+    mockConfirmBuy.mockReturnValueOnce(rejected.promise).mockReturnValueOnce(resolved.promise);
+    mockInterpretDfxAuthError.mockReturnValue(gate);
+
+    const rejectedHook = renderHook(() => useBuyFlow());
+    let rejectedCall: Promise<boolean>;
+    act(() => {
+      rejectedCall = rejectedHook.result.current.confirmPayment(1);
+    });
+    act(() => {
+      rejectedHook.result.current.reset();
+    });
+    let rejectedOk: boolean | undefined;
+    await act(async () => {
+      rejected.reject(new Error('401'));
+      rejectedOk = await rejectedCall;
+    });
+
+    expect(rejectedOk).toBe(false);
+    expect(rejectedHook.result.current.status).toBe('idle');
+    expect(rejectedHook.result.current.paymentInfo).toBeNull();
+    expect(rejectedHook.result.current.authGate).toBeNull();
+    expect(rejectedHook.result.current.error).toBeNull();
+    expect(rejectedHook.result.current.isLoading).toBe(false);
+    rejectedHook.unmount();
+
+    const resolvedHook = renderHook(() => useBuyFlow());
+    let resolvedCall: Promise<boolean>;
+    act(() => {
+      resolvedCall = resolvedHook.result.current.confirmPayment(2);
+    });
+    act(() => {
+      resolvedHook.result.current.reset();
+    });
+    let resolvedOk: boolean | undefined;
+    await act(async () => {
+      resolved.resolve();
+      resolvedOk = await resolvedCall;
+    });
+
+    expect(resolvedOk).toBe(false);
+    expect(resolvedHook.result.current.status).toBe('idle');
+    expect(resolvedHook.result.current.paymentInfo).toBeNull();
+    expect(resolvedHook.result.current.authGate).toBeNull();
+    expect(resolvedHook.result.current.error).toBeNull();
+    expect(resolvedHook.result.current.isLoading).toBe(false);
+    resolvedHook.unmount();
+  });
+
+  it('drops a late quote after cancelAuthGate', async () => {
+    const cases = [{ outcome: 'auth' as const }, { outcome: 'ok' as const }];
+
+    for (const { outcome } of cases) {
+      mockGetBuyQuote.mockReset();
+      mockInterpretDfxAuthError.mockReset();
+      const gate = { kind: 'login' as const, message: 'sign in' };
+      const authErr = new Error('401');
+      mockInterpretDfxAuthError.mockImplementation((err: unknown) =>
+        err === authErr ? gate : null,
+      );
+      const pending = deferred<BuyPaymentInfoDto>();
+      mockGetBuyQuote.mockReturnValueOnce(pending.promise);
+      const { result, unmount } = renderHook(() => useBuyFlow());
+
+      let call: Promise<unknown>;
+      act(() => {
+        call = result.current.getQuote(QUOTE);
+      });
+      const signal = mockGetBuyQuote.mock.calls[0]![1].signal as AbortSignal;
+
+      act(() => {
+        result.current.cancelAuthGate();
+      });
+      expect(signal.aborted).toBe(true);
+
+      await act(async () => {
+        if (outcome === 'auth') pending.reject(authErr);
+        else pending.resolve(validInfo({ id: 77, iban: 'CH-LATE' }));
+        await call;
+      });
+
+      expect(result.current.authGate).toBeNull();
+      expect(result.current.paymentInfo).toBeNull();
+      expect(result.current.error).toBeNull();
+      expect(result.current.isLoading).toBe(false);
+      const callsBeforeRetry = mockGetBuyQuote.mock.calls.length;
+      await act(async () => {
+        await expect(result.current.retryLast()).resolves.toBeNull();
+      });
+      expect(mockGetBuyQuote.mock.calls.length).toBe(callsBeforeRetry);
+      unmount();
+    }
+  });
+
+  it('applies payment info that resolves after cancelAuthGate', async () => {
+    const pending = deferred<BuyPaymentInfoDto>();
+    mockCreateBuyPaymentInfo.mockReturnValueOnce(pending.promise);
+    const { result } = renderHook(() => useBuyFlow());
+
+    let call: Promise<unknown>;
+    act(() => {
+      call = result.current.createPaymentInfo(QUOTE);
+    });
+    const signal = mockCreateBuyPaymentInfo.mock.calls[0]![1].signal as AbortSignal;
+
+    act(() => {
+      result.current.cancelAuthGate();
+    });
+    expect(signal.aborted).toBe(false);
+
+    await act(async () => {
+      pending.resolve(validInfo({ id: 77, iban: 'CH-LATE' }));
+      await call;
+    });
+
+    expect(result.current.status).toBe('success');
+    expect(result.current.paymentInfo).toMatchObject({ id: 77, iban: 'CH-LATE' });
+    expect(result.current.authGate).toBeNull();
+    expect(result.current.error).toBeNull();
+    expect(result.current.isLoading).toBe(false);
+    await act(async () => {
+      await expect(result.current.retryLast()).resolves.toBeNull();
+    });
+  });
+
+  it('does not reopen the auth gate when payment info fails auth after cancelAuthGate', async () => {
+    const gate = { kind: 'login' as const, message: 'sign in' };
+    const authErr = new Error('401');
+    const pending = deferred<BuyPaymentInfoDto>();
+    mockCreateBuyPaymentInfo.mockReturnValueOnce(pending.promise);
+    mockInterpretDfxAuthError.mockImplementation((err: unknown) => (err === authErr ? gate : null));
+    const { result } = renderHook(() => useBuyFlow());
+
+    let call: Promise<unknown>;
+    act(() => {
+      call = result.current.createPaymentInfo(QUOTE);
+    });
+    const signal = mockCreateBuyPaymentInfo.mock.calls[0]![1].signal as AbortSignal;
+
+    act(() => {
+      result.current.cancelAuthGate();
+    });
+    expect(signal.aborted).toBe(false);
+
+    await act(async () => {
+      pending.reject(authErr);
+      await call;
+    });
+
+    expect(mockInterpretDfxAuthError).toHaveBeenCalledWith(authErr);
+    expect(result.current.authGate).toBeNull();
+    expect(result.current.paymentInfo).toBeNull();
+    expect(result.current.error).toBeNull();
+    expect(result.current.isLoading).toBe(false);
+    await act(async () => {
+      await expect(result.current.retryLast()).resolves.toBeNull();
+    });
+    expect(mockCreateBuyPaymentInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancelAuthGate() drops the replay when the gate is already hidden', async () => {
+    const gate = { kind: 'login' as const, message: 'sign in' };
+    mockCreateBuyPaymentInfo.mockRejectedValueOnce(new Error('login'));
+    mockInterpretDfxAuthError.mockReturnValueOnce(gate);
+    const { result } = renderHook(() => useBuyFlow());
+
+    await act(async () => {
+      await result.current.createPaymentInfo(QUOTE);
+    });
+    act(() => {
+      result.current.dismissAuthGate(gate);
+    });
+    expect(result.current.authGate).toBeNull();
+
+    act(() => {
+      result.current.cancelAuthGate();
+    });
+    await act(async () => {
+      await expect(result.current.retryLast()).resolves.toBeNull();
+    });
+    expect(mockCreateBuyPaymentInfo).toHaveBeenCalledTimes(1);
+  });
 });
