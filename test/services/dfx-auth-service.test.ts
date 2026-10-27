@@ -930,10 +930,14 @@ describe('dfxAuthService mail login', () => {
 
     await dfxAuthService.requestMailLogin('user@example.com', { redirectUri: 'app://back' });
 
-    expect(postSpy).toHaveBeenCalledWith('/v1/auth/mail', {
-      mail: 'user@example.com',
-      redirectUri: 'app://back',
-    });
+    expect(postSpy).toHaveBeenCalledWith(
+      '/v1/auth/mail',
+      {
+        mail: 'user@example.com',
+        redirectUri: 'app://back',
+      },
+      { requireAuth: true },
+    );
   });
 
   it('sends a bare mail request when no options are given', async () => {
@@ -941,7 +945,11 @@ describe('dfxAuthService mail login', () => {
 
     await dfxAuthService.requestMailLogin('user@example.com');
 
-    expect(postSpy).toHaveBeenCalledWith('/v1/auth/mail', { mail: 'user@example.com' });
+    expect(postSpy).toHaveBeenCalledWith(
+      '/v1/auth/mail',
+      { mail: 'user@example.com' },
+      { requireAuth: true },
+    );
   });
 
   it('forwards wallet and recommendationCode hints when provided', async () => {
@@ -952,11 +960,50 @@ describe('dfxAuthService mail login', () => {
       recommendationCode: 'REF123',
     });
 
-    expect(postSpy).toHaveBeenCalledWith('/v1/auth/mail', {
-      mail: 'user@example.com',
-      wallet: 'DFX Wallet',
-      recommendationCode: 'REF123',
-    });
+    expect(postSpy).toHaveBeenCalledWith(
+      '/v1/auth/mail',
+      {
+        mail: 'user@example.com',
+        wallet: 'DFX Wallet',
+        recommendationCode: 'REF123',
+      },
+      { requireAuth: true },
+    );
+  });
+
+  it('rejects a mail login while a refresh has cleared the api token and does not send it', async () => {
+    getSpy.mockRestore();
+    postSpy.mockRestore();
+    const { fetchSpy } = await clearApiTokenForInFlightRefresh('SESSION_TOKEN');
+
+    await expect(dfxAuthService.requestMailLogin('user@example.com')).rejects.toThrow(
+      'Authentication required',
+    );
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(dfxAuthService.getAccessToken()).toBe('SESSION_TOKEN');
+  });
+
+  it('sends the session bearer when the api token is set', async () => {
+    postSpy.mockRestore();
+    dfxAuthService.adoptStoredToken('SESSION_TOKEN');
+    dfxApi.setAuthToken('SESSION_TOKEN');
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '',
+    } as unknown as Response);
+
+    await dfxAuthService.requestMailLogin('user@example.com', { wallet: 'DFX Wallet' });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://api.dfx.swiss/v1/auth/mail',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer SESSION_TOKEN' }),
+      }),
+    );
   });
 
   it('exchanges the URL-encoded otp for a token and adopts it', async () => {
@@ -964,9 +1011,34 @@ describe('dfxAuthService mail login', () => {
 
     const token = await dfxAuthService.confirmMailLogin('a b/c+d');
 
-    expect(getSpy).toHaveBeenCalledWith('/v1/auth/mail/confirm?code=a%20b%2Fc%2Bd');
+    expect(getSpy).toHaveBeenCalledWith('/v1/auth/mail/confirm?code=a%20b%2Fc%2Bd', {
+      anonymous: true,
+    });
     expect(token).toBe('MAIL_TOKEN');
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('MAIL_TOKEN');
+    expect(dfxAuthService.getAccessToken()).toBe('MAIL_TOKEN');
+  });
+
+  it('exchanges the otp without sending a standing bearer', async () => {
+    getSpy.mockRestore();
+    dfxApi.setAuthToken('SESSION_TOKEN');
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ accessToken: 'MAIL_TOKEN' }),
+    } as unknown as Response);
+
+    const token = await dfxAuthService.confirmMailLogin('otp-code');
+
+    expect(token).toBe('MAIL_TOKEN');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://api.dfx.swiss/v1/auth/mail/confirm?code=otp-code',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.not.objectContaining({ Authorization: expect.any(String) }),
+      }),
+    );
     expect(dfxAuthService.getAccessToken()).toBe('MAIL_TOKEN');
   });
 });

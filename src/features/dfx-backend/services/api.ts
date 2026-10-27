@@ -35,6 +35,8 @@ type PendingResponse = {
   didTimeOut: () => boolean;
   signal: AbortSignal;
   timeoutMs: number;
+  /** True when this attempt's headers included Authorization. Captured at send time. */
+  sentAuthorization: boolean;
 };
 
 type AuthRefreshResult = {
@@ -127,8 +129,14 @@ class DfxApi {
     const deadline = Date.now() + timeoutMs;
     const pending = await this.fetch(method, path, body, options);
 
-    // Handle 401 — attempt token refresh once
-    if (pending.response.status === 401 && this.onUnauthorized && !path.startsWith('/v1/auth')) {
+    // /v1/auth is both a login and an authenticated call. Skip the refresh
+    // only when that request sent no Authorization (anonymous, or no token
+    // was attached); refreshing that 401 would start another login. A request
+    // that sent a Bearer, including requireAuth, still refreshes once. The
+    // retry calls fetch again, so requireAuth reads the token the refresh
+    // installed. Calls outside /v1/auth still refresh when they sent no Bearer.
+    const authCallWithoutBearer = path.startsWith('/v1/auth') && !pending.sentAuthorization;
+    if (pending.response.status === 401 && this.onUnauthorized && !authCallWithoutBearer) {
       let refreshResult: AuthRefreshResult;
       try {
         refreshResult = await this.raceRefreshWithRequest(this.refreshAuthToken(), pending);
@@ -226,6 +234,10 @@ class DfxApi {
     }
     // Same path as getPublic: getHeaders omits Authorization when this is false.
     const attachAuth = authenticated && options?.anonymous !== true;
+    // Read with the headers, before the await. A refresh may clear authToken
+    // while this response is in flight; the 401 decision must follow the
+    // Bearer this attempt sent, not the token left afterwards.
+    const sentAuthorization = attachAuth && this.authToken !== null;
     const url = this.buildUrl(path);
     const controller = new AbortController();
     let timedOut = false;
@@ -254,6 +266,7 @@ class DfxApi {
         didTimeOut: () => timedOut,
         signal: controller.signal,
         timeoutMs,
+        sentAuthorization,
       };
     } catch (error) {
       cleanup();
