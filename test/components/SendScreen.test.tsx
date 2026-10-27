@@ -565,12 +565,26 @@ describe('SendScreen', () => {
   });
 
   describe('QR scanner integration', () => {
-    it('a scanned URI populates the recipient field (onScan handler is wired)', () => {
+    it('a scanned bitcoin URI populates the bare address on the BTC screen', () => {
       const { getByText, getByPlaceholderText } = render(<SendScreen />);
       fireEvent.press(getByText('BTC'));
       // Drive the scanner's `onScan` directly — the screen exposes it via
       // the QrScanner mock. The handler should strip the prefix/query and
-      // pipe the bare address into the recipient state.
+      // pipe the bare address into the recipient state. RECIPIENT is the public
+      // BIP173 example; its declaration carries the no-secrets disable.
+      expect(qrScannerProps.onScan).not.toBeNull();
+      act(() => {
+        qrScannerProps.onScan!(`bitcoin:${RECIPIENT}?amount=1`);
+      });
+      expect(
+        (getByPlaceholderText('send.addressPlaceholder') as unknown as { props: { value: string } })
+          .props.value,
+      ).toBe(RECIPIENT);
+    });
+
+    it('a scanned ethereum URI populates the bare address on an EVM asset', () => {
+      const { getAllByText, getByPlaceholderText } = render(<SendScreen />);
+      fireEvent.press(getAllByText('CHF')[0]!);
       expect(qrScannerProps.onScan).not.toBeNull();
       act(() => {
         qrScannerProps.onScan!(`ethereum:${EVM_RECIPIENT}?amount=1`);

@@ -79,6 +79,25 @@ describe('dfxApi request hardening', () => {
     );
   });
 
+  it('requireAuth rejects with no token and sends the bearer with one', async () => {
+    await expect(
+      dfxApi.post('/v1/auth', { address: 'bc1qabc' }, { requireAuth: true }),
+    ).rejects.toThrow('Authentication required');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    dfxApi.setAuthToken('SESSION_TOKEN');
+    await dfxApi.post('/v1/auth', { address: 'bc1qabc' }, { requireAuth: true });
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'https://api.dfx.swiss/v1/auth',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer SESSION_TOKEN' }),
+      }),
+    );
+  });
+
   it('returns raw text when requested', async () => {
     (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
