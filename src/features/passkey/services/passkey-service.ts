@@ -2,7 +2,7 @@ import { Passkey, type PasskeyCreateResult, type PasskeyGetResult } from 'react-
 import { Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
 
-const RP_ID = 'dfx.swiss';
+export const RP_ID = 'passkey.wallet.dfx.swiss';
 const RP_NAME = 'DFX Wallet';
 
 const PRF_SALT = 'dfx-wallet-v1';
