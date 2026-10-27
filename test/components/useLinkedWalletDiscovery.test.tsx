@@ -6,6 +6,7 @@ import {
   createDiscoveredAsset,
   useLinkedWalletDiscovery,
 } from '@/features/linked-wallets/useLinkedWalletDiscovery';
+import { isLinkedWalletEntryComplete } from '@/features/portfolio/portfolio-completeness';
 import { EvmBalanceFetcher, type EvmBalanceResult } from '@/services/balances/evm-fetcher';
 import * as blockscout from '@/services/explorer/blockscout';
 import * as coinList from '@/services/pricing/coingecko-coins-list';
@@ -136,6 +137,43 @@ describe('linked-wallet asset pricing', () => {
     expect(result.current.data.size).toBe(0);
     expect(result.current.data.get(WALLET.address)?.totalFiat).toBeUndefined();
     expect(fetchSpy).toHaveBeenCalled();
+  });
+
+  it('does not show an exact total while a chain-list change is still scanning', async () => {
+    const { contractAddress, lookupCoinIds, fetchSimplePrices } = mockUnpricedTokenQuery();
+    lookupCoinIds.mockResolvedValue(new Map([[contractAddress, 'unknown-token']]));
+    fetchSimplePrices.mockResolvedValue(
+      new Map([['unknown-token', { [FiatCurrency.CHF]: 2 }]]),
+    );
+    jest
+      .spyOn(EvmBalanceFetcher.prototype, 'fetch')
+      .mockImplementationOnce(async (specs) => {
+        const results = new Map<string, EvmBalanceResult>();
+        for (const spec of specs) {
+          results.set(spec.assetId, {
+            assetId: spec.assetId,
+            rawBalance: spec.isNative ? '0' : '12500000',
+          });
+        }
+        return results;
+      })
+      .mockImplementation(() => new Promise<Map<string, EvmBalanceResult>>(() => undefined));
+
+    const { result, rerender } = renderHook(
+      ({ wallet }: { wallet: typeof WALLET }) =>
+        useLinkedWalletDiscovery([wallet], FiatCurrency.CHF, true),
+      {
+        initialProps: { wallet: WALLET },
+        wrapper: createWrapper(),
+      },
+    );
+    await waitFor(() => expect(result.current.data.get(WALLET.address)?.complete).toBe(true));
+    expect(result.current.data.get(WALLET.address)?.totalFiat).toBe(25);
+    expect(isLinkedWalletEntryComplete(result.current.data.get(WALLET.address))).toBe(true);
+
+    rerender({ wallet: { ...WALLET, blockchains: ['Ethereum', 'Arbitrum'] } });
+    const entry = result.current.data.get(WALLET.address);
+    expect(isLinkedWalletEntryComplete(entry) ? entry.totalFiat : '—').toBe('—');
   });
 
   it('marks Blockscout-known discovery incomplete when an RPC balance read fails', async () => {

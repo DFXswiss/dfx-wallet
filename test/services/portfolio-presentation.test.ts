@@ -235,6 +235,14 @@ describe('isFiatPriceAvailable', () => {
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy).toHaveBeenCalledWith('btc', FiatCurrency.CHF);
   });
+
+  it.each([0, -1])('rejects a non-positive exchange rate %s', (rate) => {
+    const spy = jest.spyOn(pricingService, 'getExchangeRate').mockReturnValue(rate);
+
+    expect(isFiatPriceAvailable(1, 'BTC', FiatCurrency.CHF, true)).toBe(false);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith('btc', FiatCurrency.CHF);
+  });
 });
 
 describe('computeFiatValue', () => {
@@ -272,6 +280,11 @@ describe('computeFiatValue', () => {
 
   it('returns 0 if the pricing service has no rate for the ticker', () => {
     jest.spyOn(pricingService, 'getExchangeRate').mockReturnValue(undefined);
+    expect(computeFiatValue(2, 'BTC', FiatCurrency.USD, true)).toBe(0);
+  });
+
+  it.each([0, -50])('returns 0 for a non-positive exchange rate %s', (rate) => {
+    jest.spyOn(pricingService, 'getExchangeRate').mockReturnValue(rate);
     expect(computeFiatValue(2, 'BTC', FiatCurrency.USD, true)).toBe(0);
   });
 

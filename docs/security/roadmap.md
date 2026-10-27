@@ -42,12 +42,16 @@ makes later phases possible. None of it requires design or product input.
 
 ### P0.4 — CI hardening
 
-- [x] Every `uses:` in `.github/workflows/` pinned to a commit SHA, with
-      a trailing `# vX.Y.Z` comment for human reading.
-- [x] `permissions: contents: read` at workflow root in every workflow;
+- [ ] Every `uses:` in `.github/workflows/` pinned to a commit SHA, with
+      a trailing `# vX.Y.Z` comment for human reading. Open: `auto-tag.yaml`,
+      `beta-release.yaml`, `beta-release-android.yaml` and
+      `beta-release-ios.yaml` still reference actions by tag.
+- [ ] `permissions: contents: read` at workflow root in every workflow;
       per-job escalation only where required (CodeQL needs
       `security-events: write`, auto-release-pr needs
-      `pull-requests: write`).
+      `pull-requests: write`). Open: the same four release workflows set
+      `contents: write` at the root, and `reclaim-artifact-storage.yml` sets
+      `actions: write` at the root.
 - [x] `check` split into parallel `typecheck`, `lint`, `format`, `test`
       jobs; `audit` retained.
 - **Acceptance**: workflows pass; `permissions` block present in every
