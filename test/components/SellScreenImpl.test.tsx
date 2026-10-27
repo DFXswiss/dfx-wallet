@@ -87,19 +87,39 @@ jest.mock('@/features/linked-wallets/useLinkedWalletReauth', () => ({
 jest.mock('@/features/dfx-backend/DfxAuthGate', () => ({
   DfxAuthGate: ({
     gate,
+    onClose,
+    onCancel,
     onLinkChain,
   }: {
     gate: { chain?: 'bitcoin' } | null;
+    onClose?: () => void;
+    onCancel?: () => void;
     onLinkChain?: (chain: 'bitcoin') => Promise<void>;
   }) => {
     const chain = gate?.chain;
-    if (!chain || !onLinkChain) return null;
+    if (!gate) return null;
     const ReactActual = jest.requireActual('react');
     const { Pressable, Text } = jest.requireActual('react-native');
+    if (chain && onLinkChain) {
+      return ReactActual.createElement(
+        Pressable,
+        { onPress: () => onLinkChain(chain), testID: 'mock-link-chain' },
+        ReactActual.createElement(Text, null, 'link-chain'),
+      );
+    }
     return ReactActual.createElement(
-      Pressable,
-      { onPress: () => onLinkChain(chain), testID: 'mock-link-chain' },
-      ReactActual.createElement(Text, null, 'link-chain'),
+      ReactActual.Fragment,
+      null,
+      ReactActual.createElement(
+        Pressable,
+        { onPress: onClose, testID: 'dfx-auth-gate-primary' },
+        ReactActual.createElement(Text, null, 'gate-primary'),
+      ),
+      ReactActual.createElement(
+        Pressable,
+        { onPress: onCancel ?? onClose, testID: 'dfx-auth-gate-cancel' },
+        ReactActual.createElement(Text, null, 'gate-cancel'),
+      ),
     );
   },
 }));
@@ -191,12 +211,13 @@ jest.mock('@/components', () => ({
 const mockGetQuote = jest.fn();
 const mockCreatePaymentInfo = jest.fn();
 const mockDismissAuthGate = jest.fn();
+const mockCancelAuthGate = jest.fn();
 const mockRetryLast = jest.fn();
 
 const flowState = {
   isLoading: false,
   error: null as string | null,
-  authGate: null as { kind: 'linkChain'; chain: 'bitcoin'; message: string } | null,
+  authGate: null as { kind: string; chain?: 'bitcoin'; message: string } | null,
   paymentInfo: null as Record<string, unknown> | null,
 };
 
@@ -209,6 +230,7 @@ jest.mock('@/features/buy-sell/useSellFlow', () => ({
     getQuote: mockGetQuote,
     createPaymentInfo: mockCreatePaymentInfo,
     dismissAuthGate: mockDismissAuthGate,
+    cancelAuthGate: mockCancelAuthGate,
     retryLast: mockRetryLast,
   }),
 }));
@@ -255,6 +277,7 @@ beforeEach(() => {
   mockGetQuote.mockReset();
   mockCreatePaymentInfo.mockReset();
   mockDismissAuthGate.mockReset();
+  mockCancelAuthGate.mockReset();
   mockRetryLast.mockReset();
   flowState.isLoading = false;
   flowState.error = null;
@@ -305,23 +328,23 @@ describe('SellScreenImpl', () => {
     expect(getByLabelText(ctaLabel).props.accessibilityState?.disabled).not.toBe(true);
   });
 
-  it('handles a payment-info retry when authenticated focus resumes', async () => {
+  it('does not replay payment info when authenticated focus has no pending confirmation', async () => {
     mockIsDfxAuthenticated = true;
     mockRetryLast.mockResolvedValueOnce({ kind: 'paymentInfo', info: PAYMENT_INFO });
 
-    const { getByText } = render(<SellScreenImpl />);
+    const { queryByText } = render(<SellScreenImpl />);
 
-    await waitFor(() => expect(getByText('sell.confirmSale')).toBeTruthy());
-    expect(mockRetryLast).toHaveBeenCalled();
+    expect(mockRetryLast).not.toHaveBeenCalled();
+    expect(queryByText('sell.confirmSale')).toBeNull();
   });
 
-  it('advances after a linked-chain retry only for payment info, not for a quote', async () => {
+  it('does not advance for a quote retry or a payment retry without a pending confirmation', async () => {
     flowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'link Bitcoin' };
     mockRetryLast
       .mockResolvedValueOnce({ kind: 'quote', info: PAYMENT_INFO })
       .mockResolvedValueOnce({ kind: 'paymentInfo', info: PAYMENT_INFO });
 
-    const { getByTestId, getByText, queryByText } = render(<SellScreenImpl />);
+    const { getByTestId, queryByText } = render(<SellScreenImpl />);
 
     await act(async () => {
       fireEvent.press(getByTestId('mock-link-chain'));
@@ -334,8 +357,164 @@ describe('SellScreenImpl', () => {
       fireEvent.press(getByTestId('mock-link-chain'));
     });
 
-    await waitFor(() => expect(getByText('sell.confirmSale')).toBeTruthy());
-    expect(mockRetryLast).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(2));
+    expect(queryByText('sell.confirmSale')).toBeNull();
+  });
+
+  it('handles a null payment replay quietly', async () => {
+    flowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'link Bitcoin' };
+    mockRetryLast.mockResolvedValueOnce(null);
+
+    const { getByTestId, queryByText } = render(<SellScreenImpl />);
+
+    await act(async () => {
+      fireEvent.press(getByTestId('mock-link-chain'));
+    });
+
+    expect(mockRetryLast).toHaveBeenCalledTimes(1);
+    expect(queryByText('sell.confirmSale')).toBeNull();
+    expect(queryByText('sell.quoteError.noCode')).toBeNull();
+  });
+
+  it('creates payment info once after login proceeds and focus returns', async () => {
+    const loginGate = { kind: 'login', message: 'sign in' };
+    mockCreatePaymentInfo.mockImplementation(async () => {
+      flowState.authGate = loginGate;
+      return null;
+    });
+    mockDismissAuthGate.mockImplementation((gate?: { kind: string }) => {
+      if (gate === undefined || flowState.authGate === gate) flowState.authGate = null;
+    });
+    mockRetryLast.mockImplementation(async () => ({ kind: 'paymentInfo', info: PAYMENT_INFO }));
+
+    const view = render(<SellScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.001');
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+    fireEvent.changeText(
+      view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
+      'CH9300762011623852957',
+    );
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+    expect(view.getByTestId('dfx-auth-gate-primary')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
+    });
+    expect(mockDismissAuthGate).toHaveBeenCalledWith(loginGate);
+    expect(mockCancelAuthGate).not.toHaveBeenCalled();
+
+    mockIsDfxAuthenticated = true;
+    await act(async () => {
+      view.rerender(<SellScreenImpl />);
+    });
+
+    await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+    expect(view.getByText('sell.confirmSale')).toBeTruthy();
+  });
+
+  it('does not create payment info after the login gate is cancelled', async () => {
+    const loginGate = { kind: 'login', message: 'sign in' };
+    mockCreatePaymentInfo.mockImplementation(async () => {
+      flowState.authGate = loginGate;
+      return null;
+    });
+    mockCancelAuthGate.mockImplementation((gate?: { kind: string }) => {
+      if (gate === undefined || flowState.authGate === gate) flowState.authGate = null;
+    });
+    mockRetryLast.mockResolvedValue({ kind: 'paymentInfo', info: PAYMENT_INFO });
+
+    const view = render(<SellScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.001');
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+    fireEvent.changeText(
+      view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
+      'CH9300762011623852957',
+    );
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+
+    await act(async () => {
+      fireEvent.press(view.getByTestId('dfx-auth-gate-cancel'));
+    });
+    expect(mockCancelAuthGate).toHaveBeenCalledWith(loginGate);
+    expect(mockDismissAuthGate).not.toHaveBeenCalled();
+
+    mockIsDfxAuthenticated = true;
+    await act(async () => {
+      view.rerender(<SellScreenImpl />);
+    });
+
+    expect(mockRetryLast).not.toHaveBeenCalled();
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+    expect(view.queryByText('sell.confirmSale')).toBeNull();
+  });
+
+  it('creates one payment info when continue is pressed twice', async () => {
+    mockCreatePaymentInfo.mockResolvedValue(PAYMENT_INFO);
+    const view = render(<SellScreenImpl />);
+
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.001');
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+    fireEvent.changeText(
+      view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
+      'CH9300762011623852957',
+    );
+
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+      fireEvent.press(view.getByText('common.continue'));
+    });
+
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the hook error when payment info returns null without a gate', async () => {
+    mockCreatePaymentInfo.mockImplementation(() => {
+      flowState.error = 'network down';
+      return null;
+    });
+    const view = render(<SellScreenImpl />);
+
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.001');
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+    fireEvent.changeText(
+      view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
+      'CH9300762011623852957',
+    );
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+
+    await waitFor(() => expect(view.getByText('network down')).toBeTruthy());
+    expect(view.queryByText('sell.quoteError.noCode')).toBeNull();
+    expect(view.queryByText('sell.confirmSale')).toBeNull();
+  });
+
+  it('shows a generic error when payment info returns null without a gate', async () => {
+    mockCreatePaymentInfo.mockResolvedValue(null);
+    const view = render(<SellScreenImpl />);
+
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.001');
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+    fireEvent.changeText(
+      view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
+      'CH9300762011623852957',
+    );
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+
+    await waitFor(() => expect(view.getByText('sell.quoteError.noCode')).toBeTruthy());
+    expect(view.queryByText('sell.confirmSale')).toBeNull();
   });
 
   it('uses the shared EVM balance map to expose a sellable token', () => {

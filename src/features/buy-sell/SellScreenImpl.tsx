@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   ImageBackground,
@@ -230,6 +230,15 @@ export default function SellScreen() {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [paymentInfoError, setPaymentInfoError] = useState<string | null>(null);
+  // Same-tick double presses both see confirmLoading === false. The ref
+  // closes that window; confirmLoading still guards a press after paint.
+  const submitLockRef = useRef(false);
+  // True after this screen asked for payment info until that request reaches
+  // a terminal result or the user cancels the auth gate. Proceeding through
+  // the gate keeps it so the replay can still open the payment step.
+  const paymentConfirmPendingRef = useRef(false);
+  const unresolvedPaymentRef = useRef(false);
+  const [unresolvedPayment, setUnresolvedPayment] = useState(0);
   const { enabledChains } = useEnabledChains();
   const {
     paymentInfo,
@@ -239,6 +248,7 @@ export default function SellScreen() {
     getQuote,
     createPaymentInfo,
     dismissAuthGate,
+    cancelAuthGate,
     retryLast,
   } = useSellFlow();
   const [step, setStep] = useState<SellStep>('amount');
@@ -270,28 +280,53 @@ export default function SellScreen() {
   const handlePaymentInfoResult = useCallback(
     (info: Awaited<ReturnType<typeof createPaymentInfo>>) => {
       if (canAdvanceToPayment(info)) {
+        paymentConfirmPendingRef.current = false;
+        submitLockRef.current = false;
         setPaymentInfoError(null);
+        setConfirmError(null);
+        setConfirmOpen(false);
         setStep('confirm');
         return;
       }
 
       const errorCode = getPaymentInfoErrorCode(info);
-      if (!errorCode) return;
-      setPaymentInfoError(
-        errorCode === 'noCode'
-          ? t('sell.quoteError.noCode')
-          : t([`sell.quoteError.${errorCode}`, 'sell.quoteError.generic'], { code: errorCode }),
-      );
+      if (errorCode) {
+        paymentConfirmPendingRef.current = false;
+        submitLockRef.current = false;
+        setPaymentInfoError(
+          errorCode === 'noCode'
+            ? t('sell.quoteError.noCode')
+            : t([`sell.quoteError.${errorCode}`, 'sell.quoteError.generic'], { code: errorCode }),
+        );
+        return;
+      }
+
+      // null, and no error code on the payload. The hook's auth gate or
+      // error lands on the next render; decide there so a stale closure
+      // cannot show an error beside the gate.
+      unresolvedPaymentRef.current = true;
+      setUnresolvedPayment((n) => n + 1);
     },
     [t],
   );
 
   const retryPaymentInfoAfterLink = useCallback(async () => {
-    const result = await retryLast();
-    if (result?.kind === 'paymentInfo') {
-      handlePaymentInfoResult(result.info);
+    // Quote gates still resume through retryLast. A payment-info result is
+    // applied only while the confirmation that asked for it is pending, so
+    // a cancelled or never-started confirm cannot open an order.
+    const confirmationPending = paymentConfirmPendingRef.current;
+    if (!confirmationPending && !authGate) return;
+    try {
+      const result = await retryLast();
+      if (result?.kind === 'paymentInfo' && confirmationPending) {
+        handlePaymentInfoResult(result.info);
+      }
+    } finally {
+      // Proceeding no longer clears the lock. Release it when this replay
+      // finishes or fails, unless a null result is still being classified.
+      if (!unresolvedPaymentRef.current) submitLockRef.current = false;
     }
-  }, [handlePaymentInfoResult, retryLast]);
+  }, [authGate, handlePaymentInfoResult, retryLast]);
 
   // Replay the last failed call after the user finishes the DFX login flow.
   const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
@@ -299,9 +334,41 @@ export default function SellScreen() {
     useCallback(() => {
       if (isDfxAuthenticated) {
         void retryPaymentInfoAfterLink();
+        return;
+      }
+      // Came back without a session. Nothing is replaying, so the continue
+      // button must not stay locked.
+      if (paymentConfirmPendingRef.current && !unresolvedPaymentRef.current) {
+        submitLockRef.current = false;
       }
     }, [isDfxAuthenticated, retryPaymentInfoAfterLink]),
   );
+
+  // One modal at a time: the auth gate replaces the confirm dialog.
+  useLayoutEffect(() => {
+    if (!authGate || !confirmOpen) return;
+    setConfirmOpen(false);
+    setConfirmLoading(false);
+    submitLockRef.current = false;
+  }, [authGate, confirmOpen]);
+
+  useEffect(() => {
+    if (!unresolvedPaymentRef.current) return;
+    if (isLoading) return;
+    unresolvedPaymentRef.current = false;
+    if (authGate) {
+      // Hold the submit lock until cancel or the replay. The gate is the
+      // only control the user has until then.
+      return;
+    }
+    paymentConfirmPendingRef.current = false;
+    submitLockRef.current = false;
+    setConfirmLoading(false);
+    const message = error ?? t('sell.quoteError.noCode');
+    if (confirmOpen) setConfirmError(message);
+    // The bank step already renders the hook error once this update commits.
+    if (!error) setPaymentInfoError(message);
+  }, [unresolvedPayment, authGate, error, isLoading, confirmOpen, t]);
 
   const btcAccount = useAccount({ network: 'bitcoin', accountIndex: 0 });
   const sparkAccount = useAccount({ network: 'spark', accountIndex: 0 });
@@ -813,16 +880,23 @@ export default function SellScreen() {
         title={t('common.continue')}
         onPress={async () => {
           if (!selectedChainSpec || numAmount === null || numAmount <= 0) return;
+          if (submitLockRef.current) return;
+          submitLockRef.current = true;
           setPaymentInfoError(null);
-          const info = await createPaymentInfo({
-            amount: numAmount,
-            asset: sellAsset,
-            blockchain,
-            currency: payoutCurrency,
-            iban: iban.replace(/\s/g, ''),
-            chain: selectedChainSpec.chain,
-          });
-          handlePaymentInfoResult(info);
+          paymentConfirmPendingRef.current = true;
+          try {
+            const info = await createPaymentInfo({
+              amount: numAmount,
+              asset: sellAsset,
+              blockchain,
+              currency: payoutCurrency,
+              iban: iban.replace(/\s/g, ''),
+              chain: selectedChainSpec.chain,
+            });
+            handlePaymentInfoResult(info);
+          } finally {
+            if (!paymentConfirmPendingRef.current) submitLockRef.current = false;
+          }
         }}
         disabled={iban.replace(/\s/g, '').length < 15}
         loading={isLoading}
@@ -973,7 +1047,14 @@ export default function SellScreen() {
       </View>
       <DfxAuthGate
         gate={authGate}
-        onClose={() => dismissAuthGate(authGate ?? undefined)}
+        onClose={() => {
+          dismissAuthGate(authGate ?? undefined);
+        }}
+        onCancel={() => {
+          paymentConfirmPendingRef.current = false;
+          submitLockRef.current = false;
+          cancelAuthGate(authGate ?? undefined);
+        }}
         onLinkChain={linkChainToDfx}
       />
       <ConfirmTargetWalletModal
@@ -990,7 +1071,9 @@ export default function SellScreen() {
           setConfirmError(null);
         }}
         onConfirm={async () => {
+          if (confirmLoading || submitLockRef.current) return;
           if (!targetAddress || !targetBlockchain) return;
+          submitLockRef.current = true;
           setConfirmLoading(true);
           setConfirmError(null);
           try {
@@ -1008,6 +1091,7 @@ export default function SellScreen() {
               err instanceof Error ? err.message : t('linkedWallet.reauthError.generic'),
             );
           } finally {
+            submitLockRef.current = false;
             setConfirmLoading(false);
           }
         }}

@@ -453,4 +453,251 @@ describe('useBuyFlow', () => {
     // The stale resolution must not revive state after reset.
     expect(result.current.status).toBe('idle');
   });
+
+  it('ignores a late payment-info auth error after a newer quote succeeds', async () => {
+    const stale = { ...QUOTE, amount: 50 };
+    const fresh = { ...QUOTE, amount: 500 };
+    const authErr = new Error('401');
+    const pending = deferred<BuyPaymentInfoDto>();
+    mockInterpretDfxAuthError.mockImplementation((err: unknown) =>
+      err === authErr ? { kind: 'linkChain', message: 'link' } : null,
+    );
+    mockCreateBuyPaymentInfo.mockReturnValueOnce(pending.promise);
+    mockGetBuyQuote.mockResolvedValueOnce(validInfo({ id: 500 }));
+    const { result } = renderHook(() => useBuyFlow());
+
+    let paymentCall: Promise<unknown>;
+    act(() => {
+      paymentCall = result.current.createPaymentInfo(stale);
+    });
+    const paymentSignal = mockCreateBuyPaymentInfo.mock.calls[0]![1].signal as AbortSignal;
+
+    await act(async () => {
+      await result.current.getQuote(fresh);
+    });
+
+    expect(paymentSignal.aborted).toBe(false);
+    expect(result.current.paymentInfo).toMatchObject({ id: 500 });
+    expect(result.current.authGate).toBeNull();
+    expect(result.current.status).toBe('success');
+
+    await act(async () => {
+      pending.reject(authErr);
+      await paymentCall;
+    });
+
+    expect(result.current.authGate).toBeNull();
+    expect(result.current.error).toBeNull();
+    expect(result.current.paymentInfo).toMatchObject({ id: 500 });
+    expect(result.current.status).toBe('success');
+    await act(async () => {
+      await expect(result.current.retryLast()).resolves.toBeNull();
+    });
+    expect(mockCreateBuyPaymentInfo).toHaveBeenCalledTimes(1);
+    expect(mockCreateBuyPaymentInfo.mock.calls[0]![0]).toMatchObject({ amount: 50 });
+    expect(mockGetBuyQuote).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a late non-auth payment error while a newer quote gate is open', async () => {
+    const pending = deferred<BuyPaymentInfoDto>();
+    const quoteAuth = new Error('login');
+    mockCreateBuyPaymentInfo.mockReturnValueOnce(pending.promise);
+    mockGetBuyQuote.mockRejectedValueOnce(quoteAuth);
+    mockInterpretDfxAuthError.mockImplementation((err: unknown) =>
+      err === quoteAuth ? { kind: 'login', message: 'sign in' } : null,
+    );
+    const { result } = renderHook(() => useBuyFlow());
+
+    let paymentCall: Promise<unknown>;
+    act(() => {
+      paymentCall = result.current.createPaymentInfo({ ...QUOTE, amount: 50 });
+    });
+
+    await act(async () => {
+      await result.current.getQuote({ ...QUOTE, amount: 500 });
+    });
+    expect(result.current.status).toBe('authGate');
+    expect(result.current.authGate).toMatchObject({ kind: 'login' });
+
+    await act(async () => {
+      pending.reject(new Error('network down'));
+      await paymentCall;
+    });
+
+    expect(result.current.status).toBe('authGate');
+    expect(result.current.authGate).toMatchObject({ kind: 'login' });
+    expect(result.current.error).toBeNull();
+
+    mockGetBuyQuote.mockResolvedValueOnce(validInfo({ id: 500 }));
+    await act(async () => {
+      await expect(result.current.retryLast()).resolves.toMatchObject({
+        kind: 'quote',
+        info: { id: 500 },
+      });
+    });
+    expect(mockGetBuyQuote.mock.calls[1]![0]).toMatchObject({ amount: 500 });
+    expect(mockCreateBuyPaymentInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a late quote after payment info was created', async () => {
+    const quotePending = deferred<BuyPaymentInfoDto>();
+    mockGetBuyQuote.mockReturnValueOnce(quotePending.promise);
+    mockCreateBuyPaymentInfo.mockResolvedValueOnce(validInfo({ id: 9, iban: 'CH-COMMITTED' }));
+    const { result } = renderHook(() => useBuyFlow());
+
+    let quoteCall: Promise<unknown>;
+    act(() => {
+      quoteCall = result.current.getQuote(QUOTE);
+    });
+    const quoteSignal = mockGetBuyQuote.mock.calls[0]![1].signal as AbortSignal;
+
+    await act(async () => {
+      await result.current.createPaymentInfo(QUOTE);
+    });
+
+    expect(quoteSignal.aborted).toBe(false);
+    expect(result.current.paymentInfo).toMatchObject({ id: 9, iban: 'CH-COMMITTED' });
+
+    await act(async () => {
+      quotePending.resolve(validInfo({ id: 1, iban: 'CH-STALE' }));
+      await quoteCall;
+    });
+
+    expect(result.current.paymentInfo).toMatchObject({ id: 9, iban: 'CH-COMMITTED' });
+    expect(result.current.status).toBe('success');
+  });
+
+  it('keeps the newer payment info when an older call resolves last', async () => {
+    const first = deferred<BuyPaymentInfoDto>();
+    const second = deferred<BuyPaymentInfoDto>();
+    mockCreateBuyPaymentInfo
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const { result } = renderHook(() => useBuyFlow());
+
+    let firstCall: Promise<unknown>;
+    act(() => {
+      firstCall = result.current.createPaymentInfo({ ...QUOTE, amount: 50 });
+    });
+    let secondCall: Promise<unknown>;
+    act(() => {
+      secondCall = result.current.createPaymentInfo({ ...QUOTE, amount: 500 });
+    });
+
+    const firstSignal = mockCreateBuyPaymentInfo.mock.calls[0]![1].signal as AbortSignal;
+    const secondSignal = mockCreateBuyPaymentInfo.mock.calls[1]![1].signal as AbortSignal;
+    expect(firstSignal.aborted).toBe(true);
+    expect(secondSignal.aborted).toBe(false);
+
+    await act(async () => {
+      second.resolve(validInfo({ id: 2, iban: 'CH-NEWER' }));
+      await secondCall;
+    });
+    expect(result.current.paymentInfo).toMatchObject({ id: 2, iban: 'CH-NEWER' });
+
+    await act(async () => {
+      first.resolve(validInfo({ id: 1, iban: 'CH-OLDER' }));
+      await firstCall;
+    });
+    expect(result.current.paymentInfo).toMatchObject({ id: 2, iban: 'CH-NEWER' });
+    expect(result.current.status).toBe('success');
+  });
+
+  it('ignores a payment-info response after reset and aborts its signal', async () => {
+    const pending = deferred<BuyPaymentInfoDto>();
+    mockCreateBuyPaymentInfo.mockReturnValueOnce(pending.promise);
+    const { result } = renderHook(() => useBuyFlow());
+
+    let call: Promise<unknown>;
+    act(() => {
+      call = result.current.createPaymentInfo(QUOTE);
+    });
+    const signal = mockCreateBuyPaymentInfo.mock.calls[0]![1].signal as AbortSignal;
+
+    act(() => {
+      result.current.reset();
+    });
+
+    expect(signal.aborted).toBe(true);
+    expect(result.current.status).toBe('idle');
+    expect(result.current.paymentInfo).toBeNull();
+
+    await act(async () => {
+      pending.resolve(validInfo({ id: 9, iban: 'CH-LATE' }));
+      await call;
+    });
+
+    expect(result.current.status).toBe('idle');
+    expect(result.current.paymentInfo).toBeNull();
+    expect(result.current.authGate).toBeNull();
+  });
+
+  it('aborts an in-flight payment info when the hook unmounts', async () => {
+    const pending = deferred<BuyPaymentInfoDto>();
+    mockCreateBuyPaymentInfo.mockReturnValueOnce(pending.promise);
+    const { result, unmount } = renderHook(() => useBuyFlow());
+
+    let call: Promise<unknown>;
+    act(() => {
+      call = result.current.createPaymentInfo(QUOTE);
+    });
+    const signal = mockCreateBuyPaymentInfo.mock.calls[0]![1].signal as AbortSignal;
+
+    unmount();
+    expect(signal.aborted).toBe(true);
+
+    await act(async () => {
+      pending.resolve(validInfo({ id: 9 }));
+      await call;
+    });
+  });
+
+  it('replays after dismissAuthGate and replays nothing after cancelAuthGate', async () => {
+    const gate = { kind: 'login' as const, message: 'sign in' };
+    const other = { kind: 'kyc' as const, message: 'finish KYC' };
+    mockCreateBuyPaymentInfo
+      .mockRejectedValueOnce(new Error('login'))
+      .mockResolvedValueOnce(validInfo({ id: 4 }))
+      .mockRejectedValueOnce(new Error('login'));
+    mockInterpretDfxAuthError.mockReturnValueOnce(gate).mockReturnValueOnce(gate);
+    const { result } = renderHook(() => useBuyFlow());
+
+    await act(async () => {
+      await result.current.createPaymentInfo({ ...QUOTE, amount: 50 });
+    });
+    expect(result.current.authGate).toEqual(gate);
+
+    act(() => {
+      result.current.dismissAuthGate(other);
+      result.current.cancelAuthGate(other);
+    });
+    expect(result.current.authGate).toEqual(gate);
+
+    act(() => {
+      result.current.dismissAuthGate(gate);
+    });
+    expect(result.current.authGate).toBeNull();
+
+    await act(async () => {
+      await result.current.retryLast();
+    });
+    expect(mockCreateBuyPaymentInfo).toHaveBeenCalledTimes(2);
+    expect(mockCreateBuyPaymentInfo.mock.calls[1]![0]).toMatchObject({ amount: 50 });
+    expect(result.current.status).toBe('success');
+
+    await act(async () => {
+      await result.current.createPaymentInfo({ ...QUOTE, amount: 75 });
+    });
+    expect(result.current.authGate).toEqual(gate);
+
+    act(() => {
+      result.current.cancelAuthGate(gate);
+    });
+    expect(result.current.authGate).toBeNull();
+
+    await act(async () => {
+      await expect(result.current.retryLast()).resolves.toBeNull();
+    });
+    expect(mockCreateBuyPaymentInfo).toHaveBeenCalledTimes(3);
+  });
 });

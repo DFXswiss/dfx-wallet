@@ -86,17 +86,28 @@ export function useBuyFlow() {
   // Remember only the call that caused an auth gate so focus changes cannot
   // replay successful or ordinary failed payment requests.
   const lastAction = useRef<RetryAction | null>(null);
-  // Track the most recent in-flight quote so a newer request supersedes
-  // older ones — older responses are dropped instead of clobbering the
-  // newer state.
+  const authGateRef = useRef<DfxAuthGateState | null>(null);
+  authGateRef.current = state.authGate;
+  // Monotonic id for quote and payment-info calls. A response may change
+  // state only while its id is still the latest. reset() and unmount bump
+  // it so a late response cannot reopen a gate or rewrite payment info.
+  const requestSeqRef = useRef(0);
+  // Track the most recent in-flight quote so a newer quote supersedes older
+  // ones — older responses are dropped instead of clobbering newer state.
   const quoteAbortRef = useRef<AbortController | null>(null);
+  // /paymentInfos commits an order. A newer quote must not abort it; a newer
+  // payment-info call, reset(), or unmount does.
+  const paymentAbortRef = useRef<AbortController | null>(null);
 
-  // Abort any pending quote when the hook unmounts so the screen tearing
-  // down doesn't leave a dangling fetch that resolves into setState on a
-  // stale component.
+  const isCurrentRequest = useCallback((seq: number) => seq === requestSeqRef.current, []);
+
+  // Abort any pending call when the hook unmounts so the screen tearing
+  // down doesn't leave a dangling fetch that resolves into setState.
   useEffect(() => {
     return () => {
+      requestSeqRef.current += 1;
       quoteAbortRef.current?.abort();
+      paymentAbortRef.current?.abort();
     };
   }, []);
 
@@ -135,10 +146,12 @@ export function useBuyFlow() {
 
   const getQuote = useCallback(
     async (params: QuoteParams) => {
+      const seq = ++requestSeqRef.current;
       const action: RetryAction = { kind: 'quote', params };
       lastAction.current = null;
 
-      // Cancel any predecessor and start a fresh window.
+      // Cancel any predecessor quote. Do not abort an in-flight payment
+      // info: that request commits an order on the server.
       quoteAbortRef.current?.abort();
       const controller = new AbortController();
       quoteAbortRef.current = controller;
@@ -148,13 +161,11 @@ export function useBuyFlow() {
         isLoading: true,
         error: null,
         authGate: null,
-        status: s.paymentInfo ? 'loading' : 'loading',
+        status: 'loading',
       }));
       try {
         const info = await dfxPaymentService.getBuyQuote(params, { signal: controller.signal });
-        // If we were superseded between the await and now, the abort signal
-        // would already have triggered — but double-check via ref identity.
-        if (quoteAbortRef.current !== controller) return null;
+        if (!isCurrentRequest(seq) || quoteAbortRef.current !== controller) return null;
         // Normalise: DFX' BuyQuoteDto returns `errors` as an array; older
         // responses use a singular `error`. Collapse to one field for the
         // screen.
@@ -169,35 +180,41 @@ export function useBuyFlow() {
         });
         return normalised;
       } catch (err) {
-        if (quoteAbortRef.current !== controller) return null;
+        if (!isCurrentRequest(seq) || quoteAbortRef.current !== controller) return null;
         handleError(err, 'Quote failed', action);
         return null;
       }
     },
-    [handleError],
+    [handleError, isCurrentRequest],
   );
 
   const createPaymentInfo = useCallback(
     async (params: QuoteParams) => {
+      const seq = ++requestSeqRef.current;
       const action: RetryAction = { kind: 'paymentInfo', params };
       lastAction.current = null;
-      // /paymentInfos commits the order — we do NOT want a previous quote
-      // race to cancel it. Use its own controller, scoped just to this call.
+      // A newer payment-info call supersedes the previous one. A quote does
+      // not: /paymentInfos commits the order, so its controller stays live
+      // until this call, reset(), or unmount replaces it.
+      paymentAbortRef.current?.abort();
       const controller = new AbortController();
+      paymentAbortRef.current = controller;
       setState((s) => ({ ...s, isLoading: true, error: null, authGate: null, status: 'loading' }));
       try {
         const info = await dfxPaymentService.createBuyPaymentInfo(params, {
           signal: controller.signal,
         });
+        if (!isCurrentRequest(seq) || paymentAbortRef.current !== controller) return null;
         lastAction.current = null;
         setBuyState({ isLoading: false, paymentInfo: info, error: null, authGate: null });
         return info;
       } catch (err) {
+        if (!isCurrentRequest(seq) || paymentAbortRef.current !== controller) return null;
         handleError(err, 'Failed to create payment info', action);
         return null;
       }
     },
-    [handleError],
+    [handleError, isCurrentRequest],
   );
 
   const confirmPayment = useCallback(
@@ -219,13 +236,34 @@ export function useBuyFlow() {
     [handleError],
   );
 
-  const dismissAuthGate = useCallback((gate?: DfxAuthGateState) => {
+  const hideAuthGate = useCallback((gate?: DfxAuthGateState) => {
+    if (gate !== undefined && authGateRef.current !== gate) return;
+    authGateRef.current = null;
     setState((s) => {
       if (gate !== undefined && s.authGate !== gate) return s;
       const next = { ...s, authGate: null };
       return { ...next, status: deriveStatus(next) };
     });
   }, []);
+
+  // Proceeding through the gate hides it and keeps the failed call so a
+  // later focus or chain link can replay it.
+  const dismissAuthGate = useCallback(
+    (gate?: DfxAuthGateState) => {
+      hideAuthGate(gate);
+    },
+    [hideAuthGate],
+  );
+
+  // Cancel drops the failed call. A later focus or link must not replay it.
+  const cancelAuthGate = useCallback(
+    (gate?: DfxAuthGateState) => {
+      if (gate !== undefined && authGateRef.current !== gate) return;
+      lastAction.current = null;
+      hideAuthGate(gate);
+    },
+    [hideAuthGate],
+  );
 
   /**
    * Re-run the call that triggered the auth gate. Wired into the gate's
@@ -242,9 +280,12 @@ export function useBuyFlow() {
   }, [getQuote, createPaymentInfo]);
 
   const reset = useCallback(() => {
+    requestSeqRef.current += 1;
     lastAction.current = null;
     quoteAbortRef.current?.abort();
     quoteAbortRef.current = null;
+    paymentAbortRef.current?.abort();
+    paymentAbortRef.current = null;
     setState(INITIAL_STATE);
   }, []);
 
@@ -254,6 +295,7 @@ export function useBuyFlow() {
     createPaymentInfo,
     confirmPayment,
     dismissAuthGate,
+    cancelAuthGate,
     retryLast,
     reset,
   };

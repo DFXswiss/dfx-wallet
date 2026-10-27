@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   ImageBackground,
@@ -230,6 +230,7 @@ export default function BuyScreen() {
     createPaymentInfo,
     confirmPayment,
     dismissAuthGate,
+    cancelAuthGate,
     retryLast,
   } = useBuyFlow();
   const [step, setStep] = useState<BuyStep>('amount');
@@ -258,6 +259,15 @@ export default function BuyScreen() {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [paymentInfoError, setPaymentInfoError] = useState<string | null>(null);
+  // Same-tick double presses both see confirmLoading === false. The ref
+  // closes that window; confirmLoading still guards a press after paint.
+  const submitLockRef = useRef(false);
+  // True after this screen asked for payment info until that request reaches
+  // a terminal result or the user cancels the auth gate. Proceeding through
+  // the gate keeps it so the replay can still open the payment step.
+  const paymentConfirmPendingRef = useRef(false);
+  const unresolvedPaymentRef = useRef(false);
+  const [unresolvedPayment, setUnresolvedPayment] = useState(0);
   const initialPreselect = useMemo(() => {
     const wantedSymbol = typeof params.asset === 'string' ? params.asset.toUpperCase() : null;
     const wantedChain = typeof params.chain === 'string' ? params.chain : null;
@@ -285,6 +295,8 @@ export default function BuyScreen() {
   const handlePaymentInfoResult = useCallback(
     (info: Awaited<ReturnType<typeof createPaymentInfo>>) => {
       if (canAdvanceToPayment(info)) {
+        paymentConfirmPendingRef.current = false;
+        submitLockRef.current = false;
         setPaymentInfoError(null);
         setConfirmError(null);
         setConfirmOpen(false);
@@ -293,26 +305,47 @@ export default function BuyScreen() {
       }
 
       const errorCode = getPaymentInfoErrorCode(info);
-      if (!errorCode) return;
-      const translatedError =
-        errorCode === 'noCode'
-          ? t('buy.quoteError.noCode')
-          : t([`buy.quoteError.${errorCode}`, 'buy.quoteError.generic'], { code: errorCode });
-      if (hasTargetWallet) {
-        setConfirmError(translatedError);
-      } else {
-        setPaymentInfoError(translatedError);
+      if (errorCode) {
+        paymentConfirmPendingRef.current = false;
+        submitLockRef.current = false;
+        const translatedError =
+          errorCode === 'noCode'
+            ? t('buy.quoteError.noCode')
+            : t([`buy.quoteError.${errorCode}`, 'buy.quoteError.generic'], { code: errorCode });
+        if (hasTargetWallet) {
+          setConfirmError(translatedError);
+        } else {
+          setPaymentInfoError(translatedError);
+        }
+        return;
       }
+
+      // null, and no error code on the payload. The hook's auth gate or
+      // error lands on the next render; decide there so a stale closure
+      // cannot show an error beside the gate.
+      unresolvedPaymentRef.current = true;
+      setUnresolvedPayment((n) => n + 1);
     },
     [hasTargetWallet, t],
   );
 
   const retryPaymentInfoAfterLink = useCallback(async () => {
-    const result = await retryLast();
-    if (result?.kind === 'paymentInfo') {
-      handlePaymentInfoResult(result.info);
+    // Quote gates still resume through retryLast. A payment-info result is
+    // applied only while the confirmation that asked for it is pending, so
+    // a cancelled or never-started confirm cannot open an order.
+    const confirmationPending = paymentConfirmPendingRef.current;
+    if (!confirmationPending && !authGate) return;
+    try {
+      const result = await retryLast();
+      if (result?.kind === 'paymentInfo' && confirmationPending) {
+        handlePaymentInfoResult(result.info);
+      }
+    } finally {
+      // Proceeding no longer clears the lock. Release it when this replay
+      // finishes or fails, unless a null result is still being classified.
+      if (!unresolvedPaymentRef.current) submitLockRef.current = false;
     }
-  }, [handlePaymentInfoResult, retryLast]);
+  }, [authGate, handlePaymentInfoResult, retryLast]);
 
   // After the user goes through the DFX login flow we land back on this
   // screen; replay the failed call so they don't have to retap "Continue".
@@ -321,9 +354,43 @@ export default function BuyScreen() {
     useCallback(() => {
       if (isDfxAuthenticated) {
         void retryPaymentInfoAfterLink();
+        return;
+      }
+      // Came back without a session. Nothing is replaying, so the continue
+      // button must not stay locked.
+      if (paymentConfirmPendingRef.current && !unresolvedPaymentRef.current) {
+        submitLockRef.current = false;
       }
     }, [isDfxAuthenticated, retryPaymentInfoAfterLink]),
   );
+
+  // One modal at a time: the auth gate replaces the confirm dialog.
+  useLayoutEffect(() => {
+    if (!authGate || !confirmOpen) return;
+    setConfirmOpen(false);
+    setConfirmLoading(false);
+    submitLockRef.current = false;
+  }, [authGate, confirmOpen]);
+
+  useEffect(() => {
+    if (!unresolvedPaymentRef.current) return;
+    if (isLoading) return;
+    unresolvedPaymentRef.current = false;
+    if (authGate) {
+      // Hold the submit lock until cancel or the replay. The gate is the
+      // only control the user has until then.
+      return;
+    }
+    paymentConfirmPendingRef.current = false;
+    submitLockRef.current = false;
+    setConfirmLoading(false);
+    const message = error ?? t('buy.quoteError.noCode');
+    if (hasTargetWallet) {
+      setConfirmError(message);
+      return;
+    }
+    if (!error) setPaymentInfoError(message);
+  }, [unresolvedPayment, authGate, error, isLoading, hasTargetWallet, t]);
 
   // WDK accounts for the chains the user can buy on. We hold each at the
   // top of the screen because hooks can't be called conditionally; the
@@ -806,15 +873,22 @@ export default function BuyScreen() {
                 setConfirmOpen(true);
                 return;
               }
+              if (submitLockRef.current) return;
+              submitLockRef.current = true;
               setPaymentInfoError(null);
-              const info = await createPaymentInfo({
-                amount: numAmount,
-                currency: selectedCurrency,
-                asset: targetAsset,
-                blockchain,
-                chain: selectedChainSpec.chain,
-              });
-              handlePaymentInfoResult(info);
+              paymentConfirmPendingRef.current = true;
+              try {
+                const info = await createPaymentInfo({
+                  amount: numAmount,
+                  currency: selectedCurrency,
+                  asset: targetAsset,
+                  blockchain,
+                  chain: selectedChainSpec.chain,
+                });
+                handlePaymentInfoResult(info);
+              } finally {
+                if (!paymentConfirmPendingRef.current) submitLockRef.current = false;
+              }
             }}
             disabled={
               numAmount === null || numAmount <= 0 || belowMin || aboveMax || unsupportedChain
@@ -986,7 +1060,14 @@ export default function BuyScreen() {
       </View>
       <DfxAuthGate
         gate={authGate}
-        onClose={() => dismissAuthGate(authGate ?? undefined)}
+        onClose={() => {
+          dismissAuthGate(authGate ?? undefined);
+        }}
+        onCancel={() => {
+          paymentConfirmPendingRef.current = false;
+          submitLockRef.current = false;
+          cancelAuthGate(authGate ?? undefined);
+        }}
         onLinkChain={linkChainToDfx}
       />
       <ConfirmTargetWalletModal
@@ -1003,6 +1084,7 @@ export default function BuyScreen() {
           setConfirmError(null);
         }}
         onConfirm={async () => {
+          if (confirmLoading || submitLockRef.current) return;
           if (
             !selectedChainSpec ||
             !targetAddress ||
@@ -1012,6 +1094,7 @@ export default function BuyScreen() {
           ) {
             return;
           }
+          submitLockRef.current = true;
           setConfirmLoading(true);
           setConfirmError(null);
           try {
@@ -1022,6 +1105,7 @@ export default function BuyScreen() {
               );
               return;
             }
+            paymentConfirmPendingRef.current = true;
             const info = await createPaymentInfo({
               amount: numAmount,
               currency: selectedCurrency,
@@ -1031,11 +1115,13 @@ export default function BuyScreen() {
             });
             handlePaymentInfoResult(info);
           } catch (err) {
+            paymentConfirmPendingRef.current = false;
             setConfirmError(
               err instanceof Error ? err.message : t('linkedWallet.reauthError.generic'),
             );
           } finally {
             setConfirmLoading(false);
+            if (!paymentConfirmPendingRef.current) submitLockRef.current = false;
           }
         }}
       />
