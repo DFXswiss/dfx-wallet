@@ -1,8 +1,4 @@
-import {
-  dfxApi,
-  DfxApiError,
-  DfxApiTimeoutError,
-} from '@/features/dfx-backend/services/api';
+import { dfxApi, DfxApiError, DfxApiTimeoutError } from '@/features/dfx-backend/services/api';
 import { dfxAuthService } from '@/features/dfx-backend/services/auth-service';
 
 describe('DfxApiError', () => {
@@ -96,6 +92,28 @@ describe('dfxApi request hardening', () => {
         headers: expect.objectContaining({ Authorization: 'Bearer SESSION_TOKEN' }),
       }),
     );
+  });
+
+  it('anonymous sends no Authorization even when a token is set', async () => {
+    dfxApi.setAuthToken('SESSION_TOKEN');
+    await dfxApi.post('/v1/auth', { address: 'bc1qabc' }, { anonymous: true });
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'https://api.dfx.swiss/v1/auth',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.not.objectContaining({ Authorization: expect.any(String) }),
+      }),
+    );
+  });
+
+  it('anonymous combined with requireAuth throws', async () => {
+    dfxApi.setAuthToken('SESSION_TOKEN');
+    await expect(
+      dfxApi.post('/v1/auth', { address: 'bc1qabc' }, { anonymous: true, requireAuth: true }),
+    ).rejects.toThrow('anonymous and requireAuth cannot be combined');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it('returns raw text when requested', async () => {
@@ -421,17 +439,15 @@ describe('dfxApi request hardening', () => {
       json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Unauthorized' }),
     };
     let retrySignal: AbortSignal | undefined;
-    (globalThis.fetch as jest.Mock)
-      .mockResolvedValueOnce(unauthorized)
-      .mockImplementationOnce(
-        (_url: string, init: RequestInit) =>
-          new Promise((_resolve, reject) => {
-            retrySignal = init.signal ?? undefined;
-            retrySignal?.addEventListener('abort', () => reject(new Error('retry aborted')), {
-              once: true,
-            });
-          }),
-      );
+    (globalThis.fetch as jest.Mock).mockResolvedValueOnce(unauthorized).mockImplementationOnce(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          retrySignal = init.signal ?? undefined;
+          retrySignal?.addEventListener('abort', () => reject(new Error('retry aborted')), {
+            once: true,
+          });
+        }),
+    );
 
     const request = dfxApi.get('/v1/user', { timeoutMs: 25 });
     const assertion = expect(request).rejects.toMatchObject({

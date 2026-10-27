@@ -99,11 +99,15 @@ describe('dfxAuthService.login', () => {
     });
 
     expect(clearAuthTokenSpy).toHaveBeenCalled();
-    expect(postSpy).toHaveBeenCalledWith('/v1/auth', {
-      address: '0xabc',
-      signature: 'SIG',
-      wallet: 'DFX Wallet',
-    });
+    expect(postSpy).toHaveBeenCalledWith(
+      '/v1/auth',
+      {
+        address: '0xabc',
+        signature: 'SIG',
+        wallet: 'DFX Wallet',
+      },
+      { anonymous: true },
+    );
     expect(token).toBe('OWNER_TOKEN');
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('OWNER_TOKEN');
   });
@@ -120,6 +124,93 @@ describe('dfxAuthService.login', () => {
     expect(clearAuthTokenSpy).toHaveBeenCalled();
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('OLD_TOKEN');
     expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
+  });
+
+  it('does not restore the previous token when a session was adopted during login', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    postSpy.mockImplementationOnce(async () => {
+      dfxAuthService.adoptStoredToken('NEWER_TOKEN');
+      dfxApi.setAuthToken('NEWER_TOKEN');
+      throw new DfxApiError(400, 'AUTH_FAILED', 'Invalid signature');
+    });
+
+    await expect(dfxAuthService.login('0xabc', async () => 'BAD')).rejects.toThrow(
+      /Invalid signature/,
+    );
+
+    expect(dfxAuthService.getAccessToken()).toBe('NEWER_TOKEN');
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('NEWER_TOKEN');
+  });
+});
+
+describe('dfxAuthService login posts carry no bearer', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+    dfxApi.setOnUnauthorized(async () => null);
+    dfxAuthService.logout();
+  });
+
+  function mockAuthFetch(): jest.SpyInstance {
+    return jest.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const body = url.includes('/v1/auth/signMessage')
+        ? JSON.stringify({ message: 'sign me' })
+        : JSON.stringify({ accessToken: 'OWNER_TOKEN' });
+      return {
+        ok: true,
+        status: 200,
+        text: async () => body,
+      } as unknown as Response;
+    });
+  }
+
+  function expectLoginPostWithoutAuthorization(fetchSpy: jest.SpyInstance): void {
+    const postCall = fetchSpy.mock.calls.find(
+      (call) =>
+        call[0] === 'https://api.dfx.swiss/v1/auth' &&
+        (call[1] as { method?: string } | undefined)?.method === 'POST',
+    );
+    expect(postCall).toBeDefined();
+    const headers = (postCall?.[1] as { headers?: Record<string, string> } | undefined)?.headers;
+    expect(headers).toMatchObject({ 'Content-Type': 'application/json' });
+    expect(headers).not.toHaveProperty('Authorization');
+  }
+
+  it('sends POST /v1/auth with no Authorization when a foreign token appears during login', async () => {
+    dfxAuthService.logout();
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    dfxApi.setAuthToken('OLD_TOKEN');
+    const fetchSpy = mockAuthFetch();
+
+    await dfxAuthService.login('0xabc', async () => {
+      dfxApi.setAuthToken('FOREIGN');
+      return 'SIG';
+    });
+
+    expectLoginPostWithoutAuthorization(fetchSpy);
+  });
+
+  it('sends a refresh POST /v1/auth with no Authorization when a foreign token appears', async () => {
+    dfxAuthService.logout();
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    dfxApi.setAuthToken('OLD_TOKEN');
+    const generation = await captureAuthGeneration();
+    const fetchSpy = mockAuthFetch();
+
+    await expect(
+      dfxAuthService.login(
+        '0xabc',
+        async () => {
+          dfxApi.setAuthToken('FOREIGN');
+          return 'SIG';
+        },
+        undefined,
+        generation,
+      ),
+    ).rejects.toThrow('Authentication changed while token refresh was pending.');
+
+    expectLoginPostWithoutAuthorization(fetchSpy);
   });
 });
 
@@ -653,12 +744,16 @@ describe('dfxAuthService.loginAsLnurlAddressOwner', () => {
 
     expect(clearAuthTokenSpy).toHaveBeenCalled();
     expect(getSpy).not.toHaveBeenCalled();
-    expect(postSpy).toHaveBeenCalledWith('/v1/auth', {
-      address: 'LNURL1ABC',
-      signature: 'PROOF',
-      wallet: 'DFX Bitcoin',
-      blockchain: 'Lightning',
-    });
+    expect(postSpy).toHaveBeenCalledWith(
+      '/v1/auth',
+      {
+        address: 'LNURL1ABC',
+        signature: 'PROOF',
+        wallet: 'DFX Bitcoin',
+        blockchain: 'Lightning',
+      },
+      { anonymous: true },
+    );
     expect(token).toBe('OWNER_TOKEN');
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('OWNER_TOKEN');
   });
@@ -718,9 +813,7 @@ describe('dfxAuthService delegating helpers', () => {
     clearAuthTokenForRefreshSpy = jest
       .spyOn(dfxApi, 'clearAuthTokenForRefresh')
       .mockReturnValue(true);
-    setAuthTokenForRefreshSpy = jest
-      .spyOn(dfxApi, 'setAuthTokenForRefresh')
-      .mockReturnValue(true);
+    setAuthTokenForRefreshSpy = jest.spyOn(dfxApi, 'setAuthTokenForRefresh').mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -734,12 +827,16 @@ describe('dfxAuthService delegating helpers', () => {
 
     await dfxAuthService.login('0xabc', async () => 'SIG', { usedRef: 'PARTNER_REF' });
 
-    expect(postSpy).toHaveBeenCalledWith('/v1/auth', {
-      address: '0xabc',
-      signature: 'SIG',
-      wallet: 'DFX Wallet',
-      usedRef: 'PARTNER_REF',
-    });
+    expect(postSpy).toHaveBeenCalledWith(
+      '/v1/auth',
+      {
+        address: '0xabc',
+        signature: 'SIG',
+        wallet: 'DFX Wallet',
+        usedRef: 'PARTNER_REF',
+      },
+      { anonymous: true },
+    );
   });
 
   it('refresh runs a fresh signature login', async () => {
@@ -798,12 +895,16 @@ describe('dfxAuthService delegating helpers', () => {
       blockchain: 'Ethereum',
     });
 
-    expect(postSpy).toHaveBeenCalledWith('/v1/auth', {
-      address: '0xabc',
-      signature: 'SIG',
-      wallet: 'DFX Wallet',
-      blockchain: 'Ethereum',
-    });
+    expect(postSpy).toHaveBeenCalledWith(
+      '/v1/auth',
+      {
+        address: '0xabc',
+        signature: 'SIG',
+        wallet: 'DFX Wallet',
+        blockchain: 'Ethereum',
+      },
+      { anonymous: true },
+    );
     expect(token).toBe('OWNER');
   });
 });
