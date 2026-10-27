@@ -139,6 +139,66 @@ describe('dfxApi request hardening', () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it('refreshes a requireAuth /v1/auth 401 once and retries with the new bearer', async () => {
+    dfxApi.setAuthToken('OLD_TOKEN');
+    const refresh = jest.fn(async (authGeneration: number) => {
+      expect(dfxApi.clearAuthTokenForRefresh(authGeneration)).toBe(true);
+      expect(dfxApi.setAuthTokenForRefresh('REFRESHED_TOKEN', authGeneration)).toBe(true);
+      return 'REFRESHED_TOKEN';
+    });
+    dfxApi.setOnUnauthorized(refresh);
+    (globalThis.fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Expired' }),
+      })
+      .mockResolvedValueOnce({ ok: true, status: 200, text: async () => '{}' });
+
+    await expect(
+      dfxApi.post('/v1/auth', { address: 'bc1qabc' }, { requireAuth: true }),
+    ).resolves.toEqual({});
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect((globalThis.fetch as jest.Mock).mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer OLD_TOKEN' }),
+      }),
+    );
+    expect((globalThis.fetch as jest.Mock).mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer REFRESHED_TOKEN' }),
+      }),
+    );
+  });
+
+  it('does not refresh an anonymous /v1/auth 401', async () => {
+    dfxApi.setAuthToken('SESSION_TOKEN');
+    const refresh = jest.fn(async () => 'REFRESHED_TOKEN');
+    dfxApi.setOnUnauthorized(refresh);
+    (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Unauthorized' }),
+    });
+
+    await expect(
+      dfxApi.post('/v1/auth', { address: 'bc1qabc' }, { anonymous: true }),
+    ).rejects.toBeInstanceOf(DfxApiError);
+
+    expect(refresh).not.toHaveBeenCalled();
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect((globalThis.fetch as jest.Mock).mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.not.objectContaining({ Authorization: expect.any(String) }),
+      }),
+    );
+  });
+
   it('shares one refresh across concurrent 401 responses', async () => {
     let resolveRefresh!: (token: string) => void;
     const pendingRefresh = new Promise<string>((resolve) => {

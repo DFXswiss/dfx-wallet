@@ -241,28 +241,42 @@ export class DfxAuthService {
    * {@link confirmMailLogin} for a JWT.
    *
    * Mirrors `@dfx.swiss/react`'s `useAuth().signInWithMail`.
+   *
+   * The only caller signs the wallet in first: DFX binds the mail to that
+   * session. The POST requires the Bearer. A refresh clears the api token
+   * while the service token stays set; without `requireAuth` the mail would
+   * go out with no session and bind to nothing.
    */
   async requestMailLogin(
     mail: string,
     options?: { redirectUri?: string; wallet?: string; recommendationCode?: string },
   ): Promise<void> {
-    await dfxApi.post('/v1/auth/mail', {
-      mail,
-      ...(options?.redirectUri !== undefined ? { redirectUri: options.redirectUri } : {}),
-      ...(options?.wallet !== undefined ? { wallet: options.wallet } : {}),
-      ...(options?.recommendationCode !== undefined
-        ? { recommendationCode: options.recommendationCode }
-        : {}),
-    });
+    await dfxApi.post(
+      '/v1/auth/mail',
+      {
+        mail,
+        ...(options?.redirectUri !== undefined ? { redirectUri: options.redirectUri } : {}),
+        ...(options?.wallet !== undefined ? { wallet: options.wallet } : {}),
+        ...(options?.recommendationCode !== undefined
+          ? { recommendationCode: options.recommendationCode }
+          : {}),
+      },
+      { requireAuth: true },
+    );
   }
 
   /**
    * Exchange the email confirmation otp for an access token. Sets the API
    * client to use the new token and returns it.
+   *
+   * This is a login, same as the other sign-in calls. It sends no
+   * Authorization header, so a standing Bearer cannot ride along on the
+   * OTP exchange.
    */
   async confirmMailLogin(otp: string): Promise<string> {
     const response = await dfxApi.get<{ accessToken: string; kycHash?: string }>(
       `/v1/auth/mail/confirm?code=${encodeURIComponent(otp)}`,
+      { anonymous: true },
     );
     this.accessToken = response.accessToken;
     dfxApi.setAuthToken(response.accessToken);
