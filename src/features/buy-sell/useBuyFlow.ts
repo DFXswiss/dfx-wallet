@@ -137,13 +137,9 @@ export function useBuyFlow() {
           paymentSeq <= paymentGateBlockedSeqRef.current
         ) {
           // The response belongs to a payment the user already cancelled.
-          // Leave lastAction clear and do not open a gate. A success on this
-          // same seq still applies in createPaymentInfo.
-          setState((s) => {
-            if (!s.isLoading) return s;
-            const next = { ...s, isLoading: false };
-            return { ...next, status: deriveStatus(next) };
-          });
+          // Leave lastAction clear and do not open a gate. Do not touch
+          // isLoading: a newer quote may own it. A success on this same seq
+          // still applies in createPaymentInfo.
           return;
         }
         lastAction.current = action ?? null;
@@ -250,6 +246,9 @@ export function useBuyFlow() {
         return info;
       } catch (err) {
         if (!paymentApplies()) return null;
+        // This call was cancelled. It created no order, so ignore the error
+        // and leave a newer quote's loading state in place.
+        if (paymentSeq <= paymentGateBlockedSeqRef.current) return null;
         handleError(err, 'Failed to create payment info', action, paymentSeq);
         return null;
       }

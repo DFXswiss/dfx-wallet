@@ -178,6 +178,7 @@ jest.mock('@/services/storage', () => ({
 }));
 
 let mockIsDfxAuthenticated = false;
+let mockConfirmModalProps: { onCancel: () => void } | null = null;
 jest.mock('@/store', () => ({
   useAuthStore: (selector: (state: { isDfxAuthenticated: boolean }) => unknown) =>
     selector({ isDfxAuthenticated: mockIsDfxAuthenticated }),
@@ -200,7 +201,10 @@ jest.mock('@/components', () => ({
       ReactActual.createElement(Text, null, title),
     );
   },
-  ConfirmTargetWalletModal: () => null,
+  ConfirmTargetWalletModal: (props: { onCancel: () => void }) => {
+    mockConfirmModalProps = props;
+    return null;
+  },
   DarkBackdrop: () => null,
   Icon: ({ name }: { name: string }) => {
     const ReactActual = jest.requireActual('react');
@@ -290,6 +294,32 @@ const PAYMENT_INFO = {
   feesTarget: FEES,
 };
 
+function armInFlightPaymentThatFailsWith401(): {
+  pending: Promise<null>;
+  settle401: () => void;
+} {
+  let replayDropped = false;
+  const loginGate = { kind: 'login' as const, message: 'sign in' };
+  let settle401: () => void = () => {};
+  const pending = new Promise<null>((resolve) => {
+    settle401 = () => {
+      if (!replayDropped) flowState.authGate = loginGate;
+      resolve(null);
+    };
+  });
+  mockCancelAuthGate.mockImplementation(() => {
+    replayDropped = true;
+    flowState.authGate = null;
+  });
+  mockCreatePaymentInfo.mockImplementation(() => pending);
+  mockRetryLast.mockImplementation(async () => {
+    if (replayDropped) return null;
+    await mockCreatePaymentInfo();
+    return { kind: 'paymentInfo' as const, info: PAYMENT_INFO };
+  });
+  return { pending, settle401 };
+}
+
 beforeEach(() => {
   mockIsDfxAuthenticated = false;
   mockBalanceMap = new Map([
@@ -303,6 +333,7 @@ beforeEach(() => {
   mockCreatePaymentInfo.mockReset();
   mockDismissAuthGate.mockReset();
   mockCancelAuthGate.mockReset();
+  mockConfirmModalProps = null;
   mockRetryLast.mockReset();
   flowState.isLoading = false;
   flowState.error = null;
@@ -945,5 +976,79 @@ describe('SellScreenImpl', () => {
       resolveRetry({ kind: 'paymentInfo', info: PAYMENT_INFO });
       await retryPromise;
     });
+  });
+
+  it('confirm cancel during payment info drops the replay', async () => {
+    const { pending, settle401 } = armInFlightPaymentThatFailsWith401();
+    const view = render(<SellScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.001');
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+    fireEvent.changeText(
+      view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
+      'CH9300762011623852957',
+    );
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+
+    const onCancel = mockConfirmModalProps?.onCancel;
+    if (!onCancel) throw new Error('confirm modal onCancel is not registered');
+    await act(async () => {
+      onCancel();
+    });
+    expect(mockCancelAuthGate).toHaveBeenCalledTimes(1);
+    expect(mockCancelAuthGate.mock.calls[0]).toEqual([]);
+
+    await act(async () => {
+      settle401();
+      await pending;
+    });
+    view.rerender(<SellScreenImpl />);
+    expect(view.queryByTestId('dfx-auth-gate-primary')).toBeNull();
+
+    mockIsDfxAuthenticated = true;
+    await act(async () => {
+      view.rerender(<SellScreenImpl />);
+    });
+    await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+    expect(view.queryByText('sell.confirmSale')).toBeNull();
+  });
+
+  it('bank back during payment info drops the replay', async () => {
+    const { pending, settle401 } = armInFlightPaymentThatFailsWith401();
+    const view = render(<SellScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.001');
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+    fireEvent.changeText(
+      view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
+      'CH9300762011623852957',
+    );
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+
+    fireEvent.press(view.getByTestId('sell-back'));
+    expect(mockCancelAuthGate).toHaveBeenCalledTimes(1);
+    expect(mockCancelAuthGate.mock.calls[0]).toEqual([]);
+
+    await act(async () => {
+      settle401();
+      await pending;
+    });
+    view.rerender(<SellScreenImpl />);
+    expect(view.queryByTestId('dfx-auth-gate-primary')).toBeNull();
+
+    mockIsDfxAuthenticated = true;
+    await act(async () => {
+      view.rerender(<SellScreenImpl />);
+    });
+    await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+    expect(view.queryByText('sell.confirmSale')).toBeNull();
   });
 });
