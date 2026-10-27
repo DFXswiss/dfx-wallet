@@ -91,6 +91,8 @@ npm run e2e:test:ios
 
 The build uses the `ios.release` Detox configuration in `.detoxrc.js` (which mirrors the Maestro release build). Same `.env.testnet` setup as the Maestro suite — see [docs/maestro.md](maestro.md#test-configuration).
 
+`.detoxrc.js` pins the simulator to iPhone 17 Pro on iOS 26.5, the same device CI uses; install that runtime in Xcode before running locally.
+
 To update a baseline locally after an intentional UI change:
 
 ```bash
@@ -125,7 +127,7 @@ Neither CI leg enables both PIN and LEGAL: `mvp` leaves every flag off, and `ful
 ## Adding a new screenshot
 
 1. Add a new `it` block that taps to the screen and calls `expectScreenToMatchBaseline('your-name')`.
-2. Record the baseline on the CI runner (see [Refreshing baselines on the CI runner](#refreshing-baselines-on-the-ci-runner)). A normal CI run will not write a missing baseline.
+2. Record the baseline on the CI runner (see [Refreshing baselines on the CI runner](#refreshing-baselines-on-the-ci-runner)). A normal CI run will not write a missing baseline. This works only for a screen that a CI leg actually runs; for the gated blocks no leg runs (see [Feature-gated `describe` blocks](#feature-gated-describe-blocks)) there is no runner artifact, so such a baseline stays a local capture until a leg covers it.
 3. When the dispatched run finishes, download the `visual-baselines-<variant>` artifact.
 4. Find `your-name.png` in it.
 5. Inspect it, and check it is not an error screen or a half-loaded WDK.
@@ -198,7 +200,7 @@ This is fragile: a failure in the preceding block leaves the next one starting f
 
 ## CI
 
-`.github/workflows/visual-regression.yml` runs the suite on the pinned `macos-26` runner. Baselines that the CI legs compare are recorded in that environment: macOS 26, Xcode 26.6, iPhone 17 Pro, iOS 26.5. The gated PIN, legal and restore baselines listed under Feature-gated `describe` blocks are older local captures (#77) that no CI leg compares; re-record them on the runner once a leg enables those flags.
+`.github/workflows/visual-regression.yml` runs the suite on the pinned `macos-26` runner. Baselines that the CI legs compare are recorded in that environment: macOS 26, Xcode 26.6, iPhone 17 Pro, iOS 26.5. The gated PIN, legal and restore baselines listed under Feature-gated `describe` blocks are older local captures (#77) that no CI leg compares. Re-recording them on the runner needs a leg that runs `onboarding.test.ts` with their flags on: `welcome-restore-expanded` needs restore or passkey (which `full` already enables, but `full` runs only `authenticated.test.ts`), and the PIN, legal and restore-flow baselines also need PIN and LEGAL, which `mvp` cannot enable without changing its unconditional dashboard route.
 
 ### Triggering visual regression
 
@@ -238,4 +240,4 @@ detox-artifacts/ios.release.<ts>Z/
 └── …
 ```
 
-The `✗`-prefixed directories are local failures. The PNG that gets committed comes from the runner artifact, written by the matcher (masked where `maskTestIDs` is set); see [Refreshing baselines on the CI runner](#refreshing-baselines-on-the-ci-runner).
+The `✗`-prefixed directories are local failures. For a screen a CI leg runs, the committed PNG comes from the runner artifact, written by the matcher (masked where `maskTestIDs` is set); see [Refreshing baselines on the CI runner](#refreshing-baselines-on-the-ci-runner).
