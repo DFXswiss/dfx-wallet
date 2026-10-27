@@ -1363,6 +1363,120 @@ describe('BuyScreenImpl', () => {
       await retryPromise;
     });
   });
+
+  it('drops the payment replay when confirm cancel lands during payment info', async () => {
+    mockUseRealDfxAuthGate = true;
+    mockSearchParams = {
+      targetAddress: 'bc1qtargetwalletxxxx',
+      targetBlockchain: 'Bitcoin',
+    };
+    const loginGate: DfxAuthGateState = { kind: 'login', message: 'sign in' };
+    let replayDropped = false;
+    let settle401: () => void = () => {};
+    const pending = new Promise<null>((resolve) => {
+      settle401 = () => {
+        if (!replayDropped) flowState.authGate = loginGate;
+        resolve(null);
+      };
+    });
+    mockCancelAuthGate.mockImplementation(() => {
+      replayDropped = true;
+      flowState.authGate = null;
+    });
+    mockCreatePaymentInfo.mockImplementation(() => pending);
+    mockRetryLast.mockImplementation(async () => {
+      if (replayDropped) return null;
+      await mockCreatePaymentInfo();
+      return { kind: 'paymentInfo', info: PAYMENT_INFO };
+    });
+
+    const view = render(
+      <ThemeProvider>
+        <BuyScreenImpl />
+      </ThemeProvider>,
+    );
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
+    await act(async () => {
+      fireEvent.press(view.getByTestId('confirm-target-confirm'));
+    });
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+
+    // The cancel button is disabled while loading; this drives the handler.
+    await act(async () => {
+      view.UNSAFE_getByType(ConfirmTargetWalletModal).props.onCancel();
+    });
+    expect(mockCancelAuthGate).toHaveBeenCalledTimes(1);
+    expect(mockCancelAuthGate.mock.calls[0]).toEqual([]);
+
+    await act(async () => {
+      settle401();
+      await pending;
+    });
+    view.rerender(
+      <ThemeProvider>
+        <BuyScreenImpl />
+      </ThemeProvider>,
+    );
+    expect(view.queryByTestId('dfx-auth-gate')).toBeNull();
+
+    mockIsDfxAuthenticated = true;
+    await act(async () => {
+      view.rerender(
+        <ThemeProvider>
+          <BuyScreenImpl />
+        </ThemeProvider>,
+      );
+    });
+    await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+    expect(view.queryByText('buy.paymentInfo')).toBeNull();
+  });
+
+  it('releases submit when a quote gate closes confirm during reauth', async () => {
+    mockSearchParams = {
+      targetAddress: 'bc1qtargetwalletxxxx',
+      targetBlockchain: 'Bitcoin',
+    };
+    let resolveReauth: (value: { ok: true }) => void = () => {};
+    const reauthPromise = new Promise<{ ok: true }>((resolve) => {
+      resolveReauth = resolve;
+    });
+    mockReauthAs.mockReturnValue(reauthPromise);
+    mockCreatePaymentInfo.mockResolvedValue(PAYMENT_INFO);
+
+    const view = render(<BuyScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
+    expect(view.getByTestId('confirm-target-modal')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(view.getByTestId('confirm-target-confirm'));
+    });
+    expect(mockReauthAs).toHaveBeenCalledTimes(1);
+    expect(mockCreatePaymentInfo).not.toHaveBeenCalled();
+
+    flowState.authGate = { kind: 'login', message: 'sign in' };
+    view.rerender(<BuyScreenImpl />);
+    await waitFor(() => expect(view.queryByTestId('confirm-target-modal')).toBeNull());
+
+    await act(async () => {
+      resolveReauth({ ok: true });
+      await reauthPromise;
+    });
+    expect(mockCreatePaymentInfo).not.toHaveBeenCalled();
+
+    flowState.authGate = null;
+    view.rerender(<BuyScreenImpl />);
+    fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
+    expect(view.getByTestId('confirm-target-modal')).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(view.getByTestId('confirm-target-confirm'));
+    });
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('SellScreenImpl', () => {

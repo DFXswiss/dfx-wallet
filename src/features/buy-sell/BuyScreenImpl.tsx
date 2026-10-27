@@ -382,8 +382,8 @@ export default function BuyScreen() {
         void resumeAfterAuth();
         return;
       }
-      // Signed out, and the gate is gone: the user backed out of login, or
-      // nothing was pending (first mount). Drop the replay and unlock.
+      // Signed out, no gate, and a payment submit still pending: the user backed
+      // out of login. Drop the replay and unlock; otherwise there is nothing to do.
       if (authGateRef.current || pendingGenRef.current === null) return; // only an abandoned payment submit
       cancelAuthGate();
       pendingGenRef.current = null;
@@ -1107,7 +1107,9 @@ export default function BuyScreen() {
         onCancel={() => {
           // Also while confirmLoading: createPaymentInfo may already be in
           // flight, and the modal's own disabled state is not the only caller.
+          // Drop the replay too, or a later 401 commits an order the UI ignores.
           cancelPaymentSubmit();
+          cancelAuthGate();
           setConfirmOpen(false);
           setConfirmLoading(false);
           setConfirmError(null);
@@ -1129,7 +1131,12 @@ export default function BuyScreen() {
           try {
             const reauth = await reauthAs(targetAddress, targetBlockchain);
             if (pendingGenRef.current !== gen) return;
-            if (!confirmOpenRef.current) return;
+            if (!confirmOpenRef.current) {
+              // A quote gate closed the modal during reauth. Release the
+              // submit so Continue can start a new payment info.
+              cancelPaymentSubmit();
+              return;
+            }
             if (!reauth.ok) {
               pendingGenRef.current = null;
               submitLockRef.current = false;

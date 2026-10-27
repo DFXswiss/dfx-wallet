@@ -346,7 +346,7 @@ describe('useBuyFlow', () => {
     });
   });
 
-  it('does not replay payment info when authenticated focus returns after a successful call', async () => {
+  it('retryLast returns null after a successful createPaymentInfo', async () => {
     mockCreateBuyPaymentInfo.mockResolvedValueOnce(validInfo());
     const { result } = renderHook(() => useBuyFlow());
 
@@ -912,7 +912,7 @@ describe('useBuyFlow', () => {
       await call;
     });
 
-    expect(mockInterpretDfxAuthError).toHaveBeenCalledWith(authErr);
+    expect(mockInterpretDfxAuthError).not.toHaveBeenCalled();
     expect(result.current.authGate).toBeNull();
     expect(result.current.paymentInfo).toBeNull();
     expect(result.current.error).toBeNull();
@@ -944,5 +944,61 @@ describe('useBuyFlow', () => {
       await expect(result.current.retryLast()).resolves.toBeNull();
     });
     expect(mockCreateBuyPaymentInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an in-flight quote when a cancelled payment fails later', async () => {
+    const cases = [{ outcome: 'auth' as const }, { outcome: 'error' as const }];
+
+    for (const { outcome } of cases) {
+      mockGetBuyQuote.mockReset();
+      mockCreateBuyPaymentInfo.mockReset();
+      mockInterpretDfxAuthError.mockReset();
+      const gate = { kind: 'login' as const, message: 'sign in' };
+      const authErr = new Error('401');
+      mockInterpretDfxAuthError.mockImplementation((err: unknown) =>
+        err === authErr ? gate : null,
+      );
+      const payment = deferred<BuyPaymentInfoDto>();
+      const quote = deferred<BuyPaymentInfoDto>();
+      mockCreateBuyPaymentInfo.mockReturnValueOnce(payment.promise);
+      mockGetBuyQuote.mockReturnValueOnce(quote.promise);
+      const { result, unmount } = renderHook(() => useBuyFlow());
+
+      let paymentCall: Promise<unknown>;
+      act(() => {
+        paymentCall = result.current.createPaymentInfo(QUOTE);
+      });
+      act(() => {
+        result.current.cancelAuthGate();
+      });
+      let quoteCall: Promise<unknown>;
+      act(() => {
+        quoteCall = result.current.getQuote(QUOTE);
+      });
+      expect(result.current.isLoading).toBe(true);
+
+      await act(async () => {
+        if (outcome === 'auth') payment.reject(authErr);
+        else payment.reject(new Error('network down'));
+        await paymentCall;
+      });
+
+      expect(result.current.isLoading).toBe(true);
+      expect(result.current.status).toBe('loading');
+      expect(result.current.authGate).toBeNull();
+      expect(result.current.error).toBeNull();
+
+      await act(async () => {
+        quote.resolve(validInfo({ id: 88, iban: 'CH-QUOTE' }));
+        await quoteCall;
+      });
+
+      expect(result.current.status).toBe('success');
+      expect(result.current.paymentInfo).toMatchObject({ id: 88, iban: 'CH-QUOTE' });
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.authGate).toBeNull();
+      expect(result.current.error).toBeNull();
+      unmount();
+    }
   });
 });

@@ -356,8 +356,8 @@ export default function SellScreen() {
         void resumeAfterAuth();
         return;
       }
-      // Signed out, and the gate is gone: the user backed out of login, or
-      // nothing was pending (first mount). Drop the replay and unlock.
+      // Signed out, no gate, and a payment submit still pending: the user backed
+      // out of login. Drop the replay and unlock; otherwise there is nothing to do.
       if (authGateRef.current || pendingGenRef.current === null) return; // only an abandoned payment submit
       cancelAuthGate();
       pendingGenRef.current = null;
@@ -1023,9 +1023,12 @@ export default function SellScreen() {
         title={t('sell.title')}
         onBack={() => {
           // A payment-info response still in flight must not open confirm.
+          // Back from the bank step also drops the auth replay.
           cancelPaymentSubmit();
-          if (step === 'bank') setStep('amount');
-          else if (step === 'confirm') setStep('bank');
+          if (step === 'bank') {
+            cancelAuthGate();
+            setStep('amount');
+          } else if (step === 'confirm') setStep('bank');
           else router.back();
         }}
         testID="sell-screen"
@@ -1087,6 +1090,7 @@ export default function SellScreen() {
         onCancel={() => {
           if (confirmLoading) return;
           cancelPaymentSubmit();
+          cancelAuthGate();
           setConfirmOpen(false);
           setConfirmError(null);
         }}

@@ -241,7 +241,7 @@ describe('useSellFlow', () => {
     expect(result.current.paymentInfo).toMatchObject({ id: 12 });
   });
 
-  it('does not replay payment info when authenticated focus returns after a successful call', async () => {
+  it('retryLast returns null after a successful createPaymentInfo', async () => {
     mockCreateSellPaymentInfo.mockResolvedValueOnce(validInfo({ id: 12 }));
     const { result } = renderHook(() => useSellFlow());
 
@@ -870,7 +870,7 @@ describe('useSellFlow', () => {
       await call;
     });
 
-    expect(mockInterpretDfxAuthError).toHaveBeenCalledWith(authErr);
+    expect(mockInterpretDfxAuthError).not.toHaveBeenCalled();
     expect(result.current.authGate).toBeNull();
     expect(result.current.paymentInfo).toBeNull();
     expect(result.current.error).toBeNull();
@@ -902,5 +902,61 @@ describe('useSellFlow', () => {
       await expect(result.current.retryLast()).resolves.toBeNull();
     });
     expect(mockCreateSellPaymentInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an in-flight quote when a cancelled payment fails later', async () => {
+    const cases = [{ outcome: 'auth' as const }, { outcome: 'error' as const }];
+
+    for (const { outcome } of cases) {
+      mockGetSellQuote.mockReset();
+      mockCreateSellPaymentInfo.mockReset();
+      mockInterpretDfxAuthError.mockReset();
+      const gate = { kind: 'login' as const, message: 'sign in' };
+      const authErr = new Error('401');
+      mockInterpretDfxAuthError.mockImplementation((err: unknown) =>
+        err === authErr ? gate : null,
+      );
+      const payment = deferred<SellPaymentInfoDto>();
+      const quote = deferred<SellPaymentInfoDto>();
+      mockCreateSellPaymentInfo.mockReturnValueOnce(payment.promise);
+      mockGetSellQuote.mockReturnValueOnce(quote.promise);
+      const { result, unmount } = renderHook(() => useSellFlow());
+
+      let paymentCall: Promise<unknown>;
+      act(() => {
+        paymentCall = result.current.createPaymentInfo(PAYMENT_PARAMS);
+      });
+      act(() => {
+        result.current.cancelAuthGate();
+      });
+      let quoteCall: Promise<unknown>;
+      act(() => {
+        quoteCall = result.current.getQuote(QUOTE);
+      });
+      expect(result.current.isLoading).toBe(true);
+
+      await act(async () => {
+        if (outcome === 'auth') payment.reject(authErr);
+        else payment.reject(new Error('network down'));
+        await paymentCall;
+      });
+
+      expect(result.current.isLoading).toBe(true);
+      expect(result.current.status).toBe('loading');
+      expect(result.current.authGate).toBeNull();
+      expect(result.current.error).toBeNull();
+
+      await act(async () => {
+        quote.resolve(validInfo({ id: 88, depositAddress: 'bc1q-quote' }));
+        await quoteCall;
+      });
+
+      expect(result.current.status).toBe('success');
+      expect(result.current.paymentInfo).toMatchObject({ id: 88, depositAddress: 'bc1q-quote' });
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.authGate).toBeNull();
+      expect(result.current.error).toBeNull();
+      unmount();
+    }
   });
 });
