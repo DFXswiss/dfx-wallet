@@ -1,6 +1,76 @@
 import { dfxApi, DfxApiError } from '../../src/features/dfx-backend/services/api';
 import { dfxAuthService } from '../../src/features/dfx-backend/services/auth-service';
 
+/**
+ * Leave `dfxAuthService` holding `sessionToken` while `dfxApi` has no Bearer,
+ * which is the state a generation-bound refresh creates. `generation` is the
+ * one `clearAuthTokenForRefresh` accepted. The fetch spy's next call would
+ * succeed as an unauthenticated login.
+ */
+async function clearApiTokenForInFlightRefresh(sessionToken: string): Promise<{
+  fetchSpy: jest.SpyInstance;
+  generation: number;
+}> {
+  dfxAuthService.adoptStoredToken(sessionToken);
+  dfxApi.setAuthToken(sessionToken);
+  const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: false,
+    status: 401,
+    json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Expired' }),
+  } as unknown as Response);
+  let generation: number | undefined;
+  dfxApi.setOnUnauthorized(async (authGeneration) => {
+    generation = authGeneration;
+    return null;
+  });
+  try {
+    await expect(dfxApi.get('/v1/user')).rejects.toBeInstanceOf(DfxApiError);
+    if (generation === undefined) {
+      throw new Error('Expected the 401 handler to observe an auth generation');
+    }
+    expect(dfxApi.clearAuthTokenForRefresh(generation)).toBe(true);
+  } finally {
+    dfxApi.setOnUnauthorized(async () => null);
+  }
+  fetchSpy.mockClear();
+  fetchSpy.mockResolvedValue({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify({ accessToken: 'FOREIGN_ACCOUNT' }),
+  } as unknown as Response);
+  if (generation === undefined) {
+    throw new Error('Expected the 401 handler to observe an auth generation');
+  }
+  return { fetchSpy, generation };
+}
+
+/**
+ * Read the current auth generation. The probe returns no token, so neither
+ * the api token nor the generation changes.
+ */
+async function captureAuthGeneration(): Promise<number> {
+  const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: false,
+    status: 401,
+    json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Expired' }),
+  } as unknown as Response);
+  let generation: number | undefined;
+  dfxApi.setOnUnauthorized(async (authGeneration) => {
+    generation = authGeneration;
+    return null;
+  });
+  try {
+    await expect(dfxApi.get('/v1/user')).rejects.toBeInstanceOf(DfxApiError);
+  } finally {
+    dfxApi.setOnUnauthorized(async () => null);
+    fetchSpy.mockRestore();
+  }
+  if (generation === undefined) {
+    throw new Error('Expected the 401 handler to observe an auth generation');
+  }
+  return generation;
+}
+
 describe('dfxAuthService.login', () => {
   let getSpy: jest.SpyInstance;
   let postSpy: jest.SpyInstance;
@@ -90,12 +160,16 @@ describe('dfxAuthService.linkAddress', () => {
     });
 
     expect(signFn).toHaveBeenCalledWith('sign me');
-    expect(postSpy).toHaveBeenCalledWith('/v1/auth', {
-      address: 'bc1qabc',
-      signature: 'SIGNATURE',
-      wallet: 'DFX Wallet',
-      blockchain: 'Bitcoin',
-    });
+    expect(postSpy).toHaveBeenCalledWith(
+      '/v1/auth',
+      {
+        address: 'bc1qabc',
+        signature: 'SIGNATURE',
+        wallet: 'DFX Wallet',
+        blockchain: 'Bitcoin',
+      },
+      { requireAuth: true },
+    );
     expect(newToken).toBe('NEW_TOKEN');
     // The fresh JWT must replace the old one so /buy/quote stops returning
     // "Asset blockchain mismatch" — this was the regression we fixed.
@@ -103,9 +177,14 @@ describe('dfxAuthService.linkAddress', () => {
     expect(dfxAuthService.getAccessToken()).toBe('NEW_TOKEN');
   });
 
-  it('restores the previous token when /v1/auth fails', async () => {
+  it('leaves the access token and api token unchanged when /v1/auth fails', async () => {
+    // setAuthToken bumps the generation unless the api token is already equal.
+    // Start with no api token so a guarded restore would show up here.
+    getSpy.mockRestore();
+    dfxApi.clearAuthToken();
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
-    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    const generation = await captureAuthGeneration();
+    jest.spyOn(dfxApi, 'get').mockResolvedValueOnce({ message: 'sign me' });
     postSpy.mockRejectedValueOnce(
       new DfxApiError(409, 'CONFLICT', 'Address belongs to another user'),
     );
@@ -114,10 +193,17 @@ describe('dfxAuthService.linkAddress', () => {
       dfxAuthService.linkAddress('bc1qabc', async () => 'SIG', { blockchain: 'Bitcoin' }),
     ).rejects.toThrow(/Address belongs to another user/);
 
-    // The old token must come back so the user stays signed in as their
-    // primary address even when linking the secondary one fails.
-    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('OLD_TOKEN');
     expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
+    postSpy.mockRestore();
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '{}',
+    } as unknown as Response);
+    await expect(
+      dfxApi.post('/v1/auth', { address: 'bc1qabc' }, { requireAuth: true }),
+    ).rejects.toThrow('Authentication required');
+    expect(dfxApi.setAuthTokenForRefresh('NEW', generation)).toBe(true);
   });
 
   it('omits the blockchain hint when none is provided', async () => {
@@ -127,11 +213,63 @@ describe('dfxAuthService.linkAddress', () => {
 
     await dfxAuthService.linkAddress('addr', async () => 'SIG');
 
-    expect(postSpy).toHaveBeenCalledWith('/v1/auth', {
-      address: 'addr',
-      signature: 'SIG',
-      wallet: 'DFX Wallet',
+    expect(postSpy).toHaveBeenCalledWith(
+      '/v1/auth',
+      {
+        address: 'addr',
+        signature: 'SIG',
+        wallet: 'DFX Wallet',
+      },
+      { requireAuth: true },
+    );
+  });
+
+  it('rejects a link while a refresh has cleared the api token and does not log in', async () => {
+    getSpy.mockRestore();
+    postSpy.mockRestore();
+    const { fetchSpy } = await clearApiTokenForInFlightRefresh('OLD_TOKEN');
+    jest.spyOn(dfxApi, 'get').mockResolvedValue({ message: 'sign me' });
+
+    await expect(dfxAuthService.linkAddress('bc1qabc', async () => 'SIG')).rejects.toThrow(
+      'Authentication required',
+    );
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
+  });
+
+  it('does not sabotage a refresh that cleared the api token', async () => {
+    getSpy.mockRestore();
+    postSpy.mockRestore();
+    const { generation } = await clearApiTokenForInFlightRefresh('OLD_TOKEN');
+    jest.spyOn(dfxApi, 'get').mockResolvedValue({ message: 'sign me' });
+
+    await expect(dfxAuthService.linkAddress('bc1qabc', async () => 'SIG')).rejects.toThrow(
+      'Authentication required',
+    );
+
+    expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
+    await expect(
+      dfxApi.post('/v1/auth', { address: 'bc1qabc' }, { requireAuth: true }),
+    ).rejects.toThrow('Authentication required');
+    expect(dfxApi.setAuthTokenForRefresh('REFRESHED', generation)).toBe(true);
+  });
+
+  it('does not restore the previous token when the session was replaced while linking', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    postSpy.mockImplementationOnce(async () => {
+      dfxAuthService.adoptStoredToken('NEWER_TOKEN');
+      dfxApi.setAuthToken('NEWER_TOKEN');
+      throw new DfxApiError(409, 'CONFLICT', 'Address belongs to another user');
     });
+
+    await expect(dfxAuthService.linkAddress('bc1qabc', async () => 'SIG')).rejects.toThrow(
+      /Address belongs to another user/,
+    );
+
+    expect(dfxAuthService.getAccessToken()).toBe('NEWER_TOKEN');
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('NEWER_TOKEN');
   });
 });
 
@@ -171,27 +309,44 @@ describe('dfxAuthService.linkLnurlAddress', () => {
     // proof directly. The address must be uppercased because DFX's DTO
     // validator only accepts `(LNURL|LNDHUB)[A-Z0-9]{25,250}`.
     expect(getSpy).not.toHaveBeenCalled();
-    expect(postSpy).toHaveBeenCalledWith('/v1/auth', {
-      address: 'LNURL1ABC',
-      signature: 'OWNERSHIP_PROOF',
-      wallet: 'DFX Bitcoin',
-      blockchain: 'Lightning',
-    });
+    expect(postSpy).toHaveBeenCalledWith(
+      '/v1/auth',
+      {
+        address: 'LNURL1ABC',
+        signature: 'OWNERSHIP_PROOF',
+        wallet: 'DFX Bitcoin',
+        blockchain: 'Lightning',
+      },
+      { requireAuth: true },
+    );
     expect(newToken).toBe('LIGHTNING_TOKEN');
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('LIGHTNING_TOKEN');
     expect(dfxAuthService.getAccessToken()).toBe('LIGHTNING_TOKEN');
   });
 
-  it('restores the previous token when DFX rejects the proof', async () => {
+  it('leaves the access token and api token unchanged when DFX rejects the proof', async () => {
+    // Same reason as the linkAddress failure test: no api token, so a guarded
+    // setAuthToken(previousToken) would bump the generation.
+    dfxApi.clearAuthToken();
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    const generation = await captureAuthGeneration();
     postSpy.mockRejectedValueOnce(new DfxApiError(400, 'AUTH_FAILED', 'Invalid signature'));
 
     await expect(
       dfxAuthService.linkLnurlAddress('lnurl1abc', 'BAD_PROOF', { blockchain: 'Lightning' }),
     ).rejects.toThrow(/Invalid signature/);
 
-    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('OLD_TOKEN');
     expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
+    postSpy.mockRestore();
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '{}',
+    } as unknown as Response);
+    await expect(
+      dfxApi.post('/v1/auth', { address: 'LNURL1ABC' }, { requireAuth: true }),
+    ).rejects.toThrow('Authentication required');
+    expect(dfxApi.setAuthTokenForRefresh('NEW', generation)).toBe(true);
   });
 
   it('defaults the wallet hint to "DFX Bitcoin" when none is given', async () => {
@@ -200,11 +355,58 @@ describe('dfxAuthService.linkLnurlAddress', () => {
 
     await dfxAuthService.linkLnurlAddress('lnurl1', 'PROOF');
 
-    expect(postSpy).toHaveBeenCalledWith('/v1/auth', {
-      address: 'LNURL1',
-      signature: 'PROOF',
-      wallet: 'DFX Bitcoin',
+    expect(postSpy).toHaveBeenCalledWith(
+      '/v1/auth',
+      {
+        address: 'LNURL1',
+        signature: 'PROOF',
+        wallet: 'DFX Bitcoin',
+      },
+      { requireAuth: true },
+    );
+  });
+
+  it('rejects a link while a refresh has cleared the api token and does not log in', async () => {
+    postSpy.mockRestore();
+    const { fetchSpy } = await clearApiTokenForInFlightRefresh('OLD_TOKEN');
+
+    await expect(dfxAuthService.linkLnurlAddress('lnurl1abc', 'OWNERSHIP_PROOF')).rejects.toThrow(
+      'Authentication required',
+    );
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
+  });
+
+  it('does not sabotage a refresh that cleared the api token', async () => {
+    postSpy.mockRestore();
+    const { generation } = await clearApiTokenForInFlightRefresh('OLD_TOKEN');
+
+    await expect(dfxAuthService.linkLnurlAddress('lnurl1abc', 'OWNERSHIP_PROOF')).rejects.toThrow(
+      'Authentication required',
+    );
+
+    expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
+    await expect(
+      dfxApi.post('/v1/auth', { address: 'LNURL1ABC' }, { requireAuth: true }),
+    ).rejects.toThrow('Authentication required');
+    expect(dfxApi.setAuthTokenForRefresh('REFRESHED', generation)).toBe(true);
+  });
+
+  it('does not restore the previous token when the session was replaced while linking', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    postSpy.mockImplementationOnce(async () => {
+      dfxAuthService.adoptStoredToken('NEWER_TOKEN');
+      dfxApi.setAuthToken('NEWER_TOKEN');
+      throw new DfxApiError(400, 'AUTH_FAILED', 'Invalid signature');
     });
+
+    await expect(
+      dfxAuthService.linkLnurlAddress('lnurl1abc', 'BAD_PROOF', { blockchain: 'Lightning' }),
+    ).rejects.toThrow(/Invalid signature/);
+
+    expect(dfxAuthService.getAccessToken()).toBe('NEWER_TOKEN');
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('NEWER_TOKEN');
   });
 });
 
@@ -342,22 +544,55 @@ describe('dfxAuthService.changeActiveAddress', () => {
 
     const token = await dfxAuthService.changeActiveAddress('0xother');
 
-    expect(postSpy).toHaveBeenCalledWith('/v1/user/change', { address: '0xother' });
+    expect(postSpy).toHaveBeenCalledWith(
+      '/v1/user/change',
+      { address: '0xother' },
+      { requireAuth: true },
+    );
     expect(token).toBe('SWITCHED_TOKEN');
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('SWITCHED_TOKEN');
     expect(dfxAuthService.getAccessToken()).toBe('SWITCHED_TOKEN');
   });
 
-  it('restores the previous Bearer when the switch fails', async () => {
+  it('leaves the session token and generation unchanged when the switch fails', async () => {
+    // setAuthToken bumps the generation unless the api token is already equal.
+    // Start with no api token so a guarded restore would show up here.
+    dfxApi.clearAuthToken();
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    const generation = await captureAuthGeneration();
     postSpy.mockRejectedValueOnce(new DfxApiError(403, 'FORBIDDEN', 'Address not on account'));
 
     await expect(dfxAuthService.changeActiveAddress('0xother')).rejects.toThrow(
       /Address not on account/,
     );
 
-    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('OLD_TOKEN');
     expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
+    postSpy.mockRestore();
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '{}',
+    } as unknown as Response);
+    await expect(
+      dfxApi.post('/v1/user/change', { address: '0xother' }, { requireAuth: true }),
+    ).rejects.toThrow('Authentication required');
+    expect(dfxApi.setAuthTokenForRefresh('NEW', generation)).toBe(true);
+  });
+
+  it('rejects a switch while a refresh has cleared the api token and does not send it', async () => {
+    postSpy.mockRestore();
+    const { fetchSpy, generation } = await clearApiTokenForInFlightRefresh('OLD_TOKEN');
+
+    await expect(dfxAuthService.changeActiveAddress('0xother')).rejects.toThrow(
+      'Authentication required',
+    );
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
+    await expect(
+      dfxApi.post('/v1/user/change', { address: '0xother' }, { requireAuth: true }),
+    ).rejects.toThrow('Authentication required');
+    expect(dfxApi.setAuthTokenForRefresh('REFRESHED', generation)).toBe(true);
   });
 
   it('keeps a concurrently refreshed Bearer when the retried switch fails', async () => {
@@ -450,6 +685,22 @@ describe('dfxAuthService.loginAsLnurlAddressOwner', () => {
 
     expect(setAuthTokenSpy).not.toHaveBeenCalled();
     expect(dfxAuthService.getAccessToken()).toBeNull();
+  });
+
+  it('does not restore the previous token when a session was adopted during the login', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    postSpy.mockImplementationOnce(async () => {
+      dfxAuthService.adoptStoredToken('NEWER_TOKEN');
+      dfxApi.setAuthToken('NEWER_TOKEN');
+      throw new DfxApiError(400, 'AUTH_FAILED', 'Invalid signature');
+    });
+
+    await expect(dfxAuthService.loginAsLnurlAddressOwner('lnurl1', 'BAD')).rejects.toThrow(
+      /Invalid signature/,
+    );
+
+    expect(dfxAuthService.getAccessToken()).toBe('NEWER_TOKEN');
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('NEWER_TOKEN');
   });
 });
 

@@ -12,6 +12,12 @@ export type RequestOptions = {
   headers?: Record<string, string>;
   responseType?: 'json' | 'text';
   timeoutMs?: number;
+  /**
+   * Reject before the request is sent when no Bearer is attached.
+   * Link calls set this so a refresh-cleared token cannot turn POST /v1/auth
+   * into an unauthenticated login.
+   */
+  requireAuth?: boolean;
 };
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -226,9 +232,7 @@ class DfxApi {
     try {
       const response = await fetch(url, {
         method,
-        headers: authenticated
-          ? this.getHeaders(options?.headers)
-          : { 'Content-Type': 'application/json', ...options?.headers },
+        headers: this.getHeaders(options?.headers, options?.requireAuth === true, authenticated),
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
         signal: controller.signal,
       });
@@ -303,13 +307,27 @@ class DfxApi {
     return JSON.parse(text) as T;
   }
 
-  private getHeaders(extraHeaders?: Record<string, string>): Record<string, string> {
+  private getHeaders(
+    extraHeaders: Record<string, string> | undefined,
+    requireAuth: boolean,
+    authenticated: boolean,
+  ): Record<string, string> {
+    // Read once. The check and the Authorization value stay on this snapshot,
+    // with no await between them, so a refresh cannot clear the token after
+    // the guard has passed and before the header is set.
+    const token = this.authToken;
+    if (requireAuth && token === null) {
+      throw new Error('Authentication required');
+    }
+    if (!authenticated && !requireAuth) {
+      return { 'Content-Type': 'application/json', ...extraHeaders };
+    }
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...extraHeaders,
     };
-    if (this.authToken) {
-      headers['Authorization'] = `Bearer ${this.authToken}`;
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
     return headers;
   }

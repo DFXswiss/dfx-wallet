@@ -169,26 +169,22 @@ export class DfxAuthService {
    * for locally (e.g. linked from another device) — the standing Bearer
    * already proves account ownership.
    *
-   * On failure restores the previous Bearer only if no concurrent refresh
-   * has already replaced it, so the caller keeps the newest valid session.
+   * On failure the session is left unchanged, because the call only adopts
+   * the new token after a successful response. The POST requires the Bearer
+   * this call started with, so a refresh cannot send it unauthenticated.
    */
   async changeActiveAddress(address: string): Promise<string> {
-    const previousToken = this.accessToken;
-    if (!previousToken) {
+    if (!this.accessToken) {
       throw new Error('Not authenticated — sign in before switching addresses.');
     }
-    try {
-      const response = await dfxApi.post<AuthResponseDto>('/v1/user/change', { address });
-      this.accessToken = response.accessToken;
-      dfxApi.setAuthToken(response.accessToken);
-      return response.accessToken;
-    } catch (err) {
-      if (this.accessToken === previousToken) {
-        this.accessToken = previousToken;
-        dfxApi.setAuthToken(previousToken);
-      }
-      throw err;
-    }
+    const response = await dfxApi.post<AuthResponseDto>(
+      '/v1/user/change',
+      { address },
+      { requireAuth: true },
+    );
+    this.accessToken = response.accessToken;
+    dfxApi.setAuthToken(response.accessToken);
+    return response.accessToken;
   }
 
   /**
@@ -196,6 +192,10 @@ export class DfxAuthService {
    * returns 409 — the LDS LNURL belongs to another DFX user, so we drop the
    * current Bearer and post /v1/auth with just the LNURL credentials. DFX
    * issues a fresh JWT for the address-owner; we adopt it.
+   *
+   * The session is cleared before the request. On failure the previous token
+   * is restored only while that cleared state is still current, so a session
+   * adopted in the meantime is left in place.
    */
   async loginAsLnurlAddressOwner(
     lnurl: string,
@@ -216,8 +216,11 @@ export class DfxAuthService {
       dfxApi.setAuthToken(response.accessToken);
       return response.accessToken;
     } catch (err) {
-      this.accessToken = previousToken;
-      if (previousToken) dfxApi.setAuthToken(previousToken);
+      // accessToken was cleared before this request. Restore only if it is still cleared.
+      if (this.accessToken === null) {
+        this.accessToken = previousToken;
+        if (previousToken) dfxApi.setAuthToken(previousToken);
+      }
       throw err;
     }
   }
@@ -266,37 +269,38 @@ export class DfxAuthService {
    * here (services/e2e/helpers/auth-cache.ts).
    *
    * Like `linkAddress`, the rotated JWT is adopted (now contains `Lightning`
-   * in `user.blockchains`) and the previous one is restored on failure.
+   * in `user.blockchains`). On failure the session is left unchanged, because
+   * the call only adopts the new token after a successful response.
+   *
+   * The POST requires the Bearer this call started with. Without it, DFX
+   * treats `/v1/auth` as a login of the LNURL instead of a link.
    */
   async linkLnurlAddress(
     lnurl: string,
     ownershipProof: string,
     options?: { wallet?: string; blockchain?: string },
   ): Promise<string> {
-    const previousToken = this.accessToken;
-    if (!previousToken) {
+    if (!this.accessToken) {
       throw new Error('Not authenticated — sign in before linking another address.');
     }
-    try {
-      // DFX address validator requires uppercase LNURL: `(LNURL|LNDHUB)[A-Z0-9]{25,250}`.
-      // LDS hands us the lowercase `lnurl1…` form, so without this the DTO
-      // validator returns 400 before the signature is even checked.
-      // The DFX e2e helper sends ONLY { address, signature } — no wallet/blockchain
-      // hints (those keys are accepted but not used by the verifier).
-      const response = await dfxApi.post<AuthResponseDto>('/v1/auth', {
+    // DFX address validator requires uppercase LNURL: `(LNURL|LNDHUB)[A-Z0-9]{25,250}`.
+    // LDS hands us the lowercase `lnurl1…` form, so without this the DTO
+    // validator returns 400 before the signature is even checked.
+    // The DFX e2e helper sends ONLY { address, signature } — no wallet/blockchain
+    // hints (those keys are accepted but not used by the verifier).
+    const response = await dfxApi.post<AuthResponseDto>(
+      '/v1/auth',
+      {
         address: lnurl.toUpperCase(),
         signature: ownershipProof,
         wallet: options?.wallet ?? 'DFX Bitcoin',
         ...(options?.blockchain !== undefined ? { blockchain: options.blockchain } : {}),
-      });
-      this.accessToken = response.accessToken;
-      dfxApi.setAuthToken(response.accessToken);
-      return response.accessToken;
-    } catch (err) {
-      this.accessToken = previousToken;
-      dfxApi.setAuthToken(previousToken);
-      throw err;
-    }
+      },
+      { requireAuth: true },
+    );
+    this.accessToken = response.accessToken;
+    dfxApi.setAuthToken(response.accessToken);
+    return response.accessToken;
   }
 
   /**
@@ -310,37 +314,37 @@ export class DfxAuthService {
    * passes the asset/blockchain validation. The caller is responsible for
    * persisting the returned token to secure storage.
    *
-   * On error (e.g. 409 = address belongs to a different DFX user) we restore
-   * the previous token so the user stays signed in as their primary address.
+   * On failure the session is left unchanged, because the call only adopts
+   * the new token after a successful response.
+   *
+   * The POST requires the Bearer this call started with. Without it, DFX
+   * treats `/v1/auth` as a login of the new address instead of a merge.
    */
   async linkAddress(
     address: string,
     signFn: (message: string) => Promise<string>,
     options?: { wallet?: string; blockchain?: string },
   ): Promise<string> {
-    const previousToken = this.accessToken;
-    if (!previousToken) {
+    if (!this.accessToken) {
       throw new Error('Not authenticated — sign in before linking another address.');
     }
 
     const { message } = await this.getSignMessage(address);
     const signature = await this.signWithCache(address, message, signFn);
 
-    try {
-      const response = await dfxApi.post<AuthResponseDto>('/v1/auth', {
+    const response = await dfxApi.post<AuthResponseDto>(
+      '/v1/auth',
+      {
         address,
         signature,
         wallet: options?.wallet ?? 'DFX Wallet',
         ...(options?.blockchain !== undefined ? { blockchain: options.blockchain } : {}),
-      });
-      this.accessToken = response.accessToken;
-      dfxApi.setAuthToken(response.accessToken);
-      return response.accessToken;
-    } catch (err) {
-      this.accessToken = previousToken;
-      dfxApi.setAuthToken(previousToken);
-      throw err;
-    }
+      },
+      { requireAuth: true },
+    );
+    this.accessToken = response.accessToken;
+    dfxApi.setAuthToken(response.accessToken);
+    return response.accessToken;
   }
 
   /** Clear auth state and forget any cached signatures. */

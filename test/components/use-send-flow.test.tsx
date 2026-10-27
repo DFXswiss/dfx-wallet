@@ -396,7 +396,7 @@ describe('useSendFlow — account binding', () => {
     });
 
     expect(mockSend).toHaveBeenCalledWith(
-      expect.objectContaining({ asset: sparkBtc, to: SPARK_RECIPIENT }),
+      expect.objectContaining({ asset: sparkBtc, to: SPARK_RECIPIENT, amount: '10000000' }),
     );
     expect(mockBitcoinSend).not.toHaveBeenCalled();
   });
