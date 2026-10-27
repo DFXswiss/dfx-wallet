@@ -1205,7 +1205,7 @@ describe('BuyScreenImpl', () => {
     expect(mockRetryLast).toHaveBeenCalledTimes(1);
   });
 
-  it('replays a quote gate once focus returns after login', async () => {
+  it('calls retryLast once for a quote gate after login', async () => {
     mockUseRealDfxAuthGate = true;
     const loginGate: DfxAuthGateState = { kind: 'login', message: 'sign in' };
     flowState.authGate = loginGate;
@@ -1434,7 +1434,7 @@ describe('BuyScreenImpl', () => {
     expect(view.queryByText('buy.paymentInfo')).toBeNull();
   });
 
-  it('releases submit when a quote gate closes confirm during reauth', async () => {
+  it('releases submit when a login gate closes confirm during reauth', async () => {
     mockSearchParams = {
       targetAddress: 'bc1qtargetwalletxxxx',
       targetBlockchain: 'Bitcoin',

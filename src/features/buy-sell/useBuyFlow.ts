@@ -246,7 +246,7 @@ export function useBuyFlow() {
         return info;
       } catch (err) {
         if (!paymentApplies()) return null;
-        // This call was cancelled. It created no order, so ignore the error
+        // The gate was cancelled while this call ran, and it failed: ignore the error
         // and leave a newer quote's loading state in place.
         if (paymentSeq <= paymentGateBlockedSeqRef.current) return null;
         handleError(err, 'Failed to create payment info', action, paymentSeq);

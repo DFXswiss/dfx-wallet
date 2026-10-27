@@ -382,8 +382,8 @@ export default function BuyScreen() {
         void resumeAfterAuth();
         return;
       }
-      // Signed out, no gate, and a payment submit still pending: the user backed
-      // out of login. Drop the replay and unlock; otherwise there is nothing to do.
+      // Act only when signed out with no gate and a payment submit still pending
+      // (the user backed out of login): then drop the replay and unlock below.
       if (authGateRef.current || pendingGenRef.current === null) return; // only an abandoned payment submit
       cancelAuthGate();
       pendingGenRef.current = null;
