@@ -265,11 +265,16 @@ export default function BuyScreen() {
   const [paymentInfoError, setPaymentInfoError] = useState<string | null>(null);
   // Same-tick double presses both see confirmLoading === false. The ref
   // closes that window; confirmLoading still guards a press after paint.
+  // Taken on submit. Released on a terminal payment-info result, on cancel,
+  // and on Back. A replay and an opening auth gate leave it held.
   const submitLockRef = useRef(false);
-  // True after this screen asked for payment info until that request reaches
-  // a terminal result or the user cancels the auth gate. Proceeding through
-  // the gate keeps it so the replay can still open the payment step.
-  const paymentConfirmPendingRef = useRef(false);
+  // Bumped on every payment submit and on every cancel, so a response from
+  // an earlier submit cannot be applied to a later one.
+  const submitGenRef = useRef(0);
+  // The submit whose payment-info result may still open the payment step.
+  // Null after cancel, Back, or a terminal result. A null payload that opens
+  // an auth gate keeps it, so the replay after sign-in can still apply.
+  const pendingGenRef = useRef<number | null>(null);
   const unresolvedPaymentRef = useRef(false);
   const [unresolvedPayment, setUnresolvedPayment] = useState(0);
   const initialPreselect = useMemo(() => {
@@ -296,13 +301,27 @@ export default function BuyScreen() {
     setPaymentInfoError(null);
   }, [amount, selectedAsset, selectedChainIndex, selectedTokenIndex, selectedCurrency]);
 
+  const beginPaymentSubmit = (): number => {
+    const gen = ++submitGenRef.current;
+    pendingGenRef.current = gen;
+    submitLockRef.current = true;
+    return gen;
+  };
+
+  const cancelPaymentSubmit = (): void => {
+    submitGenRef.current += 1;
+    pendingGenRef.current = null;
+    submitLockRef.current = false;
+  };
+
   const handlePaymentInfoResult = useCallback(
-    (info: Awaited<ReturnType<typeof createPaymentInfo>>) => {
+    (info: Awaited<ReturnType<typeof createPaymentInfo>>, gen: number) => {
       // Back, confirm-modal cancel, or auth-gate cancel may have landed
-      // while this request was in flight.
-      if (!paymentConfirmPendingRef.current) return;
+      // while this request was in flight. A newer submit owns the generation
+      // then, and this result must not be applied to it.
+      if (pendingGenRef.current === null || pendingGenRef.current !== gen) return;
       if (canAdvanceToPayment(info)) {
-        paymentConfirmPendingRef.current = false;
+        pendingGenRef.current = null;
         submitLockRef.current = false;
         setPaymentInfoError(null);
         setConfirmError(null);
@@ -313,7 +332,7 @@ export default function BuyScreen() {
 
       const errorCode = getPaymentInfoErrorCode(info);
       if (errorCode) {
-        paymentConfirmPendingRef.current = false;
+        pendingGenRef.current = null;
         submitLockRef.current = false;
         const translatedError =
           errorCode === 'noCode'
@@ -331,54 +350,54 @@ export default function BuyScreen() {
 
       // null, and no error code on the payload. The hook's auth gate or
       // error lands on the next render; decide there so a stale closure
-      // cannot show an error beside the gate.
+      // cannot show an error beside the gate. Keep the generation: a gate
+      // is not a terminal result, and the replay still has to apply.
       unresolvedPaymentRef.current = true;
       setUnresolvedPayment((n) => n + 1);
     },
     [t],
   );
 
-  const retryPaymentInfoAfterLink = useCallback(async () => {
-    // Quote gates still resume through retryLast. A payment-info result is
-    // applied only while the confirmation that asked for it is pending, so
-    // a cancelled or never-started confirm cannot open an order. Read the
-    // flag again after the await: Cancel during the replay clears it.
-    if (!paymentConfirmPendingRef.current && !authGate) return;
-    try {
-      const result = await retryLast();
-      if (result?.kind === 'paymentInfo' && paymentConfirmPendingRef.current) {
-        handlePaymentInfoResult(result.info);
-      }
-    } finally {
-      // Proceeding no longer clears the lock. Release it when this replay
-      // finishes or fails, unless a null result is still being classified.
-      if (!unresolvedPaymentRef.current) submitLockRef.current = false;
+  const resumeAfterAuth = useCallback(async () => {
+    const gen = pendingGenRef.current;
+    const result = await retryLast();
+    if (result?.kind === 'paymentInfo') {
+      if (gen === null || pendingGenRef.current !== gen) return;
+      handlePaymentInfoResult(result.info, gen);
     }
-  }, [authGate, handlePaymentInfoResult, retryLast]);
+    // quote results are applied by the hook's own state
+  }, [retryLast, handlePaymentInfoResult]);
 
   // After the user goes through the DFX login flow we land back on this
   // screen; replay the failed call so they don't have to retap "Continue".
+  // retryLast only replays an action that was gated and not cancelled.
+  // Read the gate through a ref so this callback stays stable while the
+  // modal opens and closes.
   const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
+  const authGateRef = useRef(authGate);
+  authGateRef.current = authGate;
   useFocusEffect(
     useCallback(() => {
       if (isDfxAuthenticated) {
-        void retryPaymentInfoAfterLink();
+        void resumeAfterAuth();
         return;
       }
-      // Came back without a session. Nothing is replaying, so the continue
-      // button must not stay locked.
-      if (paymentConfirmPendingRef.current && !unresolvedPaymentRef.current) {
-        submitLockRef.current = false;
-      }
-    }, [isDfxAuthenticated, retryPaymentInfoAfterLink]),
+      // Signed out, and the gate is gone: the user backed out of login, or
+      // nothing was pending (first mount). Drop the replay and unlock.
+      if (authGateRef.current || pendingGenRef.current === null) return; // only an abandoned payment submit
+      cancelAuthGate();
+      pendingGenRef.current = null;
+      submitLockRef.current = false;
+    }, [isDfxAuthenticated, resumeAfterAuth, cancelAuthGate]),
   );
 
   // One modal at a time: the auth gate replaces the confirm dialog.
+  // Closing the dialog must not release the submit lock. The replay of the
+  // call that opened the gate still owns it.
   useLayoutEffect(() => {
     if (!authGate || !confirmOpen) return;
     setConfirmOpen(false);
     setConfirmLoading(false);
-    submitLockRef.current = false;
   }, [authGate, confirmOpen]);
 
   useEffect(() => {
@@ -386,11 +405,11 @@ export default function BuyScreen() {
     if (isLoading) return;
     unresolvedPaymentRef.current = false;
     if (authGate) {
-      // Hold the submit lock until cancel or the replay. The gate is the
-      // only control the user has until then.
+      // Hold the submit lock and the pending generation until cancel or the
+      // replay. The gate is the only control the user has until then.
       return;
     }
-    paymentConfirmPendingRef.current = false;
+    pendingGenRef.current = null;
     submitLockRef.current = false;
     setConfirmLoading(false);
     const message = error ?? t('buy.quoteError.noCode');
@@ -413,7 +432,7 @@ export default function BuyScreen() {
     async (chain: ChainId) => {
       const retryAfterSuccessfulLink = async () => {
         try {
-          await retryPaymentInfoAfterLink();
+          await resumeAfterAuth();
         } catch {
           // The flow owns retry errors; do not surface them as link failures.
         }
@@ -517,7 +536,7 @@ export default function BuyScreen() {
         throw err;
       }
     },
-    [btcAccount, sparkAccount, ethAccount, lds, retryPaymentInfoAfterLink],
+    [btcAccount, sparkAccount, ethAccount, lds, resumeAfterAuth],
   );
 
   // eslint-disable-next-line security/detect-object-injection -- selectedChainIndex is bounded by chains.length
@@ -883,22 +902,17 @@ export default function BuyScreen() {
                 return;
               }
               if (submitLockRef.current) return;
-              submitLockRef.current = true;
+              const gen = beginPaymentSubmit();
               setPaymentInfoError(null);
-              paymentConfirmPendingRef.current = true;
-              try {
-                const info = await createPaymentInfo({
-                  amount: numAmount,
-                  currency: selectedCurrency,
-                  asset: targetAsset,
-                  blockchain,
-                  chain: selectedChainSpec.chain,
-                });
-                if (!paymentConfirmPendingRef.current) return;
-                handlePaymentInfoResult(info);
-              } finally {
-                if (!paymentConfirmPendingRef.current) submitLockRef.current = false;
-              }
+              const info = await createPaymentInfo({
+                amount: numAmount,
+                currency: selectedCurrency,
+                asset: targetAsset,
+                blockchain,
+                chain: selectedChainSpec.chain,
+              });
+              if (pendingGenRef.current !== gen) return;
+              handlePaymentInfoResult(info, gen);
             }}
             disabled={
               numAmount === null || numAmount <= 0 || belowMin || aboveMax || unsupportedChain
@@ -1030,8 +1044,7 @@ export default function BuyScreen() {
         onBack={() => {
           // Leave the payment-info flow. A response still in flight must not
           // open the payment step after this.
-          paymentConfirmPendingRef.current = false;
-          submitLockRef.current = false;
+          cancelPaymentSubmit();
           if (step === 'payment') setStep('amount');
           else router.back();
         }}
@@ -1078,8 +1091,7 @@ export default function BuyScreen() {
           dismissAuthGate(authGate ?? undefined);
         }}
         onCancel={() => {
-          paymentConfirmPendingRef.current = false;
-          submitLockRef.current = false;
+          cancelPaymentSubmit();
           cancelAuthGate(authGate ?? undefined);
         }}
         onLinkChain={linkChainToDfx}
@@ -1095,8 +1107,7 @@ export default function BuyScreen() {
         onCancel={() => {
           // Also while confirmLoading: createPaymentInfo may already be in
           // flight, and the modal's own disabled state is not the only caller.
-          paymentConfirmPendingRef.current = false;
-          submitLockRef.current = false;
+          cancelPaymentSubmit();
           setConfirmOpen(false);
           setConfirmLoading(false);
           setConfirmError(null);
@@ -1112,19 +1123,21 @@ export default function BuyScreen() {
           ) {
             return;
           }
-          submitLockRef.current = true;
+          const gen = beginPaymentSubmit();
           setConfirmLoading(true);
           setConfirmError(null);
           try {
             const reauth = await reauthAs(targetAddress, targetBlockchain);
+            if (pendingGenRef.current !== gen) return;
             if (!confirmOpenRef.current) return;
             if (!reauth.ok) {
+              pendingGenRef.current = null;
+              submitLockRef.current = false;
               setConfirmError(
                 t([`linkedWallet.reauthError.${reauth.error}`, 'linkedWallet.reauthError.generic']),
               );
               return;
             }
-            paymentConfirmPendingRef.current = true;
             const info = await createPaymentInfo({
               amount: numAmount,
               currency: selectedCurrency,
@@ -1132,16 +1145,17 @@ export default function BuyScreen() {
               blockchain,
               chain: selectedChainSpec.chain,
             });
-            if (!paymentConfirmPendingRef.current) return;
-            handlePaymentInfoResult(info);
+            if (pendingGenRef.current !== gen) return;
+            handlePaymentInfoResult(info, gen);
           } catch (err) {
-            paymentConfirmPendingRef.current = false;
+            if (pendingGenRef.current !== gen) return;
+            pendingGenRef.current = null;
+            submitLockRef.current = false;
             setConfirmError(
               err instanceof Error ? err.message : t('linkedWallet.reauthError.generic'),
             );
           } finally {
             setConfirmLoading(false);
-            if (!paymentConfirmPendingRef.current) submitLockRef.current = false;
           }
         }}
       />

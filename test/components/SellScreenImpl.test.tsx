@@ -21,19 +21,44 @@ function balanceEntry(assetId: string, rawBalance: string, source: 'wdk' | 'evm'
   return { assetId, rawBalance, status: 'ok', source };
 }
 
-jest.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string | string[], params?: Record<string, unknown>) => {
-      const resolved = Array.isArray(key) ? key[0]! : key;
-      return params ? `${resolved}:${JSON.stringify(params)}` : resolved;
-    },
-  }),
-}));
+jest.mock('react-i18next', () => {
+  const t = (key: string | string[], params?: Record<string, unknown>) => {
+    const resolved = Array.isArray(key) ? key[0]! : key;
+    return params ? `${resolved}:${JSON.stringify(params)}` : resolved;
+  };
+  return { useTranslation: () => ({ t }) };
+});
 
 const mockBack = jest.fn();
+let mockLatestFocusCallback: (() => void | (() => void)) | null = null;
+let mockLatestFocusCleanup: (() => void) | undefined;
+
+function refocusScreen(): void {
+  if (typeof mockLatestFocusCleanup === 'function') mockLatestFocusCleanup();
+  if (!mockLatestFocusCallback) {
+    throw new Error('screen focus effect is not registered');
+  }
+  const cleanup = mockLatestFocusCallback();
+  mockLatestFocusCleanup = typeof cleanup === 'function' ? cleanup : undefined;
+}
+
 jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
-  useFocusEffect: (callback: () => void | (() => void)) => callback(),
+  useFocusEffect: (callback: () => void | (() => void)) => {
+    const ReactActual = jest.requireActual<typeof import('react')>('react');
+    ReactActual.useEffect(() => {
+      mockLatestFocusCallback = callback;
+      const cleanup = callback();
+      mockLatestFocusCleanup = typeof cleanup === 'function' ? cleanup : undefined;
+      return () => {
+        if (typeof cleanup === 'function') cleanup();
+        if (mockLatestFocusCallback === callback) {
+          mockLatestFocusCallback = null;
+          mockLatestFocusCleanup = undefined;
+        }
+      };
+    }, [callback]);
+  },
   useLocalSearchParams: () => ({}),
   useRouter: () => ({ back: mockBack, push: jest.fn(), replace: jest.fn(), canGoBack: () => true }),
 }));
@@ -334,7 +359,7 @@ describe('SellScreenImpl', () => {
 
     const { queryByText } = render(<SellScreenImpl />);
 
-    expect(mockRetryLast).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
     expect(queryByText('sell.confirmSale')).toBeNull();
   });
 
@@ -404,7 +429,7 @@ describe('SellScreenImpl', () => {
       fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
     });
     expect(mockDismissAuthGate).toHaveBeenCalledWith(loginGate);
-    expect(mockCancelAuthGate).not.toHaveBeenCalled();
+    expect(mockCancelAuthGate).not.toHaveBeenCalledWith(loginGate);
 
     mockIsDfxAuthenticated = true;
     await act(async () => {
@@ -413,6 +438,64 @@ describe('SellScreenImpl', () => {
 
     await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
     expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+    expect(view.getByText('sell.confirmSale')).toBeTruthy();
+  });
+
+  it('abandons the gated sell when focus returns without a session', async () => {
+    const loginGate = { kind: 'login', message: 'sign in' };
+    mockCreatePaymentInfo.mockImplementation(async () => {
+      flowState.authGate = loginGate;
+      return null;
+    });
+    mockDismissAuthGate.mockImplementation((gate?: { kind: string }) => {
+      if (gate === undefined || flowState.authGate === gate) flowState.authGate = null;
+    });
+
+    const view = render(<SellScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.001');
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+    fireEvent.changeText(
+      view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
+      'CH9300762011623852957',
+    );
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+    expect(view.getByTestId('dfx-auth-gate-primary')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
+    });
+    expect(mockDismissAuthGate).toHaveBeenCalledWith(loginGate);
+
+    await act(async () => {
+      view.rerender(<SellScreenImpl />);
+    });
+    expect(view.queryByTestId('dfx-auth-gate-primary')).toBeNull();
+
+    const callsBefore = mockCancelAuthGate.mock.calls.length;
+    await act(async () => {
+      refocusScreen();
+    });
+    expect(mockCancelAuthGate.mock.calls.length).toBe(callsBefore + 1);
+    expect(mockCancelAuthGate.mock.calls[callsBefore]).toEqual([]);
+
+    mockRetryLast.mockResolvedValue({ kind: 'paymentInfo', info: PAYMENT_INFO });
+    mockIsDfxAuthenticated = true;
+    await act(async () => {
+      view.rerender(<SellScreenImpl />);
+    });
+
+    await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
+    expect(view.queryByText('sell.confirmSale')).toBeNull();
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+
+    mockCreatePaymentInfo.mockImplementation(async () => PAYMENT_INFO);
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(2);
     expect(view.getByText('sell.confirmSale')).toBeTruthy();
   });
 
@@ -450,7 +533,7 @@ describe('SellScreenImpl', () => {
       view.rerender(<SellScreenImpl />);
     });
 
-    expect(mockRetryLast).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
     expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
     expect(view.queryByText('sell.confirmSale')).toBeNull();
   });
@@ -723,5 +806,144 @@ describe('SellScreenImpl', () => {
 
     expect(view.queryByText('sell.confirmSale')).toBeNull();
     expect(view.queryByText('sell.bankAccount')).toBeNull();
+  });
+
+  it('does not replay when an auth gate appears while already signed in', async () => {
+    mockIsDfxAuthenticated = true;
+    mockRetryLast.mockResolvedValue(null);
+    const view = render(<SellScreenImpl />);
+
+    await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
+
+    flowState.authGate = { kind: 'login', message: 'sign in' };
+    view.rerender(<SellScreenImpl />);
+
+    expect(mockRetryLast).toHaveBeenCalledTimes(1);
+  });
+
+  it('replays a quote gate once focus returns after login', async () => {
+    const loginGate = { kind: 'login' as const, message: 'sign in' };
+    flowState.authGate = loginGate;
+    mockDismissAuthGate.mockImplementation((gate?: { kind: string }) => {
+      if (gate === undefined || flowState.authGate === gate) flowState.authGate = null;
+    });
+    mockRetryLast.mockResolvedValue({ kind: 'quote', info: PAYMENT_INFO });
+
+    const view = render(<SellScreenImpl />);
+    expect(mockRetryLast).not.toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
+    });
+    expect(mockDismissAuthGate).toHaveBeenCalledWith(loginGate);
+
+    view.rerender(<SellScreenImpl />);
+    expect(mockRetryLast).not.toHaveBeenCalled();
+
+    mockIsDfxAuthenticated = true;
+    await act(async () => {
+      view.rerender(<SellScreenImpl />);
+    });
+
+    await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
+  });
+
+  it('applies only the payment info from the submit that is still current', async () => {
+    let resolveFirst: (value: null) => void = () => {};
+    let resolveSecond: (value: typeof PAYMENT_INFO) => void = () => {};
+    const first = new Promise<null>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const second = new Promise<typeof PAYMENT_INFO>((resolve) => {
+      resolveSecond = resolve;
+    });
+    mockCreatePaymentInfo.mockReturnValueOnce(first).mockReturnValueOnce(second);
+
+    const view = render(<SellScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.001');
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+    fireEvent.changeText(
+      view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
+      'CH9300762011623852957',
+    );
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+
+    fireEvent.press(view.getByTestId('sell-back'));
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      resolveFirst(null);
+      await first;
+    });
+    expect(view.queryByText('sell.quoteError.noCode')).toBeNull();
+
+    await act(async () => {
+      resolveSecond(PAYMENT_INFO);
+      await second;
+    });
+
+    await waitFor(() => expect(view.getByText('sell.confirmSale')).toBeTruthy());
+    expect(view.queryByText('sell.quoteError.noCode')).toBeNull();
+  });
+
+  it('does not create payment info while a replay is in flight', async () => {
+    let resolveRetry: (value: { kind: 'paymentInfo'; info: typeof PAYMENT_INFO }) => void =
+      () => {};
+    const retryPromise = new Promise<{ kind: 'paymentInfo'; info: typeof PAYMENT_INFO }>(
+      (resolve) => {
+        resolveRetry = resolve;
+      },
+    );
+    const loginGate = { kind: 'login' as const, message: 'sign in' };
+    mockCreatePaymentInfo.mockImplementation(async () => {
+      flowState.authGate = loginGate;
+      return null;
+    });
+    mockDismissAuthGate.mockImplementation((gate?: { kind: string }) => {
+      if (gate === undefined || flowState.authGate === gate) flowState.authGate = null;
+    });
+
+    const view = render(<SellScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.001');
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+    fireEvent.changeText(
+      view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
+      'CH9300762011623852957',
+    );
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
+    });
+    view.rerender(<SellScreenImpl />);
+
+    mockRetryLast.mockReturnValue(retryPromise);
+    mockIsDfxAuthenticated = true;
+    await act(async () => {
+      view.rerender(<SellScreenImpl />);
+    });
+    expect(mockRetryLast).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveRetry({ kind: 'paymentInfo', info: PAYMENT_INFO });
+      await retryPromise;
+    });
   });
 });
