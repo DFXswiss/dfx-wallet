@@ -198,7 +198,7 @@ This is fragile: a failure in the preceding block leaves the next one starting f
 
 ## CI
 
-`.github/workflows/visual-regression.yml` runs the suite on the pinned `macos-26` runner. Baselines are produced only in that environment: macOS 26, Xcode 26.6, iPhone 17 Pro, iOS 26.5. The gated PIN, legal and restore baselines listed under Feature-gated `describe` blocks are older local captures (#77) that no CI leg compares; re-record them on the runner once a leg enables those flags.
+`.github/workflows/visual-regression.yml` runs the suite on the pinned `macos-26` runner. Baselines that the CI legs compare are recorded in that environment: macOS 26, Xcode 26.6, iPhone 17 Pro, iOS 26.5. The gated PIN, legal and restore baselines listed under Feature-gated `describe` blocks are older local captures (#77) that no CI leg compares; re-record them on the runner once a leg enables those flags.
 
 ### Triggering visual regression
 
@@ -217,7 +217,7 @@ gh pr edit <pr> --remove-label needs-visual && gh pr edit <pr> --add-label needs
 
 ### Refreshing baselines on the CI runner
 
-Baselines are produced only in the pinned environment: `macos-26`, Xcode 26.6, iPhone 17 Pro on iOS 26.5. A capture from any other Xcode or simulator runtime will not match this runner.
+Baselines that CI compares are recorded in the pinned environment: `macos-26`, Xcode 26.6, iPhone 17 Pro on iOS 26.5. Captures from another Xcode or simulator runtime are not guaranteed to match this runner (the same screen differed by about 2 % between local machines and the runner).
 
 Start the workflow on the branch that should own the new PNGs:
 
