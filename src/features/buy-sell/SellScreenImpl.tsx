@@ -358,7 +358,7 @@ export default function SellScreen() {
       }
       // Act only when signed out with no gate and a payment submit still pending
       // (the user backed out of login): then drop the replay and unlock below.
-      if (authGateRef.current || pendingGenRef.current === null) return; // only an abandoned payment submit
+      if (authGateRef.current || pendingGenRef.current === null) return;
       cancelAuthGate();
       pendingGenRef.current = null;
       submitLockRef.current = false;
