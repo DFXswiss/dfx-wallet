@@ -852,7 +852,7 @@ describe('SellScreenImpl', () => {
     expect(mockRetryLast).toHaveBeenCalledTimes(1);
   });
 
-  it('replays a quote gate once focus returns after login', async () => {
+  it('calls retryLast once for a quote gate after login', async () => {
     const loginGate = { kind: 'login' as const, message: 'sign in' };
     flowState.authGate = loginGate;
     mockDismissAuthGate.mockImplementation((gate?: { kind: string }) => {
@@ -993,6 +993,7 @@ describe('SellScreenImpl', () => {
     });
     expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
 
+    // The cancel button is disabled while loading; this drives the handler as defence in depth.
     const onCancel = mockConfirmModalProps?.onCancel;
     if (!onCancel) throw new Error('confirm modal onCancel is not registered');
     await act(async () => {
