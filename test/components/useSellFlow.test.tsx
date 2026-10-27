@@ -364,7 +364,7 @@ describe('useSellFlow', () => {
     expect(result.current.paymentInfo).toBeNull();
   });
 
-  it('ignores a late payment-info auth error after a newer quote succeeds', async () => {
+  it('applies a payment-info auth error after a newer quote succeeds', async () => {
     const stale = { ...PAYMENT_PARAMS, amount: 50 };
     const fresh = { ...QUOTE, amount: 500 };
     const authErr = new Error('401');
@@ -396,19 +396,25 @@ describe('useSellFlow', () => {
       await paymentCall;
     });
 
-    expect(result.current.authGate).toBeNull();
+    expect(result.current.authGate).toMatchObject({ kind: 'linkChain', chain: 'bitcoin' });
     expect(result.current.error).toBeNull();
-    expect(result.current.paymentInfo).toMatchObject({ id: 500, depositAddress: 'bc1q-quote' });
-    expect(result.current.status).toBe('success');
+    expect(result.current.paymentInfo).toBeNull();
+    expect(result.current.status).toBe('authGate');
+    mockCreateSellPaymentInfo.mockResolvedValueOnce(
+      validInfo({ id: 51, depositAddress: 'bc1q-replay' }),
+    );
     await act(async () => {
-      await expect(result.current.retryLast()).resolves.toBeNull();
+      await expect(result.current.retryLast()).resolves.toMatchObject({
+        kind: 'paymentInfo',
+        info: { id: 51, depositAddress: 'bc1q-replay' },
+      });
     });
-    expect(mockCreateSellPaymentInfo).toHaveBeenCalledTimes(1);
+    expect(mockCreateSellPaymentInfo).toHaveBeenCalledTimes(2);
     expect(mockCreateSellPaymentInfo.mock.calls[0]![0]).toMatchObject({ amount: 50 });
     expect(mockGetSellQuote).toHaveBeenCalledTimes(1);
   });
 
-  it('ignores a late non-auth payment error while a newer quote gate is open', async () => {
+  it('applies a late non-auth payment error while a newer quote gate is open', async () => {
     const pending = deferred<SellPaymentInfoDto>();
     const quoteAuth = new Error('login');
     mockCreateSellPaymentInfo.mockReturnValueOnce(pending.promise);
@@ -433,18 +439,16 @@ describe('useSellFlow', () => {
       await paymentCall;
     });
 
-    expect(result.current.status).toBe('authGate');
+    expect(result.current.status).toBe('error');
+    expect(result.current.error).toBe('network down');
+    // The non-auth branch keeps the previous gate object. It does not keep
+    // the quote as the call to replay.
     expect(result.current.authGate).toMatchObject({ kind: 'login' });
-    expect(result.current.error).toBeNull();
 
-    mockGetSellQuote.mockResolvedValueOnce(validInfo({ id: 500 }));
     await act(async () => {
-      await expect(result.current.retryLast()).resolves.toMatchObject({
-        kind: 'quote',
-        info: { id: 500 },
-      });
+      await expect(result.current.retryLast()).resolves.toBeNull();
     });
-    expect(mockGetSellQuote.mock.calls[1]![0]).toMatchObject({ amount: 500 });
+    expect(mockGetSellQuote).toHaveBeenCalledTimes(1);
     expect(mockCreateSellPaymentInfo).toHaveBeenCalledTimes(1);
   });
 
@@ -482,6 +486,72 @@ describe('useSellFlow', () => {
       depositAddress: 'bc1q-committed',
     });
     expect(result.current.status).toBe('success');
+  });
+
+  it('applies payment info started before a quote and ignores that late quote', async () => {
+    const paymentPending = deferred<SellPaymentInfoDto>();
+    const quotePending = deferred<SellPaymentInfoDto>();
+    mockCreateSellPaymentInfo.mockReturnValueOnce(paymentPending.promise);
+    mockGetSellQuote.mockReturnValueOnce(quotePending.promise);
+    const { result } = renderHook(() => useSellFlow());
+
+    let paymentCall: Promise<unknown>;
+    act(() => {
+      paymentCall = result.current.createPaymentInfo(PAYMENT_PARAMS);
+    });
+    const paymentSignal = mockCreateSellPaymentInfo.mock.calls[0]![1].signal as AbortSignal;
+    let quoteCall: Promise<unknown>;
+    act(() => {
+      quoteCall = result.current.getQuote({ ...QUOTE, amount: 500 });
+    });
+
+    expect(paymentSignal.aborted).toBe(false);
+
+    await act(async () => {
+      paymentPending.resolve(validInfo({ id: 9, depositAddress: 'bc1q-committed' }));
+      await paymentCall;
+    });
+    expect(result.current.paymentInfo).toMatchObject({
+      id: 9,
+      depositAddress: 'bc1q-committed',
+    });
+    expect(result.current.status).toBe('success');
+
+    await act(async () => {
+      quotePending.resolve(validInfo({ id: 1, depositAddress: 'bc1q-quote' }));
+      await quoteCall;
+    });
+    expect(result.current.paymentInfo).toMatchObject({
+      id: 9,
+      depositAddress: 'bc1q-committed',
+    });
+    expect(result.current.status).toBe('success');
+  });
+
+  it('drops payment info when an auth error is dismissed', async () => {
+    mockGetSellQuote.mockResolvedValueOnce(validInfo({ id: 7, depositAddress: 'bc1q-quote' }));
+    mockCreateSellPaymentInfo.mockRejectedValueOnce(new Error('kyc'));
+    mockInterpretDfxAuthError.mockReturnValueOnce({ kind: 'kyc', message: 'finish kyc' });
+    const { result } = renderHook(() => useSellFlow());
+
+    await act(async () => {
+      await result.current.getQuote(QUOTE);
+    });
+    expect(result.current.status).toBe('success');
+
+    await act(async () => {
+      await result.current.createPaymentInfo(PAYMENT_PARAMS);
+    });
+    expect(result.current.status).toBe('authGate');
+    expect(result.current.paymentInfo).toBeNull();
+
+    act(() => {
+      result.current.dismissAuthGate();
+    });
+
+    expect(result.current.authGate).toBeNull();
+    expect(result.current.paymentInfo).toBeNull();
+    expect(result.current.status).not.toBe('success');
   });
 
   it('keeps the newer deposit address when an older payment call resolves last', async () => {

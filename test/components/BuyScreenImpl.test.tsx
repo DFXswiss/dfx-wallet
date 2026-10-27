@@ -970,6 +970,107 @@ describe('BuyScreenImpl', () => {
     expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
     expect(view.queryByText('buy.paymentInfo')).toBeNull();
   });
+
+  it('does not advance when cancel lands during an in-flight payment replay', async () => {
+    mockUseRealDfxAuthGate = true;
+    let resolveRetry: (value: { kind: 'paymentInfo'; info: BuyPaymentInfoDto }) => void = () => {};
+    const retryPromise = new Promise<{ kind: 'paymentInfo'; info: BuyPaymentInfoDto }>((resolve) => {
+      resolveRetry = resolve;
+    });
+    const loginGate: DfxAuthGateState = { kind: 'login', message: 'sign in' };
+    mockCreatePaymentInfo.mockImplementation(async () => {
+      flowState.authGate = loginGate;
+      return null;
+    });
+
+    const view = render(
+      <ThemeProvider>
+        <BuyScreenImpl />
+      </ThemeProvider>,
+    );
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    await act(async () => {
+      fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
+    });
+    expect(view.getByTestId('dfx-auth-gate-cancel')).toBeTruthy();
+
+    mockRetryLast.mockReturnValue(retryPromise);
+    mockIsDfxAuthenticated = true;
+    await act(async () => {
+      view.rerender(
+        <ThemeProvider>
+          <BuyScreenImpl />
+        </ThemeProvider>,
+      );
+    });
+    expect(mockRetryLast).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fireEvent.press(view.getByTestId('dfx-auth-gate-cancel'));
+    });
+    await act(async () => {
+      resolveRetry({ kind: 'paymentInfo', info: PAYMENT_INFO });
+      await retryPromise;
+    });
+
+    expect(view.queryByText('buy.paymentInfo')).toBeNull();
+  });
+
+  it('shows a sign-in replay error on the amount step', async () => {
+    mockUseRealDfxAuthGate = true;
+    mockSearchParams = {
+      targetAddress: 'bc1qtargetwalletxxxx',
+      targetBlockchain: 'Bitcoin',
+    };
+    const loginGate: DfxAuthGateState = { kind: 'login', message: 'sign in' };
+    mockCreatePaymentInfo.mockImplementation(async () => {
+      flowState.authGate = loginGate;
+      return null;
+    });
+    mockDismissAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
+      if (gate === undefined || flowState.authGate === gate) flowState.authGate = null;
+    });
+    mockRetryLast.mockResolvedValue({
+      kind: 'paymentInfo',
+      info: { isValid: false, error: 'KycRequired' },
+    });
+
+    const view = render(
+      <ThemeProvider>
+        <BuyScreenImpl />
+      </ThemeProvider>,
+    );
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
+    expect(view.getByTestId('confirm-target-modal')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(view.getByTestId('confirm-target-confirm'));
+    });
+
+    await waitFor(() => expect(view.queryByTestId('confirm-target-modal')).toBeNull());
+    expect(view.getByTestId('dfx-auth-gate')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
+    });
+
+    mockIsDfxAuthenticated = true;
+    await act(async () => {
+      view.rerender(
+        <ThemeProvider>
+          <BuyScreenImpl />
+        </ThemeProvider>,
+      );
+    });
+
+    const message = 'buy.quoteError.KycRequired:{"code":"KycRequired"}';
+    await waitFor(() => expect(view.getByText(message)).toBeTruthy());
+    expect(view.queryByTestId('confirm-target-modal')).toBeNull();
+    expect(view.queryByText('buy.paymentInfo')).toBeNull();
+  });
 });
 
 describe('SellScreenImpl', () => {

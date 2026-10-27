@@ -279,6 +279,8 @@ export default function SellScreen() {
 
   const handlePaymentInfoResult = useCallback(
     (info: Awaited<ReturnType<typeof createPaymentInfo>>) => {
+      // Back or auth-gate cancel may have landed while this request was in flight.
+      if (!paymentConfirmPendingRef.current) return;
       if (canAdvanceToPayment(info)) {
         paymentConfirmPendingRef.current = false;
         submitLockRef.current = false;
@@ -313,12 +315,12 @@ export default function SellScreen() {
   const retryPaymentInfoAfterLink = useCallback(async () => {
     // Quote gates still resume through retryLast. A payment-info result is
     // applied only while the confirmation that asked for it is pending, so
-    // a cancelled or never-started confirm cannot open an order.
-    const confirmationPending = paymentConfirmPendingRef.current;
-    if (!confirmationPending && !authGate) return;
+    // a cancelled or never-started confirm cannot open an order. Read the
+    // flag again after the await: Cancel during the replay clears it.
+    if (!paymentConfirmPendingRef.current && !authGate) return;
     try {
       const result = await retryLast();
-      if (result?.kind === 'paymentInfo' && confirmationPending) {
+      if (result?.kind === 'paymentInfo' && paymentConfirmPendingRef.current) {
         handlePaymentInfoResult(result.info);
       }
     } finally {
@@ -893,6 +895,7 @@ export default function SellScreen() {
               iban: iban.replace(/\s/g, ''),
               chain: selectedChainSpec.chain,
             });
+            if (!paymentConfirmPendingRef.current) return;
             handlePaymentInfoResult(info);
           } finally {
             if (!paymentConfirmPendingRef.current) submitLockRef.current = false;
@@ -1004,8 +1007,12 @@ export default function SellScreen() {
       <AppHeader
         title={t('sell.title')}
         onBack={() => {
-          if (step === 'bank') setStep('amount');
-          else if (step === 'confirm') setStep('bank');
+          if (step === 'bank') {
+            // A payment-info response still in flight must not open confirm.
+            paymentConfirmPendingRef.current = false;
+            submitLockRef.current = false;
+            setStep('amount');
+          } else if (step === 'confirm') setStep('bank');
           else router.back();
         }}
         testID="sell-screen"

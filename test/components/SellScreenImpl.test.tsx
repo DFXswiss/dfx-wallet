@@ -647,4 +647,81 @@ describe('SellScreenImpl', () => {
 
     await waitFor(() => expect(getByText('sell.confirmSale')).toBeTruthy());
   });
+
+  it('does not advance when cancel lands during an in-flight payment replay', async () => {
+    let resolveRetry: (value: { kind: 'paymentInfo'; info: typeof PAYMENT_INFO }) => void = () => {};
+    const retryPromise = new Promise<{ kind: 'paymentInfo'; info: typeof PAYMENT_INFO }>(
+      (resolve) => {
+        resolveRetry = resolve;
+      },
+    );
+    const loginGate = { kind: 'login', message: 'sign in' };
+    mockCreatePaymentInfo.mockImplementation(async () => {
+      flowState.authGate = loginGate;
+      return null;
+    });
+
+    const view = render(<SellScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.001');
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+    fireEvent.changeText(
+      view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
+      'CH9300762011623852957',
+    );
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+    expect(view.getByTestId('dfx-auth-gate-cancel')).toBeTruthy();
+
+    mockRetryLast.mockReturnValue(retryPromise);
+    mockIsDfxAuthenticated = true;
+    await act(async () => {
+      view.rerender(<SellScreenImpl />);
+    });
+    expect(mockRetryLast).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fireEvent.press(view.getByTestId('dfx-auth-gate-cancel'));
+    });
+    await act(async () => {
+      resolveRetry({ kind: 'paymentInfo', info: PAYMENT_INFO });
+      await retryPromise;
+    });
+
+    expect(view.queryByText('sell.confirmSale')).toBeNull();
+  });
+
+  it('stays on the amount step when bank back wins over in-flight payment info', async () => {
+    let resolvePayment: (value: typeof PAYMENT_INFO) => void = () => {};
+    const pending = new Promise<typeof PAYMENT_INFO>((resolve) => {
+      resolvePayment = resolve;
+    });
+    mockCreatePaymentInfo.mockReturnValue(pending);
+
+    const view = render(<SellScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.001');
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+    fireEvent.changeText(
+      view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
+      'CH9300762011623852957',
+    );
+
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+    expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+
+    fireEvent.press(view.getByTestId('sell-back'));
+    expect(view.queryByText('sell.bankAccount')).toBeNull();
+
+    await act(async () => {
+      resolvePayment(PAYMENT_INFO);
+      await pending;
+    });
+
+    expect(view.queryByText('sell.confirmSale')).toBeNull();
+    expect(view.queryByText('sell.bankAccount')).toBeNull();
+  });
 });
