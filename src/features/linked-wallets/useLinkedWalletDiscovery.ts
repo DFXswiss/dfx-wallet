@@ -63,7 +63,7 @@ export type WalletDiscovery = {
   /** True when every requested chain is supported and every asset balance query succeeded. */
   complete: boolean;
   /** True when at least one chain scan succeeded, false when every scan
-   *  errored — drives the `—` placeholder on the Portfolio card. */
+   *  errored. Together with `complete` it feeds `isLinkedWalletEntryComplete`, which gates the `—` placeholder. */
   known: boolean;
 };
 

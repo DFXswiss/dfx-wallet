@@ -256,6 +256,10 @@ export default function BuyScreen() {
     : '';
   const { reauthAs } = useLinkedWalletReauth();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Handlers started while the modal was open must see a close that happens
+  // before their await resumes. The layout effect closes it when the gate opens.
+  const confirmOpenRef = useRef(false);
+  confirmOpenRef.current = confirmOpen;
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [paymentInfoError, setPaymentInfoError] = useState<string | null>(null);
@@ -294,6 +298,9 @@ export default function BuyScreen() {
 
   const handlePaymentInfoResult = useCallback(
     (info: Awaited<ReturnType<typeof createPaymentInfo>>) => {
+      // Back, confirm-modal cancel, or auth-gate cancel may have landed
+      // while this request was in flight.
+      if (!paymentConfirmPendingRef.current) return;
       if (canAdvanceToPayment(info)) {
         paymentConfirmPendingRef.current = false;
         submitLockRef.current = false;
@@ -312,7 +319,9 @@ export default function BuyScreen() {
           errorCode === 'noCode'
             ? t('buy.quoteError.noCode')
             : t([`buy.quoteError.${errorCode}`, 'buy.quoteError.generic'], { code: errorCode });
-        if (hasTargetWallet) {
+        // The gate closes the confirm modal. An error stored only there is
+        // invisible, so the amount step has to show it.
+        if (confirmOpenRef.current) {
           setConfirmError(translatedError);
         } else {
           setPaymentInfoError(translatedError);
@@ -326,18 +335,18 @@ export default function BuyScreen() {
       unresolvedPaymentRef.current = true;
       setUnresolvedPayment((n) => n + 1);
     },
-    [hasTargetWallet, t],
+    [t],
   );
 
   const retryPaymentInfoAfterLink = useCallback(async () => {
     // Quote gates still resume through retryLast. A payment-info result is
     // applied only while the confirmation that asked for it is pending, so
-    // a cancelled or never-started confirm cannot open an order.
-    const confirmationPending = paymentConfirmPendingRef.current;
-    if (!confirmationPending && !authGate) return;
+    // a cancelled or never-started confirm cannot open an order. Read the
+    // flag again after the await: Cancel during the replay clears it.
+    if (!paymentConfirmPendingRef.current && !authGate) return;
     try {
       const result = await retryLast();
-      if (result?.kind === 'paymentInfo' && confirmationPending) {
+      if (result?.kind === 'paymentInfo' && paymentConfirmPendingRef.current) {
         handlePaymentInfoResult(result.info);
       }
     } finally {
@@ -385,12 +394,12 @@ export default function BuyScreen() {
     submitLockRef.current = false;
     setConfirmLoading(false);
     const message = error ?? t('buy.quoteError.noCode');
-    if (hasTargetWallet) {
+    if (confirmOpenRef.current) {
       setConfirmError(message);
       return;
     }
-    if (!error) setPaymentInfoError(message);
-  }, [unresolvedPayment, authGate, error, isLoading, hasTargetWallet, t]);
+    if (!error) setPaymentInfoError(message); // the amount step already renders the hook error
+  }, [unresolvedPayment, authGate, error, isLoading, t]);
 
   // WDK accounts for the chains the user can buy on. We hold each at the
   // top of the screen because hooks can't be called conditionally; the
@@ -885,6 +894,7 @@ export default function BuyScreen() {
                   blockchain,
                   chain: selectedChainSpec.chain,
                 });
+                if (!paymentConfirmPendingRef.current) return;
                 handlePaymentInfoResult(info);
               } finally {
                 if (!paymentConfirmPendingRef.current) submitLockRef.current = false;
@@ -1018,6 +1028,10 @@ export default function BuyScreen() {
       <AppHeader
         title={t('buy.title')}
         onBack={() => {
+          // Leave the payment-info flow. A response still in flight must not
+          // open the payment step after this.
+          paymentConfirmPendingRef.current = false;
+          submitLockRef.current = false;
           if (step === 'payment') setStep('amount');
           else router.back();
         }}
@@ -1079,8 +1093,12 @@ export default function BuyScreen() {
         loading={confirmLoading}
         error={confirmError}
         onCancel={() => {
-          if (confirmLoading) return;
+          // Also while confirmLoading: createPaymentInfo may already be in
+          // flight, and the modal's own disabled state is not the only caller.
+          paymentConfirmPendingRef.current = false;
+          submitLockRef.current = false;
           setConfirmOpen(false);
+          setConfirmLoading(false);
           setConfirmError(null);
         }}
         onConfirm={async () => {
@@ -1099,6 +1117,7 @@ export default function BuyScreen() {
           setConfirmError(null);
           try {
             const reauth = await reauthAs(targetAddress, targetBlockchain);
+            if (!confirmOpenRef.current) return;
             if (!reauth.ok) {
               setConfirmError(
                 t([`linkedWallet.reauthError.${reauth.error}`, 'linkedWallet.reauthError.generic']),
@@ -1113,6 +1132,7 @@ export default function BuyScreen() {
               blockchain,
               chain: selectedChainSpec.chain,
             });
+            if (!paymentConfirmPendingRef.current) return;
             handlePaymentInfoResult(info);
           } catch (err) {
             paymentConfirmPendingRef.current = false;

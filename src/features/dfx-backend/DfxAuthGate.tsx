@@ -69,7 +69,10 @@ export function DfxAuthGate({ gate, onClose, onCancel, onLinkChain }: Props) {
     }
     if (gate.kind === 'linkChain') {
       if (!gate.chain || !onLinkChain) {
-        onClose();
+        // Nothing to link and nowhere to navigate. Closing without cancelling
+        // leaves the buy/sell pending flag and submit lock set, with no
+        // Cancel control left on screen.
+        requestClose();
         return;
       }
       setBusy(true);

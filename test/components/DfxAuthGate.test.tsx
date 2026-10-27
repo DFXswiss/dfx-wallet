@@ -80,4 +80,16 @@ describe('DfxAuthGate', () => {
     expect(onCancel).not.toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith(route);
   });
+
+  it('calls onCancel when linkChain has nothing to link', () => {
+    const onClose = jest.fn();
+    const onCancel = jest.fn();
+    const view = renderGate('linkChain', { onClose, onCancel });
+
+    fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
+  });
 });
