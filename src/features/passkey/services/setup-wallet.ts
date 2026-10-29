@@ -6,8 +6,8 @@ import { secureStorage, StorageKeys } from '@/services/storage';
  * preserve the previous wallet origin, then mark passkey setup as pending
  * before initializing the WDK wallet. A failed origin read or a failed
  * pre-check aborts before the pending write. After a failed initialization,
- * an unverifiable existence check keeps the pending marker when no wallet
- * existed beforehand. The marker is also kept when that check sees a wallet.
+ * the marker stays only if no wallet existed beforehand and the check sees
+ * a wallet or cannot tell.
  * Otherwise the previous origin is restored or the marker is removed.
  *
  * Order matters: an interrupted metadata write must stay fail-closed and
