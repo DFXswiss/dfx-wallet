@@ -149,22 +149,30 @@ jest.mock('@/features/dfx-backend/DfxAuthGate', () => ({
   },
 }));
 
-jest.mock('@/features/dfx-backend/services', () => ({
-  dfxAuthService: {
-    linkAddress: jest.fn(),
-    linkLnurlAddress: jest.fn(),
-    loginAsAddressOwner: jest.fn(),
-    loginAsLnurlAddressOwner: jest.fn(),
-  },
-  DfxApiError: class DfxApiError extends Error {
-    statusCode: number;
+jest.mock('@/features/dfx-backend/services', () => {
+  const getAccessToken = jest.fn(() => null as string | null);
+  return {
+    dfxAuthService: {
+      getAccessToken,
+      linkAddress: jest.fn(async () => {
+        const token = 'linked-token';
+        getAccessToken.mockReturnValue(token);
+        return token;
+      }),
+      linkLnurlAddress: jest.fn(),
+      loginAsAddressOwner: jest.fn(),
+      loginAsLnurlAddressOwner: jest.fn(),
+    },
+    DfxApiError: class DfxApiError extends Error {
+      statusCode: number;
 
-    constructor(message: string, statusCode: number) {
-      super(message);
-      this.statusCode = statusCode;
-    }
-  },
-}));
+      constructor(message: string, statusCode: number) {
+        super(message);
+        this.statusCode = statusCode;
+      }
+    },
+  };
+});
 
 jest.mock('@/services/storage', () => ({
   secureStorage: {
@@ -179,9 +187,21 @@ jest.mock('@/services/storage', () => ({
 
 let mockIsDfxAuthenticated = false;
 let mockConfirmModalProps: { onCancel: () => void } | null = null;
+const mockAuthState = {
+  isAuthenticated: true,
+  isDfxAuthenticated: false,
+  isOnboarded: true,
+  sessionEpoch: 1,
+};
 jest.mock('@/store', () => ({
-  useAuthStore: (selector: (state: { isDfxAuthenticated: boolean }) => unknown) =>
-    selector({ isDfxAuthenticated: mockIsDfxAuthenticated }),
+  useAuthStore: Object.assign(
+    (selector: (state: { isDfxAuthenticated: boolean }) => unknown) =>
+      selector({
+        ...mockAuthState,
+        isDfxAuthenticated: mockIsDfxAuthenticated,
+      }),
+    { getState: () => mockAuthState },
+  ),
 }));
 
 jest.mock('@/components', () => ({

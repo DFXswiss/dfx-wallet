@@ -81,15 +81,13 @@ const mockGetAuthGeneration = jest.fn(() => 0);
 jest.mock('@/features/dfx-backend/services', () => ({
   dfxApi: {
     clearAuthToken: jest.fn(),
+    getAuthGeneration: () => mockGetAuthGeneration(),
   },
   dfxAuthService: {
     adoptStoredToken: jest.fn(),
   },
   dfxUserService: {
     updateUser: jest.fn(),
-  },
-  dfxApi: {
-    getAuthGeneration: () => mockGetAuthGeneration(),
   },
 }));
 
