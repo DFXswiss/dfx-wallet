@@ -11,7 +11,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Stack, useRouter } from 'expo-router';
 import { usePreventRemove } from '@react-navigation/native';
-import { isAddress, ZeroAddress } from 'ethers';
+import { getAddress, isAddress, ZeroAddress } from 'ethers';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -130,8 +130,7 @@ export default function SendScreen() {
   const isValidAddress =
     selectedAsset?.symbol === 'BTC'
       ? isBitcoinOnChainAddress(normalizedRecipient) || isSparkMainnetAddress(normalizedRecipient)
-      : isAddress(normalizedRecipient) &&
-        normalizedRecipient.toLowerCase() !== ZeroAddress.toLowerCase();
+      : isAddress(normalizedRecipient) && getAddress(normalizedRecipient) !== ZeroAddress;
 
   const handleAssetSelect = (asset: AssetOption) => {
     setSelectedAsset(asset);
