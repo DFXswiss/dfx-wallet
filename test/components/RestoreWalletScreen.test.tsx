@@ -14,9 +14,7 @@ jest.mock('expo-screen-capture', () => ({
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { count?: number; total?: number }) =>
-      key === 'onboarding.seedWordCount'
-        ? `${key}:${options?.count}/${options?.total}`
-        : key,
+      key === 'onboarding.seedWordCount' ? `${key}:${options?.count}/${options?.total}` : key,
   }),
 }));
 
@@ -253,6 +251,30 @@ describe('RestoreWalletScreen', () => {
     expect(mockDeleteWallet.mock.invocationCallOrder[0]).toBeLessThan(
       mockRestoreWallet.mock.invocationCallOrder[0]!,
     );
+    expect(mockPush).toHaveBeenCalledWith('/(onboarding)/setup-pin');
+  });
+
+  it('confirms replacement when an encrypted seed remains without an active wallet', async () => {
+    mockGetEncryptedSeed.mockResolvedValue('encrypted-seed');
+    (Alert.alert as jest.Mock).mockImplementationOnce((_title, _message, buttons) => {
+      (buttons as { onPress?: () => void }[])[1]?.onPress?.();
+    });
+    const { findByTestId, getByTestId } = render(<RestoreWalletScreen />);
+    await typeSeed(findByTestId, VALID_SEED);
+
+    await act(async () => {
+      fireEvent.press(getByTestId('restore-wallet-continue-button'));
+    });
+
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'onboarding.restoreConfirmTitle',
+      'onboarding.restoreConfirmMessage',
+      expect.any(Array),
+      expect.objectContaining({ cancelable: true }),
+    );
+    expect(mockResetAuth).toHaveBeenCalledTimes(1);
+    expect(mockDeleteWallet).toHaveBeenCalledWith('default');
+    expect(mockRestoreWallet).toHaveBeenCalledTimes(1);
     expect(mockPush).toHaveBeenCalledWith('/(onboarding)/setup-pin');
   });
 

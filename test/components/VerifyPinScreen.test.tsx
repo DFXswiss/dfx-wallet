@@ -477,9 +477,7 @@ describe('VerifyPinScreen', () => {
     const clearIntervalSpy = jest.spyOn(global, 'clearInterval');
     const { getByTestId, unmount } = render(<VerifyPinScreen />);
 
-    expect(getByTestId('verify-pin-locked').children.join('')).toBe(
-      'pin.lockedFor:{"count":30}',
-    );
+    expect(getByTestId('verify-pin-locked').children.join('')).toBe('pin.lockedFor:{"count":30}');
     expect(getByTestId('pin-key-1').props.accessibilityState?.disabled).toBe(true);
     expect(getByTestId('pin-key-delete').props.accessibilityState?.disabled).toBe(true);
     fireEvent.press(getByTestId('pin-key-1'));
@@ -488,9 +486,7 @@ describe('VerifyPinScreen', () => {
     act(() => {
       jest.advanceTimersByTime(1_000);
     });
-    expect(getByTestId('verify-pin-locked').children.join('')).toBe(
-      'pin.lockedFor:{"count":29}',
-    );
+    expect(getByTestId('verify-pin-locked').children.join('')).toBe('pin.lockedFor:{"count":29}');
 
     unmount();
     expect(clearIntervalSpy).toHaveBeenCalled();
@@ -503,9 +499,7 @@ describe('VerifyPinScreen', () => {
     const view = render(<VerifyPinScreen />);
 
     await enterPin(view.getByTestId, '1234');
-    expect(
-      view.getByTestId('verify-pin-submit').props.accessibilityState?.disabled,
-    ).toBeFalsy();
+    expect(view.getByTestId('verify-pin-submit').props.accessibilityState?.disabled).toBeFalsy();
 
     mockAuthState.failedAttempts = 5;
     mockAuthState.lockedUntil = Date.now() + 30_000;
@@ -514,6 +508,14 @@ describe('VerifyPinScreen', () => {
     expect(view.getByTestId('verify-pin-locked')).toBeTruthy();
     expect(view.getByTestId('pin-key-1').props.accessibilityState?.disabled).toBe(true);
     expect(view.getByTestId('verify-pin-submit').props.accessibilityState?.disabled).toBe(true);
+  });
+
+  it('does not prompt biometrics on mount while locked out', async () => {
+    mockAuthState.biometricEnabled = true;
+    mockAuthState.lockedUntil = Date.now() + 60_000;
+    render(<VerifyPinScreen />);
+    await act(async () => {});
+    expect(mockAuthenticateBiometric).not.toHaveBeenCalled();
   });
 
   it('auto-prompts biometric unlock on mount when enabled', async () => {

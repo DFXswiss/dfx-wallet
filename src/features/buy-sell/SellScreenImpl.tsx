@@ -406,8 +406,10 @@ export default function SellScreen() {
       const retryAfterSuccessfulLink = async () => {
         try {
           await resumeAfterAuth();
-        } catch {
+        } catch (err) {
           // The flow owns retry errors; do not surface them as link failures.
+          // A session end must escape so the caller releases the submit lock.
+          if (isLocalSessionEndedError(err)) throw err;
         }
       };
       const guard = createDfxSessionGuard();
@@ -429,6 +431,7 @@ export default function SellScreen() {
           );
           latestToken = ldsToken;
           await guard.persistToken(ldsToken);
+          await assertFlowActive();
           await markChainLinkedInAutoLinkCache('lightning');
           await retryAfterSuccessfulLink();
         } catch (err) {
@@ -440,7 +443,9 @@ export default function SellScreen() {
               user.lightning.addressOwnershipProof,
               { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
             );
+            latestToken = ownerToken;
             await guard.persistToken(ownerToken);
+            await assertFlowActive();
             await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
             await retryAfterSuccessfulLink();
             return;
@@ -481,6 +486,7 @@ export default function SellScreen() {
         });
         latestToken = newToken;
         await guard.persistToken(newToken);
+        await assertFlowActive();
         if (chain === 'bitcoin' || chain === 'arbitrum' || chain === 'polygon' || chain === 'base')
           await markChainLinkedInAutoLinkCache(chain);
         await retryAfterSuccessfulLink();
@@ -496,7 +502,9 @@ export default function SellScreen() {
             wallet: 'DFX Wallet',
             blockchain: blockchainName,
           });
+          latestToken = ownerToken;
           await guard.persistToken(ownerToken);
+          await assertFlowActive();
           await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
           await retryAfterSuccessfulLink();
           return;

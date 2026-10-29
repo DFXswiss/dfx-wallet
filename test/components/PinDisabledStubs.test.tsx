@@ -42,9 +42,7 @@ describe('SetupPinDisabled', () => {
 
   it('keeps onboarding incomplete and opens legal when legal is enabled', async () => {
     render(<SetupPinDisabled />);
-    await waitFor(() =>
-      expect(mockReplace).toHaveBeenCalledWith('/(onboarding)/legal-disclaimer'),
-    );
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(onboarding)/legal-disclaimer'));
     const { isOnboarded, isAuthenticated } = useAuthStore.getState();
     expect(isOnboarded).toBe(false);
     expect(isAuthenticated).toBe(true);
@@ -124,9 +122,7 @@ describe('VerifyPinDisabled', () => {
   it('routes unfinished onboarding to the legal disclaimer after unlocking', async () => {
     render(<VerifyPinDisabled />);
 
-    await waitFor(() =>
-      expect(mockReplace).toHaveBeenCalledWith('/(onboarding)/legal-disclaimer'),
-    );
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(onboarding)/legal-disclaimer'));
 
     expect(mockUnlock).toHaveBeenCalledWith('default');
     expect(useAuthStore.getState().isOnboarded).toBe(false);
@@ -143,6 +139,7 @@ describe('VerifyPinDisabled', () => {
           calls.push('unlock');
         }),
     );
+    const originalSetAuthenticated = useAuthStore.getState().setAuthenticated;
     const spy = jest.spyOn(useAuthStore.getState(), 'setAuthenticated');
     spy.mockImplementation((value: boolean) => {
       calls.push('auth');
@@ -162,6 +159,7 @@ describe('VerifyPinDisabled', () => {
 
     expect(calls).toEqual(['unlock', 'auth', 'route']);
     spy.mockRestore();
+    useAuthStore.setState({ setAuthenticated: originalSetAuthenticated });
   });
 
   it('stays fail-closed when unlock rejects: no auth, no route, visible recovery path', async () => {
@@ -189,6 +187,68 @@ describe('VerifyPinDisabled', () => {
     await act(async () => {});
 
     expect(mockUnlock).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('shows a finish error when setOnboarded rejects after unlock', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockFeatures.LEGAL = false;
+    const originalSetOnboarded = useAuthStore.getState().setOnboarded;
+    useAuthStore.setState({
+      setOnboarded: jest.fn(async () => {
+        throw new Error('keychain unavailable');
+      }),
+    });
+
+    const view = render(<VerifyPinDisabled />);
+
+    await waitFor(() => expect(view.getByTestId('verify-pin-finish-error')).toBeTruthy());
+    expect(view.getByText('pin.finishError')).toBeTruthy();
+    expect(view.queryByTestId('verify-pin-unlock-error')).toBeNull();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(mockReplace).not.toHaveBeenCalled();
+    useAuthStore.setState({ setOnboarded: originalSetOnboarded });
+    warn.mockRestore();
+  });
+
+  it('shows a finish error when navigation rejects after unlock', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockReplace.mockImplementation(() => {
+      throw new Error('navigation failed');
+    });
+
+    const view = render(<VerifyPinDisabled />);
+
+    await waitFor(() => expect(view.getByTestId('verify-pin-finish-error')).toBeTruthy());
+    expect(view.getByText('pin.finishError')).toBeTruthy();
+    expect(view.queryByTestId('verify-pin-unlock-error')).toBeNull();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    warn.mockRestore();
+  });
+
+  it('retries finish after a post-unlock failure and then navigates', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockReplace.mockImplementation(() => undefined);
+    mockFeatures.LEGAL = false;
+    const originalSetOnboarded = useAuthStore.getState().setOnboarded;
+    const setOnboarded = jest.fn(originalSetOnboarded);
+    setOnboarded.mockImplementationOnce(async () => {
+      throw new Error('keychain unavailable');
+    });
+    useAuthStore.setState({ setOnboarded });
+
+    const view = render(<VerifyPinDisabled />);
+    await waitFor(() => expect(view.getByTestId('verify-pin-disabled-retry')).toBeTruthy());
+    await act(async () => {
+      fireEvent.press(view.getByTestId('verify-pin-disabled-retry'));
+    });
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard'));
+    // Retry repeats onboarding and navigation. Unlock already succeeded, so it stays at one call.
+    expect(mockUnlock).toHaveBeenCalledTimes(1);
+    expect(setOnboarded).toHaveBeenCalledTimes(2);
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    useAuthStore.setState({ setOnboarded: originalSetOnboarded });
     warn.mockRestore();
   });
 

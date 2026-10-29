@@ -159,17 +159,17 @@ describe('WalletsScreen', () => {
 
     await waitFor(() => expect(mockLinkAddress).toHaveBeenCalledTimes(1));
     await waitFor(() =>
-      expect(
-        screen.getByTestId('wallets-link-bitcoin').props.accessibilityState?.disabled,
-      ).toBe(true),
+      expect(screen.getByTestId('wallets-link-bitcoin').props.accessibilityState?.disabled).toBe(
+        true,
+      ),
     );
     await act(async () => {
       rejectLink(invalidated);
     });
     await waitFor(() =>
-      expect(
-        screen.getByTestId('wallets-link-bitcoin').props.accessibilityState?.disabled,
-      ).toBe(false),
+      expect(screen.getByTestId('wallets-link-bitcoin').props.accessibilityState?.disabled).toBe(
+        false,
+      ),
     );
     expect(screen.queryByText(invalidated.message)).toBeNull();
   });
@@ -181,7 +181,13 @@ describe('WalletsScreen', () => {
     const invalidated = new DfxAuthFlowInvalidatedError();
     mockGetUser.mockReset();
     mockGetUser.mockRejectedValue(new services.DfxApiError('User is merged'));
-    mockReauthenticateAsOwner.mockRejectedValue(invalidated);
+    let rejectReauth: (error: unknown) => void = () => undefined;
+    mockReauthenticateAsOwner.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectReauth = reject;
+        }),
+    );
     const screen = render(<WalletsScreen />);
 
     await waitFor(() => expect(screen.getByTestId('wallets-recover')).toBeTruthy());
@@ -189,6 +195,11 @@ describe('WalletsScreen', () => {
     fireEvent.press(screen.getByTestId('wallets-recover'));
 
     await waitFor(() => expect(mockReauthenticateAsOwner).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('wallets-recover')).toBeTruthy();
+    expect(screen.getByText('wallets.mergedExplanation')).toBeTruthy();
+    await act(async () => {
+      rejectReauth(invalidated);
+    });
     await waitFor(() => expect(screen.getByTestId('wallets-recover')).toBeTruthy());
     expect(screen.getByText('wallets.mergedExplanation')).toBeTruthy();
     expect(screen.queryByText(invalidated.message)).toBeNull();

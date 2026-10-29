@@ -437,8 +437,10 @@ export default function BuyScreen() {
       const retryAfterSuccessfulLink = async () => {
         try {
           await resumeAfterAuth();
-        } catch {
+        } catch (err) {
           // The flow owns retry errors; do not surface them as link failures.
+          // A session end must escape so the caller releases the submit lock.
+          if (isLocalSessionEndedError(err)) throw err;
         }
       };
       const guard = createDfxSessionGuard();
@@ -464,6 +466,7 @@ export default function BuyScreen() {
           );
           latestToken = ldsToken;
           await guard.persistToken(ldsToken);
+          await assertFlowActive();
           await markChainLinkedInAutoLinkCache('lightning');
           await retryAfterSuccessfulLink();
         } catch (err) {
@@ -479,7 +482,9 @@ export default function BuyScreen() {
               user.lightning.addressOwnershipProof,
               { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
             );
+            latestToken = ownerToken;
             await guard.persistToken(ownerToken);
+            await assertFlowActive();
             await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
             await retryAfterSuccessfulLink();
             return;
@@ -520,6 +525,7 @@ export default function BuyScreen() {
         });
         latestToken = newToken;
         await guard.persistToken(newToken);
+        await assertFlowActive();
         // Mark in the auto-link cache so the next cold start skips this
         // chain instead of re-prompting. Only chains that auto-link knows
         // about: bitcoin + the EVM chains (ethereum is the login, no cache
@@ -541,7 +547,9 @@ export default function BuyScreen() {
             wallet: 'DFX Wallet',
             blockchain: blockchainName,
           });
+          latestToken = ownerToken;
           await guard.persistToken(ownerToken);
+          await assertFlowActive();
           // Wipe the per-chain link cache: a different user means different
           // already-linked chains, so auto-link should re-evaluate from scratch.
           await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);

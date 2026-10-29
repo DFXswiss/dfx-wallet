@@ -107,10 +107,13 @@ let pinFailurePersistence = Promise.resolve();
 const RESET_VERIFICATION_KEYS = [
   StorageKeys.IS_ONBOARDED,
   StorageKeys.PIN_HASH,
+  StorageKeys.ENCRYPTED_SEED,
   StorageKeys.DFX_AUTH_TOKEN,
   StorageKeys.WALLET_ORIGIN,
   StorageKeys.PASSKEY_CREDENTIAL_ID,
   StorageKeys.PASSKEY_DERIVATION_VERSION,
+  StorageKeys.PIN_FAILED_ATTEMPTS,
+  StorageKeys.PIN_LOCKED_UNTIL,
 ] as const;
 
 type ResetCleanupTask = {
@@ -150,17 +153,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         ? parsedFailedAttempts
         : FIRST_LOCKOUT_ATTEMPT;
       const parsedLockedUntil = lockedUntil === null ? null : Number(lockedUntil);
+      const now = Date.now();
       let hydratedLockedUntil: number | null = null;
       if (!hasValidFailedAttempts) {
-        hydratedLockedUntil = Date.now() + pinLockoutMs(hydratedFailedAttempts);
+        hydratedLockedUntil = now + pinLockoutMs(hydratedFailedAttempts);
       } else if (
         parsedLockedUntil !== null &&
         Number.isSafeInteger(parsedLockedUntil) &&
-        parsedLockedUntil > 0
+        parsedLockedUntil > now
       ) {
-        hydratedLockedUntil = parsedLockedUntil;
+        hydratedLockedUntil = Math.min(parsedLockedUntil, now + MAX_LOCKOUT_MS);
+      } else if (
+        parsedLockedUntil !== null &&
+        Number.isSafeInteger(parsedLockedUntil) &&
+        parsedLockedUntil > 0 &&
+        parsedLockedUntil <= now
+      ) {
+        hydratedLockedUntil = null;
       } else if (hydratedFailedAttempts >= FIRST_LOCKOUT_ATTEMPT) {
-        hydratedLockedUntil = Date.now() + pinLockoutMs(hydratedFailedAttempts);
+        hydratedLockedUntil = now + pinLockoutMs(hydratedFailedAttempts);
       }
 
       // Re-arm both the API client and the auth service with the persisted
@@ -210,24 +221,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setDfxAuthenticated: (value) => set({ isDfxAuthenticated: value }),
 
   setPin: async (pin) => {
-    const { pinHash, isAuthenticated } = get();
+    const { pinHash, isAuthenticated, sessionEpoch } = get();
     if (pinHash && !isAuthenticated) throw new PinOverwriteNotAllowedError();
     const hash = await hashPin(pin);
+    if (get().sessionEpoch !== sessionEpoch) return;
     await secureStorage.set(StorageKeys.PIN_HASH, hash);
+    if (get().sessionEpoch !== sessionEpoch) return;
     set({ pinHash: hash });
   },
 
   verifyPin: async (pin) => {
-    const { pinHash, lockedUntil } = get();
+    const { pinHash, lockedUntil, sessionEpoch } = get();
     if (!pinHash) return false;
     if (lockedUntil && lockedUntil > Date.now()) return false;
 
     const capturedHash = pinHash;
+    const capturedEpoch = sessionEpoch;
+    const sessionStillOwnsPin = () => {
+      const state = get();
+      return state.sessionEpoch === capturedEpoch && state.pinHash === capturedHash;
+    };
 
     const verification = pinFailurePersistence.then(async () => {
-      const { pinHash: currentPinHash, lockedUntil: currentLockedUntil } = get();
-      if (currentPinHash !== capturedHash) return false;
-      if (!currentPinHash) return false;
+      if (!sessionStillOwnsPin()) return false;
+      const { lockedUntil: currentLockedUntil } = get();
       if (currentLockedUntil && currentLockedUntil > Date.now()) return false;
 
       const nextAttempts = get().failedAttempts + 1;
@@ -235,7 +252,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const nextLockedUntil = lockoutMs > 0 ? Date.now() + lockoutMs : null;
 
       try {
+        if (!sessionStillOwnsPin()) return false;
         await secureStorage.set(StorageKeys.PIN_FAILED_ATTEMPTS, String(nextAttempts));
+        if (!sessionStillOwnsPin()) return false;
         if (nextLockedUntil) {
           await secureStorage.set(StorageKeys.PIN_LOCKED_UNTIL, String(nextLockedUntil));
         } else {
@@ -245,23 +264,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return false;
       }
 
-      const ok = await verifyPinHash(pin, currentPinHash);
+      const ok = await verifyPinHash(pin, capturedHash);
+      if (!sessionStillOwnsPin()) return false;
       if (!ok) {
         set({ failedAttempts: nextAttempts, lockedUntil: nextLockedUntil });
         return false;
       }
 
+      if (!sessionStillOwnsPin()) return false;
       await Promise.all([
         secureStorage.remove(StorageKeys.PIN_FAILED_ATTEMPTS),
         secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL),
       ]);
+      if (!sessionStillOwnsPin()) return false;
       set({ failedAttempts: 0, lockedUntil: null });
-      if (needsPinRehash(currentPinHash)) {
+      if (needsPinRehash(capturedHash)) {
         void (async () => {
           try {
             const migratedHash = await hashPin(pin);
+            if (!sessionStillOwnsPin()) return;
             await secureStorage.set(StorageKeys.PIN_HASH, migratedHash);
-            if (get().pinHash === currentPinHash) set({ pinHash: migratedHash });
+            if (sessionStillOwnsPin()) set({ pinHash: migratedHash });
           } catch {
             // Authentication succeeded; keep the legacy hash and retry migration
             // on the next successful unlock rather than locking out the user.
@@ -298,6 +321,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   reset: async () => {
     set((state) => ({ sessionEpoch: state.sessionEpoch + 1 }));
+    await pinFailurePersistence;
     const cleanupTasks: ResetCleanupTask[] = [
       { cleanup: () => secureStorage.remove(StorageKeys.ACCOUNTS) },
       { cleanup: () => secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS) },
@@ -309,7 +333,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         cleanup: () => secureStorage.remove(StorageKeys.IS_ONBOARDED),
         verificationKey: StorageKeys.IS_ONBOARDED,
       },
-      { cleanup: () => secureStorage.remove(StorageKeys.ENCRYPTED_SEED) },
+      {
+        cleanup: () => secureStorage.remove(StorageKeys.ENCRYPTED_SEED),
+        verificationKey: StorageKeys.ENCRYPTED_SEED,
+      },
       {
         cleanup: () => secureStorage.remove(StorageKeys.DFX_AUTH_TOKEN),
         verificationKey: StorageKeys.DFX_AUTH_TOKEN,
@@ -326,8 +353,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         cleanup: () => secureStorage.remove(StorageKeys.PASSKEY_DERIVATION_VERSION),
         verificationKey: StorageKeys.PASSKEY_DERIVATION_VERSION,
       },
-      { cleanup: () => secureStorage.remove(StorageKeys.PIN_FAILED_ATTEMPTS) },
-      { cleanup: () => secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL) },
+      {
+        cleanup: () => secureStorage.remove(StorageKeys.PIN_FAILED_ATTEMPTS),
+        verificationKey: StorageKeys.PIN_FAILED_ATTEMPTS,
+      },
+      {
+        cleanup: () => secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL),
+        verificationKey: StorageKeys.PIN_LOCKED_UNTIL,
+      },
       { cleanup: () => secureStorage.remove(StorageKeys.WALLET_TYPE) },
       { cleanup: () => secureStorage.remove(BIOMETRIC_KEY) },
     ];

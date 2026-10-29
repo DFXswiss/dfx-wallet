@@ -12,6 +12,7 @@ import {
 } from '@/components';
 import { FEATURES } from '@/config/features';
 import { useAuthStore } from '@/store';
+import { getPostPinDestination } from '@/store/auth';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type SetupError = 'mismatch' | 'save' | 'unlock';
@@ -54,6 +55,15 @@ export default function SetupPinScreen() {
   };
 
   const completeSetup = async (pinValue: string) => {
+    const { pinHash, isAuthenticated, isOnboarded } = useAuthStore.getState();
+    if (pinHash) {
+      if (!isAuthenticated) {
+        router.replace('/(pin)/verify');
+        return;
+      }
+      router.replace(getPostPinDestination(isOnboarded, FEATURES.LEGAL).route);
+      return;
+    }
     try {
       setProcessing(true);
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
