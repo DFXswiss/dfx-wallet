@@ -362,6 +362,49 @@ describe('dfxAuthService.linkAddress', () => {
     expect(dfxAuthService.getAccessToken()).toBe('NEWER_TOKEN');
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('NEWER_TOKEN');
   });
+
+  it('rejects a link that succeeds after the session was cleared', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    dfxApi.setAuthToken('OLD_TOKEN');
+    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    postSpy.mockImplementationOnce(async () => {
+      dfxApi.clearAuthToken();
+      return { accessToken: 'LATE_TOKEN' };
+    });
+
+    await expect(dfxAuthService.linkAddress('bc1qabc', async () => 'SIG')).rejects.toThrow(
+      'Session changed while linking an address.',
+    );
+
+    expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('OLD_TOKEN');
+    postSpy.mockRestore();
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '{}',
+    } as unknown as Response);
+    await expect(
+      dfxApi.post('/v1/auth', { address: 'bc1qabc' }, { requireAuth: true }),
+    ).rejects.toThrow('Authentication required');
+  });
+
+  it('does not post when the session changes while signing', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    dfxApi.setAuthToken('OLD_TOKEN');
+    getSpy.mockResolvedValueOnce({ message: 'sign the session-change case' });
+
+    await expect(
+      dfxAuthService.linkAddress('bc1qsessionchange', async () => {
+        dfxApi.setAuthToken('other');
+        return 'SIG';
+      }),
+    ).rejects.toThrow('Session changed while linking an address.');
+
+    expect(postSpy).not.toHaveBeenCalled();
+    expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('other');
+  });
 });
 
 describe('dfxAuthService.linkLnurlAddress', () => {
@@ -498,6 +541,35 @@ describe('dfxAuthService.linkLnurlAddress', () => {
 
     expect(dfxAuthService.getAccessToken()).toBe('NEWER_TOKEN');
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('NEWER_TOKEN');
+  });
+
+  it('rejects a link that succeeds after another session was set', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    dfxApi.setAuthToken('OLD_TOKEN');
+    postSpy.mockImplementationOnce(async () => {
+      dfxApi.setAuthToken('other');
+      return { accessToken: 'LATE_TOKEN' };
+    });
+
+    await expect(dfxAuthService.linkLnurlAddress('lnurl1abc', 'OWNERSHIP_PROOF')).rejects.toThrow(
+      'Session changed while linking an address.',
+    );
+
+    expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('other');
+    postSpy.mockRestore();
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '{}',
+    } as unknown as Response);
+    await dfxApi.post('/v1/auth', { address: 'LNURL1ABC' }, { requireAuth: true });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer other' }),
+      }),
+    );
   });
 });
 
@@ -713,6 +785,31 @@ describe('dfxAuthService.changeActiveAddress', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(dfxAuthService.getAccessToken()).toBe('REFRESHED_TOKEN');
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('REFRESHED_TOKEN');
+  });
+
+  it('rejects a switch that succeeds after the session was cleared', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    dfxApi.setAuthToken('OLD_TOKEN');
+    postSpy.mockImplementationOnce(async () => {
+      dfxApi.clearAuthToken();
+      return { accessToken: 'LATE_TOKEN' };
+    });
+
+    await expect(dfxAuthService.changeActiveAddress('0xother')).rejects.toThrow(
+      'Session changed while switching addresses.',
+    );
+
+    expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('OLD_TOKEN');
+    postSpy.mockRestore();
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '{}',
+    } as unknown as Response);
+    await expect(
+      dfxApi.post('/v1/user/change', { address: '0xother' }, { requireAuth: true }),
+    ).rejects.toThrow('Authentication required');
   });
 });
 

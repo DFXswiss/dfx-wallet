@@ -139,13 +139,13 @@ describe('linked-wallet asset pricing', () => {
     expect(fetchSpy).toHaveBeenCalled();
   });
 
-  it('does not show an exact total while a chain-list change is still scanning', async () => {
+  it('treats a linked wallet as incomplete after a chain-list change until the rescan finishes', async () => {
     const { contractAddress, lookupCoinIds, fetchSimplePrices } = mockUnpricedTokenQuery();
     lookupCoinIds.mockResolvedValue(new Map([[contractAddress, 'unknown-token']]));
     fetchSimplePrices.mockResolvedValue(
       new Map([['unknown-token', { [FiatCurrency.CHF]: 2 }]]),
     );
-    jest
+    const fetchSpy = jest
       .spyOn(EvmBalanceFetcher.prototype, 'fetch')
       .mockImplementationOnce(async (specs) => {
         const results = new Map<string, EvmBalanceResult>();
@@ -172,8 +172,8 @@ describe('linked-wallet asset pricing', () => {
     expect(isLinkedWalletEntryComplete(result.current.data.get(WALLET.address))).toBe(true);
 
     rerender({ wallet: { ...WALLET, blockchains: ['Ethereum', 'Arbitrum'] } });
-    const entry = result.current.data.get(WALLET.address);
-    expect(isLinkedWalletEntryComplete(entry) ? entry.totalFiat : '—').toBe('—');
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2));
+    expect(isLinkedWalletEntryComplete(result.current.data.get(WALLET.address))).toBe(false);
   });
 
   it('marks Blockscout-known discovery incomplete when an RPC balance read fails', async () => {

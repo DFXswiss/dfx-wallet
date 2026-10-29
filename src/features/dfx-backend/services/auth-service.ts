@@ -177,18 +177,22 @@ export class DfxAuthService {
    * On failure the session is left unchanged, because the call only adopts
    * the new token after a successful response. The POST requires the Bearer
    * this call started with, so a refresh cannot send it unauthenticated.
+   * A successful response is adopted only while this call's session is still current.
    */
   async changeActiveAddress(address: string): Promise<string> {
     if (!this.accessToken) {
       throw new Error('Not authenticated — sign in before switching addresses.');
     }
+    const generation = dfxApi.getAuthGeneration();
     const response = await dfxApi.post<AuthResponseDto>(
       '/v1/user/change',
       { address },
       { requireAuth: true },
     );
+    if (!dfxApi.setAuthTokenIfCurrent(response.accessToken, generation)) {
+      throw new Error('Session changed while switching addresses.');
+    }
     this.accessToken = response.accessToken;
-    dfxApi.setAuthToken(response.accessToken);
     return response.accessToken;
   }
 
@@ -297,6 +301,7 @@ export class DfxAuthService {
    *
    * The POST requires the Bearer this call started with. Without it, DFX
    * treats `/v1/auth` as a login of the LNURL instead of a link.
+   * A successful response is adopted only while this call's session is still current.
    */
   async linkLnurlAddress(
     lnurl: string,
@@ -306,6 +311,7 @@ export class DfxAuthService {
     if (!this.accessToken) {
       throw new Error('Not authenticated — sign in before linking another address.');
     }
+    const generation = dfxApi.getAuthGeneration();
     // DFX address validator requires uppercase LNURL: `(LNURL|LNDHUB)[A-Z0-9]{25,250}`.
     // LDS hands us the lowercase `lnurl1…` form, so without this the DTO
     // validator returns 400 before the signature is even checked.
@@ -321,8 +327,10 @@ export class DfxAuthService {
       },
       { requireAuth: true },
     );
+    if (!dfxApi.setAuthTokenIfCurrent(response.accessToken, generation)) {
+      throw new Error('Session changed while linking an address.');
+    }
     this.accessToken = response.accessToken;
-    dfxApi.setAuthToken(response.accessToken);
     return response.accessToken;
   }
 
@@ -342,6 +350,8 @@ export class DfxAuthService {
    *
    * The POST requires the Bearer this call started with. Without it, DFX
    * treats `/v1/auth` as a login of the new address instead of a merge.
+   * A successful response is adopted only while this call's session is still current, and a
+   * session change during signing skips the POST.
    */
   async linkAddress(
     address: string,
@@ -351,9 +361,13 @@ export class DfxAuthService {
     if (!this.accessToken) {
       throw new Error('Not authenticated — sign in before linking another address.');
     }
+    const generation = dfxApi.getAuthGeneration();
 
     const { message } = await this.getSignMessage(address);
     const signature = await this.signWithCache(address, message, signFn);
+    if (dfxApi.getAuthGeneration() !== generation) {
+      throw new Error('Session changed while linking an address.');
+    }
 
     const response = await dfxApi.post<AuthResponseDto>(
       '/v1/auth',
@@ -365,8 +379,10 @@ export class DfxAuthService {
       },
       { requireAuth: true },
     );
+    if (!dfxApi.setAuthTokenIfCurrent(response.accessToken, generation)) {
+      throw new Error('Session changed while linking an address.');
+    }
     this.accessToken = response.accessToken;
-    dfxApi.setAuthToken(response.accessToken);
     return response.accessToken;
   }
 

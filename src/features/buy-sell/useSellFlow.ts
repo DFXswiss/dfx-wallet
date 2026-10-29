@@ -221,7 +221,7 @@ export function useSellFlow() {
 
   const confirmSell = useCallback(
     async (id: number) => {
-      const confirmSeq = confirmSeqRef.current;
+      const confirmSeq = ++confirmSeqRef.current;
       setState((s) => ({ ...s, isLoading: true, error: null, authGate: null, status: 'loading' }));
       try {
         await dfxPaymentService.confirmSell(id);

@@ -91,6 +91,24 @@ class DfxApi {
     return true;
   }
 
+  /**
+   * Session generation. `setAuthToken` and `clearAuthToken` bump it; the refresh helpers do not.
+   */
+  getAuthGeneration(): number {
+    return this.authGeneration;
+  }
+
+  /**
+   * Adopt `token` only while `authGeneration` is still current. A mismatch
+   * leaves the session untouched. A match calls `setAuthToken`, which bumps
+   * the generation and drops `refreshPromise` unless that token is already set.
+   */
+  setAuthTokenIfCurrent(token: string, authGeneration: number): boolean {
+    if (authGeneration !== this.authGeneration) return false;
+    this.setAuthToken(token);
+    return true;
+  }
+
   /** Register a callback to refresh the token on 401 */
   setOnUnauthorized(handler: (authGeneration: number) => Promise<string | null>) {
     this.onUnauthorized = handler;

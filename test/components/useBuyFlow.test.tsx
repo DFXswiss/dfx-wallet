@@ -812,6 +812,38 @@ describe('useBuyFlow', () => {
     resolvedHook.unmount();
   });
 
+  it('keeps the later confirm when an earlier confirm fails afterwards', async () => {
+    const first = deferred<void>();
+    const second = deferred<void>();
+    mockConfirmBuy.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    const { result } = renderHook(() => useBuyFlow());
+
+    let firstCall!: Promise<boolean>;
+    let secondCall!: Promise<boolean>;
+    act(() => {
+      firstCall = result.current.confirmPayment(1);
+    });
+    act(() => {
+      secondCall = result.current.confirmPayment(2);
+    });
+
+    let secondOk: boolean | undefined;
+    await act(async () => {
+      second.resolve();
+      secondOk = await secondCall;
+    });
+    let firstOk: boolean | undefined;
+    await act(async () => {
+      first.reject(new Error('confirm boom'));
+      firstOk = await firstCall;
+    });
+
+    expect(secondOk).toBe(true);
+    expect(firstOk).toBe(false);
+    expect(result.current.error).toBeNull();
+    expect(result.current.authGate).toBeNull();
+  });
+
   it('drops a late quote after cancelAuthGate', async () => {
     const cases = [{ outcome: 'auth' as const }, { outcome: 'ok' as const }];
 
