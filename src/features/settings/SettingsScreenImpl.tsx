@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   ImageBackground,
@@ -16,9 +16,10 @@ import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import { DarkBackdrop, Icon, ReauthPinModal } from '@/components';
 import { FEATURES } from '@/config/features';
-import { dfxUserService } from '@/features/dfx-backend/services';
+import { dfxApi, dfxUserService } from '@/features/dfx-backend/services';
 import { deleteWalletFlow } from '@/features/settings/services/delete-wallet';
 import { useReauthenticate } from '@/hooks/useReauthenticate';
+import { setLanguage } from '@/i18n/language';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
 import {
@@ -80,6 +81,10 @@ export default function SettingsScreen() {
   const [biometricSupported, setBiometricSupported] = useState<boolean | null>(
     biometricModule ? null : false,
   );
+  const currencySyncGeneration = useRef(0);
+  const currencySyncQueue = useRef<Promise<void>>(Promise.resolve());
+  const languageSyncGeneration = useRef(0);
+  const languageSyncQueue = useRef<Promise<void>>(Promise.resolve());
 
   // Probe the OS for Face ID / Touch ID support once on mount. Enabling still
   // requires a fresh successful authentication before the preference is saved.
@@ -116,16 +121,33 @@ export default function SettingsScreen() {
     if (authenticated) await setBiometricEnabled(true);
   };
 
-  const syncLanguageToDfx = (locale: 'de' | 'en') => {
+  const enqueueLatestDfxSync = (
+    requestGenerationRef: { current: number },
+    queueRef: { current: Promise<void> },
+    authGeneration: number,
+    run: () => Promise<unknown>,
+  ) => {
+    const requestGeneration = ++requestGenerationRef.current;
     if (!isDfxAuthenticated) return;
-    void dfxUserService
-      .updateUser({ language: { symbol: locale.toUpperCase() } })
-      .catch(() => undefined);
+    const syncLatest = async () => {
+      if (requestGeneration !== requestGenerationRef.current) return;
+      if (dfxApi.getAuthGeneration() !== authGeneration) return;
+      await run().catch(() => undefined);
+    };
+    queueRef.current = queueRef.current.then(syncLatest, syncLatest);
+  };
+
+  const syncLanguageToDfx = (locale: 'de' | 'en', authGeneration: number) => {
+    enqueueLatestDfxSync(languageSyncGeneration, languageSyncQueue, authGeneration, () =>
+      dfxUserService.updateUser({ language: { symbol: locale.toUpperCase() } }),
+    );
   };
 
   const syncCurrencyToDfx = (currency: string) => {
-    if (!isDfxAuthenticated) return;
-    void dfxUserService.updateUser({ currency: { name: currency } }).catch(() => undefined);
+    const authGeneration = dfxApi.getAuthGeneration();
+    enqueueLatestDfxSync(currencySyncGeneration, currencySyncQueue, authGeneration, () =>
+      dfxUserService.updateUser({ currency: { name: currency } }),
+    );
   };
   const CURRENCIES = ['CHF', 'EUR', 'USD'] as const;
   const currentLang = i18n.language?.startsWith('de') ? 'DE' : 'EN';
@@ -246,10 +268,15 @@ export default function SettingsScreen() {
           label: t('settings.language'),
           value: currentLang,
           testID: 'settings-language',
-          onPress: () => {
+          onPress: async () => {
             const next = currentLang === 'DE' ? 'en' : 'de';
-            void i18n.changeLanguage(next);
-            syncLanguageToDfx(next);
+            const authGeneration = dfxApi.getAuthGeneration();
+            try {
+              const persisted = await setLanguage(next, i18n);
+              if (persisted) syncLanguageToDfx(next, authGeneration);
+            } catch {
+              // Activation failed; keep the current language and remote preference unchanged.
+            }
           },
         },
         {

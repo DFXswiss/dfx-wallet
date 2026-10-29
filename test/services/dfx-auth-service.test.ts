@@ -121,7 +121,7 @@ describe('dfxAuthService.authenticate', () => {
 
     await expect(dfxAuthService.authenticate(request)).resolves.toBe('DIRECT_TOKEN');
 
-    expect(postSpy).toHaveBeenCalledWith('/v1/auth', request);
+    expect(postSpy).toHaveBeenCalledWith('/v1/auth', request, { anonymous: true });
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('DIRECT_TOKEN');
     expect(dfxAuthService.getAccessToken()).toBe('DIRECT_TOKEN');
   });
@@ -184,7 +184,7 @@ describe('dfxAuthService.login', () => {
 
   it('does not restore the previous token when a session was adopted during login', async () => {
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
-    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
     postSpy.mockImplementationOnce(async () => {
       dfxAuthService.adoptStoredToken('NEWER_TOKEN');
       dfxApi.setAuthToken('NEWER_TOKEN');
@@ -202,14 +202,14 @@ describe('dfxAuthService.login', () => {
   it('rejects a login that succeeds after the session was replaced', async () => {
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
     dfxApi.setAuthToken('OLD_TOKEN');
-    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
     postSpy.mockImplementationOnce(async () => {
       dfxApi.setAuthToken('other');
       return { accessToken: 'LATE_TOKEN' };
     });
 
-    await expect(dfxAuthService.login('0xabc', async () => 'SIG')).rejects.toThrow(
-      'Session changed while signing in.',
+    await expect(dfxAuthService.login('0xabc', async () => 'SIG')).rejects.toBeInstanceOf(
+      DfxAuthFlowInvalidatedError,
     );
 
     expect(dfxAuthService.getAccessToken()).toBeNull();
@@ -219,7 +219,7 @@ describe('dfxAuthService.login', () => {
 
   it('does not restore the previous token when logout happens during a fresh login', async () => {
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
-    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
     postSpy.mockImplementationOnce(async () => {
       dfxAuthService.logout();
       throw new DfxApiError(400, 'AUTH_FAILED', 'Invalid signature');
@@ -231,6 +231,20 @@ describe('dfxAuthService.login', () => {
 
     expect(dfxAuthService.getAccessToken()).toBeNull();
     expect(setAuthTokenSpy).not.toHaveBeenCalledWith('OLD_TOKEN');
+  });
+
+  it('rejects a mismatched backend message without signing it', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    getSpy.mockResolvedValueOnce({ message: `${backendSignMessage('0xabc')}extra` });
+    const signFn = jest.fn().mockResolvedValue('SIG');
+
+    await expect(dfxAuthService.login('0xabc', signFn)).rejects.toBeInstanceOf(
+      DfxSignMessageMismatchError,
+    );
+
+    expect(signFn).not.toHaveBeenCalled();
+    expect(postSpy).not.toHaveBeenCalled();
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('OLD_TOKEN');
   });
 });
 
@@ -245,7 +259,7 @@ describe('dfxAuthService login posts carry no bearer', () => {
     return jest.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
       const body = url.includes('/v1/auth/signMessage')
-        ? JSON.stringify({ message: 'sign me' })
+        ? JSON.stringify({ message: backendSignMessage('0xabc') })
         : JSON.stringify({ accessToken: 'OWNER_TOKEN' });
       return {
         ok: true,
@@ -278,7 +292,7 @@ describe('dfxAuthService login posts carry no bearer', () => {
         dfxApi.setAuthToken('FOREIGN');
         return 'SIG';
       }),
-    ).rejects.toThrow('Session changed while signing in.');
+    ).rejects.toBeInstanceOf(DfxAuthFlowInvalidatedError);
 
     expectLoginPostWithoutAuthorization(fetchSpy);
     expect(dfxAuthService.getAccessToken()).toBeNull();
@@ -314,18 +328,6 @@ describe('dfxAuthService login posts carry no bearer', () => {
     ).rejects.toThrow('Authentication changed while token refresh was pending.');
 
     expectLoginPostWithoutAuthorization(fetchSpy);
-  it('rejects a mismatched backend message without signing it', async () => {
-    dfxAuthService.adoptStoredToken('OLD_TOKEN');
-    getSpy.mockResolvedValueOnce({ message: `${backendSignMessage('0xabc')}extra` });
-    const signFn = jest.fn().mockResolvedValue('SIG');
-
-    await expect(dfxAuthService.login('0xabc', signFn)).rejects.toBeInstanceOf(
-      DfxSignMessageMismatchError,
-    );
-
-    expect(signFn).not.toHaveBeenCalled();
-    expect(postSpy).not.toHaveBeenCalled();
-    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('OLD_TOKEN');
   });
 });
 
@@ -365,7 +367,6 @@ describe('dfxAuthService.linkAddress', () => {
       blockchain: 'Bitcoin',
     });
 
-    expect(signFn).toHaveBeenCalledWith('sign me');
     expect(postSpy).toHaveBeenCalledWith(
       '/v1/auth',
       {
@@ -377,12 +378,6 @@ describe('dfxAuthService.linkAddress', () => {
       { requireAuth: true },
     );
     expect(signFn).toHaveBeenCalledWith(backendSignMessage('bc1qabc'));
-    expect(postSpy).toHaveBeenCalledWith('/v1/auth', {
-      address: 'bc1qabc',
-      signature: 'SIGNATURE',
-      wallet: 'DFX Wallet',
-      blockchain: 'Bitcoin',
-    });
     expect(newToken).toBe('NEW_TOKEN');
     // The fresh JWT must replace the old one so /buy/quote stops returning
     // "Asset blockchain mismatch" — this was the regression we fixed.
@@ -397,8 +392,9 @@ describe('dfxAuthService.linkAddress', () => {
     dfxApi.clearAuthToken();
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
     const generation = await captureAuthGeneration();
-    jest.spyOn(dfxApi, 'get').mockResolvedValueOnce({ message: 'sign me' });
-    getSpy.mockResolvedValueOnce({ message: backendSignMessage('bc1qabc') });
+    jest.spyOn(dfxApi, 'get').mockResolvedValueOnce({
+      message: backendSignMessage('bc1qabc'),
+    });
     postSpy.mockRejectedValueOnce(
       new DfxApiError(409, 'CONFLICT', 'Address belongs to another user'),
     );
@@ -442,7 +438,7 @@ describe('dfxAuthService.linkAddress', () => {
     getSpy.mockRestore();
     postSpy.mockRestore();
     const { fetchSpy } = await clearApiTokenForInFlightRefresh('OLD_TOKEN');
-    jest.spyOn(dfxApi, 'get').mockResolvedValue({ message: 'sign me' });
+    jest.spyOn(dfxApi, 'get').mockResolvedValue({ message: backendSignMessage('bc1qabc') });
 
     await expect(dfxAuthService.linkAddress('bc1qabc', async () => 'SIG')).rejects.toThrow(
       'Authentication required',
@@ -456,7 +452,7 @@ describe('dfxAuthService.linkAddress', () => {
     getSpy.mockRestore();
     postSpy.mockRestore();
     const { generation } = await clearApiTokenForInFlightRefresh('OLD_TOKEN');
-    jest.spyOn(dfxApi, 'get').mockResolvedValue({ message: 'sign me' });
+    jest.spyOn(dfxApi, 'get').mockResolvedValue({ message: backendSignMessage('bc1qabc') });
 
     await expect(dfxAuthService.linkAddress('bc1qabc', async () => 'SIG')).rejects.toThrow(
       'Authentication required',
@@ -471,7 +467,7 @@ describe('dfxAuthService.linkAddress', () => {
 
   it('does not restore the previous token when the session was replaced while linking', async () => {
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
-    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('bc1qabc') });
     postSpy.mockImplementationOnce(async () => {
       dfxAuthService.adoptStoredToken('NEWER_TOKEN');
       dfxApi.setAuthToken('NEWER_TOKEN');
@@ -489,14 +485,14 @@ describe('dfxAuthService.linkAddress', () => {
   it('rejects a link that succeeds after the session was cleared', async () => {
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
     dfxApi.setAuthToken('OLD_TOKEN');
-    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('bc1qabc') });
     postSpy.mockImplementationOnce(async () => {
       dfxApi.clearAuthToken();
       return { accessToken: 'LATE_TOKEN' };
     });
 
-    await expect(dfxAuthService.linkAddress('bc1qabc', async () => 'SIG')).rejects.toThrow(
-      'Session changed while linking an address.',
+    await expect(dfxAuthService.linkAddress('bc1qabc', async () => 'SIG')).rejects.toBeInstanceOf(
+      DfxAuthFlowInvalidatedError,
     );
 
     expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
@@ -515,14 +511,14 @@ describe('dfxAuthService.linkAddress', () => {
   it('does not post when the session changes while signing', async () => {
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
     dfxApi.setAuthToken('OLD_TOKEN');
-    getSpy.mockResolvedValueOnce({ message: 'sign the session-change case' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('bc1qsessionchange') });
 
     await expect(
       dfxAuthService.linkAddress('bc1qsessionchange', async () => {
         dfxApi.setAuthToken('other');
         return 'SIG';
       }),
-    ).rejects.toThrow('Session changed while linking an address.');
+    ).rejects.toBeInstanceOf(DfxAuthFlowInvalidatedError);
 
     expect(postSpy).not.toHaveBeenCalled();
     expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
@@ -1013,9 +1009,9 @@ describe('dfxAuthService.linkLnurlAddress', () => {
       return { accessToken: 'LATE_TOKEN' };
     });
 
-    await expect(dfxAuthService.linkLnurlAddress('lnurl1abc', 'OWNERSHIP_PROOF')).rejects.toThrow(
-      'Session changed while linking an address.',
-    );
+    await expect(
+      dfxAuthService.linkLnurlAddress('lnurl1abc', 'OWNERSHIP_PROOF'),
+    ).rejects.toBeInstanceOf(DfxAuthFlowInvalidatedError);
 
     expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('other');
@@ -1308,8 +1304,8 @@ describe('dfxAuthService.changeActiveAddress', () => {
       return { accessToken: 'LATE_TOKEN' };
     });
 
-    await expect(dfxAuthService.changeActiveAddress('0xother')).rejects.toThrow(
-      'Session changed while switching addresses.',
+    await expect(dfxAuthService.changeActiveAddress('0xother')).rejects.toBeInstanceOf(
+      DfxAuthFlowInvalidatedError,
     );
 
     expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
@@ -1415,8 +1411,8 @@ describe('dfxAuthService.loginAsLnurlAddressOwner', () => {
       return { accessToken: 'LATE_TOKEN' };
     });
 
-    await expect(dfxAuthService.loginAsLnurlAddressOwner('lnurl1', 'PROOF')).rejects.toThrow(
-      'Session changed while signing in.',
+    await expect(dfxAuthService.loginAsLnurlAddressOwner('lnurl1', 'PROOF')).rejects.toBeInstanceOf(
+      DfxAuthFlowInvalidatedError,
     );
 
     expect(dfxAuthService.getAccessToken()).toBeNull();
@@ -1492,7 +1488,7 @@ describe('dfxAuthService delegating helpers', () => {
   });
 
   it('uses generation-bound token updates for a 401 refresh', async () => {
-    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
     postSpy.mockResolvedValueOnce({ accessToken: 'REFRESHED' });
 
     const token = await dfxAuthService.refresh('0xabc', async () => 'SIG', 7);
@@ -1516,7 +1512,7 @@ describe('dfxAuthService delegating helpers', () => {
 
   it('does not adopt a refresh token after the auth generation changes', async () => {
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
-    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
     postSpy.mockResolvedValueOnce({ accessToken: 'STALE_TOKEN' });
     setAuthTokenForRefreshSpy.mockReturnValue(false);
 
@@ -1547,6 +1543,71 @@ describe('dfxAuthService delegating helpers', () => {
       { anonymous: true },
     );
     expect(token).toBe('OWNER');
+  });
+});
+
+describe('dfxAuthService refresh generation', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+    dfxApi.setOnUnauthorized(async () => null);
+    dfxAuthService.logout();
+  });
+
+  it('does not change the auth generation, so an in-flight 401 still retries', async () => {
+    dfxAuthService.logout();
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    dfxApi.setAuthToken('OLD_TOKEN');
+    const generation = dfxApi.getAuthGeneration();
+    const address = '0xabc';
+    const signMessage = backendSignMessage(address);
+    let userAttempts = 0;
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = (init as RequestInit | undefined)?.method;
+      if (url.includes('/v1/auth/signMessage')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ message: signMessage }),
+        } as unknown as Response;
+      }
+      if (url.endsWith('/v1/auth') && method === 'POST') {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ accessToken: 'REFRESHED_TOKEN' }),
+        } as unknown as Response;
+      }
+      if (url.endsWith('/v1/user')) {
+        userAttempts += 1;
+        if (userAttempts === 1) {
+          return {
+            ok: false,
+            status: 401,
+            json: async () => ({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Expired' }),
+          } as unknown as Response;
+        }
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ id: 1 }),
+        } as unknown as Response;
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    dfxApi.setOnUnauthorized(async (authGeneration) =>
+      dfxAuthService.login(address, async () => 'SIG', undefined, authGeneration),
+    );
+
+    await expect(dfxApi.get('/v1/user')).resolves.toEqual({ id: 1 });
+
+    expect(dfxApi.getAuthGeneration()).toBe(generation);
+    const userCalls = fetchSpy.mock.calls.filter((call) => String(call[0]).endsWith('/v1/user'));
+    expect(userCalls).toHaveLength(2);
+    expect(userAttempts).toBe(2);
+    const retryHeaders = (userCalls[1]?.[1] as { headers?: Record<string, string> } | undefined)
+      ?.headers;
+    expect(retryHeaders?.Authorization).toBe('Bearer REFRESHED_TOKEN');
   });
 });
 
@@ -1691,8 +1752,8 @@ describe('dfxAuthService mail login', () => {
       return { accessToken: 'LATE_TOKEN' };
     });
 
-    await expect(dfxAuthService.confirmMailLogin('otp-code')).rejects.toThrow(
-      'Session changed while signing in.',
+    await expect(dfxAuthService.confirmMailLogin('otp-code')).rejects.toBeInstanceOf(
+      DfxAuthFlowInvalidatedError,
     );
 
     expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');

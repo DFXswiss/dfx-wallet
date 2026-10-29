@@ -16,8 +16,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DfxApiError, DfxApiTimeoutError } from '@/features/dfx-backend/services/api';
-import { PasskeyPrfUnsupportedError } from '@/features/passkey/services/passkey-service';
-import { DfxApiError } from '@/features/dfx-backend/services/api';
 import {
   DfxAuthFlowInvalidatedError,
   DfxSignMessageMismatchError,
@@ -69,8 +67,6 @@ describe('exception surface', () => {
     const registered = [
       'DfxApiError',
       'DfxApiTimeoutError',
-      'PasskeyPrfUnsupportedError',
-      'OpenCryptoPayError',
       'DfxAuthFlowInvalidatedError',
       'DfxSignMessageMismatchError',
       'PasskeyPrfUnsupportedError',
