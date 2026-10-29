@@ -379,6 +379,34 @@ describe('SettingsScreenImpl', () => {
     expect(dfxUserService.updateUser).not.toHaveBeenCalledWith({ language: { symbol: 'EN' } });
   });
 
+  it('does not send a language update when the session changes during the storage write', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    const persist = createDeferred();
+    (secureStorage.set as jest.Mock).mockImplementationOnce(() => persist.promise);
+    __i18n.changeLanguage.mockImplementation(async (language: string) => {
+      __i18n.language = language;
+    });
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-language'));
+    await waitFor(() =>
+      expect(secureStorage.set).toHaveBeenCalledWith(StorageKeys.SELECTED_LANGUAGE, 'de'),
+    );
+    expect(dfxUserService.updateUser).not.toHaveBeenCalled();
+
+    mockGetAuthGeneration.mockReturnValue(1);
+    await act(async () => {
+      persist.resolve();
+    });
+    await waitFor(() => expect(mockGetAuthGeneration).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(dfxUserService.updateUser).not.toHaveBeenCalled();
+  });
+
   it('sends only the latest language when toggled again while a sync is in flight', async () => {
     useAuthStore.setState({ isDfxAuthenticated: true });
     const firstSync = createDeferred();

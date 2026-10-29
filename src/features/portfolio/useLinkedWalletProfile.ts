@@ -51,6 +51,9 @@ export function useLinkedWalletProfile(
           return;
         } catch {
           if (cancelled) return;
+          // Same rule as a late success: this rejection belongs to a session that
+          // has already ended, so fetch again instead of freezing the profile.
+          if (dfxApi.getAuthGeneration() !== generation) continue;
           setIsIncomplete(true);
           return;
         }

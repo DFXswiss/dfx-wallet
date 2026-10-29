@@ -173,6 +173,35 @@ describe('useLinkedWalletProfile', () => {
     expect(result.current.activeAddress).toBe(ACTIVE.address);
   });
 
+  it('discards a rejected profile after the session changes and shows the next fetch', async () => {
+    const stale = deferred<{ addresses: UserAddressDto[]; activeAddress: UserAddressDto }>();
+    const fresh = deferred<{ addresses: UserAddressDto[]; activeAddress: UserAddressDto }>();
+    mockGetUser.mockReturnValueOnce(stale.promise).mockReturnValueOnce(fresh.promise);
+    mockGetAuthGeneration.mockReturnValue(1);
+
+    const { result } = renderHook(() => useLinkedWalletProfile(true));
+    expect(result.current.isIncomplete).toBe(true);
+    expect(mockGetUser).toHaveBeenCalledTimes(1);
+
+    mockGetAuthGeneration.mockReturnValue(2);
+    await act(async () => {
+      stale.reject(new Error('401'));
+    });
+
+    expect(result.current.linkedAddresses).toEqual([]);
+    expect(result.current.activeAddress).toBeNull();
+    expect(result.current.isIncomplete).toBe(true);
+    expect(mockGetUser).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      fresh.resolve({ addresses: [ACTIVE], activeAddress: ACTIVE });
+    });
+
+    await waitFor(() => expect(result.current.isIncomplete).toBe(false));
+    expect(result.current.linkedAddresses).toEqual([ACTIVE]);
+    expect(result.current.activeAddress).toBe(ACTIVE.address);
+  });
+
   it('does not update state when getUser resolves after unmount', async () => {
     const request = deferred<unknown>();
     mockGetUser.mockReturnValue(request.promise);
