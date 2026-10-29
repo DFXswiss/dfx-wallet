@@ -135,6 +135,9 @@ describe('VerifyPinScreen', () => {
     expect(mockSetOnboarded).toHaveBeenCalledWith(true);
     expect(mockSetAuthenticated).toHaveBeenCalledWith(true);
     expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard');
+    expect(mockSetOnboarded.mock.invocationCallOrder[0]).toBeLessThan(
+      mockReplace.mock.invocationCallOrder[0]!,
+    );
   });
 
   it('shows an error and allows retry when finishing authentication rejects', async () => {
@@ -287,12 +290,19 @@ describe('VerifyPinScreen', () => {
 
   it('auto-verifies a 6-digit legacy PIN exactly once as a counted attempt', async () => {
     mockAuthState.pinHash = 'abcdef';
+    mockVerifyPin.mockImplementation(async () => {
+      mockAuthState.failedAttempts += 1;
+      return false;
+    });
     const { getByTestId } = render(<VerifyPinScreen />);
 
     await enterPin(getByTestId, '123456');
 
     expect(mockVerifyPin.mock.calls).toEqual([['123456']]);
-    expect(getByTestId('verify-pin-error')).toBeTruthy();
+    expect(mockAuthState.failedAttempts).toBe(1);
+    expect(getByTestId('verify-pin-error').children.join('')).toBe(
+      'pin.incorrectAttemptsLeft:{"count":4}',
+    );
   });
 
   it('shows the processing overlay while final PIN verification is pending', async () => {

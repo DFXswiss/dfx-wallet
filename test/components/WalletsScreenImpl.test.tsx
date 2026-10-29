@@ -4,15 +4,19 @@ import WalletsScreen from '@/features/dfx-backend/screens/WalletsScreenImpl';
 import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
 
 const mockGetUser = jest.fn();
+const mockReauthenticateAsOwner = jest.fn();
 const mockLinkAddress = jest.fn<
   Promise<string>,
   [string, (message: string) => Promise<string>, { wallet: string; blockchain: string }]
 >();
 const mockSign = jest.fn<Promise<{ success: true; signature: string }>, [string]>();
 
-jest.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
-}));
+jest.mock('react-i18next', () => {
+  const translate = (key: string) => key;
+  return {
+    useTranslation: () => ({ t: translate }),
+  };
+});
 
 jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
@@ -27,14 +31,7 @@ jest.mock('@tetherto/wdk-react-native-core', () => ({
 }));
 
 jest.mock('@/features/dfx-backend/services', () => ({
-  DfxApiError: class DfxApiError extends Error {
-    statusCode: number;
-
-    constructor(statusCode: number, message: string) {
-      super(message);
-      this.statusCode = statusCode;
-    }
-  },
+  DfxApiError: class extends Error {},
   dfxAuthService: {
     linkAddress: (
       address: string,
@@ -55,7 +52,7 @@ jest.mock('@/features/dfx-backend/session-guard', () => ({
 jest.mock('@/hooks', () => ({
   useDfxAuth: () => ({
     isAuthenticating: false,
-    reauthenticateAsOwner: jest.fn(),
+    reauthenticateAsOwner: () => mockReauthenticateAsOwner(),
   }),
 }));
 
@@ -76,14 +73,41 @@ jest.mock('@/features/linked-wallets/useLinkedWalletSelection', () => ({
 
 jest.mock('@/components', () => {
   const ReactActual = jest.requireActual('react');
-  const { View } = jest.requireActual('react-native');
+  const { Pressable, Text, View } = jest.requireActual('react-native');
   return {
     AppHeader: () => null,
     DfxBackgroundScreen: ({ children, testID }: { children?: React.ReactNode; testID?: string }) =>
       ReactActual.createElement(View, { testID }, children),
-    EmptyState: () => null,
+    EmptyState: ({
+      action,
+      description,
+      testID,
+    }: {
+      action?: React.ReactNode;
+      description?: string;
+      testID?: string;
+    }) =>
+      ReactActual.createElement(
+        View,
+        { testID },
+        description ? ReactActual.createElement(Text, null, description) : null,
+        action,
+      ),
     Icon: () => null,
-    PrimaryButton: () => null,
+    PrimaryButton: ({
+      loading,
+      onPress,
+      testID,
+    }: {
+      loading?: boolean;
+      onPress?: () => void;
+      testID?: string;
+    }) =>
+      ReactActual.createElement(Pressable, {
+        accessibilityState: { disabled: loading === true },
+        onPress,
+        testID,
+      }),
     RenameWalletModal: () => null,
     Skeleton: () => null,
   };
@@ -114,11 +138,12 @@ jest.mock('@/theme', () => {
 describe('WalletsScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockReauthenticateAsOwner.mockReset();
     mockGetUser.mockResolvedValue({ activeAddress: null, addresses: [] });
     mockSign.mockResolvedValue({ success: true, signature: 'signed-message' });
   });
 
-  it('silently stops linking when a newer authentication flow wins', async () => {
+  it('silently stops linking when the link flow is invalidated', async () => {
     const invalidated = new DfxAuthFlowInvalidatedError();
     let rejectLink!: (reason: unknown) => void;
     mockLinkAddress.mockImplementationOnce(
@@ -147,5 +172,26 @@ describe('WalletsScreen', () => {
       ).toBe(false),
     );
     expect(screen.queryByText(invalidated.message)).toBeNull();
+  });
+
+  it('returns from merged recovery without the invalidated authentication message', async () => {
+    const services = jest.requireMock('@/features/dfx-backend/services') as {
+      DfxApiError: new (message: string) => Error;
+    };
+    const invalidated = new DfxAuthFlowInvalidatedError();
+    mockGetUser.mockReset();
+    mockGetUser.mockRejectedValue(new services.DfxApiError('User is merged'));
+    mockReauthenticateAsOwner.mockRejectedValue(invalidated);
+    const screen = render(<WalletsScreen />);
+
+    await waitFor(() => expect(screen.getByTestId('wallets-recover')).toBeTruthy());
+    expect(screen.getByText('wallets.mergedExplanation')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('wallets-recover'));
+
+    await waitFor(() => expect(mockReauthenticateAsOwner).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByTestId('wallets-recover')).toBeTruthy());
+    expect(screen.getByText('wallets.mergedExplanation')).toBeTruthy();
+    expect(screen.queryByText(invalidated.message)).toBeNull();
+    expect(screen.queryByText('wallets.noAddresses')).toBeNull();
   });
 });

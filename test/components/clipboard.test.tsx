@@ -144,7 +144,7 @@ describe('copySensitive', () => {
     expect(subscription.remove).toHaveBeenCalledTimes(1);
   });
 
-  it('invalidates an in-flight clear before writing a new sensitive value', async () => {
+  it('invalidates an in-flight clear only after the new sensitive write succeeds', async () => {
     const pendingRead = deferred<string>();
     const pendingSecondWrite = deferred<boolean>();
     jest
@@ -160,20 +160,42 @@ describe('copySensitive', () => {
     await jest.advanceTimersByTimeAsync(500);
 
     const secondCopy = copySensitive('second', 500);
-    pendingRead.resolve('first');
     await flushClipboardCleanup();
 
+    expect(firstSubscription.remove).not.toHaveBeenCalled();
+
+    pendingSecondWrite.resolve(true);
+    await secondCopy;
     expect(firstSubscription.remove).toHaveBeenCalledTimes(1);
     expect(Clipboard.setStringAsync).toHaveBeenCalledTimes(2);
     expect(Clipboard.setStringAsync).not.toHaveBeenCalledWith('');
 
-    pendingSecondWrite.resolve(true);
-    await secondCopy;
+    pendingRead.resolve('first');
+    await flushClipboardCleanup();
+    expect(Clipboard.setStringAsync).not.toHaveBeenCalledWith('');
+
     const secondSubscription = mockSubscriptions[1]!;
     await jest.advanceTimersByTimeAsync(500);
 
     expect(Clipboard.setStringAsync).toHaveBeenNthCalledWith(3, '');
     expect(secondSubscription.remove).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the previous cleanup when a new sensitive write fails', async () => {
+    jest.mocked(Clipboard.getStringAsync).mockResolvedValue('first');
+    await copySensitive('first', 500);
+    const firstSubscription = mockSubscriptions[0]!;
+
+    jest.mocked(Clipboard.setStringAsync).mockRejectedValueOnce(new Error('write denied'));
+    await expect(copySensitive('second', 500)).rejects.toThrow('write denied');
+
+    expect(firstSubscription.remove).not.toHaveBeenCalled();
+    expect(mockSubscriptions).toHaveLength(1);
+
+    await jest.advanceTimersByTimeAsync(500);
+    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(1);
+    expect(Clipboard.setStringAsync).toHaveBeenLastCalledWith('');
+    expect(firstSubscription.remove).toHaveBeenCalledTimes(1);
   });
 
   it('preserves clipboard content that changed before the custom timeout', async () => {
@@ -206,12 +228,16 @@ describe('copySensitive', () => {
 
     await jest.advanceTimersByTimeAsync(500);
 
+    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(1);
+
+    await jest.advanceTimersByTimeAsync(500);
+
     expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(2);
     expect(Clipboard.setStringAsync).toHaveBeenLastCalledWith('');
     expect(subscription.remove).toHaveBeenCalledTimes(1);
   });
 
-  // Red mutations: cancel pending cleanup at the limit, or keep scheduling timed retries.
+  // Red mutations: retry on the original delay, or keep scheduling after the backoff budget.
   it('stops timed retries at the limit but retries on a later active event', async () => {
     jest.mocked(Clipboard.getStringAsync).mockRejectedValue(new Error('permission denied'));
 
@@ -220,23 +246,25 @@ describe('copySensitive', () => {
 
     await jest.advanceTimersByTimeAsync(500);
     expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(1);
-    await jest.advanceTimersByTimeAsync(500);
+    await jest.advanceTimersByTimeAsync(1_000);
     expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(2);
-    await jest.advanceTimersByTimeAsync(500);
-
+    await jest.advanceTimersByTimeAsync(2_000);
     expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(3);
+    await jest.advanceTimersByTimeAsync(4_000);
+
+    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(4);
     expect(subscription.remove).not.toHaveBeenCalled();
 
-    await jest.advanceTimersByTimeAsync(1_000);
+    await jest.advanceTimersByTimeAsync(8_000);
 
-    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(3);
+    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(4);
     expect(subscription.remove).not.toHaveBeenCalled();
 
     jest.mocked(Clipboard.getStringAsync).mockResolvedValue('secret seed');
     subscription.listener('active');
     await flushClipboardCleanup();
 
-    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(4);
+    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(5);
     expect(Clipboard.setStringAsync).toHaveBeenLastCalledWith('');
     expect(subscription.remove).toHaveBeenCalledTimes(1);
   });
@@ -287,7 +315,7 @@ describe('copySensitive', () => {
     expect(subscription.remove).toHaveBeenCalledTimes(1);
   });
 
-  // Red mutation: cancel pending cleanup after the third failed read.
+  // Red mutation: stop the backoff timer before the fourth failed read.
   it('keeps failed-read cleanup pending after the timed retry budget is spent', async () => {
     jest.mocked(Clipboard.getStringAsync).mockRejectedValue(new Error('permission denied'));
 
@@ -304,13 +332,20 @@ describe('copySensitive', () => {
 
     expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(3);
     expect(subscription.remove).not.toHaveBeenCalled();
+    expect(jest.getTimerCount()).toBe(1);
+
+    subscription.listener('active');
+    await flushClipboardCleanup();
+
+    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(4);
+    expect(subscription.remove).not.toHaveBeenCalled();
     expect(jest.getTimerCount()).toBe(0);
 
     jest.mocked(Clipboard.getStringAsync).mockResolvedValue('secret seed');
     subscription.listener('active');
     await flushClipboardCleanup();
 
-    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(4);
+    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(5);
     expect(Clipboard.setStringAsync).toHaveBeenLastCalledWith('');
     expect(subscription.remove).toHaveBeenCalledTimes(1);
   });
@@ -344,18 +379,25 @@ describe('copySensitive', () => {
 
     expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(3);
     expect(subscription.remove).not.toHaveBeenCalled();
+    expect(jest.getTimerCount()).toBe(1);
+
+    subscription.listener('active');
+    await flushClipboardCleanup();
+
+    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(4);
+    expect(subscription.remove).not.toHaveBeenCalled();
     expect(jest.getTimerCount()).toBe(0);
 
     jest.mocked(Clipboard.getStringAsync).mockResolvedValue('secret seed');
     subscription.listener('active');
     await flushClipboardCleanup();
 
-    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(4);
+    expect(Clipboard.getStringAsync).toHaveBeenCalledTimes(5);
     expect(Clipboard.setStringAsync).toHaveBeenLastCalledWith('');
     expect(subscription.remove).toHaveBeenCalledTimes(1);
   });
 
-  // Red mutation: cancel pending cleanup after the third failed clipboard write.
+  // Red mutation: stop the backoff timer before the fourth failed clipboard write.
   it('keeps failed-write cleanup pending after the timed retry budget is spent', async () => {
     jest.mocked(Clipboard.getStringAsync).mockResolvedValue('secret seed');
     jest.mocked(Clipboard.setStringAsync).mockImplementation(async (value) => {
@@ -376,13 +418,20 @@ describe('copySensitive', () => {
 
     expect(Clipboard.setStringAsync).toHaveBeenCalledTimes(4);
     expect(subscription.remove).not.toHaveBeenCalled();
+    expect(jest.getTimerCount()).toBe(1);
+
+    subscription.listener('active');
+    await flushClipboardCleanup();
+
+    expect(Clipboard.setStringAsync).toHaveBeenCalledTimes(5);
+    expect(subscription.remove).not.toHaveBeenCalled();
     expect(jest.getTimerCount()).toBe(0);
 
     jest.mocked(Clipboard.setStringAsync).mockResolvedValue(true);
     subscription.listener('active');
     await flushClipboardCleanup();
 
-    expect(Clipboard.setStringAsync).toHaveBeenCalledTimes(5);
+    expect(Clipboard.setStringAsync).toHaveBeenCalledTimes(6);
     expect(Clipboard.setStringAsync).toHaveBeenLastCalledWith('');
     expect(subscription.remove).toHaveBeenCalledTimes(1);
   });

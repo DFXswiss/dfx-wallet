@@ -12,9 +12,10 @@ import { bundle } from '../.wdk';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { PrivacyShield } from '@/components/PrivacyShield';
+import { PrivacyShield } from '@/components';
 import { getWdkConfigs } from '@/config/chains';
 import { IS_E2E } from '@/config/e2e';
+import { useAutoLock } from '@/hooks/useAutoLock';
 import { pricingService } from '@/services/pricing-service';
 import { useAuthStore, useWalletStore } from '@/store';
 import { Spacing, ThemeProvider, Typography, useColors, useThemeStore } from '@/theme';
@@ -52,6 +53,7 @@ export default function RootLayout() {
 }
 
 function ThemedRoot() {
+  useAutoLock();
   const { isHydrated: authHydrated, hydrate, hydrateError } = useAuthStore();
   const hydrateWallet = useWalletStore((s) => s.hydrate);
   const hydrateTheme = useThemeStore((s) => s.hydrate);

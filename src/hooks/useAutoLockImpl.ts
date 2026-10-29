@@ -9,6 +9,10 @@ export function useAutoLock(): void {
   const setAuthenticated = useAuthStore((state) => state.setAuthenticated);
 
   useEffect(() => {
+    if (AppState.currentState !== 'active') {
+      backgroundedAt.current = Date.now();
+    }
+
     const handleChange = (nextState: AppStateStatus) => {
       if (nextState === 'background') {
         backgroundedAt.current = Date.now();
@@ -17,7 +21,7 @@ export function useAutoLock(): void {
       if (
         nextState === 'active' &&
         backgroundedAt.current !== null &&
-        Date.now() - backgroundedAt.current > AUTO_LOCK_AFTER_MS
+        Date.now() - backgroundedAt.current >= AUTO_LOCK_AFTER_MS
       ) {
         setAuthenticated(false);
       }

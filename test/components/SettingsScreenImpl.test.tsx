@@ -561,6 +561,13 @@ describe('SettingsScreenImpl', () => {
 
   it('enables biometrics only after a successful localized authentication prompt', async () => {
     (isBiometricAvailable as jest.Mock).mockResolvedValue(true);
+    let resolveAuth: (value: boolean) => void = () => undefined;
+    (authenticateWithBiometric as jest.Mock).mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveAuth = resolve;
+        }),
+    );
     const alertSpy = jest.spyOn(Alert, 'alert');
     const { UNSAFE_getByType } = renderScreen();
     await waitFor(() => expect(isBiometricAvailable).toHaveBeenCalled());
@@ -572,6 +579,12 @@ describe('SettingsScreenImpl', () => {
       promptMessage: 'biometric.enable',
       cancelLabel: 'biometric.usePin',
     });
+    expect(useAuthStore.getState().biometricEnabled).toBe(false);
+
+    await act(async () => {
+      resolveAuth(true);
+    });
+
     await waitFor(() => expect(useAuthStore.getState().biometricEnabled).toBe(true));
   });
 
@@ -636,9 +649,20 @@ describe('SettingsScreenImpl', () => {
   });
 
   it('deletes a seed wallet, resets auth and replaces the root route', async () => {
-    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
-      key === StorageKeys.WALLET_ORIGIN ? 'seed' : null,
+    const stored = new Map<string, string>([[StorageKeys.WALLET_ORIGIN, 'seed']]);
+    (secureStorage.get as jest.Mock).mockImplementation(
+      async (key: string) => stored.get(key) ?? null,
     );
+    (secureStorage.remove as jest.Mock).mockImplementation(async (key: string) => {
+      stored.delete(key);
+    });
+    useAuthStore.setState({
+      isAuthenticated: true,
+      isOnboarded: true,
+      pinHash: 'seed-pin-hash',
+    });
+    const resetSpy = jest.spyOn(useAuthStore.getState(), 'reset');
+    resetSpy.mockClear();
     const alertSpy = jest.spyOn(Alert, 'alert');
     const { getByTestId } = renderScreen();
     await waitFor(() => expect(getByTestId('settings-delete-wallet')).toBeTruthy());
@@ -648,14 +672,35 @@ describe('SettingsScreenImpl', () => {
     });
     expect(mockRequestReauth).toHaveBeenCalledTimes(1);
     expect(deleteWallet).toHaveBeenCalledWith('default');
+    expect(resetSpy).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState()).toMatchObject({
+      isAuthenticated: false,
+      isOnboarded: false,
+      pinHash: null,
+    });
     expect(mockReplace).toHaveBeenCalledWith('/');
+    expect(alertSpy).not.toHaveBeenCalledWith(
+      'common.error',
+      'settings.deleteWalletCleanupFailed',
+    );
   });
 
   // Red mutations: omit the retry or omit any WDK credential getter from dependency wiring.
   it('uses the passkey confirm copy and resets when a throwing delete removed the wallet', async () => {
-    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
-      key === StorageKeys.WALLET_ORIGIN ? 'passkey' : null,
+    const stored = new Map<string, string>([[StorageKeys.WALLET_ORIGIN, 'passkey']]);
+    (secureStorage.get as jest.Mock).mockImplementation(
+      async (key: string) => stored.get(key) ?? null,
     );
+    (secureStorage.remove as jest.Mock).mockImplementation(async (key: string) => {
+      stored.delete(key);
+    });
+    useAuthStore.setState({
+      isAuthenticated: true,
+      isOnboarded: true,
+      pinHash: 'passkey-pin-hash',
+    });
+    const resetSpy = jest.spyOn(useAuthStore.getState(), 'reset');
+    resetSpy.mockClear();
     deleteWallet.mockRejectedValue(new Error('missing'));
     const alertSpy = jest.spyOn(Alert, 'alert');
     const { getByTestId } = renderScreen();
@@ -669,6 +714,12 @@ describe('SettingsScreenImpl', () => {
     expect(getEncryptionKey).toHaveBeenCalledWith('default');
     expect(getEncryptedSeed).toHaveBeenCalledWith('default');
     expect(getEncryptedEntropy).toHaveBeenCalledWith('default');
+    expect(resetSpy).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState()).toMatchObject({
+      isAuthenticated: false,
+      isOnboarded: false,
+      pinHash: null,
+    });
     expect(mockReplace).toHaveBeenCalledWith('/');
   });
 
@@ -703,6 +754,7 @@ describe('SettingsScreenImpl', () => {
       await pressConfirm(alertSpy);
     });
 
+    expect(deleteWallet).toHaveBeenCalledWith('default');
     expect(mockReplace).toHaveBeenCalledWith('/');
     expect(alertSpy).toHaveBeenLastCalledWith(
       'common.error',

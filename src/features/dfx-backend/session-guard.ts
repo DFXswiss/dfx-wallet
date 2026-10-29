@@ -22,10 +22,14 @@ export type DfxSessionGuard = {
 
 let tokenWriteQueue: Promise<void> = Promise.resolve();
 
-function enqueueTokenWrite(token: string): Promise<void> {
+function enqueueTokenWrite(token: string, sessionEpoch: number): Promise<void> {
   const write = tokenWriteQueue.then(async () => {
     const currentToken = dfxAuthService.getAccessToken();
     if (currentToken === null || !constantTimeEqual(currentToken, token)) {
+      throw new DfxAuthFlowInvalidatedError();
+    }
+    const state = useAuthStore.getState();
+    if (state.sessionEpoch !== sessionEpoch || !state.isAuthenticated || !state.isOnboarded) {
       throw new DfxAuthFlowInvalidatedError();
     }
     await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
@@ -34,21 +38,31 @@ function enqueueTokenWrite(token: string): Promise<void> {
   return write;
 }
 
-export function createDfxSessionGuard(): DfxSessionGuard {
-  const sessionEpoch = useAuthStore.getState().sessionEpoch;
-  let flowToken: string | undefined;
-  let hasWrittenToken = false;
-
-  const removeWrittenFlowToken = async (): Promise<void> => {
-    if (!hasWrittenToken || flowToken === undefined) return;
+function enqueueTokenCleanup(token: string): Promise<void> {
+  const cleanup = tokenWriteQueue.then(async () => {
     try {
       const storedToken = await secureStorage.get(StorageKeys.DFX_AUTH_TOKEN);
-      if (storedToken !== null && constantTimeEqual(storedToken, flowToken)) {
+      if (storedToken !== null && constantTimeEqual(storedToken, token)) {
         await secureStorage.remove(StorageKeys.DFX_AUTH_TOKEN);
       }
     } catch {
       // The invalidation error must remain authoritative even when cleanup fails.
     }
+  });
+  tokenWriteQueue = cleanup.catch(() => undefined);
+  return cleanup;
+}
+
+export function createDfxSessionGuard(): DfxSessionGuard {
+  const sessionEpoch = useAuthStore.getState().sessionEpoch;
+  let flowToken: string | undefined;
+  let writtenToken: string | undefined;
+
+  const removeWrittenFlowToken = (): Promise<void> => {
+    const written = writtenToken;
+    if (written === undefined) return Promise.resolve();
+    writtenToken = undefined;
+    return enqueueTokenCleanup(written);
   };
 
   const assertActive = async (ownToken?: string): Promise<void> => {
@@ -74,6 +88,7 @@ export function createDfxSessionGuard(): DfxSessionGuard {
       const currentToken = dfxAuthService.getAccessToken();
       if (currentToken !== null && constantTimeEqual(currentToken, flowToken)) {
         dfxAuthService.logout();
+        useAuthStore.getState().setDfxAuthenticated(false);
       }
     }
     throw new Error(LOCAL_SESSION_ENDED_MESSAGE);
@@ -84,8 +99,15 @@ export function createDfxSessionGuard(): DfxSessionGuard {
     persistToken: async (token) => {
       flowToken = token;
       await assertActive(token);
-      await enqueueTokenWrite(token);
-      hasWrittenToken = true;
+      try {
+        await enqueueTokenWrite(token, sessionEpoch);
+      } catch (error) {
+        // The rejected write never became this flow's token. Drop the earlier one
+        // here; a later assertActive is not guaranteed, and its error must win.
+        await removeWrittenFlowToken().catch(() => undefined);
+        throw error;
+      }
+      writtenToken = token;
       await assertActive(token);
     },
   };

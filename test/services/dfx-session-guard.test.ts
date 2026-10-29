@@ -1,7 +1,9 @@
+const mockSetDfxAuthenticated = jest.fn();
 const mockAuthState = {
   isAuthenticated: true,
   isOnboarded: true,
   sessionEpoch: 0,
+  setDfxAuthenticated: (value: boolean) => mockSetDfxAuthenticated(value),
 };
 const mockGetAccessToken = jest.fn<string | null, []>();
 const mockLogout = jest.fn();
@@ -113,9 +115,7 @@ describe('createDfxSessionGuard', () => {
 
     const guardA = createDfxSessionGuard();
     const persistenceA = guardA.persistToken('A');
-    const rejectionA = expect(persistenceA).rejects.toBeInstanceOf(
-      DfxAuthFlowInvalidatedError,
-    );
+    const rejectionA = expect(persistenceA).rejects.toBeInstanceOf(DfxAuthFlowInvalidatedError);
     await firstWriteStarted.promise;
 
     activeToken = 'B';
@@ -179,9 +179,7 @@ describe('createDfxSessionGuard', () => {
     });
 
     const failedGuard = createDfxSessionGuard();
-    await expect(failedGuard.persistToken('failed-token')).rejects.toThrow(
-      'keychain unavailable',
-    );
+    await expect(failedGuard.persistToken('failed-token')).rejects.toThrow('keychain unavailable');
 
     activeToken = 'next-token';
     const nextGuard = createDfxSessionGuard();
@@ -310,5 +308,165 @@ describe('createDfxSessionGuard', () => {
 
     expect(mockSecureStorageRemove).toHaveBeenCalledWith(StorageKeys.DFX_AUTH_TOKEN);
     expect(mockLogout).toHaveBeenCalledTimes(1);
+  });
+
+  it('removes a token it already wrote when a later persist fails validation', async () => {
+    let stored: string | null = null;
+    mockGetAccessToken.mockReturnValue('token-a');
+    mockSecureStorageSet.mockImplementation(async (_key, value) => {
+      stored = value;
+    });
+    mockSecureStorageGet.mockImplementation(async () => stored);
+    mockSecureStorageRemove.mockImplementation(async () => {
+      stored = null;
+    });
+
+    const guard = createDfxSessionGuard();
+    await guard.persistToken('token-a');
+    expect(stored).toBe('token-a');
+
+    await expect(guard.persistToken('token-b')).rejects.toBeInstanceOf(DfxAuthFlowInvalidatedError);
+
+    expect(stored).toBeNull();
+    expect(mockSecureStorageSet).not.toHaveBeenCalledWith(StorageKeys.DFX_AUTH_TOKEN, 'token-b');
+  });
+
+  it('removes an earlier token when a later persist fails inside the queued write', async () => {
+    let stored: string | null = null;
+    mockGetAccessToken.mockReturnValue('token-a');
+    mockSecureStorageSet.mockImplementation(async (_key, value) => {
+      stored = value;
+    });
+    mockSecureStorageGet.mockImplementation(async () => stored);
+    mockSecureStorageRemove.mockImplementation(async () => {
+      stored = null;
+    });
+
+    const guard = createDfxSessionGuard();
+    await guard.persistToken('token-a');
+    expect(stored).toBe('token-a');
+
+    // Pre-queue assertActive still sees token-b, so it must not remove A.
+    // The queued callback sees the replacement and rejects the write.
+    let reads = 0;
+    mockGetAccessToken.mockImplementation(() => {
+      reads += 1;
+      return reads === 1 ? 'token-b' : 'replaced-token';
+    });
+
+    await expect(guard.persistToken('token-b')).rejects.toBeInstanceOf(DfxAuthFlowInvalidatedError);
+
+    expect(stored).toBeNull();
+    expect(mockSecureStorageSet).not.toHaveBeenCalledWith(StorageKeys.DFX_AUTH_TOKEN, 'token-b');
+  });
+
+  it('does not delete a newer token that lands while a stale cleanup read is in flight', async () => {
+    let stored: string | null = null;
+    const events: string[] = [];
+    const getGate = deferred<void>();
+    mockGetAccessToken.mockReturnValue('token-a');
+    mockSecureStorageSet.mockImplementation(async (_key, value) => {
+      events.push(`set:${value}`);
+      stored = value;
+    });
+    mockSecureStorageGet.mockImplementation(() => {
+      events.push('get');
+      const snapshot = stored;
+      return getGate.promise.then(() => snapshot);
+    });
+    mockSecureStorageRemove.mockImplementation(async () => {
+      events.push('remove');
+      stored = null;
+    });
+
+    const guardA = createDfxSessionGuard();
+    await guardA.persistToken('token-a');
+    events.length = 0;
+
+    mockGetAccessToken.mockReturnValue('token-b');
+    const ended = guardA.assertActive('token-a');
+    const rejection = expect(ended).rejects.toBeInstanceOf(DfxAuthFlowInvalidatedError);
+    await Promise.resolve();
+
+    const guardB = createDfxSessionGuard();
+    const persistB = guardB.persistToken('token-b');
+    await Promise.resolve();
+    getGate.resolve(undefined);
+
+    await rejection;
+    await persistB;
+    expect(stored).toBe('token-b');
+    expect(events).toEqual(['get', 'remove', 'set:token-b']);
+  });
+
+  it('drops a queued write when the local session ends before that write runs', async () => {
+    const blockerWrite = deferred<void>();
+    const blockerStarted = deferred<void>();
+    let activeToken = 'blocker-token';
+    mockGetAccessToken.mockImplementation(() => activeToken);
+    mockSecureStorageSet.mockImplementation((_key, value) => {
+      if (value === 'blocker-token') {
+        blockerStarted.resolve(undefined);
+        return blockerWrite.promise;
+      }
+      return Promise.resolve();
+    });
+
+    const blockerGuard = createDfxSessionGuard();
+    const blockerPersistence = blockerGuard.persistToken('blocker-token');
+    const blockerOutcome = blockerPersistence.then(
+      () => null,
+      (e: unknown) => e,
+    );
+    await blockerStarted.promise;
+
+    activeToken = 'queued-token';
+    const queuedGuard = createDfxSessionGuard();
+    const queuedPersistence = queuedGuard.persistToken('queued-token');
+    const queuedOutcome = queuedPersistence.then(
+      () => null,
+      (e: unknown) => e,
+    );
+    await Promise.resolve();
+    mockAuthState.sessionEpoch += 1;
+    blockerWrite.resolve(undefined);
+
+    const queuedError = await queuedOutcome;
+    const blockerError = await blockerOutcome;
+    expect(queuedError).toBeInstanceOf(DfxAuthFlowInvalidatedError);
+    expect(blockerError).toBeInstanceOf(Error);
+    expect(blockerError).toHaveProperty('message', LOCAL_SESSION_ENDED_MESSAGE);
+    expect(mockSecureStorageSet).not.toHaveBeenCalledWith(
+      StorageKeys.DFX_AUTH_TOKEN,
+      'queued-token',
+    );
+  });
+
+  it('clears the DFX authenticated flag when it logs its own token out', async () => {
+    const guard = createDfxSessionGuard();
+    mockGetAccessToken.mockReturnValue('own-token');
+    mockAuthState.sessionEpoch += 1;
+
+    await expect(guard.assertActive('own-token')).rejects.toThrow(LOCAL_SESSION_ENDED_MESSAGE);
+
+    expect(mockLogout).toHaveBeenCalledTimes(1);
+    expect(mockSetDfxAuthenticated).toHaveBeenCalledTimes(1);
+    expect(mockSetDfxAuthenticated).toHaveBeenCalledWith(false);
+  });
+
+  it('does not clear the DFX authenticated flag when a newer token owns the session', async () => {
+    const guard = createDfxSessionGuard();
+    mockGetAccessToken.mockReturnValue('stale-token');
+    mockSecureStorageGet.mockResolvedValue('newer-token');
+    mockSecureStorageSet.mockImplementation(async () => {
+      mockGetAccessToken.mockReturnValue('newer-token');
+      mockAuthState.sessionEpoch += 1;
+      mockAuthState.isAuthenticated = false;
+    });
+
+    await expect(guard.persistToken('stale-token')).rejects.toThrow(LOCAL_SESSION_ENDED_MESSAGE);
+
+    expect(mockLogout).not.toHaveBeenCalled();
+    expect(mockSetDfxAuthenticated).not.toHaveBeenCalled();
   });
 });

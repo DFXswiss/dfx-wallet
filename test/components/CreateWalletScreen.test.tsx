@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import { copySensitive } from '@/services/clipboard';
 
 jest.mock('@/services/clipboard', () => ({ copySensitive: jest.fn() }));
@@ -38,6 +38,19 @@ jest.mock('@tetherto/wdk-react-native-core', () => ({
 }));
 
 import CreateWalletScreen from '../../app/(onboarding)/create-wallet';
+
+function readDisplayedSeedWords(
+  getByTestId: (testId: string) => Parameters<typeof within>[0],
+): string[] {
+  return Array.from({ length: 12 }, (_, index) => {
+    const card = within(getByTestId(`create-wallet-word-${index + 1}`));
+    const word = card.getByText(/^[a-z]+$/).props.children;
+    if (typeof word !== 'string') {
+      throw new Error(`seed word ${index + 1} was not rendered`);
+    }
+    return word;
+  });
+}
 
 describe('CreateWalletScreen', () => {
   beforeEach(() => {
@@ -99,6 +112,12 @@ describe('CreateWalletScreen', () => {
 
     await waitFor(() => expect(getByTestId('create-wallet-seed-container')).toBeTruthy());
     expect(getByText('common.screenCaptureUnavailable')).toBeTruthy();
+    const words = readDisplayedSeedWords(getByTestId);
+    expect(words).toHaveLength(12);
+    await act(async () => {
+      fireEvent.press(getByTestId('create-wallet-copy-button'));
+    });
+    expect(copySensitive).toHaveBeenCalledWith(words.join(' '));
   });
 
   it('releases seed capture protection on unmount', async () => {
@@ -134,14 +153,13 @@ describe('CreateWalletScreen', () => {
       const { getByTestId } = render(<CreateWalletScreen />);
       fireEvent.press(getByTestId('create-wallet-reveal-button'));
       await waitFor(() => expect(getByTestId('create-wallet-seed-container')).toBeTruthy());
+      const words = readDisplayedSeedWords(getByTestId);
+      expect(words).toHaveLength(12);
       await act(async () => {
         fireEvent.press(getByTestId('create-wallet-copy-button'));
       });
       expect(copySensitive).toHaveBeenCalledTimes(1);
-      const arg = (copySensitive as jest.Mock).mock.calls[0]![0];
-      expect(typeof arg).toBe('string');
-      // 12-word BIP-39 mnemonic — 11 spaces separating the words.
-      expect(arg.split(' ')).toHaveLength(12);
+      expect(copySensitive).toHaveBeenCalledWith(words.join(' '));
       // Fire the captured "copied → not copied" reset callback (simulates
       // the 2 s timer firing) so the inner arrow gets coverage.
       expect(scheduled).toBeDefined();
@@ -177,6 +195,12 @@ describe('CreateWalletScreen', () => {
     });
     expect(mockDeleteWallet).toHaveBeenCalledWith('default');
     expect(mockRestoreWallet).toHaveBeenCalledTimes(2);
+    expect(mockRestoreWallet.mock.invocationCallOrder[0]).toBeLessThan(
+      mockDeleteWallet.mock.invocationCallOrder[0]!,
+    );
+    expect(mockDeleteWallet.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRestoreWallet.mock.invocationCallOrder[1]!,
+    );
     expect(mockPush).toHaveBeenCalledWith('/(onboarding)/setup-pin');
   });
 
