@@ -82,6 +82,9 @@ export default function VerifyPinScreen() {
         cancelLabel: t('biometric.usePin'),
       });
       if (!success) return;
+      // Re-read: lockedUntil from this closure is stale once the prompt resolves.
+      const lockedUntilNow = useAuthStore.getState().lockedUntil;
+      if (lockedUntilNow !== null && lockedUntilNow > Date.now()) return;
       try {
         await unlockWallet();
       } catch (err) {

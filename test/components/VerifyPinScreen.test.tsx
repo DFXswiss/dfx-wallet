@@ -41,19 +41,31 @@ const mockAuthState: {
   lockedUntil: null,
   pinHash: 'pin$argon2id$current',
 };
-jest.mock('@/store', () => ({
-  useAuthStore: () => ({
-    verifyPin: mockVerifyPin,
-    setAuthenticated: mockSetAuthenticated,
-    authenticateBiometric: mockAuthenticateBiometric,
-    biometricEnabled: mockAuthState.biometricEnabled,
-    failedAttempts: mockAuthState.failedAttempts,
-    isOnboarded: mockAuthState.isOnboarded,
-    lockedUntil: mockAuthState.lockedUntil,
-    pinHash: mockAuthState.pinHash,
-    setOnboarded: mockSetOnboarded,
-  }),
-}));
+jest.mock('@/store', () => {
+  const useAuthStore = Object.assign(
+    () => ({
+      verifyPin: mockVerifyPin,
+      setAuthenticated: mockSetAuthenticated,
+      authenticateBiometric: mockAuthenticateBiometric,
+      biometricEnabled: mockAuthState.biometricEnabled,
+      failedAttempts: mockAuthState.failedAttempts,
+      isOnboarded: mockAuthState.isOnboarded,
+      lockedUntil: mockAuthState.lockedUntil,
+      pinHash: mockAuthState.pinHash,
+      setOnboarded: mockSetOnboarded,
+    }),
+    {
+      getState: () => ({
+        biometricEnabled: mockAuthState.biometricEnabled,
+        failedAttempts: mockAuthState.failedAttempts,
+        isOnboarded: mockAuthState.isOnboarded,
+        lockedUntil: mockAuthState.lockedUntil,
+        pinHash: mockAuthState.pinHash,
+      }),
+    },
+  );
+  return { useAuthStore };
+});
 
 jest.mock('expo-haptics', () => ({
   notificationAsync: jest.fn(),
@@ -508,6 +520,42 @@ describe('VerifyPinScreen', () => {
     expect(view.getByTestId('verify-pin-locked')).toBeTruthy();
     expect(view.getByTestId('pin-key-1').props.accessibilityState?.disabled).toBe(true);
     expect(view.getByTestId('verify-pin-submit').props.accessibilityState?.disabled).toBe(true);
+  });
+
+  it('does not unlock when a lockout lands while the biometric prompt is pending', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockAuthState.biometricEnabled = true;
+    let resolvePrompt: (success: boolean) => void = () => undefined;
+    mockAuthenticateBiometric.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolvePrompt = resolve;
+        }),
+    );
+    const view = render(<VerifyPinScreen />);
+
+    await waitFor(() => expect(mockAuthenticateBiometric).toHaveBeenCalledTimes(1));
+    mockAuthState.lockedUntil = Date.now() + 60_000;
+    view.rerender(<VerifyPinScreen />);
+    expect(view.getByTestId('verify-pin-locked')).toBeTruthy();
+
+    await act(async () => {
+      resolvePrompt(true);
+    });
+
+    expect(mockUnlock).not.toHaveBeenCalled();
+    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(view.getByTestId('verify-pin-locked')).toBeTruthy();
+    expect(view.getByTestId('verify-pin-screen')).toBeTruthy();
+    expect(view.getByTestId('pin-key-1').props.accessibilityState?.disabled).toBe(true);
+    expect(warn).not.toHaveBeenCalledWith(
+      'verify: biometric authentication failed',
+      expect.anything(),
+    );
+    expect(warn).not.toHaveBeenCalledWith('verify: biometric unlock failed', expect.anything());
+    view.unmount();
+    warn.mockRestore();
   });
 
   it('does not prompt biometrics on mount while locked out', async () => {
