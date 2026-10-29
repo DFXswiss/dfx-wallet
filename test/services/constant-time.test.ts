@@ -19,6 +19,8 @@ describe('constantTimeEqual', () => {
 
   it('rejects strings that differ by one character', () => {
     expect(constantTimeEqual('same-prefix-a', 'same-prefix-b')).toBe(false);
+  });
+
   it('returns true for identical strings', () => {
     expect(constantTimeEqual('same-token', 'same-token')).toBe(true);
   });

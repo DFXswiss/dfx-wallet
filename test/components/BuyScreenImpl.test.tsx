@@ -1,18 +1,15 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { Alert, StyleSheet } from 'react-native';
 import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
-import { Alert } from 'react-native';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import type { ChainId } from '@/config/chains';
+import { ConfirmTargetWalletModal } from '@/components';
 import { LOCAL_SESSION_ENDED_MESSAGE } from '@/features/dfx-backend/session-guard';
-import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
 import type { DfxAuthGateState } from '@/features/dfx-backend/services';
+import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
 import type {
   BuyPaymentInfoDto,
   SellPaymentInfoDto,
 } from '@/features/dfx-backend/services/dto/payment';
-import type { ChainId } from '@/config/chains';
-import type { DfxAuthGateState } from '@/features/dfx-backend/services';
-import { ConfirmTargetWalletModal } from '@/components';
 import { darkColors, ThemeProvider, useThemeStore } from '@/theme';
 import BuyScreenImpl from '../../src/features/buy-sell/BuyScreenImpl';
 import SellScreenImpl from '../../src/features/buy-sell/SellScreenImpl';
@@ -189,9 +186,6 @@ jest.mock('@/services/storage', () => ({
 
 let mockIsDfxAuthenticated = false;
 let mockSearchParams: Record<string, string> = {};
-jest.mock('@/store', () => ({
-  useAuthStore: (selector: (state: { isDfxAuthenticated: boolean }) => unknown) =>
-    selector({ isDfxAuthenticated: mockIsDfxAuthenticated }),
 const mockAuthState = {
   isAuthenticated: true,
   isDfxAuthenticated: false,
@@ -201,7 +195,11 @@ const mockAuthState = {
 
 jest.mock('@/store', () => ({
   useAuthStore: Object.assign(
-    (selector: (state: typeof mockAuthState) => unknown) => selector(mockAuthState),
+    (selector: (state: typeof mockAuthState) => unknown) =>
+      selector({
+        ...mockAuthState,
+        isDfxAuthenticated: mockIsDfxAuthenticated || mockAuthState.isDfxAuthenticated,
+      }),
     { getState: () => mockAuthState },
   ),
 }));
@@ -494,6 +492,11 @@ beforeEach(() => {
   mockAuthState.sessionEpoch = 1;
   mockBack.mockReset();
   mockDfxAuthService.linkAddress.mockReset();
+  mockDfxAuthService.linkAddress.mockImplementation(async () => {
+    const token = 'linked-token';
+    mockDfxAuthService.getAccessToken.mockReturnValue(token);
+    return token;
+  });
   mockDfxAuthService.linkLnurlAddress.mockReset();
   mockDfxAuthService.getAccessToken.mockReset();
   mockDfxAuthService.getAccessToken.mockReturnValue(null);
@@ -1542,7 +1545,10 @@ describe('BuyScreenImpl', () => {
       fireEvent.press(view.getByTestId('confirm-target-confirm'));
     });
     expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+  });
+
   it('discards a linked token and clears link loading when the local session ends', async () => {
+    mockUseRealDfxAuthGate = true;
     const request = createDeferred<string>();
     mockDfxAuthService.linkAddress.mockImplementationOnce(() => request.promise);
     flowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'Link Bitcoin' };
@@ -1567,6 +1573,7 @@ describe('BuyScreenImpl', () => {
   });
 
   it('silently closes the link gate when DFX authentication is invalidated', async () => {
+    mockUseRealDfxAuthGate = true;
     const invalidated = new DfxAuthFlowInvalidatedError();
     mockDfxAuthService.linkAddress.mockRejectedValueOnce(invalidated);
     flowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'Link Bitcoin' };
@@ -1866,6 +1873,7 @@ describe('SellScreenImpl', () => {
   });
 
   it('discards a linked token and clears link loading when the local session ends', async () => {
+    mockUseRealDfxAuthGate = true;
     const request = createDeferred<string>();
     mockDfxAuthService.linkAddress.mockImplementationOnce(() => request.promise);
     mockSellFlowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'Link Bitcoin' };
@@ -1890,6 +1898,7 @@ describe('SellScreenImpl', () => {
   });
 
   it('silently closes the link gate when DFX authentication is invalidated', async () => {
+    mockUseRealDfxAuthGate = true;
     const invalidated = new DfxAuthFlowInvalidatedError();
     mockDfxAuthService.linkAddress.mockRejectedValueOnce(invalidated);
     mockSellFlowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'Link Bitcoin' };

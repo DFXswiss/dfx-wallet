@@ -72,7 +72,7 @@ export function useDfxAuth() {
   }, [address, signMessage]);
 
   const authenticate = useCallback(
-    async (options?: { wallet?: string }): Promise<string> => {
+    async (options?: { wallet?: string }, authGeneration?: number): Promise<string> => {
       const guard = createDfxSessionGuard();
       setIsAuthenticating(true);
       setError(null);
@@ -80,9 +80,12 @@ export function useDfxAuth() {
       try {
         const walletAddress = await resolveAuthAddress();
         await guard.assertActive();
-        const token = await dfxAuthService.login(walletAddress, signMessage, {
-          wallet: options?.wallet ?? 'DFX Wallet',
-        });
+        const token =
+          authGeneration === undefined
+            ? await dfxAuthService.login(walletAddress, signMessage, {
+                wallet: options?.wallet ?? 'DFX Wallet',
+              })
+            : await dfxAuthService.refresh(walletAddress, signMessage, authGeneration);
         await guard.assertActive(token);
 
         await guard.persistToken(token);
@@ -100,16 +103,19 @@ export function useDfxAuth() {
   );
 
   /** Best-effort variant for background callers: returns the new token or null. */
-  const authenticateSilent = useCallback(async (): Promise<string | null> => {
-    try {
-      return await authenticate();
-    } catch (err) {
-      if (isLocalSessionEndedError(err)) {
-        setError(null);
+  const authenticateSilent = useCallback(
+    async (authGeneration?: number): Promise<string | null> => {
+      try {
+        return await authenticate(undefined, authGeneration);
+      } catch (err) {
+        if (isLocalSessionEndedError(err)) {
+          setError(null);
+        }
+        return null;
       }
-      return null;
-    }
-  }, [authenticate]);
+    },
+    [authenticate],
+  );
 
   /**
    * Recovery for the "User is merged" 403 path. Drops the prior session
