@@ -16,9 +16,8 @@ const mockSetAuthenticated = jest.fn();
 jest.mock('@/config/features', () => ({ FEATURES: { PIN: true } }));
 
 jest.mock('@/store/auth', () => ({
-  useAuthStore: (
-    selector: (state: { setAuthenticated: typeof mockSetAuthenticated }) => unknown,
-  ) => selector({ setAuthenticated: mockSetAuthenticated }),
+  useAuthStore: (selector: (state: { setAuthenticated: typeof mockSetAuthenticated }) => unknown) =>
+    selector({ setAuthenticated: mockSetAuthenticated }),
 }));
 
 import { AUTO_LOCK_AFTER_MS, useAutoLock } from '@/hooks/useAutoLock';
@@ -89,6 +88,39 @@ describe('useAutoLock', () => {
 
     expect(mockSetAuthenticated).toHaveBeenCalledTimes(1);
     expect(mockSetAuthenticated).toHaveBeenCalledWith(false);
+  });
+
+  it('does not lock when the app returns before the window elapses', () => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(5_000);
+    render(<AutoLockHarness />);
+
+    act(() => listener?.('background'));
+    now.mockReturnValue(5_000 + AUTO_LOCK_AFTER_MS - 1);
+    act(() => listener?.('active'));
+
+    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+  });
+
+  it('does not lock when a backgrounded mount returns before the window elapses', () => {
+    setCurrentAppState('background');
+    const now = jest.spyOn(Date, 'now').mockReturnValue(6_000);
+    render(<AutoLockHarness />);
+
+    now.mockReturnValue(6_000 + AUTO_LOCK_AFTER_MS - 1);
+    act(() => listener?.('active'));
+
+    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+  });
+
+  it('does not start the lock window when mounted inactive', () => {
+    setCurrentAppState('inactive');
+    const now = jest.spyOn(Date, 'now').mockReturnValue(7_000);
+    render(<AutoLockHarness />);
+
+    now.mockReturnValue(7_000 + AUTO_LOCK_AFTER_MS + 1);
+    act(() => listener?.('active'));
+
+    expect(mockSetAuthenticated).not.toHaveBeenCalled();
   });
 
   it('does not treat an inactive system-dialog transition as backgrounding', () => {

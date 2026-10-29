@@ -128,10 +128,12 @@ ship per-screen or per-flow.
 
 - [~] Render a global opaque overlay when `AppState` transitions to
       `inactive`/`background`; device task-switcher verification remains.
-- [x] Lock authenticated sessions after more than 60 seconds in the
-      background when PIN protection is enabled.
+- [x] Lock authenticated sessions after 60 seconds or more in the
+      background when PIN protection is enabled (`src/hooks/useAutoLockImpl.ts`,
+      mounted once in `app/_layout.tsx`).
 - **Acceptance**: switching apps shows the overlay before the OS snapshot
-  is taken; no leakage in iOS task switcher.
+  is taken; no leakage in iOS task switcher; returning after 60 seconds or
+  more in the background requires the PIN again, returning earlier does not.
 
 ### P1.3 — PIN bruteforce protection
 

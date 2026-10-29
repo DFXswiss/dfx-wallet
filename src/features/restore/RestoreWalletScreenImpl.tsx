@@ -71,9 +71,11 @@ export default function RestoreWalletScreen() {
     setError(null);
     try {
       const seed = wordsToSeed(words);
+      const encryptedSeed = await getEncryptedSeed('default');
+      const hasWdkSeed = encryptedSeed !== null;
       const result = await restoreWalletFlow({
-        hasExistingWallet: Boolean(activeWalletId) || isOnboarded,
-        hasWalletToDelete: Boolean(activeWalletId),
+        hasExistingWallet: Boolean(activeWalletId) || isOnboarded || hasWdkSeed,
+        hasWalletToDelete: Boolean(activeWalletId) || hasWdkSeed,
         confirm: confirmReplacement,
         reset: () => useAuthStore.getState().reset(),
         deleteWallet: () => deleteWallet('default'),

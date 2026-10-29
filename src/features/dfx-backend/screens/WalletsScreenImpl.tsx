@@ -88,8 +88,8 @@ export default function WalletsScreen() {
 
   const reauthenticate = useCallback(async () => {
     // Leave the merged card in place until reauthentication succeeds.
-    // Clearing it first turns an invalidated attempt into an empty wallet list.
-    setLoadingUser(true);
+    // The button already shows its own loading state; flipping loadingUser
+    // would replace the card with skeletons.
     try {
       await reauthenticateAsOwner();
       await refresh();

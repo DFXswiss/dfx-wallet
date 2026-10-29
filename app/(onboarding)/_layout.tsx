@@ -14,6 +14,17 @@ export default function OnboardingLayout() {
   const isUnauthenticatedRecovery = currentScreen === 'restore-wallet' && !isAuthenticated;
   const isPinMigration = FEATURES.PIN && isOnboarded && !pinHash && currentScreen === 'setup-pin';
 
+  if (
+    isOnboardingRoute &&
+    FEATURES.PIN &&
+    isOnboarded &&
+    !pinHash &&
+    currentScreen !== 'setup-pin' &&
+    !isUnauthenticatedRecovery
+  ) {
+    return <Redirect href="/(onboarding)/setup-pin" />;
+  }
+
   if (isOnboardingRoute && isOnboarded && !isUnauthenticatedRecovery && !isPinMigration) {
     return <Redirect href={isAuthenticated ? '/(auth)/(tabs)/dashboard' : '/(pin)/verify'} />;
   }

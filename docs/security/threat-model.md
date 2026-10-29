@@ -77,7 +77,7 @@ from `~`/`✗` to `✓`.
 | Biometric re-auth before signing operations                                                              | ✗          |
 | Screen-capture / FLAG_SECURE on seed creation, restore entry and export (PIN and balance pending)        | ~          |
 | Global app-backgrounding blur (device task-switcher verification pending)                                | ~          |
-| Auto-lock after more than 60 seconds in the background (PIN builds only)                                 | ~          |
+| Auto-lock after 60 seconds or more in the background (PIN builds only)                                   | ~          |
 | Clipboard auto-clear after mnemonic copy (address copy and confirmation UI pending)                      | ~          |
 | Deep-link route allowlist (signed Universal Links for KYC pending)                                       | ~          |
 | WebView hardening (originWhitelist, no file access, no injectedJS leakage)                               | ✗          |

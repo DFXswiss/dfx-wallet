@@ -12,6 +12,7 @@ import {
 } from '@/components';
 import { useScreenCaptureProtection } from '@/hooks/useScreenCaptureProtection';
 import { copySensitive } from '@/services/clipboard';
+import { secureStorage, StorageKeys } from '@/services/storage';
 import { generateSeedPhrase, wordsToSeed } from '@/services/wallet';
 import { isWalletAlreadyExistsError } from '@/services/wallet/wallet-errors';
 import { Typography, useColors, type ThemeColors } from '@/theme';
@@ -56,6 +57,9 @@ export default function CreateWalletScreen() {
         await deleteWallet('default');
         await restoreWallet(seed, 'default');
       }
+      await secureStorage.remove(StorageKeys.WALLET_ORIGIN);
+      await secureStorage.remove(StorageKeys.PASSKEY_CREDENTIAL_ID);
+      await secureStorage.remove(StorageKeys.PASSKEY_DERIVATION_VERSION);
       router.push('/(onboarding)/setup-pin');
     } catch (err) {
       console.warn('create-wallet: failed to create wallet', err);
