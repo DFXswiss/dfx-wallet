@@ -106,11 +106,11 @@ export default function SettingsScreen() {
   const enqueueLatestDfxSync = (
     requestGenerationRef: { current: number },
     queueRef: { current: Promise<void> },
+    authGeneration: number,
     run: () => Promise<unknown>,
   ) => {
     const requestGeneration = ++requestGenerationRef.current;
     if (!isDfxAuthenticated) return;
-    const authGeneration = dfxApi.getAuthGeneration();
     const syncLatest = async () => {
       if (requestGeneration !== requestGenerationRef.current) return;
       if (dfxApi.getAuthGeneration() !== authGeneration) return;
@@ -119,14 +119,15 @@ export default function SettingsScreen() {
     queueRef.current = queueRef.current.then(syncLatest, syncLatest);
   };
 
-  const syncLanguageToDfx = (locale: 'de' | 'en') => {
-    enqueueLatestDfxSync(languageSyncGeneration, languageSyncQueue, () =>
+  const syncLanguageToDfx = (locale: 'de' | 'en', authGeneration: number) => {
+    enqueueLatestDfxSync(languageSyncGeneration, languageSyncQueue, authGeneration, () =>
       dfxUserService.updateUser({ language: { symbol: locale.toUpperCase() } }),
     );
   };
 
   const syncCurrencyToDfx = (currency: string) => {
-    enqueueLatestDfxSync(currencySyncGeneration, currencySyncQueue, () =>
+    const authGeneration = dfxApi.getAuthGeneration();
+    enqueueLatestDfxSync(currencySyncGeneration, currencySyncQueue, authGeneration, () =>
       dfxUserService.updateUser({ currency: { name: currency } }),
     );
   };
@@ -229,9 +230,10 @@ export default function SettingsScreen() {
           testID: 'settings-language',
           onPress: async () => {
             const next = currentLang === 'DE' ? 'en' : 'de';
+            const authGeneration = dfxApi.getAuthGeneration();
             try {
               const persisted = await setLanguage(next, i18n);
-              if (persisted) syncLanguageToDfx(next);
+              if (persisted) syncLanguageToDfx(next, authGeneration);
             } catch {
               // Activation failed; keep the current language and remote preference unchanged.
             }
