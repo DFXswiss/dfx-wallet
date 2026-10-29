@@ -1,5 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
+import { constantTimeEqual } from '@/services/security/constant-time';
 
 const LEGACY_SALT = 'dfx-wallet-pin-v1';
 const LEGACY_ITERATIONS = 10000;
@@ -81,7 +82,7 @@ export async function verifyPin(pin: string, storedHash: string): Promise<boolea
 
   if (isLegacyPinHash(storedHash)) {
     const hash = await legacyHashPin(pin);
-    return timingSafeEqual(hash, storedHash);
+    return constantTimeEqual(hash, storedHash);
   }
 
   return false;
@@ -145,16 +146,6 @@ async function legacyHashPin(pin: string): Promise<string> {
     hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, hash);
   }
   return hash;
-}
-
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
 }
 
 function timingSafeEqualBytes(a: Uint8Array, b: Uint8Array): boolean {

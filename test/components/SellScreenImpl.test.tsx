@@ -384,7 +384,7 @@ describe('SellScreenImpl', () => {
     expect(getByLabelText(ctaLabel).props.accessibilityState?.disabled).not.toBe(true);
   });
 
-  it('does not replay payment info when authenticated focus has no pending confirmation', async () => {
+  it('does not advance from replayed payment info when authenticated focus has no pending confirmation', async () => {
     mockIsDfxAuthenticated = true;
     mockRetryLast.mockResolvedValueOnce({ kind: 'paymentInfo', info: PAYMENT_INFO });
 

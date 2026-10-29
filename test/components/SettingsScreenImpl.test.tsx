@@ -58,9 +58,13 @@ jest.mock('@/features/biometric/biometric', () => ({
   isBiometricAvailable: jest.fn(),
 }));
 
+const mockGetAuthGeneration = jest.fn(() => 0);
 jest.mock('@/features/dfx-backend/services', () => ({
   dfxUserService: {
     updateUser: jest.fn(),
+  },
+  dfxApi: {
+    getAuthGeneration: () => mockGetAuthGeneration(),
   },
 }));
 
@@ -131,6 +135,8 @@ describe('SettingsScreenImpl', () => {
     (isBiometricAvailable as jest.Mock).mockResolvedValue(true);
     (dfxUserService.updateUser as jest.Mock).mockReset();
     (dfxUserService.updateUser as jest.Mock).mockResolvedValue(undefined);
+    mockGetAuthGeneration.mockReset();
+    mockGetAuthGeneration.mockReturnValue(0);
     (secureStorage.get as jest.Mock).mockReset();
     (secureStorage.get as jest.Mock).mockResolvedValue(null);
     (secureStorage.set as jest.Mock).mockReset();
@@ -301,6 +307,129 @@ describe('SettingsScreenImpl', () => {
 
     await waitFor(() => expect(dfxUserService.updateUser).toHaveBeenCalledTimes(2));
     expect(dfxUserService.updateUser).toHaveBeenLastCalledWith({ currency: { name: 'CHF' } });
+  });
+
+  it('does not send a queued currency update after the session changes', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    const firstSync = createDeferred();
+    (dfxUserService.updateUser as jest.Mock).mockImplementationOnce(() => firstSync.promise);
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-currencies')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-currencies'));
+    await waitFor(() =>
+      expect(dfxUserService.updateUser).toHaveBeenCalledWith({ currency: { name: 'EUR' } }),
+    );
+
+    fireEvent.press(getByTestId('settings-currencies'));
+    expect(dfxUserService.updateUser).toHaveBeenCalledTimes(1);
+
+    mockGetAuthGeneration.mockReturnValue(1);
+    await act(async () => {
+      firstSync.resolve();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(dfxUserService.updateUser).toHaveBeenCalledTimes(1);
+    expect(dfxUserService.updateUser).not.toHaveBeenCalledWith({ currency: { name: 'USD' } });
+  });
+
+  it('does not send a queued language update after the session changes', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    const firstSync = createDeferred();
+    const secondPersist = createDeferred();
+    (dfxUserService.updateUser as jest.Mock).mockImplementationOnce(() => firstSync.promise);
+    (secureStorage.set as jest.Mock)
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(() => secondPersist.promise);
+    __i18n.changeLanguage.mockImplementation(async (language: string) => {
+      __i18n.language = language;
+    });
+    const screen = renderScreen();
+    await waitFor(() => expect(screen.getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('settings-language'));
+    await waitFor(() =>
+      expect(dfxUserService.updateUser).toHaveBeenCalledWith({ language: { symbol: 'DE' } }),
+    );
+
+    screen.rerender(
+      <ThemeProvider>
+        <SettingsScreenImpl />
+      </ThemeProvider>,
+    );
+    fireEvent.press(screen.getByTestId('settings-language'));
+    await waitFor(() => expect(secureStorage.set).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      secondPersist.resolve();
+    });
+
+    expect(dfxUserService.updateUser).toHaveBeenCalledTimes(1);
+    mockGetAuthGeneration.mockReturnValue(1);
+    await act(async () => {
+      firstSync.resolve();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(dfxUserService.updateUser).toHaveBeenCalledTimes(1);
+    expect(dfxUserService.updateUser).not.toHaveBeenCalledWith({ language: { symbol: 'EN' } });
+  });
+
+  it('sends only the latest language when toggled again while a sync is in flight', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    const firstSync = createDeferred();
+    const secondPersist = createDeferred();
+    const thirdPersist = createDeferred();
+    (dfxUserService.updateUser as jest.Mock).mockImplementationOnce(() => firstSync.promise);
+    (secureStorage.set as jest.Mock)
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(() => secondPersist.promise)
+      .mockImplementationOnce(() => thirdPersist.promise);
+    __i18n.changeLanguage.mockImplementation(async (language: string) => {
+      __i18n.language = language;
+    });
+    const screen = renderScreen();
+    await waitFor(() => expect(screen.getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('settings-language'));
+    await waitFor(() =>
+      expect(dfxUserService.updateUser).toHaveBeenCalledWith({ language: { symbol: 'DE' } }),
+    );
+
+    screen.rerender(
+      <ThemeProvider>
+        <SettingsScreenImpl />
+      </ThemeProvider>,
+    );
+    fireEvent.press(screen.getByTestId('settings-language'));
+    await waitFor(() => expect(secureStorage.set).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      secondPersist.resolve();
+    });
+
+    screen.rerender(
+      <ThemeProvider>
+        <SettingsScreenImpl />
+      </ThemeProvider>,
+    );
+    fireEvent.press(screen.getByTestId('settings-language'));
+    await waitFor(() => expect(secureStorage.set).toHaveBeenCalledTimes(3));
+    await act(async () => {
+      thirdPersist.resolve();
+    });
+
+    expect(dfxUserService.updateUser).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      firstSync.resolve();
+    });
+
+    await waitFor(() => expect(dfxUserService.updateUser).toHaveBeenCalledTimes(2));
+    expect(dfxUserService.updateUser).toHaveBeenLastCalledWith({ language: { symbol: 'DE' } });
+    expect(dfxUserService.updateUser).not.toHaveBeenCalledWith({ language: { symbol: 'EN' } });
   });
 
   it('does not sync the language to DFX when the local language change fails', async () => {

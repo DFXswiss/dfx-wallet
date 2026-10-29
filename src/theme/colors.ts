@@ -113,7 +113,7 @@ export const Interaction = {
 //   the bg via tone alone, without competing card-borders.
 // - hairlines are white-alpha (pod convention) — a subtle top-light edge,
 //   not an outlined frame.
-// - text scale = pod darkText ramp (#f9fafb / #a8b5c8 / #8a99b7).
+// - text scale = #F9FAFB / #A8B5C8 / #A8B5C8; tertiary equals secondary for contrast.
 // - primary stays DFX blue (contrast-lightened for navy); brand red
 //   #F5516C is reserved for accents/error/logo. No ambient brand wash.
 export const darkColors: ThemeColors = {

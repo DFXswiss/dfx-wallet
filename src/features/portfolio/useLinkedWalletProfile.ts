@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { dfxUserService } from '@/features/dfx-backend/services';
+import { dfxApi, dfxUserService } from '@/features/dfx-backend/services';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 
 export type LinkedWalletProfile = {
@@ -35,18 +35,28 @@ export function useLinkedWalletProfile(
 
     setIsIncomplete(true);
     let cancelled = false;
-    void dfxUserService
-      .getUser()
-      .then((user) => {
-        if (cancelled) return;
-        setLinkedAddresses(user.addresses ?? []);
-        setActiveAddress(user.activeAddress?.address ?? null);
-        setIsIncomplete(false);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setIsIncomplete(true);
-      });
+    const loadProfile = async () => {
+      while (!cancelled) {
+        const generation = dfxApi.getAuthGeneration();
+        try {
+          const user = await dfxUserService.getUser();
+          if (cancelled) return;
+          // A generation change means this profile belongs to a session that has
+          // already ended. Discard it and fetch again; isIncomplete stays true
+          // until a fetch starts and ends on the same generation.
+          if (dfxApi.getAuthGeneration() !== generation) continue;
+          setLinkedAddresses(user.addresses ?? []);
+          setActiveAddress(user.activeAddress?.address ?? null);
+          setIsIncomplete(false);
+          return;
+        } catch {
+          if (cancelled) return;
+          setIsIncomplete(true);
+          return;
+        }
+      }
+    };
+    void loadProfile();
 
     return () => {
       cancelled = true;

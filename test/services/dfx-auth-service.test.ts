@@ -142,6 +142,40 @@ describe('dfxAuthService.login', () => {
     expect(dfxAuthService.getAccessToken()).toBe('NEWER_TOKEN');
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('NEWER_TOKEN');
   });
+
+  it('rejects a login that succeeds after the session was replaced', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    dfxApi.setAuthToken('OLD_TOKEN');
+    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    postSpy.mockImplementationOnce(async () => {
+      dfxApi.setAuthToken('other');
+      return { accessToken: 'LATE_TOKEN' };
+    });
+
+    await expect(dfxAuthService.login('0xabc', async () => 'SIG')).rejects.toThrow(
+      'Session changed while signing in.',
+    );
+
+    expect(dfxAuthService.getAccessToken()).toBeNull();
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('other');
+    expect(setAuthTokenSpy).not.toHaveBeenCalledWith('LATE_TOKEN');
+  });
+
+  it('does not restore the previous token when logout happens during a fresh login', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    getSpy.mockResolvedValueOnce({ message: 'sign me' });
+    postSpy.mockImplementationOnce(async () => {
+      dfxAuthService.logout();
+      throw new DfxApiError(400, 'AUTH_FAILED', 'Invalid signature');
+    });
+
+    await expect(dfxAuthService.login('0xabc', async () => 'BAD')).rejects.toThrow(
+      /Invalid signature/,
+    );
+
+    expect(dfxAuthService.getAccessToken()).toBeNull();
+    expect(setAuthTokenSpy).not.toHaveBeenCalledWith('OLD_TOKEN');
+  });
 });
 
 describe('dfxAuthService login posts carry no bearer', () => {
@@ -183,12 +217,25 @@ describe('dfxAuthService login posts carry no bearer', () => {
     dfxApi.setAuthToken('OLD_TOKEN');
     const fetchSpy = mockAuthFetch();
 
-    await dfxAuthService.login('0xabc', async () => {
-      dfxApi.setAuthToken('FOREIGN');
-      return 'SIG';
-    });
+    await expect(
+      dfxAuthService.login('0xabc', async () => {
+        dfxApi.setAuthToken('FOREIGN');
+        return 'SIG';
+      }),
+    ).rejects.toThrow('Session changed while signing in.');
 
     expectLoginPostWithoutAuthorization(fetchSpy);
+    expect(dfxAuthService.getAccessToken()).toBeNull();
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '{}',
+    } as unknown as Response);
+    await dfxApi.get('/v1/user');
+    const userCall = fetchSpy.mock.calls.find((call) => String(call[0]).endsWith('/v1/user'));
+    expect(
+      (userCall?.[1] as { headers?: Record<string, string> } | undefined)?.headers?.Authorization,
+    ).toBe('Bearer FOREIGN');
   });
 
   it('sends a refresh POST /v1/auth with no Authorization when a foreign token appears', async () => {
@@ -894,6 +941,37 @@ describe('dfxAuthService.loginAsLnurlAddressOwner', () => {
     expect(dfxAuthService.getAccessToken()).toBe('NEWER_TOKEN');
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('NEWER_TOKEN');
   });
+
+  it('rejects a login that succeeds after the session was replaced', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    postSpy.mockImplementationOnce(async () => {
+      dfxApi.setAuthToken('other');
+      return { accessToken: 'LATE_TOKEN' };
+    });
+
+    await expect(dfxAuthService.loginAsLnurlAddressOwner('lnurl1', 'PROOF')).rejects.toThrow(
+      'Session changed while signing in.',
+    );
+
+    expect(dfxAuthService.getAccessToken()).toBeNull();
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('other');
+    expect(setAuthTokenSpy).not.toHaveBeenCalledWith('LATE_TOKEN');
+  });
+
+  it('does not restore the previous token when logout happens during the login', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    postSpy.mockImplementationOnce(async () => {
+      dfxAuthService.logout();
+      throw new DfxApiError(400, 'AUTH_FAILED', 'Invalid signature');
+    });
+
+    await expect(dfxAuthService.loginAsLnurlAddressOwner('lnurl1', 'BAD')).rejects.toThrow(
+      /Invalid signature/,
+    );
+
+    expect(dfxAuthService.getAccessToken()).toBeNull();
+    expect(setAuthTokenSpy).not.toHaveBeenCalledWith('OLD_TOKEN');
+  });
 });
 
 describe('dfxAuthService delegating helpers', () => {
@@ -1137,5 +1215,22 @@ describe('dfxAuthService mail login', () => {
       }),
     );
     expect(dfxAuthService.getAccessToken()).toBe('MAIL_TOKEN');
+  });
+
+  it('rejects a mail login that succeeds after the session was replaced', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    dfxApi.setAuthToken('OLD_TOKEN');
+    getSpy.mockImplementationOnce(async () => {
+      dfxApi.setAuthToken('other');
+      return { accessToken: 'LATE_TOKEN' };
+    });
+
+    await expect(dfxAuthService.confirmMailLogin('otp-code')).rejects.toThrow(
+      'Session changed while signing in.',
+    );
+
+    expect(dfxAuthService.getAccessToken()).toBe('OLD_TOKEN');
+    expect(setAuthTokenSpy).toHaveBeenLastCalledWith('other');
+    expect(setAuthTokenSpy).not.toHaveBeenCalledWith('LATE_TOKEN');
   });
 });

@@ -97,6 +97,7 @@ jest.mock('@/features/linked-wallets/useLinkedWalletDiscovery', () => ({
 
 const mockGetUser = jest.fn();
 jest.mock('@/features/dfx-backend/services', () => ({
+  dfxApi: { getAuthGeneration: () => 0 },
   dfxUserService: {
     getUser: (...args: unknown[]) => mockGetUser(...args),
   },
