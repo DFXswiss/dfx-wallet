@@ -116,6 +116,25 @@ describe('dfxApi request hardening', () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
+  it('setAuthTokenIfCurrent leaves the token when the generation is stale', async () => {
+    dfxApi.setAuthToken('CURRENT');
+    const staleGeneration = dfxApi.getAuthGeneration();
+    dfxApi.setAuthToken('NEWER');
+    const generation = dfxApi.getAuthGeneration();
+
+    expect(dfxApi.setAuthTokenIfCurrent('STALE', staleGeneration)).toBe(false);
+    expect(dfxApi.getAuthGeneration()).toBe(generation);
+
+    await dfxApi.get('/v1/asset');
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'https://api.dfx.swiss/v1/asset',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer NEWER' }),
+      }),
+    );
+  });
+
   it('returns raw text when requested', async () => {
     (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
