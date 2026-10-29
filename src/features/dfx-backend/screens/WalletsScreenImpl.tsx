@@ -63,6 +63,7 @@ export default function WalletsScreen() {
   const btc = useAccount({ network: 'bitcoin', accountIndex: 0 });
 
   const refresh = useCallback(async () => {
+    setLoadingUser(true);
     setRefreshError(null);
     setIsMergedState(false);
     try {

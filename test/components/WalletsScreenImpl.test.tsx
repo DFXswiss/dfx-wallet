@@ -109,7 +109,7 @@ jest.mock('@/components', () => {
         testID,
       }),
     RenameWalletModal: () => null,
-    Skeleton: () => null,
+    Skeleton: () => ReactActual.createElement(View, { testID: 'wallets-skeleton' }),
   };
 });
 
@@ -204,5 +204,38 @@ describe('WalletsScreen', () => {
     expect(screen.getByText('wallets.mergedExplanation')).toBeTruthy();
     expect(screen.queryByText(invalidated.message)).toBeNull();
     expect(screen.queryByText('wallets.noAddresses')).toBeNull();
+  });
+
+  it('hides no addresses while merged recovery reloads the user', async () => {
+    const services = jest.requireMock('@/features/dfx-backend/services') as {
+      DfxApiError: new (message: string) => Error;
+    };
+    let resolveUser: (user: { activeAddress: null; addresses: never[] }) => void = () => undefined;
+    mockGetUser.mockReset();
+    mockGetUser.mockRejectedValueOnce(new services.DfxApiError('User is merged'));
+    mockGetUser.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveUser = resolve;
+        }),
+    );
+    mockReauthenticateAsOwner.mockResolvedValue(undefined);
+    const screen = render(<WalletsScreen />);
+
+    await waitFor(() => expect(screen.getByTestId('wallets-recover')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('wallets-recover'));
+
+    await waitFor(() => {
+      expect(mockGetUser).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText('wallets.noAddresses')).toBeNull();
+      expect(screen.queryByTestId('wallets-link-bitcoin')).toBeNull();
+      expect(screen.getAllByTestId('wallets-skeleton').length).toBeGreaterThan(0);
+    });
+
+    await act(async () => {
+      resolveUser({ activeAddress: null, addresses: [] });
+    });
+    await waitFor(() => expect(screen.getByText('wallets.noAddresses')).toBeTruthy());
+    expect(screen.queryAllByTestId('wallets-skeleton')).toHaveLength(0);
   });
 });
