@@ -15,7 +15,7 @@ import { secureStorage, StorageKeys } from '@/services/storage';
  * On a failed initialization the existence check runs again (a failing check
  * counts as "a wallet exists"). Cleanup is skipped only when no wallet
  * existed before and one exists now; then the marker stays, because a wallet
- * was created whose metadata is incomplete. Otherwise the previous origin is
+ * may exist with incomplete metadata. Otherwise the previous origin is
  * restored, or the marker removed when there was none. A cleanup error is
  * swallowed, which leaves the marker in place, so the initialization error is
  * always rethrown.
