@@ -36,6 +36,12 @@ describe('deleteWalletFlow', () => {
     expect(dependencies.deleteWallet).toHaveBeenCalledTimes(1);
     expect(dependencies.getRemainingWalletItems).not.toHaveBeenCalled();
     expect(dependencies.reset).toHaveBeenCalledTimes(1);
+    expect(dependencies.requestReauth.mock.invocationCallOrder[0]).toBeLessThan(
+      dependencies.deleteWallet.mock.invocationCallOrder[0]!,
+    );
+    expect(dependencies.deleteWallet.mock.invocationCallOrder[0]).toBeLessThan(
+      dependencies.reset.mock.invocationCallOrder[0]!,
+    );
   });
 
   // Red mutation: remove the retry or classify all remaining items as partial deletion.
@@ -101,5 +107,7 @@ describe('deleteWalletFlow', () => {
     dependencies.reset.mockRejectedValueOnce(new Error('keychain unavailable'));
 
     await expect(deleteWalletFlow(dependencies)).resolves.toBe('deleted-with-cleanup-error');
+    expect(dependencies.deleteWallet).toHaveBeenCalledTimes(1);
+    expect(dependencies.reset).toHaveBeenCalledTimes(1);
   });
 });

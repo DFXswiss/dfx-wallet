@@ -3,12 +3,14 @@ import { useAccount } from '@tetherto/wdk-react-native-core';
 import {
   createDfxSessionGuard,
   isLocalSessionEndedError,
-  LOCAL_SESSION_ENDED_MESSAGE,
 } from '@/features/dfx-backend/session-guard';
 import { dfxAuthService } from '@/features/dfx-backend/services';
 import { useLdsWallet } from '@/hooks';
 
-export type ReauthResult = { ok: true; token: string } | { ok: false; error: string };
+export type ReauthResult =
+  | { ok: true; token: string }
+  | { ok: false; error: string }
+  | { ok: false; cancelled: true };
 
 /**
  * Switch the DFX session to one of the user's other linked wallets.
@@ -54,10 +56,7 @@ export function useLinkedWalletReauth() {
         return { ok: true, token };
       } catch (err) {
         if (isLocalSessionEndedError(err)) {
-          return {
-            ok: false,
-            error: err instanceof Error ? err.message : LOCAL_SESSION_ENDED_MESSAGE,
-          };
+          return { ok: false, cancelled: true };
         }
         // Capture so we can surface it if Path 2 also fails — silently
         // swallowing the message made it impossible to tell why the
@@ -130,10 +129,7 @@ export function useLinkedWalletReauth() {
         return { ok: false, error: annotate(`Unsupported blockchain ${blockchain}`) };
       } catch (err) {
         if (isLocalSessionEndedError(err)) {
-          return {
-            ok: false,
-            error: err instanceof Error ? err.message : LOCAL_SESSION_ENDED_MESSAGE,
-          };
+          return { ok: false, cancelled: true };
         }
         return {
           ok: false,

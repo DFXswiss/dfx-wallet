@@ -15,11 +15,13 @@ const mockStorageSet = jest.fn();
 const mockUseAccount = jest.fn();
 const mockUseLdsWallet = jest.fn();
 
+const mockSetDfxAuthenticated = jest.fn();
 const mockAuthState = {
   isAuthenticated: true,
   isDfxAuthenticated: true,
   isOnboarded: true,
   sessionEpoch: 1,
+  setDfxAuthenticated: (value: boolean) => mockSetDfxAuthenticated(value),
 };
 
 jest.mock('@tetherto/wdk-react-native-core', () => ({
@@ -91,6 +93,7 @@ describe('useDfxAutoLink', () => {
     mockAuthState.isDfxAuthenticated = true;
     mockAuthState.isOnboarded = true;
     mockAuthState.sessionEpoch = 1;
+    mockSetDfxAuthenticated.mockReset();
     mockJwtCoversBlockchain.mockReset();
     mockJwtCoversBlockchain.mockReturnValue(false);
     mockLinkAddress.mockReset();
@@ -133,6 +136,7 @@ describe('useDfxAutoLink', () => {
       request.resolve('stale-auto-link-token');
 
       await waitFor(() => expect(mockLogout).toHaveBeenCalled());
+      expect(mockSetDfxAuthenticated).toHaveBeenCalledWith(false);
       expect(mockStorageRemove).not.toHaveBeenCalled();
       expect(mockStorageSet).not.toHaveBeenCalledWith('dfx-auth-token', 'stale-auto-link-token');
       expect(mockLinkAddress).toHaveBeenCalledTimes(1);

@@ -1296,6 +1296,31 @@ describe('dfxAuthService.changeActiveAddress', () => {
     expect(setAuthTokenSpy).toHaveBeenLastCalledWith('REFRESHED_TOKEN');
   });
 
+  it('keeps a generation-bound refresh when a non-clearing switch fails', async () => {
+    dfxAuthService.adoptStoredToken('OLD_TOKEN');
+    dfxApi.setAuthToken('OLD_TOKEN');
+    const generation = dfxApi.getAuthGeneration();
+    setAuthTokenSpy.mockClear();
+    const getSpy = jest.spyOn(dfxApi, 'get').mockResolvedValue({
+      message: backendSignMessage('0xabc'),
+    });
+    postSpy.mockImplementation(async (path: string) => {
+      if (path === '/v1/auth') return { accessToken: 'REFRESHED' };
+      if (path === '/v1/user/change') {
+        await dfxAuthService.refresh('0xabc', async () => 'SIG', generation);
+        throw new DfxApiError(403, 'FORBIDDEN', 'Not linked');
+      }
+      throw new Error(`unexpected post ${path}`);
+    });
+
+    await expect(dfxAuthService.changeActiveAddress('0xabc')).rejects.toThrow(/Not linked/);
+
+    expect(dfxAuthService.getAccessToken()).toBe('REFRESHED');
+    expect(dfxApi.getAuthGeneration()).toBe(generation);
+    expect(setAuthTokenSpy).not.toHaveBeenCalled();
+    getSpy.mockRestore();
+  });
+
   it('rejects a switch that succeeds after the session was cleared', async () => {
     dfxAuthService.adoptStoredToken('OLD_TOKEN');
     dfxApi.setAuthToken('OLD_TOKEN');

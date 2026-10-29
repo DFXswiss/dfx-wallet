@@ -1,4 +1,5 @@
 import React from 'react';
+import { Modal } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
 jest.mock('@/config/features', () => ({ FEATURES: { BIOMETRIC: true, PIN: true } }));
@@ -104,8 +105,14 @@ describe('useReauthenticate', () => {
 
   it('resolves false when biometric authentication fails without a PIN fallback', async () => {
     useAuthStore.setState({ biometricEnabled: true, pinHash: null });
-    render(<Harness />);
+    const view = render(<Harness />);
     await expect(requestReauth()).resolves.toBe(false);
+    expect(authenticateBiometric).toHaveBeenCalledTimes(1);
+    expect(authenticateBiometric).toHaveBeenCalledWith({
+      promptMessage: 'biometric.prompt',
+      cancelLabel: 'biometric.usePin',
+    });
+    expect(view.UNSAFE_getByType(Modal).props.visible).toBe(false);
   });
 
   it('falls back from a rejected biometric prompt to PIN verification', async () => {

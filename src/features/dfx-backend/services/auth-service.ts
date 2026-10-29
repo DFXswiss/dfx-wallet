@@ -108,8 +108,9 @@ export class DfxAuthService {
   }
 
   /**
-   * Restore a token only while both the flow counters and the API generation
-   * are unchanged. The API token is written only when this flow cleared it.
+   * Restore a token only when this flow cleared it and both the flow counters
+   * and the API generation are unchanged. A link or switch that left the token
+   * in place rolls nothing back, so a refresh that landed during the call stays.
    */
   private rollbackToken(previousToken: string | null, flow: AuthFlow): void {
     if (flow.generation !== this.generation || flow.mutationAfterBegin !== this.mutation) {
@@ -118,9 +119,9 @@ export class DfxAuthService {
     if (dfxApi.getAuthGeneration() !== flow.apiGeneration) {
       return;
     }
+    if (!flow.cleared) return;
     this.accessToken = previousToken;
     this.mutation += 1;
-    if (!flow.cleared) return;
     if (previousToken) {
       dfxApi.setAuthToken(previousToken);
     } else {

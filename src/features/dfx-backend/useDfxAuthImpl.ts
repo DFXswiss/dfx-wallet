@@ -92,6 +92,7 @@ export function useDfxAuth() {
         setDfxAuthenticated(true);
         return token;
       } catch (err) {
+        if (isLocalSessionEndedError(err)) throw err;
         const msg = err instanceof Error ? err.message : 'Authentication failed';
         setError(msg);
         throw err instanceof Error ? err : new Error(msg);
@@ -118,12 +119,9 @@ export function useDfxAuth() {
   );
 
   /**
-   * Recovery for the "User is merged" 403 path. Drops the prior session
-   * (which is bound to the merged-AWAY user), then signs in the WDK ETH
-   * address fresh — DFX returns the JWT for the merge-target user (the
-   * one that actually carries the email/KYC). Without this, calling
-   * `authenticate()` keeps the stale Bearer attached and the server
-   * returns the same 403 again.
+   * Recovery for the "User is merged" 403 path. Signs in the WDK ETH
+   * address as the account owner, then clears `DFX_LINKED_CHAINS` so
+   * auto-link re-evaluates against the new JWT.
    */
   const reauthenticateAsOwner = useCallback(async (): Promise<string> => {
     const guard = createDfxSessionGuard();
@@ -146,6 +144,7 @@ export function useDfxAuth() {
       setDfxAuthenticated(true);
       return token;
     } catch (err) {
+      if (isLocalSessionEndedError(err)) throw err;
       const msg = err instanceof Error ? err.message : 'Authentication failed';
       setError(msg);
       throw err instanceof Error ? err : new Error(msg);

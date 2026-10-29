@@ -313,6 +313,21 @@ describe('useAuthStore', () => {
 
       await expect(useAuthStore.getState().verifyPin('123456')).resolves.toBe(true);
 
+      const persistedAttemptIndex = setItemMock.mock.calls.findIndex(
+        (call) => call[0] === 'pinFailedAttempts',
+      );
+      const clearedAttemptIndex = deleteItemMock.mock.calls.findIndex(
+        (call) => call[0] === 'pinFailedAttempts',
+      );
+      expect(persistedAttemptIndex).toBeGreaterThanOrEqual(0);
+      expect(clearedAttemptIndex).toBeGreaterThanOrEqual(0);
+      expect(verifyPinHashMock).toHaveBeenCalledTimes(1);
+      expect(setItemMock.mock.invocationCallOrder[persistedAttemptIndex]).toBeLessThan(
+        verifyPinHashMock.mock.invocationCallOrder[0]!,
+      );
+      expect(verifyPinHashMock.mock.invocationCallOrder[0]).toBeLessThan(
+        deleteItemMock.mock.invocationCallOrder[clearedAttemptIndex]!,
+      );
       expect(deleteItemMock).toHaveBeenCalledWith('pinFailedAttempts');
       expect(deleteItemMock).toHaveBeenCalledWith('pinLockedUntil');
       expect(persisted.pinFailedAttempts).toBeUndefined();
@@ -432,6 +447,39 @@ describe('useAuthStore', () => {
         expect(verifyPinHashMock).toHaveBeenCalledTimes(1);
         expect(setItemMock).not.toHaveBeenCalled();
         expect(deleteItemMock).not.toHaveBeenCalled();
+      } finally {
+        verifyPinHashMock.mockReset();
+        verifyPinHashMock.mockImplementation(actualVerifyPinHash);
+      }
+    });
+
+    it('does not count a queued verification against a pin hash it did not start with', async () => {
+      const actualVerifyPinHash = jest.requireActual<typeof import('@/services/pin')>(
+        '@/services/pin',
+      ).verifyPin;
+      let resolveVerification!: (value: boolean) => void;
+      const verification = new Promise<boolean>((resolve) => {
+        resolveVerification = resolve;
+      });
+      verifyPinHashMock
+        .mockImplementationOnce(() => verification)
+        .mockImplementationOnce(async () => false);
+      useAuthStore.setState({ pinHash: 'stored-hash', failedAttempts: 0, lockedUntil: null });
+
+      try {
+        const firstAttempt = useAuthStore.getState().verifyPin('111111');
+        await waitFor(() => expect(verifyPinHashMock).toHaveBeenCalledTimes(1));
+        const queuedAttempt = useAuthStore.getState().verifyPin('222222');
+        useAuthStore.setState({ pinHash: 'new-hash' });
+        setItemMock.mockClear();
+        resolveVerification(false);
+
+        await expect(Promise.all([firstAttempt, queuedAttempt])).resolves.toEqual([false, false]);
+        expect(verifyPinHashMock).toHaveBeenCalledTimes(1);
+        expect(verifyPinHashMock).not.toHaveBeenCalledWith('222222', 'new-hash');
+        expect(useAuthStore.getState().failedAttempts).toBe(1);
+        expect(useAuthStore.getState().pinHash).toBe('new-hash');
+        expect(setItemMock).not.toHaveBeenCalled();
       } finally {
         verifyPinHashMock.mockReset();
         verifyPinHashMock.mockImplementation(actualVerifyPinHash);

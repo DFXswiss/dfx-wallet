@@ -3,6 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-nati
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, Icon, PrimaryButton, ScreenContainer } from '@/components';
+import { isLocalSessionEndedError } from '@/features/dfx-backend/session-guard';
 import { useDfxAuth } from '@/hooks';
 import { dfxApi, dfxAuthService, decodeDfxJwt } from '@/features/dfx-backend/services';
 import { Typography, useColors, type ThemeColors } from '@/theme';
@@ -52,8 +53,9 @@ export default function DfxLoginScreen() {
       await dfxAuthService.requestMailLogin(mail.trim(), { wallet: 'DFX Wallet' });
       setStage('verify');
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('dfxLogin.sendError'));
       setStage('enterMail');
+      if (isLocalSessionEndedError(err)) return;
+      setError(err instanceof Error ? err.message : t('dfxLogin.sendError'));
     } finally {
       setBusy(false);
     }
@@ -79,6 +81,7 @@ export default function DfxLoginScreen() {
         setError(t('dfxLogin.notVerifiedYet'));
       }
     } catch (err) {
+      if (isLocalSessionEndedError(err)) return;
       setError(err instanceof Error ? err.message : t('dfxLogin.verifyError'));
     } finally {
       setBusy(false);

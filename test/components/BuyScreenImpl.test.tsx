@@ -1583,11 +1583,96 @@ describe('BuyScreenImpl', () => {
 
     await waitFor(() => expect(mockDfxAuthService.linkAddress).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mockDismissAuthGate).toHaveBeenCalledTimes(1));
+    expect(mockCancelAuthGate).toHaveBeenCalledWith(flowState.authGate);
     expect(
       getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled,
     ).toBe(false);
     expect(queryByText(invalidated.message)).toBeNull();
     expect(mockAlert).not.toHaveBeenCalled();
+  });
+
+  it('releases the buy submit lock when the link gate is invalidated', async () => {
+    mockUseRealDfxAuthGate = true;
+    const gate: DfxAuthGateState = {
+      kind: 'linkChain',
+      chain: 'bitcoin',
+      message: 'Link Bitcoin',
+    };
+    mockCreatePaymentInfo.mockImplementation(async () => {
+      flowState.authGate = gate;
+      return null;
+    });
+    mockDfxAuthService.linkAddress.mockRejectedValue(new DfxAuthFlowInvalidatedError());
+
+    const view = render(<BuyScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    await act(async () => {
+      fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
+    });
+
+    await waitFor(() => expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(view.getByTestId('dfx-auth-gate-primary')).toBeTruthy());
+    await act(async () => {
+      fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
+    });
+    await waitFor(() => expect(mockCancelAuthGate).toHaveBeenCalledWith(gate));
+
+    mockCreatePaymentInfo.mockClear();
+    await act(async () => {
+      fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
+    });
+    await waitFor(() => expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1));
+  });
+
+  it('closes buy confirmation without an error when reauth is cancelled', async () => {
+    mockSearchParams = {
+      targetAddress: 'bc1qtargetwalletxxxx',
+      targetBlockchain: 'Bitcoin',
+    };
+    mockReauthAs
+      .mockResolvedValueOnce({ ok: false, cancelled: true })
+      .mockResolvedValueOnce({ ok: true, token: 't' });
+    mockCreatePaymentInfo.mockResolvedValue(PAYMENT_INFO);
+
+    const view = render(<BuyScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
+    expect(view.getByTestId('confirm-target-modal')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(view.getByTestId('confirm-target-confirm'));
+    });
+    await waitFor(() => expect(view.queryByTestId('confirm-target-modal')).toBeNull());
+    expect(view.queryByText(/linkedWallet\.reauthError/)).toBeNull();
+
+    fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
+    expect(view.getByTestId('confirm-target-modal')).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(view.getByTestId('confirm-target-confirm'));
+    });
+    await waitFor(() => expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1));
+  });
+
+  it('closes buy confirmation without an error when reauth throws a session error', async () => {
+    mockSearchParams = {
+      targetAddress: 'bc1qtargetwalletxxxx',
+      targetBlockchain: 'Bitcoin',
+    };
+    const invalidated = new DfxAuthFlowInvalidatedError();
+    mockReauthAs.mockRejectedValueOnce(invalidated);
+
+    const view = render(<BuyScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
+
+    await act(async () => {
+      fireEvent.press(view.getByTestId('confirm-target-confirm'));
+    });
+    await waitFor(() => expect(view.queryByTestId('confirm-target-modal')).toBeNull());
+    expect(view.queryByText(invalidated.message)).toBeNull();
   });
 });
 
@@ -1908,10 +1993,50 @@ describe('SellScreenImpl', () => {
 
     await waitFor(() => expect(mockDfxAuthService.linkAddress).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mockSellDismissAuthGate).toHaveBeenCalledTimes(1));
+    expect(mockSellCancelAuthGate).toHaveBeenCalledWith(mockSellFlowState.authGate);
     expect(
       getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled,
     ).toBe(false);
     expect(queryByText(invalidated.message)).toBeNull();
     expect(mockAlert).not.toHaveBeenCalled();
+  });
+
+  it('closes sell confirmation without an error when reauth is cancelled', async () => {
+    mockSearchParams = {
+      targetAddress: 'bc1qtargetwalletxxxx',
+      targetBlockchain: 'Bitcoin',
+    };
+    mockReauthAs.mockResolvedValueOnce({ ok: false, cancelled: true });
+
+    const view = render(<SellScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.01');
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+    expect(view.getByTestId('confirm-target-modal')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(view.getByTestId('confirm-target-confirm'));
+    });
+    await waitFor(() => expect(view.queryByTestId('confirm-target-modal')).toBeNull());
+    expect(view.queryByText(/linkedWallet\.reauthError/)).toBeNull();
+  });
+
+  it('closes sell confirmation without an error when reauth throws a session error', async () => {
+    mockSearchParams = {
+      targetAddress: 'bc1qtargetwalletxxxx',
+      targetBlockchain: 'Bitcoin',
+    };
+    mockReauthAs.mockRejectedValueOnce(new Error(LOCAL_SESSION_ENDED_MESSAGE));
+
+    const view = render(<SellScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.01');
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+
+    await act(async () => {
+      fireEvent.press(view.getByTestId('confirm-target-confirm'));
+    });
+    await waitFor(() => expect(view.queryByTestId('confirm-target-modal')).toBeNull());
+    expect(view.queryByText(LOCAL_SESSION_ENDED_MESSAGE)).toBeNull();
   });
 });

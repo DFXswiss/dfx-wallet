@@ -60,7 +60,6 @@ jest.mock('@/services/storage', () => ({
 }));
 
 import { useLinkedWalletReauth } from '@/features/linked-wallets/useLinkedWalletReauth';
-import { LOCAL_SESSION_ENDED_MESSAGE } from '@/features/dfx-backend/session-guard';
 import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
 import { StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
@@ -154,10 +153,7 @@ describe('useLinkedWalletReauth', () => {
     mockSecureStorageRemove.mockClear();
     await act(async () => pendingChange.resolve('stale-change-token'));
 
-    await expect(reauthentication).resolves.toEqual({
-      ok: false,
-      error: LOCAL_SESSION_ENDED_MESSAGE,
-    });
+    await expect(reauthentication).resolves.toEqual({ ok: false, cancelled: true });
     expect(mockSecureStorageSet).not.toHaveBeenCalledWith(
       StorageKeys.DFX_AUTH_TOKEN,
       'stale-change-token',
@@ -174,7 +170,7 @@ describe('useLinkedWalletReauth', () => {
 
     await expect(result.current.reauthAs('LNURL1ABC', 'Lightning')).resolves.toEqual({
       ok: false,
-      error: invalidated.message,
+      cancelled: true,
     });
 
     expect(mockLoginAsLnurlAddressOwner).not.toHaveBeenCalled();
@@ -188,7 +184,7 @@ describe('useLinkedWalletReauth', () => {
 
     await expect(result.current.reauthAs('LNURL1ABC', 'Lightning')).resolves.toEqual({
       ok: false,
-      error: invalidated.message,
+      cancelled: true,
     });
 
     expect(mockSecureStorageSet).not.toHaveBeenCalled();
@@ -214,10 +210,7 @@ describe('useLinkedWalletReauth', () => {
     mockSecureStorageRemove.mockClear();
     await act(async () => pendingLogin.resolve('stale-lightning-token'));
 
-    await expect(reauthentication).resolves.toEqual({
-      ok: false,
-      error: expect.stringContaining(LOCAL_SESSION_ENDED_MESSAGE),
-    });
+    await expect(reauthentication).resolves.toEqual({ ok: false, cancelled: true });
     expect(mockSecureStorageSet).not.toHaveBeenCalledWith(
       StorageKeys.DFX_AUTH_TOKEN,
       'stale-lightning-token',

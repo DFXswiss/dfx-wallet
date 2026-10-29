@@ -11,7 +11,7 @@ In rough order of value to an attacker.
 
 | Asset                                         | Where it lives                                                         | Loss impact                                          |
 | --------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------- |
-| Seed / mnemonic                               | WDK secure storage (encrypted; Keychain / Keystore), JS heap on export | Total loss of all funds across all chains            |
+| Seed / mnemonic                               | WDK secure storage (encrypted; Keychain / Keystore); JS heap during creation, restore entry and export | Total loss of all funds across all chains            |
 | PIN                                           | Hashed in `expo-secure-store`; PIN itself only in JS heap during entry | Bypass of app-level auth → seed access               |
 | Signing context (PSBT, EIP-712, etc.)         | JS heap, briefly in WDK Bare worklet                                   | Funds stolen via swapped recipient/amount            |
 | BitBox pairing state (Noise XX static pubkey) | `expo-secure-store` (planned)                                          | MITM on hardware-wallet channel                      |

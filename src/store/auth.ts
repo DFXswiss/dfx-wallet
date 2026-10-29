@@ -1,7 +1,10 @@
 import { create } from 'zustand';
 import { FEATURES } from '@/config/features';
+import type { BiometricPromptOptions } from '@/features/biometric/biometric';
 import { hashPin, needsPinRehash, verifyPin as verifyPinHash } from '@/services/pin';
 import { secureStorage, StorageKeys } from '@/services/storage';
+
+export type { BiometricPromptOptions };
 
 /**
  * Lazy handle to the biometric service. Resolved through a conditional
@@ -20,9 +23,10 @@ const biometricModule: {
 
 /**
  * Lazy handle to the DFX API client and auth service. The store needs
- * them only when rehydrating a persisted DFX session token; when
- * `EXPO_PUBLIC_ENABLE_DFX_BACKEND` is off there is no DFX session, so
- * the import is elided entirely and the rehydrate path is a no-op.
+ * them when rehydrating a persisted DFX session token and when reset
+ * clears that session. When `EXPO_PUBLIC_ENABLE_DFX_BACKEND` is off
+ * there is no DFX session, so the import is elided and both paths are
+ * no-ops.
  */
 const dfxModule: {
   dfxApi: {
@@ -58,11 +62,6 @@ type AuthState = {
   authenticateBiometric: (options: BiometricPromptOptions) => Promise<boolean>;
   setBiometricEnabled: (enabled: boolean) => Promise<void>;
   reset: () => Promise<void>;
-};
-
-export type BiometricPromptOptions = {
-  promptMessage: string;
-  cancelLabel: string;
 };
 
 export class PinOverwriteNotAllowedError extends Error {
@@ -223,8 +222,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!pinHash) return false;
     if (lockedUntil && lockedUntil > Date.now()) return false;
 
+    const capturedHash = pinHash;
+
     const verification = pinFailurePersistence.then(async () => {
       const { pinHash: currentPinHash, lockedUntil: currentLockedUntil } = get();
+      if (currentPinHash !== capturedHash) return false;
       if (!currentPinHash) return false;
       if (currentLockedUntil && currentLockedUntil > Date.now()) return false;
 

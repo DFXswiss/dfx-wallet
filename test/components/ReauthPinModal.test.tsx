@@ -72,10 +72,13 @@ describe('ReauthPinModal', () => {
 
     expect(props.onCancel).toHaveBeenCalledTimes(1);
     expect(view.getByTestId('reauth-pin-input').props.value).toBe('');
+    fireEvent.changeText(view.getByTestId('reauth-pin-input'), '654321');
+    expect(view.getByTestId('reauth-pin-input').props.value).toBe('654321');
     act(() => {
       view.UNSAFE_getByType(Modal).props.onRequestClose();
     });
     expect(props.onCancel).toHaveBeenCalledTimes(2);
+    expect(view.getByTestId('reauth-pin-input').props.value).toBe('');
   });
 
   it('disables PIN entry while locked and renders the lockout error', () => {

@@ -75,12 +75,12 @@ describe('AuthLayout', () => {
     expect(getByTestId('stack-rendered')).toBeTruthy();
   });
 
-  it('wires the silent 401 handler + auto-link hook once the user is authenticated', () => {
+  it('wires the silent 401 handler and auto-link without auto-lock', () => {
     useAuthStore.setState({ isAuthenticated: true });
     render(<AuthLayout />);
     expect(dfxSpies.setOnUnauthorized).toHaveBeenCalledWith(hookSpies.authenticateSilent);
     expect(hookSpies.useDfxAutoLinkSpy).toHaveBeenCalled();
-    expect(mockUseAutoLock).toHaveBeenCalledTimes(1);
+    expect(mockUseAutoLock).toHaveBeenCalledTimes(0);
   });
 
   it('unregisters the silent 401 handler when the authenticated layout unmounts', () => {

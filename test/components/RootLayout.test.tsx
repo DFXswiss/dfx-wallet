@@ -61,12 +61,18 @@ jest.mock('@react-native-community/netinfo', () => ({
   useNetInfo: () => ({ isConnected: true, isInternetReachable: true }),
 }));
 
+const mockUseAutoLock = jest.fn();
+jest.mock('@/hooks/useAutoLock', () => ({
+  useAutoLock: () => mockUseAutoLock(),
+}));
+
 import RootLayout from '../../app/_layout';
 import { useAuthStore, useWalletStore } from '@/store';
 import { useThemeStore } from '@/theme';
 
 describe('RootLayout', () => {
   beforeEach(() => {
+    mockUseAutoLock.mockReset();
     // All stores expose a manual hydrate(); spy on them to make sure the
     // root layout starts every hydration path on mount.
     jest.spyOn(useAuthStore.getState(), 'hydrate').mockResolvedValue(undefined);
@@ -100,6 +106,12 @@ describe('RootLayout', () => {
     const { unmount } = render(<RootLayout />);
     unmount();
     expect(pricingService.stopAutoRefresh).toHaveBeenCalled();
+  });
+
+  it('mounts auto-lock once before the session is hydrated or authenticated', () => {
+    useAuthStore.setState({ isAuthenticated: false, isHydrated: false });
+    render(<RootLayout />);
+    expect(mockUseAutoLock).toHaveBeenCalledTimes(1);
   });
 
   it('renders a loading state until the auth store reports hydrated', () => {

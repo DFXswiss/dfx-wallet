@@ -15,22 +15,22 @@
 /src/services/storage.ts     @Danswar @davidleomay @TaprootFreak
 /src/services/pin.ts         @Danswar @davidleomay @TaprootFreak
 /src/services/clipboard.ts   @Danswar @davidleomay @TaprootFreak
-/src/store/auth.ts            @Danswar @davidleomay @TaprootFreak
-/src/components/PrivacyShield.tsx  @Danswar @davidleomay @TaprootFreak
-/src/components/ReauthPinModal.tsx  @Danswar @davidleomay @TaprootFreak
+/src/store/auth.ts           @Danswar @davidleomay @TaprootFreak
+/src/components/PrivacyShield.tsx @Danswar @davidleomay @TaprootFreak
+/src/components/ReauthPinModal.tsx @Danswar @davidleomay @TaprootFreak
 /src/hooks/useAutoLock*.ts   @Danswar @davidleomay @TaprootFreak
-/src/hooks/useReauthenticate.ts  @Danswar @davidleomay @TaprootFreak
-/src/hooks/useScreenCaptureProtection.ts  @Danswar @davidleomay @TaprootFreak
+/src/hooks/useReauthenticate.ts @Danswar @davidleomay @TaprootFreak
+/src/hooks/useScreenCaptureProtection.ts @Danswar @davidleomay @TaprootFreak
 /src/features/hardware-wallet/ @Danswar @davidleomay @TaprootFreak
 /src/features/passkey/       @Danswar @davidleomay @TaprootFreak
 /src/features/biometric/     @Danswar @davidleomay @TaprootFreak
 /src/features/pin/           @Danswar @davidleomay @TaprootFreak
-/src/features/settings/SeedExportScreenImpl.tsx  @Danswar @davidleomay @TaprootFreak
-/src/features/settings/SettingsScreenImpl.tsx  @Danswar @davidleomay @TaprootFreak
-/src/features/settings/services/  @Danswar @davidleomay @TaprootFreak
+/src/features/settings/SeedExportScreenImpl.tsx @Danswar @davidleomay @TaprootFreak
+/src/features/settings/SettingsScreenImpl.tsx @Danswar @davidleomay @TaprootFreak
+/src/features/settings/services/ @Danswar @davidleomay @TaprootFreak
 /src/features/restore/       @Danswar @davidleomay @TaprootFreak
 /src/features/deep-link/     @Danswar @davidleomay @TaprootFreak
-/src/features/linked-wallets/useLinkedWalletReauth.ts  @Danswar @davidleomay @TaprootFreak
+/src/features/linked-wallets/useLinkedWalletReauth.ts @Danswar @davidleomay @TaprootFreak
 /src/features/webview/       @Danswar @davidleomay @TaprootFreak
 
 # Feature flags decide which security features are live
@@ -65,8 +65,6 @@
 
 # Security documentation and screenshot redaction
 /docs/security/              @Danswar @davidleomay @TaprootFreak
-/e2e/utils/mask-artifact.ts  @Danswar @davidleomay @TaprootFreak
-/e2e/utils/mask-png.ts       @Danswar @davidleomay @TaprootFreak
 /e2e/utils/screenshot.ts     @Danswar @davidleomay @TaprootFreak
 /e2e/visual/                 @Danswar @davidleomay @TaprootFreak
 /e2e/__baselines__/          @Danswar @davidleomay @TaprootFreak
