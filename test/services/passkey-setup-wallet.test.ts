@@ -200,7 +200,6 @@ describe('setupPasskeyWallet', () => {
     expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBe('passkey-pending');
   });
 
-  // Previously pinned the opposite: a wallet that already existed kept the pending marker.
   it('restores the previous origin when a wallet already existed before initialization failure', async () => {
     await mockedStorage.set(StorageKeys.WALLET_ORIGIN, 'seed');
     mockedStorage.set.mockClear();

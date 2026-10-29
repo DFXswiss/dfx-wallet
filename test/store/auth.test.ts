@@ -410,7 +410,7 @@ describe('useAuthStore', () => {
       expect(useAuthStore.getState().failedAttempts).toBe(1);
     });
 
-    it('does not write lockout keys or failed attempts when reset wins during PIN verification', async () => {
+    it('writes no lockout keys or failed attempts after reset wins during PIN verification', async () => {
       const persisted: Record<string, string> = { pinHash: 'stored-hash' };
       setItemMock.mockImplementation(async (key: string, value: string) => {
         persisted[key] = value;
