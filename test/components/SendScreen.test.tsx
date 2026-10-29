@@ -243,13 +243,13 @@ describe('SendScreen', () => {
       expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).toBe(true);
     });
 
-    it('keeps Continue disabled for the zero EVM address', () => {
+    it.each([
+      '0x0000000000000000000000000000000000000000',
+      '0000000000000000000000000000000000000000',
+    ])('keeps Continue disabled for the zero EVM address %s', (address) => {
       const { getAllByText, getByPlaceholderText, getByTestId } = render(<SendScreen />);
       fireEvent.press(getAllByText('CHF')[0]!);
-      fireEvent.changeText(
-        getByPlaceholderText('send.addressPlaceholder'),
-        '0x0000000000000000000000000000000000000000',
-      );
+      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), address);
       fireEvent.changeText(getByPlaceholderText('0.00'), '1');
 
       expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).toBe(true);
