@@ -2,13 +2,26 @@ import { deriveMnemonicFromPrf, DERIVATION_VERSION } from './key-derivation';
 import { secureStorage, StorageKeys } from '@/services/storage';
 
 /**
- * Derive the mnemonic, record whether a wallet already existed, read and
- * preserve the previous wallet origin, then mark passkey setup as pending
- * before initializing the WDK wallet. A failed origin read or a failed
- * pre-check aborts before the pending write. After a failed initialization,
- * the marker stays only if no wallet existed beforehand and the check sees
- * a wallet or cannot tell.
- * Otherwise the previous origin is restored or the marker is removed; if that cleanup fails, the marker stays.
+ * Set up a passkey wallet and record its metadata.
+ *
+ * Steps: derive the mnemonic from the PRF output, read the previous wallet
+ * origin, check whether a wallet already exists, write the `passkey-pending`
+ * origin marker, then initialize the WDK wallet. A failed origin read or
+ * existence check aborts before the marker is written.
+ *
+ * On success the credential id, the derivation version and the `passkey`
+ * origin are stored.
+ *
+ * On a failed initialization the existence check runs again (a failing check
+ * counts as "a wallet exists"). Cleanup is skipped only when no wallet
+ * existed before and one exists now; then the marker stays, because a wallet
+ * was created whose metadata is incomplete. Otherwise the previous origin is
+ * restored, or the marker removed when there was none. A cleanup error is
+ * swallowed, which leaves the marker in place, so the initialization error is
+ * always rethrown.
+ *
+ * Without an explicit `walletExists`, a wallet is assumed to exist, so a
+ * failed initialization always attempts the cleanup.
  *
  * Order matters: an interrupted metadata write must stay fail-closed and
  * cannot be mistaken for a seed wallet.
