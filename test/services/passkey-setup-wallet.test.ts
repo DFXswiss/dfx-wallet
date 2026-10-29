@@ -95,9 +95,9 @@ describe('setupPasskeyWallet', () => {
         throw new Error('keychain unavailable');
       });
 
-    await expect(
-      setupPasskeyWallet(PRF_32, CREDENTIAL_ID, async () => undefined),
-    ).rejects.toThrow('keychain unavailable');
+    await expect(setupPasskeyWallet(PRF_32, CREDENTIAL_ID, async () => undefined)).rejects.toThrow(
+      'keychain unavailable',
+    );
 
     expect(mockedStorage.set.mock.calls.map((call) => call[0])).toEqual([
       StorageKeys.WALLET_ORIGIN,
@@ -200,8 +200,8 @@ describe('setupPasskeyWallet', () => {
     expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBe('passkey-pending');
   });
 
-  // Red mutation: always restore the previous origin after initialization fails.
-  it('keeps the pending marker when a wallet exists after initialization failure', async () => {
+  // Previously pinned the opposite: a wallet that already existed kept the pending marker.
+  it('restores the previous origin when a wallet already existed before initialization failure', async () => {
     await mockedStorage.set(StorageKeys.WALLET_ORIGIN, 'seed');
     mockedStorage.set.mockClear();
     const initError = new Error('WDK init failed');
@@ -218,20 +218,18 @@ describe('setupPasskeyWallet', () => {
       ),
     ).rejects.toBe(initError);
 
-    expect(walletExists).toHaveBeenCalledTimes(1);
+    expect(walletExists).toHaveBeenCalledTimes(2);
     expect(mockedStorage.set.mock.calls).toEqual([
       [StorageKeys.WALLET_ORIGIN, 'passkey-pending'],
+      [StorageKeys.WALLET_ORIGIN, 'seed'],
     ]);
     expect(mockedStorage.remove).not.toHaveBeenCalled();
-    expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBe('passkey-pending');
+    expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBe('seed');
   });
 
-  // Red mutation: restore or remove the origin when the existence check rejects.
-  it('keeps the pending marker and init error when wallet existence is unverifiable', async () => {
+  it('keeps the pending marker when initialization creates a wallet that did not exist before', async () => {
     const initError = new Error('WDK init failed');
-    const walletExists = jest.fn(async () => {
-      throw new Error('storage unavailable');
-    });
+    const walletExists = jest.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
 
     await expect(
       setupPasskeyWallet(
@@ -244,16 +242,54 @@ describe('setupPasskeyWallet', () => {
       ),
     ).rejects.toBe(initError);
 
-    expect(walletExists).toHaveBeenCalledTimes(1);
-    expect(mockedStorage.set.mock.calls).toEqual([
-      [StorageKeys.WALLET_ORIGIN, 'passkey-pending'],
-    ]);
+    expect(walletExists).toHaveBeenCalledTimes(2);
+    expect(mockedStorage.set.mock.calls).toEqual([[StorageKeys.WALLET_ORIGIN, 'passkey-pending']]);
     expect(mockedStorage.remove).not.toHaveBeenCalled();
     expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBe('passkey-pending');
   });
 
-  // Red mutation: make the optional existence-check fallback restore the origin.
-  it('keeps the pending marker when no wallet existence check is supplied', async () => {
+  it('aborts before the pending marker when wallet existence cannot be checked beforehand', async () => {
+    const existenceError = new Error('storage unavailable');
+    const initializeWallet = jest.fn(async () => undefined);
+    const walletExists = jest.fn(async () => {
+      throw existenceError;
+    });
+
+    await expect(
+      setupPasskeyWallet(PRF_32, CREDENTIAL_ID, initializeWallet, walletExists),
+    ).rejects.toBe(existenceError);
+
+    expect(walletExists).toHaveBeenCalledTimes(1);
+    expect(initializeWallet).not.toHaveBeenCalled();
+    expect(mockedStorage.set).not.toHaveBeenCalled();
+    expect(mockedStorage.remove).not.toHaveBeenCalled();
+  });
+
+  it('keeps the pending marker when existence cannot be checked after initialization failure', async () => {
+    const initError = new Error('WDK init failed');
+    const walletExists = jest
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockRejectedValueOnce(new Error('storage unavailable'));
+
+    await expect(
+      setupPasskeyWallet(
+        PRF_32,
+        CREDENTIAL_ID,
+        async () => {
+          throw initError;
+        },
+        walletExists,
+      ),
+    ).rejects.toBe(initError);
+
+    expect(walletExists).toHaveBeenCalledTimes(2);
+    expect(mockedStorage.set.mock.calls).toEqual([[StorageKeys.WALLET_ORIGIN, 'passkey-pending']]);
+    expect(mockedStorage.remove).not.toHaveBeenCalled();
+    expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBe('passkey-pending');
+  });
+
+  it('removes the pending marker when no wallet existence check is supplied', async () => {
     const initError = new Error('WDK init failed');
 
     await expect(
@@ -262,8 +298,8 @@ describe('setupPasskeyWallet', () => {
       }),
     ).rejects.toBe(initError);
 
-    expect(mockedStorage.remove).not.toHaveBeenCalled();
-    expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBe('passkey-pending');
+    expect(mockedStorage.remove).toHaveBeenCalledWith(StorageKeys.WALLET_ORIGIN);
+    expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBeNull();
   });
 
   // Red mutation: catch the origin-read failure and continue setup.

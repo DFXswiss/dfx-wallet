@@ -103,8 +103,10 @@ export function createDfxSessionGuard(): DfxSessionGuard {
         await enqueueTokenWrite(token, sessionEpoch);
       } catch (error) {
         // The rejected write never became this flow's token. Drop the earlier one
-        // here; a later assertActive is not guaranteed, and its error must win.
+        // here; a later assertActive is not guaranteed. If the session ended,
+        // that error wins — it also logs out the matching DFX token.
         await removeWrittenFlowToken().catch(() => undefined);
+        await assertActive(token);
         throw error;
       }
       writtenToken = token;

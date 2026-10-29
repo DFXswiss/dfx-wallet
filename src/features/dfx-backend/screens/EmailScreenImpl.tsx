@@ -9,6 +9,16 @@ import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/aut
 import { DfxApiError, dfxUserService } from '@/features/dfx-backend/services';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 
+const SILENT_DFX_AUTH_ERRORS = new Set<string>([
+  LOCAL_SESSION_ENDED_MESSAGE,
+  new DfxAuthFlowInvalidatedError().message,
+]);
+
+function visibleDfxAuthError(message: string | null): string | null {
+  if (message !== null && SILENT_DFX_AUTH_ERRORS.has(message)) return null;
+  return message;
+}
+
 /**
  * Read-only user-data page mirroring realunit-app's
  * `settings_user_data_page.dart`:
@@ -25,16 +35,6 @@ import { Typography, useColors, type ThemeColors } from '@/theme';
  * Title stays "E-Mail" because it remains the primary entry point users
  * tap from Settings; the screen itself is the user-data summary.
  */
-const SILENT_DFX_AUTH_ERRORS = new Set<string>([
-  LOCAL_SESSION_ENDED_MESSAGE,
-  new DfxAuthFlowInvalidatedError().message,
-]);
-
-function visibleDfxAuthError(message: string | null): string | null {
-  if (message !== null && SILENT_DFX_AUTH_ERRORS.has(message)) return null;
-  return message;
-}
-
 export default function UserDataScreen() {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);

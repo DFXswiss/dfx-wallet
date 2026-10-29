@@ -19,8 +19,9 @@ import type { AuthRequestDto, AuthResponseDto, SignMessageDto } from './dto';
  * hardware-wallet sign path would otherwise trigger.
  *
  * Mirrors realunit-app's `SessionCache.signature` pattern; kept tight
- * (5-minute TTL, evicted on session replacement) so a stale challenge can never be
- * replayed past its server-side expiry.
+ * (5-minute TTL, cleared when the service generation increments in `logout`
+ * or `adoptStoredToken`) so a stale challenge can never be replayed past its
+ * server-side expiry.
  */
 const SIGNATURE_TTL_MS = 5 * 60 * 1000;
 const SIGN_MESSAGE_PREFIX =

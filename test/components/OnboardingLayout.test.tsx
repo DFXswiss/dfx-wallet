@@ -39,6 +39,20 @@ describe('OnboardingLayout routing guards', () => {
     expect(getByTestId('redirect').props.children).toBe('/(auth)/(tabs)/dashboard');
   });
 
+  it('sends an onboarded user without a PIN from welcome to setup-pin', () => {
+    useAuthStore.setState({ isOnboarded: true, isAuthenticated: false, pinHash: null });
+    mockSegments.current = ['(onboarding)', 'welcome'];
+    const { getByTestId } = render(<OnboardingLayout />);
+    expect(getByTestId('redirect').props.children).toBe('/(onboarding)/setup-pin');
+  });
+
+  it('sends an onboarded user without a PIN from legal-disclaimer to setup-pin', () => {
+    useAuthStore.setState({ isOnboarded: true, isAuthenticated: true, pinHash: null });
+    mockSegments.current = ['(onboarding)', 'legal-disclaimer'];
+    const { getByTestId } = render(<OnboardingLayout />);
+    expect(getByTestId('redirect').props.children).toBe('/(onboarding)/setup-pin');
+  });
+
   it('redirects to PIN verify when onboarded but not yet authenticated in-memory', () => {
     useAuthStore.setState({ isOnboarded: true, isAuthenticated: false, pinHash: 'hash' });
     mockSegments.current = ['(onboarding)', 'welcome'];

@@ -73,6 +73,7 @@ export default function VerifyPinScreen() {
   const unlockWallet = useCallback(() => unlock('default'), [unlock]);
 
   const tryBiometric = useCallback(async () => {
+    if (lockedUntil !== null && lockedUntil > Date.now()) return;
     if (biometricInFlight) return;
     setBiometricInFlight(true);
     try {
@@ -95,14 +96,23 @@ export default function VerifyPinScreen() {
     } finally {
       setBiometricInFlight(false);
     }
-  }, [authenticateBiometric, biometricInFlight, finishAuthentication, t, unlockWallet]);
+  }, [
+    authenticateBiometric,
+    biometricInFlight,
+    finishAuthentication,
+    lockedUntil,
+    t,
+    unlockWallet,
+  ]);
 
   useEffect(() => {
-    if (biometricEnabled) {
+    if (biometricEnabled && !(lockedUntil !== null && lockedUntil > Date.now())) {
       void tryBiometric();
     }
+    // The lock timestamp does not change when the window merely expires, so
+    // this does not prompt again on its own once the lockout ends.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [biometricEnabled]);
+  }, [biometricEnabled, lockedUntil]);
 
   const handleDigit = (digit: string) => {
     if (unlockedRef.current || processing || isLocked) return;

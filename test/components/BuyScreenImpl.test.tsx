@@ -106,10 +106,21 @@ jest.mock('@/features/portfolio/useEnabledChains', () => ({
   useEnabledChains: () => ({ enabledChains: ['bitcoin'] }),
 }));
 
+const mockLdsState: {
+  user: { lightning: { addressLnurl: string; addressOwnershipProof: string } } | null;
+} = { user: null };
+const mockLdsSignIn = jest.fn();
+const LDS_LIGHTNING_USER = {
+  lightning: {
+    addressLnurl: 'LNURL1ABC',
+    addressOwnershipProof: 'test-ownership-proof',
+  },
+};
+
 jest.mock('@/hooks', () => ({
   useLdsWallet: () => ({
-    user: null,
-    signIn: jest.fn(),
+    user: mockLdsState.user,
+    signIn: mockLdsSignIn,
   }),
 }));
 
@@ -191,6 +202,7 @@ const mockAuthState = {
   isDfxAuthenticated: false,
   isOnboarded: true,
   sessionEpoch: 1,
+  setDfxAuthenticated: jest.fn(),
 };
 
 jest.mock('@/store', () => ({
@@ -248,11 +260,7 @@ jest.mock('@/components', () => {
   }
 
   function MockIcon({ name, color }: { name: string; color?: string }) {
-    return ReactActual.createElement(
-      Text,
-      { style: { color }, testID: `mock-icon-${name}` },
-      name,
-    );
+    return ReactActual.createElement(Text, { style: { color }, testID: `mock-icon-${name}` }, name);
   }
 
   function MockPrimaryButton({
@@ -320,6 +328,42 @@ const mockSecureStorage = (
     secureStorage: { get: jest.Mock; remove: jest.Mock; set: jest.Mock };
   }
 ).secureStorage;
+const mockMarkChainLinked = (
+  jest.requireMock('@/features/dfx-backend/useDfxAutoLinkImpl') as {
+    markChainLinkedInAutoLinkCache: jest.Mock;
+  }
+).markChainLinkedInAutoLinkCache;
+
+function persistTokenThatEndsSessionAfterWrite(token: string, linkMock: jest.Mock): void {
+  let currentToken: string | null = null;
+  let persisted = false;
+  mockSecureStorage.set.mockImplementation(async (key: string, value: string) => {
+    if (key === 'dfx-auth-token' && value === token) persisted = true;
+  });
+  mockDfxAuthService.getAccessToken.mockImplementation(() => {
+    if (persisted) {
+      persisted = false;
+      queueMicrotask(() => {
+        mockAuthState.isAuthenticated = false;
+        mockAuthState.sessionEpoch += 1;
+      });
+    }
+    return currentToken;
+  });
+  linkMock.mockImplementation(async () => {
+    currentToken = token;
+    return token;
+  });
+}
+
+function linkAddressThatEndsSessionAfterPersist(token: string): void {
+  persistTokenThatEndsSessionAfterWrite(token, mockDfxAuthService.linkAddress);
+}
+
+function linkLnurlAddressThatEndsSessionAfterPersist(token: string): void {
+  persistTokenThatEndsSessionAfterWrite(token, mockDfxAuthService.linkLnurlAddress);
+}
+
 const mockAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
 function createDeferred<T>(): {
@@ -490,6 +534,8 @@ beforeEach(() => {
   mockAuthState.isDfxAuthenticated = false;
   mockAuthState.isOnboarded = true;
   mockAuthState.sessionEpoch = 1;
+  mockAuthState.setDfxAuthenticated.mockClear();
+  mockMarkChainLinked.mockClear();
   mockBack.mockReset();
   mockDfxAuthService.linkAddress.mockReset();
   mockDfxAuthService.linkAddress.mockImplementation(async () => {
@@ -498,6 +544,9 @@ beforeEach(() => {
     return token;
   });
   mockDfxAuthService.linkLnurlAddress.mockReset();
+  mockLdsState.user = null;
+  mockLdsSignIn.mockReset();
+  mockLdsSignIn.mockResolvedValue(null);
   mockDfxAuthService.getAccessToken.mockReset();
   mockDfxAuthService.getAccessToken.mockReturnValue(null);
   mockDfxAuthService.loginAsAddressOwner.mockReset();
@@ -713,9 +762,7 @@ describe('BuyScreenImpl', () => {
     fireEvent.press(getByText('BTC'));
     fireEvent.changeText(getByPlaceholderText('0.00'), '100');
 
-    expect(
-      getByText('buy.continueHint:{"action":"buy.cta:{\\"asset\\":\\"BTC\\"}"}'),
-    ).toBeTruthy();
+    expect(getByText('buy.continueHint:{"action":"buy.cta:{\\"asset\\":\\"BTC\\"}"}')).toBeTruthy();
     expect(queryByText(/^buy\.quoteError\.generic/)).toBeNull();
 
     await act(async () => {
@@ -1135,9 +1182,11 @@ describe('BuyScreenImpl', () => {
   it('does not apply a cancelled payment replay after a later submit starts', async () => {
     mockUseRealDfxAuthGate = true;
     let resolveRetry: (value: { kind: 'paymentInfo'; info: BuyPaymentInfoDto }) => void = () => {};
-    const retryPromise = new Promise<{ kind: 'paymentInfo'; info: BuyPaymentInfoDto }>((resolve) => {
-      resolveRetry = resolve;
-    });
+    const retryPromise = new Promise<{ kind: 'paymentInfo'; info: BuyPaymentInfoDto }>(
+      (resolve) => {
+        resolveRetry = resolve;
+      },
+    );
     let resolveSecond: (value: BuyPaymentInfoDto | null) => void = () => {};
     const secondPayment = new Promise<BuyPaymentInfoDto | null>((resolve) => {
       resolveSecond = resolve;
@@ -1556,7 +1605,9 @@ describe('BuyScreenImpl', () => {
 
     fireEvent.press(getByTestId('dfx-auth-gate-primary'));
     await waitFor(() => expect(mockDfxAuthService.linkAddress).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled).toBe(true));
+    await waitFor(() =>
+      expect(getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled).toBe(true),
+    );
 
     mockAuthState.isAuthenticated = false;
     mockAuthState.sessionEpoch += 1;
@@ -1564,7 +1615,9 @@ describe('BuyScreenImpl', () => {
     request.resolve('stale-buy-token');
 
     await waitFor(() => expect(mockDfxAuthService.logout).toHaveBeenCalled());
-    await waitFor(() => expect(getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled).toBe(false));
+    await waitFor(() =>
+      expect(getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled).toBe(false),
+    );
     expect(mockSecureStorage.remove).not.toHaveBeenCalled();
     expect(mockSecureStorage.set).not.toHaveBeenCalledWith('dfx-auth-token', 'stale-buy-token');
     expect(mockRetryLast).not.toHaveBeenCalled();
@@ -1584,9 +1637,7 @@ describe('BuyScreenImpl', () => {
     await waitFor(() => expect(mockDfxAuthService.linkAddress).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mockDismissAuthGate).toHaveBeenCalledTimes(1));
     expect(mockCancelAuthGate).toHaveBeenCalledWith(flowState.authGate);
-    expect(
-      getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled,
-    ).toBe(false);
+    expect(getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled).toBe(false);
     expect(queryByText(invalidated.message)).toBeNull();
     expect(mockAlert).not.toHaveBeenCalled();
   });
@@ -1617,6 +1668,87 @@ describe('BuyScreenImpl', () => {
       fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
     });
     await waitFor(() => expect(mockCancelAuthGate).toHaveBeenCalledWith(gate));
+
+    mockCreatePaymentInfo.mockClear();
+    await act(async () => {
+      fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
+    });
+    await waitFor(() => expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not replay a buy when the session ends after the linked token is stored', async () => {
+    mockUseRealDfxAuthGate = true;
+    const gate: DfxAuthGateState = {
+      kind: 'linkChain',
+      chain: 'bitcoin',
+      message: 'Link Bitcoin',
+    };
+    mockCreatePaymentInfo.mockImplementation(async () => {
+      flowState.authGate = gate;
+      return null;
+    });
+    linkAddressThatEndsSessionAfterPersist('linked-buy-token');
+
+    const view = render(<BuyScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    await act(async () => {
+      fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
+    });
+
+    await waitFor(() => expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(view.getByTestId('dfx-auth-gate-primary')).toBeTruthy());
+    await act(async () => {
+      fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
+    });
+
+    await waitFor(() => expect(mockCancelAuthGate).toHaveBeenCalledWith(gate));
+    expect(mockSecureStorage.set).toHaveBeenCalledWith('dfx-auth-token', 'linked-buy-token');
+    expect(mockMarkChainLinked).not.toHaveBeenCalled();
+    expect(mockRetryLast).not.toHaveBeenCalled();
+    expect(mockDfxAuthService.logout).toHaveBeenCalled();
+
+    mockCreatePaymentInfo.mockClear();
+    await act(async () => {
+      fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
+    });
+    await waitFor(() => expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not replay a buy when the session ends after the linked Lightning token is stored', async () => {
+    mockUseRealDfxAuthGate = true;
+    mockLdsState.user = LDS_LIGHTNING_USER;
+    const gate: DfxAuthGateState = {
+      kind: 'linkChain',
+      chain: 'bitcoin-lightning',
+      message: 'Link Lightning',
+    };
+    mockCreatePaymentInfo.mockImplementation(async () => {
+      flowState.authGate = gate;
+      return null;
+    });
+    linkLnurlAddressThatEndsSessionAfterPersist('linked-lnurl-buy-token');
+
+    const view = render(<BuyScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    await act(async () => {
+      fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
+    });
+
+    await waitFor(() => expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(view.getByTestId('dfx-auth-gate-primary')).toBeTruthy());
+    await act(async () => {
+      fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
+    });
+
+    await waitFor(() => expect(mockCancelAuthGate).toHaveBeenCalledWith(gate));
+    expect(mockDfxAuthService.linkLnurlAddress).toHaveBeenCalledTimes(1);
+    expect(mockDfxAuthService.linkAddress).not.toHaveBeenCalled();
+    expect(mockSecureStorage.set).toHaveBeenCalledWith('dfx-auth-token', 'linked-lnurl-buy-token');
+    expect(mockMarkChainLinked).not.toHaveBeenCalled();
+    expect(mockRetryLast).not.toHaveBeenCalled();
+    expect(mockDfxAuthService.logout).toHaveBeenCalled();
 
     mockCreatePaymentInfo.mockClear();
     await act(async () => {
@@ -1966,7 +2098,9 @@ describe('SellScreenImpl', () => {
 
     fireEvent.press(getByTestId('dfx-auth-gate-primary'));
     await waitFor(() => expect(mockDfxAuthService.linkAddress).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled).toBe(true));
+    await waitFor(() =>
+      expect(getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled).toBe(true),
+    );
 
     mockAuthState.isAuthenticated = false;
     mockAuthState.sessionEpoch += 1;
@@ -1974,7 +2108,9 @@ describe('SellScreenImpl', () => {
     request.resolve('stale-sell-token');
 
     await waitFor(() => expect(mockDfxAuthService.logout).toHaveBeenCalled());
-    await waitFor(() => expect(getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled).toBe(false));
+    await waitFor(() =>
+      expect(getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled).toBe(false),
+    );
     expect(mockSecureStorage.remove).not.toHaveBeenCalled();
     expect(mockSecureStorage.set).not.toHaveBeenCalledWith('dfx-auth-token', 'stale-sell-token');
     expect(mockSellRetryLast).not.toHaveBeenCalled();
@@ -1994,11 +2130,100 @@ describe('SellScreenImpl', () => {
     await waitFor(() => expect(mockDfxAuthService.linkAddress).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mockSellDismissAuthGate).toHaveBeenCalledTimes(1));
     expect(mockSellCancelAuthGate).toHaveBeenCalledWith(mockSellFlowState.authGate);
-    expect(
-      getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled,
-    ).toBe(false);
+    expect(getByTestId('dfx-auth-gate-primary').props.accessibilityState?.disabled).toBe(false);
     expect(queryByText(invalidated.message)).toBeNull();
     expect(mockAlert).not.toHaveBeenCalled();
+  });
+
+  it('does not replay a sell when the session ends after the linked token is stored', async () => {
+    mockUseRealDfxAuthGate = true;
+    const gate: DfxAuthGateState = {
+      kind: 'linkChain',
+      chain: 'bitcoin',
+      message: 'Link Bitcoin',
+    };
+    mockSellCreatePaymentInfo.mockImplementation(async () => {
+      mockSellFlowState.authGate = gate;
+      return null;
+    });
+    linkAddressThatEndsSessionAfterPersist('linked-sell-token');
+
+    const view = render(<SellScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.01');
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+    fireEvent.changeText(
+      view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
+      'CH9300762011623852957',
+    );
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+
+    await waitFor(() => expect(mockSellCreatePaymentInfo).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(view.getByTestId('dfx-auth-gate-primary')).toBeTruthy());
+    await act(async () => {
+      fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
+    });
+
+    await waitFor(() => expect(mockSellCancelAuthGate).toHaveBeenCalledWith(gate));
+    expect(mockSecureStorage.set).toHaveBeenCalledWith('dfx-auth-token', 'linked-sell-token');
+    expect(mockMarkChainLinked).not.toHaveBeenCalled();
+    expect(mockSellRetryLast).not.toHaveBeenCalled();
+    expect(mockDfxAuthService.logout).toHaveBeenCalled();
+
+    mockSellCreatePaymentInfo.mockClear();
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+    await waitFor(() => expect(mockSellCreatePaymentInfo).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not replay a sell when the session ends after the linked Lightning token is stored', async () => {
+    mockUseRealDfxAuthGate = true;
+    mockLdsState.user = LDS_LIGHTNING_USER;
+    const gate: DfxAuthGateState = {
+      kind: 'linkChain',
+      chain: 'bitcoin-lightning',
+      message: 'Link Lightning',
+    };
+    mockSellCreatePaymentInfo.mockImplementation(async () => {
+      mockSellFlowState.authGate = gate;
+      return null;
+    });
+    linkLnurlAddressThatEndsSessionAfterPersist('linked-lnurl-sell-token');
+
+    const view = render(<SellScreenImpl />);
+    fireEvent.press(view.getByText('BTC'));
+    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.01');
+    fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
+    fireEvent.changeText(
+      view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
+      'CH9300762011623852957',
+    );
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+
+    await waitFor(() => expect(mockSellCreatePaymentInfo).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(view.getByTestId('dfx-auth-gate-primary')).toBeTruthy());
+    await act(async () => {
+      fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
+    });
+
+    await waitFor(() => expect(mockSellCancelAuthGate).toHaveBeenCalledWith(gate));
+    expect(mockDfxAuthService.linkLnurlAddress).toHaveBeenCalledTimes(1);
+    expect(mockDfxAuthService.linkAddress).not.toHaveBeenCalled();
+    expect(mockSecureStorage.set).toHaveBeenCalledWith('dfx-auth-token', 'linked-lnurl-sell-token');
+    expect(mockMarkChainLinked).not.toHaveBeenCalled();
+    expect(mockSellRetryLast).not.toHaveBeenCalled();
+    expect(mockDfxAuthService.logout).toHaveBeenCalled();
+
+    mockSellCreatePaymentInfo.mockClear();
+    await act(async () => {
+      fireEvent.press(view.getByText('common.continue'));
+    });
+    await waitFor(() => expect(mockSellCreatePaymentInfo).toHaveBeenCalledTimes(1));
   });
 
   it('closes sell confirmation without an error when reauth is cancelled', async () => {

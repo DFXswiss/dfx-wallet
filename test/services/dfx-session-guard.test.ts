@@ -151,7 +151,10 @@ describe('createDfxSessionGuard', () => {
 
     const blockerGuard = createDfxSessionGuard();
     const blockerPersistence = blockerGuard.persistToken('blocker-token');
-    const blockerRejection = expect(blockerPersistence).rejects.toThrow('write failed');
+    // The write fails after the token has moved on, so assertActive's invalidation wins.
+    const blockerRejection = expect(blockerPersistence).rejects.toBeInstanceOf(
+      DfxAuthFlowInvalidatedError,
+    );
     await blockerWriteStarted.promise;
 
     activeToken = 'queued-token';
@@ -205,7 +208,7 @@ describe('createDfxSessionGuard', () => {
     expect(mockLogout).not.toHaveBeenCalled();
   });
 
-  it('never logs out an existing token when a mismatch is detected before login', async () => {
+  it('assertActive without a token does not read storage or log out', async () => {
     const guard = createDfxSessionGuard();
     mockGetAccessToken.mockReturnValue('existing-token');
     mockAuthState.sessionEpoch += 1;
@@ -218,7 +221,7 @@ describe('createDfxSessionGuard', () => {
     expect(mockSecureStorageRemove).not.toHaveBeenCalled();
   });
 
-  it('logs out its own in-memory token before writing without touching storage', async () => {
+  it('logs out without touching storage', async () => {
     const guard = createDfxSessionGuard();
     mockGetAccessToken.mockReturnValue('own-token');
     mockAuthState.sessionEpoch += 1;
@@ -433,9 +436,12 @@ describe('createDfxSessionGuard', () => {
 
     const queuedError = await queuedOutcome;
     const blockerError = await blockerOutcome;
-    expect(queuedError).toBeInstanceOf(DfxAuthFlowInvalidatedError);
+    expect(queuedError).toBeInstanceOf(Error);
+    expect(queuedError).toHaveProperty('message', LOCAL_SESSION_ENDED_MESSAGE);
     expect(blockerError).toBeInstanceOf(Error);
     expect(blockerError).toHaveProperty('message', LOCAL_SESSION_ENDED_MESSAGE);
+    expect(mockLogout).toHaveBeenCalledTimes(1);
+    expect(mockSetDfxAuthenticated).toHaveBeenCalledWith(false);
     expect(mockSecureStorageSet).not.toHaveBeenCalledWith(
       StorageKeys.DFX_AUTH_TOKEN,
       'queued-token',

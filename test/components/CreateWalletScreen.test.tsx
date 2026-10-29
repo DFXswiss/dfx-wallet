@@ -1,4 +1,5 @@
 import React from 'react';
+import * as SecureStore from 'expo-secure-store';
 import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import { copySensitive } from '@/services/clipboard';
 
@@ -69,6 +70,7 @@ describe('CreateWalletScreen', () => {
     mockAllowScreenCapture.mockResolvedValue(undefined);
     (copySensitive as jest.Mock).mockReset();
     (copySensitive as jest.Mock).mockResolvedValue(undefined);
+    (SecureStore.deleteItemAsync as jest.Mock).mockClear();
   });
 
   it('renders the seed card with the reveal CTA hidden until tapped', () => {
@@ -180,6 +182,9 @@ describe('CreateWalletScreen', () => {
     });
     expect(mockRestoreWallet).toHaveBeenCalledTimes(1);
     expect(mockRestoreWallet).toHaveBeenCalledWith(expect.any(String), 'default');
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('walletOrigin');
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('passkeyCredentialId');
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('passkeyDerivationVersion');
     expect(mockPush).toHaveBeenCalledWith('/(onboarding)/setup-pin');
   });
 
@@ -201,6 +206,9 @@ describe('CreateWalletScreen', () => {
     expect(mockDeleteWallet.mock.invocationCallOrder[0]).toBeLessThan(
       mockRestoreWallet.mock.invocationCallOrder[1]!,
     );
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('walletOrigin');
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('passkeyCredentialId');
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('passkeyDerivationVersion');
     expect(mockPush).toHaveBeenCalledWith('/(onboarding)/setup-pin');
   });
 
@@ -215,6 +223,7 @@ describe('CreateWalletScreen', () => {
     });
     expect(await findByText('onboarding.createError')).toBeTruthy();
     expect(mockPush).not.toHaveBeenCalled();
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
     consoleSpy.mockRestore();
   });
 

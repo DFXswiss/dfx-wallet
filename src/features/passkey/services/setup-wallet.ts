@@ -2,11 +2,13 @@ import { deriveMnemonicFromPrf, DERIVATION_VERSION } from './key-derivation';
 import { secureStorage, StorageKeys } from '@/services/storage';
 
 /**
- * Derive the mnemonic, read and preserve the previous wallet origin, then mark
- * passkey setup as pending before initializing the WDK wallet. A failed origin
- * read aborts before mutation or initialization. If initialization fails with
- * no encrypted seed present, the previous origin is restored or the marker is
- * removed. A detected or unverifiable wallet keeps the pending marker.
+ * Derive the mnemonic, record whether a wallet already existed, read and
+ * preserve the previous wallet origin, then mark passkey setup as pending
+ * before initializing the WDK wallet. A failed origin read or a failed
+ * pre-check aborts before the pending write. After a failed initialization,
+ * an unverifiable existence check keeps the pending marker when no wallet
+ * existed beforehand. The marker is also kept when that check sees a wallet.
+ * Otherwise the previous origin is restored or the marker is removed.
  *
  * Order matters: an interrupted metadata write must stay fail-closed and
  * cannot be mistaken for a seed wallet.
@@ -22,17 +24,18 @@ export async function setupPasskeyWallet(
   const mnemonic = deriveMnemonicFromPrf(prfOutput);
 
   const previousOrigin = await secureStorage.get(StorageKeys.WALLET_ORIGIN);
+  const existedBefore = await walletExists();
   await secureStorage.set(StorageKeys.WALLET_ORIGIN, 'passkey-pending');
   try {
     await initializeWallet(mnemonic);
   } catch (error) {
-    let restorePreviousOrigin = false;
+    let walletExistsNow = false;
     try {
-      restorePreviousOrigin = !(await walletExists());
+      walletExistsNow = await walletExists();
     } catch {
-      // Keep the pending marker when wallet persistence cannot be verified.
+      walletExistsNow = true;
     }
-    if (restorePreviousOrigin) {
+    if (existedBefore || !walletExistsNow) {
       try {
         if (previousOrigin !== null) {
           await secureStorage.set(StorageKeys.WALLET_ORIGIN, previousOrigin);

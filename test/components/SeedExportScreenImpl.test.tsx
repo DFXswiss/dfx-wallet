@@ -7,6 +7,7 @@ import { secureStorage, StorageKeys } from '@/services/storage';
 import {
   authenticatePasskey,
   deriveMnemonicFromPrf,
+  PasskeyCredentialMismatchError,
   PasskeyPrfUnsupportedError,
 } from '@/features/passkey/services';
 import { copySensitive } from '@/services/clipboard';
@@ -73,9 +74,16 @@ jest.mock('@/features/passkey/services', () => {
       this.name = 'PasskeyPrfUnsupportedError';
     }
   }
+  class PasskeyCredentialMismatchErrorMock extends Error {
+    constructor() {
+      super('Authenticated passkey credential does not match the stored credential');
+      this.name = 'PasskeyCredentialMismatchError';
+    }
+  }
   return {
     authenticatePasskey: jest.fn(),
     deriveMnemonicFromPrf: jest.fn(),
+    PasskeyCredentialMismatchError: PasskeyCredentialMismatchErrorMock,
     PasskeyPrfUnsupportedError: PasskeyPrfUnsupportedErrorMock,
   };
 });
@@ -168,15 +176,17 @@ describe('SeedExportScreenImpl', () => {
   it('reveals a seed-flow mnemonic from WDK and copies it', async () => {
     let scheduled: (() => void) | undefined;
     const realSetTimeout = globalThis.setTimeout;
-    const setTimeoutSpy = jest
-      .spyOn(globalThis, 'setTimeout')
-      .mockImplementation(((cb: () => void, ms?: number, ...rest: unknown[]) => {
-        if (ms === 2000) {
-          scheduled = cb;
-          return 0 as unknown as ReturnType<typeof setTimeout>;
-        }
-        return realSetTimeout.call(globalThis, cb, ms, ...rest);
-      }) as unknown as typeof setTimeout);
+    const setTimeoutSpy = jest.spyOn(globalThis, 'setTimeout').mockImplementation(((
+      cb: () => void,
+      ms?: number,
+      ...rest: unknown[]
+    ) => {
+      if (ms === 2000) {
+        scheduled = cb;
+        return 0 as unknown as ReturnType<typeof setTimeout>;
+      }
+      return realSetTimeout.call(globalThis, cb, ms, ...rest);
+    }) as unknown as typeof setTimeout);
 
     try {
       const { getByText, getAllByText } = render(<SeedExportScreenImpl />);
@@ -265,7 +275,10 @@ describe('SeedExportScreenImpl', () => {
       fireEvent.press(getByText('seedExport.revealPasskey'));
     });
 
-    expect(Alert.alert).toHaveBeenCalledWith('common.error', 'seedExport.deriveFailed');
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'common.error',
+      'seedExport.passkeyVerificationUnavailable',
+    );
     expect(authenticatePasskey).not.toHaveBeenCalled();
     expect(getMnemonic).not.toHaveBeenCalled();
     expect(queryAllByText('abandon')).toHaveLength(0);
@@ -368,9 +381,7 @@ describe('SeedExportScreenImpl', () => {
     expect(queryAllByText('different')).toHaveLength(0);
     expect(queryAllByText('derived')).toHaveLength(0);
     expect(queryAllByText('mnemonic')).toHaveLength(0);
-    expect(Haptics.notificationAsync).toHaveBeenCalledWith(
-      Haptics.NotificationFeedbackType.Error,
-    );
+    expect(Haptics.notificationAsync).toHaveBeenCalledWith(Haptics.NotificationFeedbackType.Error);
   });
 
   it('does not reveal a passkey-derived mnemonic when WDK getMnemonic is unavailable', async () => {
@@ -498,9 +509,9 @@ describe('SeedExportScreenImpl', () => {
   });
 
   it('shows the default (Google Password Manager) PRF-unsupported copy', async () => {
-    const selectSpy = jest.spyOn(Platform, 'select').mockImplementation(
-      (spec: { ios?: unknown; default?: unknown }) => spec.default ?? spec.ios,
-    );
+    const selectSpy = jest
+      .spyOn(Platform, 'select')
+      .mockImplementation((spec: { ios?: unknown; default?: unknown }) => spec.default ?? spec.ios);
     mockPasskeyStorage();
     (authenticatePasskey as jest.Mock).mockRejectedValue(new PasskeyPrfUnsupportedError());
     try {
@@ -509,10 +520,27 @@ describe('SeedExportScreenImpl', () => {
       await act(async () => {
         fireEvent.press(getByText('seedExport.revealPasskey'));
       });
-      expect(String((Alert.alert as jest.Mock).mock.calls[0]![1])).toContain('Google Password Manager');
+      expect(String((Alert.alert as jest.Mock).mock.calls[0]![1])).toContain(
+        'Google Password Manager',
+      );
     } finally {
       selectSpy.mockRestore();
     }
+  });
+
+  it('reports passkey verification unavailable when the credential does not match', async () => {
+    mockPasskeyStorage();
+    (authenticatePasskey as jest.Mock).mockRejectedValue(new PasskeyCredentialMismatchError());
+    const { getByText, queryAllByText } = render(<SeedExportScreenImpl />);
+    await waitFor(() => expect(getByText('seedExport.revealPasskey')).toBeTruthy());
+    await act(async () => {
+      fireEvent.press(getByText('seedExport.revealPasskey'));
+    });
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'common.error',
+      'seedExport.passkeyVerificationUnavailable',
+    );
+    expect(queryAllByText('abandon')).toHaveLength(0);
   });
 
   it('alerts a generic derive-failed message for other passkey errors', async () => {

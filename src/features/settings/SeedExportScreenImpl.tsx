@@ -16,6 +16,7 @@ import { AppHeader, DfxBackgroundScreen, ReauthPinModal } from '@/components';
 import {
   authenticatePasskey,
   deriveMnemonicFromPrf,
+  PasskeyCredentialMismatchError,
   PasskeyPrfUnsupportedError,
 } from '@/features/passkey/services';
 import { useReauthenticate } from '@/hooks/useReauthenticate';
@@ -98,7 +99,7 @@ export default function SeedExportScreen() {
       metadata = await readWalletMetadata();
     } catch {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(t('common.error'), t('seedExport.deriveFailed'));
+      Alert.alert(t('common.error'), t('seedExport.passkeyVerificationUnavailable'));
       return;
     }
 
@@ -146,6 +147,8 @@ export default function SeedExportScreen() {
             default: 'Google Password Manager',
           });
           Alert.alert(t('common.error'), t('passkey.prfUnsupported', { provider }));
+        } else if (error instanceof PasskeyCredentialMismatchError) {
+          Alert.alert(t('common.error'), t('seedExport.passkeyVerificationUnavailable'));
         } else {
           Alert.alert(t('common.error'), t('seedExport.deriveFailed'));
         }
