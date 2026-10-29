@@ -81,21 +81,23 @@ describe('configured token addresses', () => {
       const meta = getAssetMeta(asset.getId());
       return meta?.address ? [meta.address] : [];
     });
-    const addresses = [
+    const tokenAddresses = [
       ...configuredTokens,
       ...DISCOVERABLE_TOKENS.map((token) => token.contract),
-      ...Object.values(getWdkConfigs().networks).flatMap((chain) => {
-        const config = chain.config as {
-          paymasterAddress?: string;
-          paymasterToken?: { address: string };
-        };
-        return [config.paymasterAddress, config.paymasterToken?.address].filter(
-          (address): address is string => Boolean(address),
-        );
-      }),
     ];
+    const paymasterAddresses = Object.values(getWdkConfigs().networks).flatMap((chain) => {
+      const config = chain.config as {
+        paymasterAddress?: string;
+        paymasterToken?: { address: string };
+      };
+      return [config.paymasterAddress, config.paymasterToken?.address].filter(
+        (address): address is string => Boolean(address),
+      );
+    });
 
-    for (const address of addresses) expect(getAddress(address)).toBe(address);
+    expect(paymasterAddresses.length).toBeGreaterThan(0);
+    for (const address of tokenAddresses) expect(getAddress(address)).toBe(address);
+    for (const address of paymasterAddresses) expect(getAddress(address)).toBe(address);
   });
 
   it('includes every configured contract token in the discoverable token superset', () => {

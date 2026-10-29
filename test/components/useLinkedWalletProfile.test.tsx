@@ -3,9 +3,13 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 
 const mockGetUser = jest.fn();
+const mockGetAuthGeneration = jest.fn(() => 0);
 jest.mock('@/features/dfx-backend/services', () => ({
   dfxUserService: {
     getUser: (...args: unknown[]) => mockGetUser(...args),
+  },
+  dfxApi: {
+    getAuthGeneration: () => mockGetAuthGeneration(),
   },
 }));
 
@@ -53,6 +57,8 @@ function trackStateUpdates(): jest.Mock {
 describe('useLinkedWalletProfile', () => {
   beforeEach(() => {
     mockGetUser.mockReset();
+    mockGetAuthGeneration.mockReset();
+    mockGetAuthGeneration.mockReturnValue(0);
   });
 
   afterEach(() => {
@@ -136,6 +142,35 @@ describe('useLinkedWalletProfile', () => {
         isIncomplete: false,
       }),
     );
+  });
+
+  it('discards a profile resolved after the session changes and shows the next fetch', async () => {
+    const stale = deferred<{ addresses: UserAddressDto[]; activeAddress: UserAddressDto }>();
+    const fresh = deferred<{ addresses: UserAddressDto[]; activeAddress: UserAddressDto }>();
+    mockGetUser.mockReturnValueOnce(stale.promise).mockReturnValueOnce(fresh.promise);
+    mockGetAuthGeneration.mockReturnValue(1);
+
+    const { result } = renderHook(() => useLinkedWalletProfile(true));
+    expect(result.current.isIncomplete).toBe(true);
+    expect(mockGetUser).toHaveBeenCalledTimes(1);
+
+    mockGetAuthGeneration.mockReturnValue(2);
+    await act(async () => {
+      stale.resolve({ addresses: [LINKED], activeAddress: LINKED });
+    });
+
+    expect(result.current.linkedAddresses).toEqual([]);
+    expect(result.current.activeAddress).toBeNull();
+    expect(result.current.isIncomplete).toBe(true);
+    expect(mockGetUser).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      fresh.resolve({ addresses: [ACTIVE], activeAddress: ACTIVE });
+    });
+
+    await waitFor(() => expect(result.current.isIncomplete).toBe(false));
+    expect(result.current.linkedAddresses).toEqual([ACTIVE]);
+    expect(result.current.activeAddress).toBe(ACTIVE.address);
   });
 
   it('does not update state when getUser resolves after unmount', async () => {

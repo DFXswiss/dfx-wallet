@@ -47,17 +47,27 @@ export class DfxAuthService {
     );
   }
 
-  /** Authenticate with a signed message and get a JWT. The post carries no Bearer. */
-  async authenticate(request: AuthRequestDto, authGeneration?: number): Promise<string> {
+  /**
+   * Authenticate with a signed message and get a JWT. The post carries no Bearer.
+   * A fresh sign-in adopts the token only while its captured generation is current.
+   */
+  async authenticate(
+    request: AuthRequestDto,
+    authGeneration?: number,
+    sessionGeneration?: number,
+  ): Promise<string> {
     const response = await dfxApi.post<AuthResponseDto>('/v1/auth', request, { anonymous: true });
-    if (
-      authGeneration !== undefined &&
-      !dfxApi.setAuthTokenForRefresh(response.accessToken, authGeneration)
+    if (authGeneration !== undefined) {
+      if (!dfxApi.setAuthTokenForRefresh(response.accessToken, authGeneration)) {
+        throw new Error('Authentication changed while token refresh was pending.');
+      }
+    } else if (
+      sessionGeneration === undefined ||
+      !dfxApi.setAuthTokenIfCurrent(response.accessToken, sessionGeneration)
     ) {
-      throw new Error('Authentication changed while token refresh was pending.');
+      throw new Error('Session changed while signing in.');
     }
     this.accessToken = response.accessToken;
-    if (authGeneration === undefined) dfxApi.setAuthToken(response.accessToken);
     return response.accessToken;
   }
 
@@ -89,14 +99,16 @@ export class DfxAuthService {
     authGeneration?: number,
   ): Promise<string> {
     const previousToken = this.accessToken;
+    let sessionGeneration: number | undefined;
     if (authGeneration === undefined) {
       this.accessToken = null;
       dfxApi.clearAuthToken();
+      sessionGeneration = dfxApi.getAuthGeneration();
     } else if (!dfxApi.clearAuthTokenForRefresh(authGeneration)) {
       throw new Error('Authentication changed before token refresh started.');
     }
-    // A fresh login nulls accessToken. A refresh leaves it and only clears the
-    // api token. Restore only while that cleared state is still current.
+    // Refresh path only: accessToken stays set, and the api token is restored
+    // only while this snapshot is still current.
     const sessionAfterClear = this.accessToken;
 
     try {
@@ -112,15 +124,16 @@ export class DfxAuthService {
           ...(options?.usedRef !== undefined ? { usedRef: options.usedRef } : {}),
         },
         authGeneration,
+        sessionGeneration,
       );
     } catch (err) {
-      if (this.accessToken === sessionAfterClear) {
-        if (authGeneration === undefined) {
+      if (authGeneration === undefined) {
+        if (dfxApi.getAuthGeneration() === sessionGeneration) {
           this.accessToken = previousToken;
           if (previousToken) dfxApi.setAuthToken(previousToken);
-        } else if (previousToken) {
-          dfxApi.setAuthTokenForRefresh(previousToken, authGeneration);
         }
+      } else if (this.accessToken === sessionAfterClear && previousToken) {
+        dfxApi.setAuthTokenForRefresh(previousToken, authGeneration);
       }
       throw err;
     }
@@ -202,9 +215,8 @@ export class DfxAuthService {
    * current Bearer and post /v1/auth with just the LNURL credentials. DFX
    * issues a fresh JWT for the address-owner; we adopt it.
    *
-   * The session is cleared before the request. On failure the previous token
-   * is restored only while that cleared state is still current, so a session
-   * adopted in the meantime is left in place.
+   * The session is cleared before the request, and a failure restores the
+   * previous token only while that generation is still current.
    */
   async loginAsLnurlAddressOwner(
     lnurl: string,
@@ -214,6 +226,7 @@ export class DfxAuthService {
     const previousToken = this.accessToken;
     this.accessToken = null;
     dfxApi.clearAuthToken();
+    const sessionGeneration = dfxApi.getAuthGeneration();
     try {
       const response = await dfxApi.post<AuthResponseDto>(
         '/v1/auth',
@@ -225,12 +238,13 @@ export class DfxAuthService {
         },
         { anonymous: true },
       );
+      if (!dfxApi.setAuthTokenIfCurrent(response.accessToken, sessionGeneration)) {
+        throw new Error('Session changed while signing in.');
+      }
       this.accessToken = response.accessToken;
-      dfxApi.setAuthToken(response.accessToken);
       return response.accessToken;
     } catch (err) {
-      // accessToken was cleared before this request. Restore only if it is still cleared.
-      if (this.accessToken === null) {
+      if (dfxApi.getAuthGeneration() === sessionGeneration) {
         this.accessToken = previousToken;
         if (previousToken) dfxApi.setAuthToken(previousToken);
       }
@@ -270,20 +284,23 @@ export class DfxAuthService {
   }
 
   /**
-   * Exchange the email confirmation otp for an access token. Sets the API
-   * client to use the new token and returns it.
+   * Exchange the email confirmation otp for an access token. The new token is
+   * adopted only while this call's session generation is still current.
    *
    * This is a login, same as the other sign-in calls. It sends no
    * Authorization header, so a standing Bearer cannot ride along on the
    * OTP exchange.
    */
   async confirmMailLogin(otp: string): Promise<string> {
+    const sessionGeneration = dfxApi.getAuthGeneration();
     const response = await dfxApi.get<{ accessToken: string; kycHash?: string }>(
       `/v1/auth/mail/confirm?code=${encodeURIComponent(otp)}`,
       { anonymous: true },
     );
+    if (!dfxApi.setAuthTokenIfCurrent(response.accessToken, sessionGeneration)) {
+      throw new Error('Session changed while signing in.');
+    }
     this.accessToken = response.accessToken;
-    dfxApi.setAuthToken(response.accessToken);
     return response.accessToken;
   }
 

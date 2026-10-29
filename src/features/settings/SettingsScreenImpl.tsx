@@ -16,7 +16,7 @@ import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import * as Haptics from 'expo-haptics';
 import { DarkBackdrop, Icon } from '@/components';
 import { isBiometricAvailable } from '@/features/biometric/biometric';
-import { dfxUserService } from '@/features/dfx-backend/services';
+import { dfxApi, dfxUserService } from '@/features/dfx-backend/services';
 import { setLanguage } from '@/i18n/language';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
@@ -68,6 +68,8 @@ export default function SettingsScreen() {
   const [biometricSupported, setBiometricSupported] = useState<boolean | null>(null);
   const currencySyncGeneration = useRef(0);
   const currencySyncQueue = useRef<Promise<void>>(Promise.resolve());
+  const languageSyncGeneration = useRef(0);
+  const languageSyncQueue = useRef<Promise<void>>(Promise.resolve());
 
   // Probe the OS for Face ID / Touch ID support so the toggle is greyed
   // out on devices that can't honour it (older simulators, no enrolled
@@ -101,25 +103,31 @@ export default function SettingsScreen() {
     await setBiometricEnabled(next);
   };
 
-  const syncLanguageToDfx = (locale: 'de' | 'en') => {
+  const enqueueLatestDfxSync = (
+    requestGenerationRef: { current: number },
+    queueRef: { current: Promise<void> },
+    run: () => Promise<unknown>,
+  ) => {
+    const requestGeneration = ++requestGenerationRef.current;
     if (!isDfxAuthenticated) return;
-    void dfxUserService
-      .updateUser({ language: { symbol: locale.toUpperCase() } })
-      .catch(() => undefined);
+    const authGeneration = dfxApi.getAuthGeneration();
+    const syncLatest = async () => {
+      if (requestGeneration !== requestGenerationRef.current) return;
+      if (dfxApi.getAuthGeneration() !== authGeneration) return;
+      await run().catch(() => undefined);
+    };
+    queueRef.current = queueRef.current.then(syncLatest, syncLatest);
+  };
+
+  const syncLanguageToDfx = (locale: 'de' | 'en') => {
+    enqueueLatestDfxSync(languageSyncGeneration, languageSyncQueue, () =>
+      dfxUserService.updateUser({ language: { symbol: locale.toUpperCase() } }),
+    );
   };
 
   const syncCurrencyToDfx = (currency: string) => {
-    const requestGeneration = ++currencySyncGeneration.current;
-    if (!isDfxAuthenticated) return;
-
-    const syncLatestCurrency = async () => {
-      if (requestGeneration !== currencySyncGeneration.current) return;
-      await dfxUserService.updateUser({ currency: { name: currency } }).catch(() => undefined);
-    };
-
-    currencySyncQueue.current = currencySyncQueue.current.then(
-      syncLatestCurrency,
-      syncLatestCurrency,
+    enqueueLatestDfxSync(currencySyncGeneration, currencySyncQueue, () =>
+      dfxUserService.updateUser({ currency: { name: currency } }),
     );
   };
   const CURRENCIES = ['CHF', 'EUR', 'USD'] as const;

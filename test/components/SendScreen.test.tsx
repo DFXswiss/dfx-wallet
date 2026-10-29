@@ -3,6 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { act, fireEvent, render, within } from '@testing-library/react-native';
 import { bech32, bech32m } from 'bech32';
 import bs58check from 'bs58check';
+import { getIcapAddress, ZeroAddress } from 'ethers';
 import Svg, { Path } from 'react-native-svg';
 import { darkColors, ThemeProvider, useThemeStore } from '@/theme';
 
@@ -246,6 +247,7 @@ describe('SendScreen', () => {
     it.each([
       '0x0000000000000000000000000000000000000000',
       '0000000000000000000000000000000000000000',
+      getIcapAddress(ZeroAddress),
     ])('keeps Continue disabled for the zero EVM address %s', (address) => {
       const { getAllByText, getByPlaceholderText, getByTestId } = render(<SendScreen />);
       fireEvent.press(getAllByText('CHF')[0]!);

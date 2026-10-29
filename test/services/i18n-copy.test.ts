@@ -9,7 +9,7 @@ describe('localised product terminology', () => {
     expect(en.sell.quoteError.noCode).not.toContain('{{code}}');
   });
 
-  it('describes Multi-Sig as local plans instead of vaults', () => {
+  it('describes local plans in the multi-sig plan strings', () => {
     expect(de.multiSig.manage.addAnotherCta).toBe('Weiteren lokalen Plan einrichten');
     expect(de.multiSig.manage.removeTitle).toBe('Lokalen Plan entfernen?');
     expect(de.multiSig.quorum.option_2_3_title).toBe('Familienplan');
@@ -20,7 +20,7 @@ describe('localised product terminology', () => {
     expect(en.multiSig.quorum.option_3_5_title).toBe('Team plan');
   });
 
-  it('uses DFX account consistently in English account copy', () => {
+  it('uses DFX account in the wallet and linked-wallet account strings', () => {
     expect(en.linkedWallet.notFound).toContain('DFX account');
     expect(en.wallets.intro).toContain('DFX account');
     expect(en.wallets.loadError).toContain('DFX account');
