@@ -8,7 +8,7 @@ import { secureStorage, StorageKeys } from '@/services/storage';
  * pre-check aborts before the pending write. After a failed initialization,
  * the marker stays only if no wallet existed beforehand and the check sees
  * a wallet or cannot tell.
- * Otherwise the previous origin is restored or the marker is removed.
+ * Otherwise the previous origin is restored or the marker is removed; if that cleanup fails, the marker stays.
  *
  * Order matters: an interrupted metadata write must stay fail-closed and
  * cannot be mistaken for a seed wallet.
