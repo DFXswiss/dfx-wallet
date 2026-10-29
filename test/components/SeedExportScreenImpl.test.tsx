@@ -83,6 +83,16 @@ jest.mock('@/features/passkey/services', () => {
 const TWELVE =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
+function expectTestVectorVisible(getAllByText: (text: string) => readonly unknown[]): void {
+  expect(getAllByText('abandon')).toHaveLength(11);
+  expect(getAllByText('about')).toHaveLength(1);
+}
+
+function expectTestVectorHidden(queryAllByText: (text: string) => readonly unknown[]): void {
+  expect(queryAllByText('abandon')).toHaveLength(0);
+  expect(queryAllByText('about')).toHaveLength(0);
+}
+
 function mockPasskeyStorage(derivationVersion: string | null = '1') {
   (secureStorage.get as jest.Mock).mockImplementation(async (key: string) => {
     if (key === StorageKeys.WALLET_ORIGIN) return 'passkey';
@@ -175,7 +185,7 @@ describe('SeedExportScreenImpl', () => {
         fireEvent.press(getByText('seedExport.revealSeed'));
       });
       expect(mockRequestReauth).toHaveBeenCalledTimes(1);
-      await waitFor(() => expect(getAllByText('abandon').length).toBeGreaterThan(0));
+      await waitFor(() => expectTestVectorVisible(getAllByText));
       expect(mockPrevent).toHaveBeenCalledWith(expect.stringMatching(/^seed-export:/));
       expect(Haptics.impactAsync).toHaveBeenCalled();
 
@@ -322,7 +332,7 @@ describe('SeedExportScreenImpl', () => {
     await act(async () => {
       fireEvent.press(getByText('seedExport.revealPasskey'));
     });
-    await waitFor(() => expect(getAllByText('abandon').length).toBeGreaterThan(0));
+    await waitFor(() => expectTestVectorVisible(getAllByText));
     expect(authenticatePasskey).toHaveBeenCalledWith({ credentialId: 'stored-credential' });
     expect(deriveMnemonicFromPrf).toHaveBeenCalledWith(expect.any(Uint8Array), 2);
     expect(getMnemonic).toHaveBeenCalledWith('default');
@@ -355,6 +365,9 @@ describe('SeedExportScreenImpl', () => {
 
     expect(Alert.alert).toHaveBeenCalledWith('common.error', 'seedExport.seedMismatch');
     expect(queryAllByText('abandon')).toHaveLength(0);
+    expect(queryAllByText('different')).toHaveLength(0);
+    expect(queryAllByText('derived')).toHaveLength(0);
+    expect(queryAllByText('mnemonic')).toHaveLength(0);
     expect(Haptics.notificationAsync).toHaveBeenCalledWith(
       Haptics.NotificationFeedbackType.Error,
     );
@@ -532,13 +545,13 @@ describe('SeedExportScreenImpl', () => {
       expect(mockPrevent).toHaveBeenCalledWith(expect.stringMatching(/^seed-export:/)),
     );
     expect(getByTestId('seed-export-protection-loading')).toBeTruthy();
-    expect(queryAllByText('abandon')).toHaveLength(0);
+    expectTestVectorHidden(queryAllByText);
 
     await act(async () => {
       resolveProtection!();
     });
 
-    await waitFor(() => expect(queryAllByText('abandon').length).toBeGreaterThan(0));
+    await waitFor(() => expectTestVectorVisible(queryAllByText));
   });
 
   it('shows a warning and the seed when screen-capture protection is unavailable', async () => {
@@ -551,16 +564,17 @@ describe('SeedExportScreenImpl', () => {
     });
 
     await waitFor(() => expect(getByText('common.screenCaptureUnavailable')).toBeTruthy());
-    expect(getAllByText('abandon').length).toBeGreaterThan(0);
+    expectTestVectorVisible(getAllByText);
   });
 
   it('releases screen-capture protection on unmount after the seed is shown', async () => {
-    const { getByText, unmount } = render(<SeedExportScreenImpl />);
+    const { getByText, getAllByText, unmount } = render(<SeedExportScreenImpl />);
     await waitFor(() => expect(getByText('seedExport.revealSeed')).toBeTruthy());
     await act(async () => {
       fireEvent.press(getByText('seedExport.revealSeed'));
     });
-    await waitFor(() => expect(mockPrevent).toHaveBeenCalled());
+    await waitFor(() => expectTestVectorVisible(getAllByText));
+    expect(mockPrevent).toHaveBeenCalled();
     const protectionTag = mockPrevent.mock.calls[0]![0]!;
     unmount();
     await waitFor(() => expect(mockAllow).toHaveBeenCalledWith(protectionTag));

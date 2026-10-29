@@ -126,6 +126,7 @@ describe('useDfxAuth', () => {
     expect(mockSecureStorageRemove).not.toHaveBeenCalledWith(StorageKeys.DFX_AUTH_TOKEN);
     expect(mockLogout).toHaveBeenCalledTimes(1);
     expect(useAuthStore.getState().isDfxAuthenticated).toBe(false);
+    await waitFor(() => expect(result.current.error).toBeNull());
   });
 
   it('rejects an invalidated login without persisting or authenticating the DFX session', async () => {
@@ -151,6 +152,7 @@ describe('useDfxAuth', () => {
 
     expect(mockSecureStorageSet).not.toHaveBeenCalled();
     expect(useAuthStore.getState().isDfxAuthenticated).toBe(false);
+    await waitFor(() => expect(result.current.error).toBeNull());
   });
 
   it('silently returns null when a background login flow is invalidated', async () => {
@@ -285,6 +287,7 @@ describe('useDfxAuth', () => {
     expect(mockSecureStorageRemove).toHaveBeenCalledTimes(1);
     expect(mockSecureStorageRemove).toHaveBeenCalledWith(StorageKeys.DFX_AUTH_TOKEN);
     expect(useAuthStore.getState().isDfxAuthenticated).toBe(false);
+    await waitFor(() => expect(result.current.error).toBeNull());
   });
 
   it('rejects owner reauthentication after a reset creates a new active local session', async () => {
@@ -320,6 +323,7 @@ describe('useDfxAuth', () => {
     );
     expect(mockSecureStorageGet).not.toHaveBeenCalled();
     expect(mockLogout).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(result.current.error).toBeNull());
   });
 
   it('discards an owner token when the session ends during linked-chain cleanup', async () => {
@@ -359,5 +363,6 @@ describe('useDfxAuth', () => {
     expect(mockSecureStorageRemove).toHaveBeenNthCalledWith(1, StorageKeys.DFX_LINKED_CHAINS);
     expect(mockSecureStorageRemove).toHaveBeenNthCalledWith(2, StorageKeys.DFX_AUTH_TOKEN);
     expect(useAuthStore.getState().isDfxAuthenticated).toBe(false);
+    await waitFor(() => expect(result.current.error).toBeNull());
   });
 });

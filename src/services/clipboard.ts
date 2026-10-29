@@ -11,18 +11,25 @@ type PendingClipboardCleanup = {
   subscription: NativeEventSubscription | null;
 };
 
-const MAX_CLEAR_ATTEMPTS = 3;
+const CLEAR_RETRY_DELAYS_MS = [1_000, 2_000, 4_000] as const;
 
 let pendingCleanup: PendingClipboardCleanup | null = null;
 
-function scheduleClipboardClear(cleanup: PendingClipboardCleanup): void {
+function retryDelayMs(attempts: number): number | undefined {
+  if (attempts === 1) return CLEAR_RETRY_DELAYS_MS[0];
+  if (attempts === 2) return CLEAR_RETRY_DELAYS_MS[1];
+  if (attempts === 3) return CLEAR_RETRY_DELAYS_MS[2];
+  return undefined;
+}
+
+function scheduleClipboardClear(cleanup: PendingClipboardCleanup, delayMs: number): void {
   if (cleanup.timeout !== null) clearTimeout(cleanup.timeout);
   cleanup.timeout = setTimeout(() => {
     cleanup.timeout = null;
     if (pendingCleanup === cleanup && AppState.currentState === 'active') {
       void clearClipboardIfUnchanged(cleanup);
     }
-  }, cleanup.clearAfterMs);
+  }, delayMs);
 }
 
 function cancelPendingCleanup(): void {
@@ -45,11 +52,12 @@ async function clearClipboardIfUnchanged(cleanup: PendingClipboardCleanup): Prom
     // Clipboard access can be denied after the app is backgrounded.
     if (pendingCleanup === cleanup) {
       cleanup.attempts += 1;
-      if (cleanup.attempts >= MAX_CLEAR_ATTEMPTS) {
+      const retryDelay = retryDelayMs(cleanup.attempts);
+      if (retryDelay === undefined) {
         if (cleanup.timeout !== null) clearTimeout(cleanup.timeout);
         cleanup.timeout = null;
       } else if (AppState.currentState === 'active') {
-        scheduleClipboardClear(cleanup);
+        scheduleClipboardClear(cleanup, retryDelay);
       }
     }
   } finally {
@@ -58,8 +66,8 @@ async function clearClipboardIfUnchanged(cleanup: PendingClipboardCleanup): Prom
 }
 
 export async function copySensitive(value: string, clearAfterMs = 60_000): Promise<void> {
-  cancelPendingCleanup();
   await Clipboard.setStringAsync(value);
+  cancelPendingCleanup();
 
   const deadline = Date.now() + clearAfterMs;
   const cleanup: PendingClipboardCleanup = {
@@ -78,5 +86,5 @@ export async function copySensitive(value: string, clearAfterMs = 60_000): Promi
     }
   };
   cleanup.subscription = AppState.addEventListener('change', onAppStateChange);
-  scheduleClipboardClear(cleanup);
+  scheduleClipboardClear(cleanup, clearAfterMs);
 }

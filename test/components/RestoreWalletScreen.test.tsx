@@ -206,6 +206,9 @@ describe('RestoreWalletScreen', () => {
 
     expect(mockRestoreWallet).toHaveBeenCalledTimes(1);
     expect(mockResetAuth).toHaveBeenCalledTimes(1);
+    expect(mockRestoreWallet.mock.invocationCallOrder[0]).toBeLessThan(
+      mockResetAuth.mock.invocationCallOrder[0]!,
+    );
     expect(getByTestId('restore-wallet-error')).toBeTruthy();
     expect(mockPush).not.toHaveBeenCalled();
     warn.mockRestore();
@@ -224,7 +227,7 @@ describe('RestoreWalletScreen', () => {
     });
 
     expect(en.onboarding.restoreConfirmMessage).toBe(
-      'Your current wallet will be removed before the new wallet is imported. It can only be recovered with its own seed phrase.',
+      'Your current wallet will be removed before the new wallet is imported. It can only be recovered with its own Seed Phrase.',
     );
     expect(de.onboarding.restoreConfirmMessage).toBe(
       'Deine aktuelle Wallet wird entfernt, bevor die neue Wallet importiert wird. Sie kann nur mit ihrer eigenen Seed Phrase wiederhergestellt werden.',
@@ -244,6 +247,12 @@ describe('RestoreWalletScreen', () => {
     expect(mockResetAuth).toHaveBeenCalledTimes(1);
     expect(mockDeleteWallet).toHaveBeenCalledWith('default');
     expect(mockRestoreWallet).toHaveBeenCalledTimes(1);
+    expect((Alert.alert as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      mockDeleteWallet.mock.invocationCallOrder[0]!,
+    );
+    expect(mockDeleteWallet.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRestoreWallet.mock.invocationCallOrder[0]!,
+    );
     expect(mockPush).toHaveBeenCalledWith('/(onboarding)/setup-pin');
   });
 

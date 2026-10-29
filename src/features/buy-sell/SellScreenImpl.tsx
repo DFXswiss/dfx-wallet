@@ -293,11 +293,11 @@ export default function SellScreen() {
     return gen;
   };
 
-  const cancelPaymentSubmit = (): void => {
+  const cancelPaymentSubmit = useCallback((): void => {
     submitGenRef.current += 1;
     pendingGenRef.current = null;
     submitLockRef.current = false;
-  };
+  }, []);
 
   const handlePaymentInfoResult = useCallback(
     (info: Awaited<ReturnType<typeof createPaymentInfo>>, gen: number) => {
@@ -509,14 +509,19 @@ export default function SellScreen() {
 
   const handleLinkChainToDfx = useCallback(
     async (chain: ChainId) => {
+      const gateForLink = authGateRef.current ?? undefined;
       try {
         await linkChainToDfx(chain);
       } catch (error) {
-        if (isLocalSessionEndedError(error)) return;
+        if (isLocalSessionEndedError(error)) {
+          cancelPaymentSubmit();
+          cancelAuthGate(gateForLink);
+          return;
+        }
         throw error;
       }
     },
-    [linkChainToDfx],
+    [linkChainToDfx, cancelAuthGate, cancelPaymentSubmit],
   );
 
   // Wallet balances — drive the chain/token chip filter so users only see
@@ -1130,6 +1135,10 @@ export default function SellScreen() {
           try {
             const reauth = await reauthAs(targetAddress, targetBlockchain);
             if (!reauth.ok) {
+              if ('cancelled' in reauth) {
+                setConfirmOpen(false);
+                return;
+              }
               setConfirmError(
                 t([`linkedWallet.reauthError.${reauth.error}`, 'linkedWallet.reauthError.generic']),
               );
@@ -1138,6 +1147,10 @@ export default function SellScreen() {
             setConfirmOpen(false);
             setStep('bank');
           } catch (err) {
+            if (isLocalSessionEndedError(err)) {
+              setConfirmOpen(false);
+              return;
+            }
             setConfirmError(
               err instanceof Error ? err.message : t('linkedWallet.reauthError.generic'),
             );

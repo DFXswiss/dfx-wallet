@@ -312,11 +312,11 @@ export default function BuyScreen() {
     return gen;
   };
 
-  const cancelPaymentSubmit = (): void => {
+  const cancelPaymentSubmit = useCallback((): void => {
     submitGenRef.current += 1;
     pendingGenRef.current = null;
     submitLockRef.current = false;
-  };
+  }, []);
 
   const handlePaymentInfoResult = useCallback(
     (info: Awaited<ReturnType<typeof createPaymentInfo>>, gen: number) => {
@@ -556,14 +556,19 @@ export default function BuyScreen() {
 
   const handleLinkChainToDfx = useCallback(
     async (chain: ChainId) => {
+      const gateForLink = authGateRef.current ?? undefined;
       try {
         await linkChainToDfx(chain);
       } catch (error) {
-        if (isLocalSessionEndedError(error)) return;
+        if (isLocalSessionEndedError(error)) {
+          cancelPaymentSubmit();
+          cancelAuthGate(gateForLink);
+          return;
+        }
         throw error;
       }
     },
-    [linkChainToDfx],
+    [linkChainToDfx, cancelAuthGate, cancelPaymentSubmit],
   );
 
   // eslint-disable-next-line security/detect-object-injection -- selectedChainIndex is bounded by chains.length
@@ -1167,6 +1172,10 @@ export default function BuyScreen() {
             if (!reauth.ok) {
               pendingGenRef.current = null;
               submitLockRef.current = false;
+              if ('cancelled' in reauth) {
+                setConfirmOpen(false);
+                return;
+              }
               setConfirmError(
                 t([`linkedWallet.reauthError.${reauth.error}`, 'linkedWallet.reauthError.generic']),
               );
@@ -1185,6 +1194,10 @@ export default function BuyScreen() {
             if (pendingGenRef.current !== gen) return;
             pendingGenRef.current = null;
             submitLockRef.current = false;
+            if (isLocalSessionEndedError(err)) {
+              setConfirmOpen(false);
+              return;
+            }
             setConfirmError(
               err instanceof Error ? err.message : t('linkedWallet.reauthError.generic'),
             );

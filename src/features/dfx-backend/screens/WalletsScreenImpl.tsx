@@ -87,12 +87,17 @@ export default function WalletsScreen() {
   }, [t]);
 
   const reauthenticate = useCallback(async () => {
-    setRefreshError(null);
+    // Leave the merged card in place until reauthentication succeeds.
+    // Clearing it first turns an invalidated attempt into an empty wallet list.
     setLoadingUser(true);
     try {
       await reauthenticateAsOwner();
       await refresh();
     } catch (err) {
+      if (isLocalSessionEndedError(err)) {
+        setLoadingUser(false);
+        return;
+      }
       const message = err instanceof Error ? err.message : t('wallets.linkError');
       setRefreshError(message);
       setLoadingUser(false);

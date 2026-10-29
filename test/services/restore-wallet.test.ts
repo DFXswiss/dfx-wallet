@@ -236,8 +236,14 @@ describe('restoreWalletFlow', () => {
   it('resets auth after deleting the wallet when the restore retry fails', async () => {
     const dependencies = createDependencies();
     dependencies.restoreWallet
-      .mockRejectedValueOnce(new Error('already exists'))
-      .mockRejectedValueOnce(new Error('retry failed'));
+      .mockImplementationOnce(async () => {
+        dependencies.calls.push('restore');
+        throw new Error('already exists');
+      })
+      .mockImplementationOnce(async () => {
+        dependencies.calls.push('restore');
+        throw new Error('retry failed');
+      });
     await expect(
       restoreWalletFlow({
         ...dependencies,
@@ -246,6 +252,7 @@ describe('restoreWalletFlow', () => {
       }),
     ).rejects.toThrow('retry failed');
 
+    expect(dependencies.calls).toEqual(['confirm', 'restore', 'delete', 'restore', 'reset']);
     expect(dependencies.deleteWallet).toHaveBeenCalledTimes(1);
     expect(dependencies.restoreWallet).toHaveBeenCalledTimes(2);
     expect(dependencies.reset).toHaveBeenCalledTimes(1);

@@ -191,8 +191,8 @@ crash-safety, not source removal.
 | `EXPO_PUBLIC_ENABLE_WEBVIEW`         | In-app WebView (KYC iframe, payment hand-off) and the `safe-url` allow-list                                                                | off     |
 
 Security note: do not enable `EXPO_PUBLIC_ENABLE_SETTINGS` without
-`EXPO_PUBLIC_ENABLE_PIN`. When PIN and biometrics are both disabled,
-`useReauthenticate` resolves `true` without a prompt, so re-authentication before seed phrase export
+`EXPO_PUBLIC_ENABLE_PIN`. When biometric re-authentication is not active and no PIN is available
+(`EXPO_PUBLIC_ENABLE_PIN` off or no PIN set), `useReauthenticate` resolves `true` without a prompt, so re-authentication before seed phrase export
 and wallet deletion is a no-op.
 
 ### Build-time configuration (`EXPO_PUBLIC_*`)
