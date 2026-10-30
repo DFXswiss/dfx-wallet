@@ -41,6 +41,7 @@ import {
   IconTile,
   Interaction,
   Layout,
+  MonospaceFontFamily,
   Spacing,
   Typography,
   useColors,
@@ -669,7 +670,7 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
       ...Typography.bodyMedium,
       fontWeight: '600',
       color: colors.text,
-      fontFamily: 'monospace',
+      fontFamily: MonospaceFontFamily,
     },
   });
 };

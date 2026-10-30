@@ -36,7 +36,13 @@ import { markChainLinkedInAutoLinkCache } from '@/hooks/useDfxAutoLink';
 import { dfxAuthService, DfxApiError } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore } from '@/store';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import {
+  MonospaceFontFamily,
+  Typography,
+  useColors,
+  useResolvedScheme,
+  type ThemeColors,
+} from '@/theme';
 import { TradeModeTabs } from '@/features/buy-sell/TradeModeTabs';
 
 type BuyStep = 'amount' | 'payment' | 'confirm';
@@ -1368,7 +1374,7 @@ const makeStyles = (colors: ThemeColors) =>
     copyValue: {
       ...Typography.bodyMedium,
       color: colors.text,
-      fontFamily: 'monospace',
+      fontFamily: MonospaceFontFamily,
     },
     copyValueHighlight: {
       color: colors.primary,
@@ -1464,6 +1470,6 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodyMedium,
       fontWeight: '600',
       color: colors.text,
-      fontFamily: 'monospace',
+      fontFamily: MonospaceFontFamily,
     },
   });

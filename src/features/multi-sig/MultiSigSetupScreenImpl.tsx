@@ -15,7 +15,13 @@ import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { AppHeader, DarkBackdrop, Icon, PrimaryButton } from '@/components';
 import { useMultiSigStore } from './store';
-import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
+import {
+  MonospaceFontFamily,
+  Typography,
+  useColors,
+  useResolvedScheme,
+  type ThemeColors,
+} from '@/theme';
 
 type Step = 'intro' | 'concept' | 'quorum' | 'cosigners' | 'backup' | 'success';
 
@@ -843,7 +849,7 @@ const makeStyles = (colors: ThemeColors) =>
       padding: 14,
       color: colors.text,
       ...Typography.bodyMedium,
-      fontFamily: 'monospace',
+      fontFamily: MonospaceFontFamily,
     },
     helperHint: {
       ...Typography.bodySmall,
