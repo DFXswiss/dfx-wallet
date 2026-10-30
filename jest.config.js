@@ -60,7 +60,17 @@ module.exports = {
   projects: [
     {
       displayName: 'unit',
-      transform: sharedTransform,
+      transform: {
+        ...sharedTransform,
+        // ESM-only dependency of query-string. Babel must emit CJS the way Metro does.
+        '/node_modules/decode-uri-component/.+\\.js$': [
+          'babel-jest',
+          {
+            presets: [['@babel/preset-env', { targets: { node: 'current' } }]],
+          },
+        ],
+      },
+      transformIgnorePatterns: ['/node_modules/(?!decode-uri-component/)'],
       setupFiles: ['<rootDir>/test/setup-globals.ts'],
       testMatch: [
         '<rootDir>/test/services/**/*.test.ts',
