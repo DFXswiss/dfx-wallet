@@ -1,9 +1,7 @@
 import React from 'react';
 import { fireEvent, render, within } from '@testing-library/react-native';
-import { Rect } from 'react-native-svg';
+import { Rect, Stop } from 'react-native-svg';
 import { darkColors, ThemeProvider, useThemeStore } from '@/theme';
-import { fireEvent, render } from '@testing-library/react-native';
-import { Stop } from 'react-native-svg';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -131,9 +129,7 @@ describe('DashboardScreen', () => {
       </ThemeProvider>,
     );
 
-    const portfolioIcon = within(
-      getByTestId('dashboard-action-portfolio'),
-    ).UNSAFE_getByType(Rect);
+    const portfolioIcon = within(getByTestId('dashboard-action-portfolio')).UNSAFE_getByType(Rect);
     const payIcons = within(getByTestId('dashboard-action-pay')).UNSAFE_getAllByType(Rect);
     expect(portfolioIcon.props.stroke).toBe(darkColors.onPrimary);
     expect(portfolioIcon.props.stroke).not.toBe(darkColors.white);

@@ -48,6 +48,18 @@ jest.mock('@/components', () => {
         { disabled, onPress, testID },
         ReactActual.createElement(Text, null, title),
       ),
+    GlassCard: ({
+      children,
+      onPress,
+      testID,
+    }: {
+      children?: React.ReactNode;
+      onPress?: () => void;
+      testID?: string;
+    }) =>
+      onPress
+        ? ReactActual.createElement(Pressable, { onPress, testID }, children)
+        : ReactActual.createElement(View, { testID }, children),
   };
 });
 

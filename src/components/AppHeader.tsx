@@ -1,6 +1,7 @@
 import { ReactNode, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { GlassIconButton } from './GlassIconButton';
 import { GlassSurface } from './GlassSurface';
 import { Icon } from './Icon';
@@ -9,6 +10,7 @@ import { Header, Typography, useColors, type ThemeColors } from '@/theme';
 type Props = {
   title: string;
   onBack?: () => void;
+  backDisabled?: boolean;
   /**
    * Hide the back button entirely (e.g. consent screens that may only be
    * left forwards via an explicit action). The left slot keeps its width
@@ -35,12 +37,14 @@ type Props = {
 export function AppHeader({
   title,
   onBack,
+  backDisabled = false,
   hideBack = false,
   rightAction,
   rightActionPlain = false,
   testID,
 }: Props) {
   const router = useRouter();
+  const { t } = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   // When a screen is mounted directly via deep-link (e.g. simctl openurl,
@@ -62,8 +66,10 @@ export function AppHeader({
       <GlassIconButton
         icon={<Icon name="arrow-left" size={26} color={colors.text} />}
         onPress={handleBack}
+        disabled={backDisabled}
         size={Header.slotSize}
-        accessibilityLabel="Back"
+        accessibilityLabel={t('common.back')}
+        accessibilityState={{ disabled: backDisabled }}
         {...(testID ? { testID: `${testID}-back` } : {})}
       />
     </View>

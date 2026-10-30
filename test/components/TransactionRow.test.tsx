@@ -1,10 +1,12 @@
 import React from 'react';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { act, render, waitFor } from '@testing-library/react-native';
+import { Icon } from '../../src/components/Icon';
 import { TransactionRow } from '@/components/TransactionRow';
 import type { TransactionDto } from '@/features/dfx-backend/services';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 import { useWalletStore } from '@/store';
-import { ThemeProvider, useThemeStore } from '@/theme';
+import { ThemeProvider, darkColors, lightColors, useThemeStore, type ThemeColors } from '@/theme';
 
 const transaction: TransactionDto = {
   id: 1,
@@ -28,9 +30,33 @@ describe('TransactionRow', () => {
     useThemeStore.setState({ mode: 'light' });
     jest.spyOn(pricingService, 'isReady').mockReturnValue(true);
     jest.spyOn(pricingService, 'initialize').mockResolvedValue(undefined);
-    jest.spyOn(pricingService, 'getExchangeRate').mockImplementation((ticker, currency) =>
-      ticker === 'btc' && currency === FiatCurrency.USD ? btcRate : undefined,
+    jest
+      .spyOn(pricingService, 'getExchangeRate')
+      .mockImplementation((ticker, currency) =>
+        ticker === 'btc' && currency === FiatCurrency.USD ? btcRate : undefined,
+      );
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('recomputes the fiat estimate when the pricing service publishes an update', async () => {
+    const { getByTestId } = render(
+      <ThemeProvider>
+        <TransactionRow tx={transaction} testID="transaction" />
+      </ThemeProvider>,
     );
+    const subtitle = () => String(getByTestId('transaction-subtitle').props.children);
+    expect(subtitle()).toContain('≈ $ 100000.00');
+
+    btcRate = 60_000;
+    act(() => pricingService.reset());
+
+    await waitFor(() => expect(subtitle()).toContain('≈ $ 120000.00'));
+  });
+});
+
 /**
  * Chip colors used to come from a component-local `isDark ? … : …` branch
  * in `makeTypeIcon`. They now come straight off `ThemeColors` (see
@@ -38,14 +64,6 @@ describe('TransactionRow', () => {
  * exact same values the old literals held, in both schemes, so the token
  * move is provably value-for-value.
  */
-import React from 'react';
-import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { render } from '@testing-library/react-native';
-import { TransactionRow } from '../../src/components/TransactionRow';
-import { Icon } from '../../src/components/Icon';
-import type { TransactionDto } from '@/features/dfx-backend/services';
-import { pricingService } from '@/services/pricing-service';
-import { ThemeProvider, useThemeStore, lightColors, darkColors, type ThemeColors } from '@/theme';
 
 function makeTx(type: TransactionDto['type']): TransactionDto {
   return {
@@ -93,20 +111,6 @@ describe.each([
     jest.restoreAllMocks();
   });
 
-  it('recomputes the fiat estimate when the pricing service publishes an update', async () => {
-    const { getByTestId } = render(
-      <ThemeProvider>
-        <TransactionRow tx={transaction} testID="transaction" />
-      </ThemeProvider>,
-    );
-    const subtitle = () => String(getByTestId('transaction-subtitle').props.children);
-    expect(subtitle()).toContain('≈ $ 100000.00');
-
-    btcRate = 60_000;
-    act(() => pricingService.reset());
-
-    await waitFor(() => expect(subtitle()).toContain('≈ $ 120000.00'));
-  });
   it.each(Object.entries(EXPECTED) as [TransactionDto['type'], Expectation][])(
     'renders the pre-move colors for type %s',
     (type, expectation) => {

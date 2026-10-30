@@ -2,10 +2,7 @@ import React from 'react';
 import { Alert, Switch } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import {
-  authenticateWithBiometric,
-  isBiometricAvailable,
-} from '@/features/biometric/biometric';
+import { authenticateWithBiometric, isBiometricAvailable } from '@/features/biometric/biometric';
 import { dfxUserService } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
@@ -714,10 +711,7 @@ describe('SettingsScreenImpl', () => {
       pinHash: null,
     });
     expect(mockReplace).toHaveBeenCalledWith('/');
-    expect(alertSpy).not.toHaveBeenCalledWith(
-      'common.error',
-      'settings.deleteWalletCleanupFailed',
-    );
+    expect(alertSpy).not.toHaveBeenCalledWith('common.error', 'settings.deleteWalletCleanupFailed');
   });
 
   // Red mutations: omit the retry or omit any WDK credential getter from dependency wiring.
@@ -791,10 +785,7 @@ describe('SettingsScreenImpl', () => {
 
     expect(deleteWallet).toHaveBeenCalledWith('default');
     expect(mockReplace).toHaveBeenCalledWith('/');
-    expect(alertSpy).toHaveBeenLastCalledWith(
-      'common.error',
-      'settings.deleteWalletCleanupFailed',
-    );
+    expect(alertSpy).toHaveBeenLastCalledWith('common.error', 'settings.deleteWalletCleanupFailed');
     expect(mockReplace.mock.invocationCallOrder[0]).toBeLessThan(
       alertSpy.mock.invocationCallOrder.at(-1)!,
     );
@@ -844,14 +835,14 @@ describe('SettingsScreenImpl', () => {
     await waitFor(() => expect(getByText('settings.title')).toBeTruthy());
     // The back button is `GlassIconButton` / `AppHeader` now — it carries no
     // visible icon text, so it's found by its accessibility label instead.
-    fireEvent.press(getByLabelText('Back'));
+    fireEvent.press(getByLabelText('common.back'));
     expect(mockBack).toHaveBeenCalled();
     unmount();
 
     mockCanGoBack.mockReturnValue(false);
     const again = renderScreen();
     await waitFor(() => expect(again.getByText('settings.title')).toBeTruthy());
-    fireEvent.press(again.getByLabelText('Back'));
+    fireEvent.press(again.getByLabelText('common.back'));
     expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard');
   });
 

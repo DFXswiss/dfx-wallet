@@ -713,8 +713,8 @@
           <div class="callout warn">
             <p>
               <b>WDK-Init nach Continue:</b> der Tether-WDK initialisiert beim ersten Wallet-Setup
-              jede Chain (Bitcoin SegWit, Taproot, Plasma, Ethereum &amp; L2s, Solana, TON, TRON,
-              Spark). Auf einem frischen CI-Simulator kann das bis zu 120s dauern — der Maestro-Flow
+              jede konfigurierte Chain (Bitcoin, Spark, Ethereum, Arbitrum, Polygon, Base, Plasma
+              und Sepolia). Auf einem frischen CI-Simulator kann das bis zu 120s dauern — der Maestro-Flow
               und der Detox-Test gewähren explizit <code>--withTimeout(120_000)</code>.
             </p>
           </div>
@@ -764,7 +764,7 @@
               </div>
               <div class="desc">
                 Default-State direkt nach Onboarding: CHF 0.00, Bergpanorama-Background,
-                Bottom-Pill mit Receive (links) und Send (rechts).
+                Bottom-Pill mit Send (links) und Receive (rechts).
               </div>
             </div>
             <div class="test">
@@ -811,16 +811,15 @@
             </div>
           </div>
           <p class="spec-intro">
-            Ein Screen statt zwei Schritte. Ganz oben steht die blaue Karte <em>„BTC kaufen“</em>
+            Ein Screen statt zwei Schritte. Ganz oben steht die Karte <em>„Krypto kaufen“</em>
             (Titel folgt dem gewählten Asset, per Banküberweisung, nur mit
             <code>EXPO_PUBLIC_ENABLE_BUY_SELL</code>). Darunter die Asset-Auswahl als vier Münzen BTC, CHF,
-            EUR, USD (die aktive mit blauem Ring); BTC hat zusätzlich eine Netz-Auswahl als Text
-            (SegWit und EVM, Taproot und Lightning hinter
-            <code>EXPO_PUBLIC_ENABLE_DFX_BACKEND</code>), die Stablecoins laufen nur auf Ethereum.
-            Die QR-Karte zeigt den Code mit Vergrössern-Badge, die volle Adresse sowie Kopieren und
-            Teilen; ein Tipp auf den QR oder auf „Tippen zum Vergrössern“ öffnet den Code
-            bildschirmfüllend (✕ oder Tipp daneben schliesst). Darunter der Hinweis, nur das
-            gewählte Asset im gewählten Netz zu senden.
+            EUR, USD. BTC hat eine Netzleiste: Bitcoin (SegWit) und Ethereum als Wrapped BTC, plus
+            Taproot und Lightning nur mit <code>EXPO_PUBLIC_ENABLE_DFX_BACKEND</code>. CHF, EUR und USD
+            laufen nur auf Ethereum; die Netzleiste ist dann auf dieses eine Netz gesperrt. Die
+            QR-Karte zeigt den Code mit Vergrössern-Badge, die volle Adresse sowie Kopieren und
+            Teilen; ein Tipp auf den QR öffnet den Code bildschirmfüllend. Darunter der Hinweis, nur
+            das gewählte Asset im gewählten Netz zu senden.
           </p>
 
           <div class="callout warn">
@@ -865,11 +864,16 @@
             hinzufügen · Geld aufs Konto auszahlen“ und öffnet das Formular aus den Einstellungen
             (IBAN, optionale Bezeichnung, Speichern legt das Konto bei DFX an); mit Konto führt die
             Zeile direkt zu Auszahlen. Dieselben Bankkonten sind unter Einstellungen → Bankkonten
-            jederzeit verwaltbar (nur mit <code>EXPO_PUBLIC_ENABLE_BUY_SELL</code>). Der Scan-Button oben rechts öffnet denselben Scanner wie „Pay“
-            auf dem Dashboard: OpenCryptoPay geht zum Bezahlen, eine Adresse (bei
-            <code>bitcoin:</code> mit Betrag) direkt in den Betragsschritt, eine IBAN zur Auszahlung,
-            alles andere zeigt „Code nicht erkannt“ mit Kopieren und Erneut scannen. Danach folgen
-            Betrag und Bestätigung.
+            jederzeit verwaltbar (nur mit <code>EXPO_PUBLIC_ENABLE_BUY_SELL</code>). Der Scan-Button
+            oben rechts öffnet denselben Scanner wie „Pay“ auf dem Dashboard: OpenCryptoPay geht zum
+            Bezahlen, eine Adresse (bei <code>bitcoin:</code> mit Betrag) direkt in den
+            Betragsschritt, eine IBAN in die Suche, alles andere zeigt „Code nicht erkannt“. Danach
+            folgen Betrag (Ziffernblock, Punkt als Dezimaltrenner) und Bestätigung. BTC verlangt
+            eine gültige Mainnet-On-Chain- oder Spark-Adresse: On-Chain geht über das Bitcoin-Konto,
+            Spark über Spark. Andere Assets verlangen eine gültige EVM-Adresse, deren gemischte
+            Groß- und Kleinschreibung die Prüfsumme trifft; die Nulladresse wird abgelehnt. Der
+            Betrag muss &gt; 0 sein. Während eine Sendung läuft, lässt sich der Screen nicht
+            verlassen.
           </p>
 
           <div class="callout warn">

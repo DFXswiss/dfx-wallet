@@ -1,3 +1,6 @@
+import { encodeSparkAddress } from '@buildonspark/spark-sdk';
+import { getIcapAddress, ZeroAddress } from 'ethers';
+
 import {
   addressesEqual,
   getAddressKind,
@@ -12,10 +15,20 @@ import {
 const EVM = `0x${'ab12'.repeat(10)}`;
 // BIP-173 reference address (whitelisted fixture, see eslint.config.js).
 const BTC = 'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq';
+const SPARK_G = '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798';
+const SPARK = encodeSparkAddress({ identityPublicKey: SPARK_G, network: 'MAINNET' });
+const ZERO = `0x${'0'.repeat(40)}`;
+const ARBITRARY = 'raw-non-opencryptopay-payment-data';
 
 describe('isPlausibleAddress', () => {
   it('accepts a well-formed EVM address', () => {
     expect(isPlausibleAddress(EVM)).toBe(true);
+  });
+
+  it('accepts a mainnet Bitcoin address and a plain Spark mainnet address', () => {
+    expect(isPlausibleAddress(BTC)).toBe(true);
+    expect(isPlausibleAddress(SPARK)).toBe(true);
+    expect(isPlausibleAddress(`  ${SPARK}  `)).toBe(true);
   });
 
   it('rejects a 0x string that is not a full EVM address', () => {
@@ -24,9 +37,16 @@ describe('isPlausibleAddress', () => {
     expect(isPlausibleAddress(`${EVM}00`)).toBe(false);
   });
 
-  it('accepts other formats from 26 characters on', () => {
-    expect(isPlausibleAddress(BTC)).toBe(true);
-    expect(isPlausibleAddress('a'.repeat(26))).toBe(true);
+  it('rejects the EVM zero address in every form the send screen rejects', () => {
+    expect(isPlausibleAddress(ZERO)).toBe(false);
+    expect(isPlausibleAddress(ZERO.slice(2))).toBe(false);
+    expect(isPlausibleAddress(getIcapAddress(ZeroAddress))).toBe(false);
+    expect(isPlausibleAddress(`0X${'0'.repeat(40)}`)).toBe(false);
+  });
+
+  it('rejects arbitrary text instead of accepting it for its length', () => {
+    expect(isPlausibleAddress(ARBITRARY)).toBe(false);
+    expect(isPlausibleAddress('a'.repeat(26))).toBe(false);
     expect(isPlausibleAddress('a'.repeat(25))).toBe(false);
   });
 

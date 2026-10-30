@@ -11,8 +11,6 @@ import type {
   SellPaymentInfoDto,
 } from '@/features/dfx-backend/services/dto/payment';
 import { darkColors, ThemeProvider, useThemeStore } from '@/theme';
-import BuyScreenImpl from '../../src/features/buy-sell/BuyScreenImpl';
-import SellScreenImpl from '../../src/features/buy-sell/SellScreenImpl';
 
 jest.mock('@/services/balances', () => {
   const actual = jest.requireActual('@/services/balances');
@@ -25,37 +23,22 @@ jest.mock('@/services/balances', () => {
   };
 });
 
+import { GlassCard } from '../../src/components/GlassCard';
+import { GlassPill } from '../../src/components/GlassPill';
+
 jest.mock('react-i18next', () => {
-  const translations: Record<string, string> = {
-    'buy.paymentMethodBank': 'Bank transfer',
-    'buy.paymentMethodHint': '0–1 business day',
-    'buy.paymentMethodSepa': 'SEPA bank transfer',
-  };
   const t = (key: string | string[], params?: Record<string, unknown>) => {
     const resolved = Array.isArray(key) ? key[0]! : key;
+    const translations: Record<string, string> = {
+      'buy.paymentMethodBank': 'Bank transfer',
+      'buy.paymentMethodHint': '0–1 business day',
+      'buy.paymentMethodSepa': 'SEPA bank transfer',
+    };
     const rendered = translations[resolved] ?? resolved;
     return params ? `${rendered}:${JSON.stringify(params)}` : rendered;
   };
   return { useTranslation: () => ({ t }) };
 });
-import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
-import { GlassCard } from '../../src/components/GlassCard';
-import { GlassPill } from '../../src/components/GlassPill';
-
-jest.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string | string[], params?: Record<string, unknown>) => {
-      const resolved = Array.isArray(key) ? key[0]! : key;
-      const translations: Record<string, string> = {
-        'buy.paymentMethodBank': 'Bank transfer',
-        'buy.paymentMethodHint': '0–1 business day',
-        'buy.paymentMethodSepa': 'SEPA bank transfer',
-      };
-      const rendered = translations[resolved] ?? resolved;
-      return params ? `${rendered}:${JSON.stringify(params)}` : rendered;
-    },
-  }),
-}));
 
 const mockBack = jest.fn();
 let mockLatestFocusCallback: (() => void | (() => void)) | null = null;
@@ -88,7 +71,6 @@ jest.mock('expo-router', () => ({
     }, [callback]);
   },
   useLocalSearchParams: () => mockSearchParams,
-  useFocusEffect: (callback: () => void | (() => void)) => callback(),
   useRouter: () => ({ back: mockBack, push: jest.fn(), replace: jest.fn(), canGoBack: () => true }),
 }));
 
@@ -295,9 +277,8 @@ jest.mock('@/components', () => {
     disabled?: boolean;
     loading?: boolean;
     icon?: React.ReactNode;
-  }) {
     testID?: string;
-  }) => {
+  }) {
     const ReactActual = jest.requireActual('react');
     const { Pressable, Text } = jest.requireActual('react-native');
     return ReactActual.createElement(
@@ -406,7 +387,6 @@ const flowState = {
   isLoading: false,
   error: null as string | null,
   authGate: null as DfxAuthGateState | null,
-  authGate: null as { kind: string; message: string } | null,
   paymentInfo: null as Record<string, unknown> | null,
   quoteKey: null as string | null,
   errorKey: null as string | null,
@@ -434,6 +414,9 @@ jest.mock('../../src/features/buy-sell/useBuyFlow', () => ({
 jest.mock('../../src/features/buy-sell/useSellFlow', () => ({
   useSellFlow: () => ({
     paymentInfo: mockSellFlowState.paymentInfo,
+    quoteKey: mockSellFlowState.quoteKey,
+    errorKey: mockSellFlowState.errorKey,
+    actionErrorKey: mockSellFlowState.actionErrorKey,
     isLoading: mockSellFlowState.isLoading,
     error: mockSellFlowState.error,
     authGate: mockSellFlowState.authGate,
@@ -447,9 +430,36 @@ jest.mock('../../src/features/buy-sell/useSellFlow', () => ({
 }));
 // eslint-disable-next-line import/first
 import { BuyTradeAdapter } from '../../src/features/buy-sell/BuyTradeAdapter';
+// eslint-disable-next-line import/first
+import { SellTradeAdapter } from '../../src/features/buy-sell/SellTradeAdapter';
 
 const mockOnShellChange = jest.fn();
-const renderAdapter = () => render(<BuyTradeAdapter onShellChange={mockOnShellChange} />);
+
+function buyElement() {
+  return (
+    <BuyTradeAdapter
+      onShellChange={mockOnShellChange}
+      asset={mockSearchParams.asset}
+      chain={mockSearchParams.chain}
+      targetAddress={mockSearchParams.targetAddress}
+      targetBlockchain={mockSearchParams.targetBlockchain}
+    />
+  );
+}
+
+function sellElement() {
+  return (
+    <SellTradeAdapter
+      onShellChange={mockOnShellChange}
+      asset={mockSearchParams.asset}
+      chain={mockSearchParams.chain}
+      targetAddress={mockSearchParams.targetAddress}
+      targetBlockchain={mockSearchParams.targetBlockchain}
+    />
+  );
+}
+
+const renderAdapter = () => render(buyElement());
 
 const PAYMENT_INFO = {
   id: 321,
@@ -558,6 +568,9 @@ const mockSellFlowState = {
   error: null as string | null,
   authGate: null as DfxAuthGateState | null,
   paymentInfo: SELL_PAYMENT_INFO as Record<string, unknown> | null,
+  quoteKey: null as string | null,
+  errorKey: null as string | null,
+  actionErrorKey: null as string | null,
 };
 
 beforeEach(() => {
@@ -604,10 +617,16 @@ beforeEach(() => {
   flowState.error = null;
   flowState.authGate = null;
   flowState.paymentInfo = PAYMENT_INFO;
+  flowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
+  flowState.errorKey = null;
+  flowState.actionErrorKey = null;
   mockSellFlowState.isLoading = false;
   mockSellFlowState.error = null;
   mockSellFlowState.authGate = null;
   mockSellFlowState.paymentInfo = SELL_PAYMENT_INFO;
+  mockSellFlowState.quoteKey = '0.01|CHF|BTC|Bitcoin|bitcoin';
+  mockSellFlowState.errorKey = null;
+  mockSellFlowState.actionErrorKey = null;
   mockSellGetQuote.mockReset();
   mockSellCreatePaymentInfo.mockReset();
   mockSellConfirmPayment.mockReset();
@@ -617,35 +636,29 @@ beforeEach(() => {
   mockAlert.mockClear();
 });
 
-describe('BuyScreenImpl', () => {
-  it('uses on-primary for the active currency and CTA icon in dark mode', () => {
-    useThemeStore.setState({ mode: 'dark' });
-    const { getByTestId, getByText } = render(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
-    fireEvent.press(getByText('BTC'));
+it('uses on-primary for the CTA icon in dark mode', () => {
+  useThemeStore.setState({ mode: 'dark' });
+  const { getByTestId } = render(<ThemeProvider>{buyElement()}</ThemeProvider>);
 
-    const activeCurrencyColor = StyleSheet.flatten(
-      within(getByTestId('buy-currency-CHF')).getByText('CHF').props.style,
-    ).color;
-    const inactiveCurrencyColor = StyleSheet.flatten(
-      within(getByTestId('buy-currency-EUR')).getByText('EUR').props.style,
-    ).color;
-    const iconColor = StyleSheet.flatten(getByTestId('mock-icon-arrow-right').props.style).color;
-    expect(activeCurrencyColor).toBe(darkColors.onPrimary);
-    expect(activeCurrencyColor).not.toBe(darkColors.white);
-    expect(inactiveCurrencyColor).not.toBe(activeCurrencyColor);
-    expect(inactiveCurrencyColor).not.toBe(darkColors.onPrimary);
-    expect(iconColor).toBe(darkColors.onPrimary);
-    expect(iconColor).not.toBe(darkColors.white);
+  const iconColor = StyleSheet.flatten(getByTestId('mock-icon-arrow-right').props.style).color;
+  expect(iconColor).toBe(darkColors.onPrimary);
+  expect(iconColor).not.toBe(darkColors.white);
+});
+
+it('normalizes a comma amount for both the quote and payment info request', async () => {
+  mockCreatePaymentInfo.mockResolvedValueOnce(PAYMENT_INFO);
+  const { getByTestId, getByText } = renderAdapter();
+
+  // #278 keeps the CTA closed until the quote key matches the typed amount.
+  flowState.quoteKey = '100.5|CHF|BTC|Bitcoin|bitcoin';
+  fireEvent.changeText(getByTestId('buy-amount-input'), '100,50');
+  await waitFor(() =>
+    expect(mockGetQuote).toHaveBeenCalledWith(expect.objectContaining({ amount: 100.5 })),
+  );
+  await act(async () => {
+    fireEvent.press(getByText('buy.cta:{"asset":"BTC"}'));
   });
-
-  it('normalizes a comma amount for both the quote and payment info request', async () => {
-  flowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
-  flowState.errorKey = null;
-  flowState.actionErrorKey = null;
+  expect(mockCreatePaymentInfo).toHaveBeenCalledWith(expect.objectContaining({ amount: 100.5 }));
 });
 
 describe('BuyTradeAdapter', () => {
@@ -660,7 +673,7 @@ describe('BuyTradeAdapter', () => {
 
     flowState.error = 'payment info failed';
     flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
-    rerender(<BuyTradeAdapter onShellChange={mockOnShellChange} />);
+    rerender(buyElement());
     fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
     expect(queryByText('payment info failed')).toBeTruthy();
     expect(getByTestId('buy-receive-amount').props.value).not.toBe('');
@@ -670,36 +683,18 @@ describe('BuyTradeAdapter', () => {
     expect(queryByText('payment info failed')).toBeNull();
   });
 
-  it('keeps the payment instructions visible when transfer confirmation fails', async () => {
-    mockCreatePaymentInfo.mockResolvedValueOnce(PAYMENT_INFO);
-    const { getByPlaceholderText, getByText } = render(<BuyScreenImpl />);
-
-    fireEvent.press(getByText('BTC'));
-    fireEvent.changeText(getByPlaceholderText('0.00'), '100,50');
-
-    await waitFor(() =>
-      expect(mockGetQuote).toHaveBeenCalledWith(expect.objectContaining({ amount: 100.5 })),
-    );
-    await act(async () => {
-      fireEvent.press(getByText('buy.cta:{"asset":"BTC"}'));
-    });
-    expect(mockCreatePaymentInfo).toHaveBeenCalledWith(expect.objectContaining({ amount: 100.5 }));
-  });
-
   it.each(['1,000.50', '1.2.3', '1,,5'])('keeps malformed amount %s gated', (invalid) => {
-    const { getByLabelText, getByPlaceholderText, getByText, queryByText } = render(
-      <BuyScreenImpl />,
-    );
+    const { getByTestId, getByLabelText, queryByText } = render(buyElement());
     const ctaLabel = 'buy.cta:{"asset":"BTC"}';
 
-    fireEvent.press(getByText('BTC'));
-    const amountInput = getByPlaceholderText('0.00');
+    const amountInput = getByTestId('buy-amount-input');
     fireEvent.changeText(amountInput, invalid);
 
     expect(getByLabelText(ctaLabel).props.accessibilityState?.disabled).toBe(true);
     expect(queryByText(/buy\.rateInclFees/)).toBeNull();
     expect(mockGetQuote).not.toHaveBeenCalled();
 
+    flowState.quoteKey = '100.5|CHF|BTC|Bitcoin|bitcoin';
     fireEvent.changeText(amountInput, '100,50');
     expect(getByLabelText(ctaLabel).props.accessibilityState?.disabled).not.toBe(true);
   });
@@ -708,7 +703,7 @@ describe('BuyTradeAdapter', () => {
     mockIsDfxAuthenticated = true;
     mockRetryLast.mockResolvedValue({ kind: 'paymentInfo', info: PAYMENT_INFO });
 
-    const { queryByText } = render(<BuyScreenImpl />);
+    const { queryByText } = render(buyElement());
 
     await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
     expect(queryByText('buy.paymentInfo')).toBeNull();
@@ -716,12 +711,14 @@ describe('BuyTradeAdapter', () => {
 
   it('does not advance for a quote retry or a payment retry without a pending confirmation', async () => {
     flowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'link Bitcoin' };
+    flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
     mockRetryLast
       .mockResolvedValueOnce({ kind: 'quote', info: PAYMENT_INFO })
       .mockResolvedValueOnce({ kind: 'paymentInfo', info: PAYMENT_INFO });
 
-    const { getByTestId, queryByText } = render(<BuyScreenImpl />);
+    const { getByTestId, queryByText } = render(buyElement());
 
+    fireEvent.changeText(getByTestId('buy-amount-input'), '100');
     await act(async () => {
       fireEvent.press(getByTestId('mock-link-chain'));
     });
@@ -739,10 +736,12 @@ describe('BuyTradeAdapter', () => {
 
   it('handles a null payment replay quietly', async () => {
     flowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'link Bitcoin' };
+    flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
     mockRetryLast.mockResolvedValueOnce(null);
 
-    const { getByTestId, queryByText } = render(<BuyScreenImpl />);
+    const { getByTestId, queryByText } = render(buyElement());
 
+    fireEvent.changeText(getByTestId('buy-amount-input'), '100');
     await act(async () => {
       fireEvent.press(getByTestId('mock-link-chain'));
     });
@@ -761,28 +760,23 @@ describe('BuyTradeAdapter', () => {
     };
     const kycGate: DfxAuthGateState = { kind: 'kyc', message: 'finish KYC' };
     flowState.authGate = linkGate;
+    flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
     mockDismissAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
       if (gate === undefined || flowState.authGate === gate) flowState.authGate = null;
     });
     mockRetryLast.mockImplementationOnce(async () => {
       flowState.authGate = kycGate;
+      flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
       return null;
     });
 
-    const view = render(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
+    const view = render(<ThemeProvider>{buyElement()}</ThemeProvider>);
 
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
     await waitFor(() => expect(mockDismissAuthGate).toHaveBeenCalledWith(linkGate));
 
-    view.rerender(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
+    view.rerender(<ThemeProvider>{buyElement()}</ThemeProvider>);
     expect(view.getByText('dfxAuthGate.kyc.title:{"chain":""}')).toBeTruthy();
   });
 
@@ -794,24 +788,18 @@ describe('BuyTradeAdapter', () => {
       message: 'link Bitcoin',
     };
     flowState.authGate = linkGate;
+    flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
     mockDismissAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
       if (gate === undefined || flowState.authGate === gate) flowState.authGate = null;
     });
     mockRetryLast.mockRejectedValueOnce(new Error('buy retry exploded'));
 
-    const view = render(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
+    const view = render(<ThemeProvider>{buyElement()}</ThemeProvider>);
 
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
     await waitFor(() => expect(mockDismissAuthGate).toHaveBeenCalledWith(linkGate));
-    view.rerender(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
+    view.rerender(<ThemeProvider>{buyElement()}</ThemeProvider>);
     expect(view.queryByTestId('dfx-auth-gate')).toBeNull();
     expect(view.queryByText('buy retry exploded')).toBeNull();
   });
@@ -823,10 +811,9 @@ describe('BuyTradeAdapter', () => {
       return PAYMENT_INFO;
     });
 
-    const { getByPlaceholderText, getByText, queryByText } = render(<BuyScreenImpl />);
+    const { getByTestId, getByText, queryByText } = render(buyElement());
 
-    fireEvent.press(getByText('BTC'));
-    fireEvent.changeText(getByPlaceholderText('0.00'), '100');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '100');
 
     expect(getByText('buy.continueHint:{"action":"buy.cta:{\\"asset\\":\\"BTC\\"}"}')).toBeTruthy();
     expect(queryByText(/^buy\.quoteError\.generic/)).toBeNull();
@@ -850,10 +837,9 @@ describe('BuyTradeAdapter', () => {
     async ({ error, expectedMessage }) => {
       mockCreatePaymentInfo.mockResolvedValueOnce({ isValid: false, error });
 
-      const { getByPlaceholderText, getByText, queryByText } = render(<BuyScreenImpl />);
+      const { getByTestId, getByText, queryByText } = render(buyElement());
 
-      fireEvent.press(getByText('BTC'));
-      fireEvent.changeText(getByPlaceholderText('0.00'), '100');
+      fireEvent.changeText(getByTestId('buy-amount-input'), '100');
       await act(async () => {
         fireEvent.press(getByText('buy.cta:{"asset":"BTC"}'));
       });
@@ -866,10 +852,9 @@ describe('BuyTradeAdapter', () => {
   it('clears a final payment info error when the amount changes', async () => {
     mockCreatePaymentInfo.mockResolvedValueOnce({ isValid: false, error: 'KycRequired' });
 
-    const { getByPlaceholderText, getByText, queryByText } = render(<BuyScreenImpl />);
+    const { getByTestId, getByText, queryByText } = render(buyElement());
 
-    fireEvent.press(getByText('BTC'));
-    fireEvent.changeText(getByPlaceholderText('0.00'), '100');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '100');
     await act(async () => {
       fireEvent.press(getByText('buy.cta:{"asset":"BTC"}'));
     });
@@ -877,7 +862,7 @@ describe('BuyTradeAdapter', () => {
     const errorMessage = 'buy.quoteError.KycRequired:{"code":"KycRequired"}';
     expect(getByText(errorMessage)).toBeTruthy();
 
-    fireEvent.changeText(getByPlaceholderText('0.00'), '200');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '200');
 
     await waitFor(() => expect(queryByText(errorMessage)).toBeNull());
   });
@@ -885,12 +870,9 @@ describe('BuyTradeAdapter', () => {
   it('clears a final payment info error when the currency changes', async () => {
     mockCreatePaymentInfo.mockResolvedValueOnce({ isValid: false, error: 'KycRequired' });
 
-    const { getAllByText, getByPlaceholderText, getByText, queryByText } = render(
-      <BuyScreenImpl />,
-    );
+    const { getByTestId, getByText, queryByText } = render(buyElement());
 
-    fireEvent.press(getByText('BTC'));
-    fireEvent.changeText(getByPlaceholderText('0.00'), '100');
+    fireEvent.changeText(getByTestId('buy-amount-input'), '100');
     await act(async () => {
       fireEvent.press(getByText('buy.cta:{"asset":"BTC"}'));
     });
@@ -898,8 +880,8 @@ describe('BuyTradeAdapter', () => {
     const errorMessage = 'buy.quoteError.KycRequired:{"code":"KycRequired"}';
     expect(getByText(errorMessage)).toBeTruthy();
 
-    const [, eurCurrencyLabel] = getAllByText('EUR');
-    fireEvent.press(eurCurrencyLabel!);
+    fireEvent.press(getByTestId('buy-pay-currency-pill'));
+    fireEvent.press(getByTestId('pay-currency-option-EUR'));
 
     await waitFor(() => expect(queryByText(errorMessage)).toBeNull());
   });
@@ -969,21 +951,30 @@ describe('BuyTradeAdapter', () => {
     flowState.error = 'network failed';
     flowState.errorKey = '1|CHF|BTC|Bitcoin|bitcoin';
 
-    expect(getByTestId('buy-payment-method-row').props.accessibilityRole).toBeUndefined();
-    expect(getByText('Bank transfer')).toBeTruthy();
-    expect(getByText('0–1 business day')).toBeTruthy();
-    expect(queryByText(/Free/)).toBeNull();
+    const { getByTestId, getByText, queryByText } = renderAdapter();
+    fireEvent.changeText(getByTestId('buy-amount-input'), '1');
+    fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
+
+    expect(getByText('network failed')).toBeTruthy();
+    expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(false);
+
+    fireEvent.changeText(getByTestId('buy-amount-input'), '2');
+    expect(queryByText('network failed')).toBeNull();
+    expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(true);
   });
 
   it('shows SEPA as the EUR payment method', () => {
-    const { getAllByText, getByPlaceholderText, getByText } = render(<BuyScreenImpl />);
+    const { getByTestId } = renderAdapter();
 
-    fireEvent.press(getByText('BTC'));
-    fireEvent.press(getAllByText('EUR')[1]!);
-    fireEvent.changeText(getByPlaceholderText('0.00'), '100');
+    fireEvent.press(getByTestId('buy-pay-currency-pill'));
+    fireEvent.press(getByTestId('pay-currency-option-EUR'));
 
-    expect(getByText('SEPA bank transfer')).toBeTruthy();
-    expect(getByText('0–1 business day')).toBeTruthy();
+    const paymentMethod = getByTestId('buy-payment-method-row');
+    expect(
+      within(paymentMethod)
+        .getAllByText(/SEPA bank transfer|0–1 business day/)
+        .map((node) => node.props.children),
+    ).toEqual(['SEPA bank transfer', '0–1 business day']);
   });
 
   it('creates one payment info when confirm is pressed twice', async () => {
@@ -992,10 +983,9 @@ describe('BuyTradeAdapter', () => {
       targetBlockchain: 'Bitcoin',
     };
     mockCreatePaymentInfo.mockResolvedValue(PAYMENT_INFO);
-    const view = render(<BuyScreenImpl />);
+    const view = render(buyElement());
 
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
 
     await act(async () => {
@@ -1014,13 +1004,13 @@ describe('BuyTradeAdapter', () => {
     };
     mockCreatePaymentInfo.mockImplementation(() => {
       flowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'link Bitcoin' };
+      flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
       return null;
     });
     mockRetryLast.mockResolvedValue({ kind: 'paymentInfo', info: PAYMENT_INFO });
-    const view = render(<BuyScreenImpl />);
+    const view = render(buyElement());
 
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
     expect(view.getByTestId('confirm-target-modal')).toBeTruthy();
 
@@ -1047,10 +1037,9 @@ describe('BuyTradeAdapter', () => {
       flowState.error = 'network down';
       return null;
     });
-    const view = render(<BuyScreenImpl />);
+    const view = render(buyElement());
 
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
 
     await act(async () => {
@@ -1072,10 +1061,9 @@ describe('BuyTradeAdapter', () => {
       targetBlockchain: 'Bitcoin',
     };
     mockCreatePaymentInfo.mockResolvedValue(null);
-    const view = render(<BuyScreenImpl />);
+    const view = render(buyElement());
 
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
 
     await act(async () => {
@@ -1095,6 +1083,7 @@ describe('BuyTradeAdapter', () => {
     const loginGate: DfxAuthGateState = { kind: 'login', message: 'sign in' };
     mockCreatePaymentInfo.mockImplementation(async () => {
       flowState.authGate = loginGate;
+      flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
       return null;
     });
     mockDismissAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
@@ -1102,13 +1091,8 @@ describe('BuyTradeAdapter', () => {
     });
     mockRetryLast.mockImplementation(async () => ({ kind: 'paymentInfo', info: PAYMENT_INFO }));
 
-    const view = render(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    const view = render(<ThemeProvider>{buyElement()}</ThemeProvider>);
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     await act(async () => {
       fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
     });
@@ -1122,11 +1106,7 @@ describe('BuyTradeAdapter', () => {
 
     mockIsDfxAuthenticated = true;
     await act(async () => {
-      view.rerender(
-        <ThemeProvider>
-          <BuyScreenImpl />
-        </ThemeProvider>,
-      );
+      view.rerender(<ThemeProvider>{buyElement()}</ThemeProvider>);
     });
 
     await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
@@ -1139,6 +1119,7 @@ describe('BuyTradeAdapter', () => {
     const loginGate: DfxAuthGateState = { kind: 'login', message: 'sign in' };
     mockCreatePaymentInfo.mockImplementation(async () => {
       flowState.authGate = loginGate;
+      flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
       return null;
     });
     mockCancelAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
@@ -1146,13 +1127,8 @@ describe('BuyTradeAdapter', () => {
     });
     mockRetryLast.mockResolvedValue({ kind: 'paymentInfo', info: PAYMENT_INFO });
 
-    const view = render(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    const view = render(<ThemeProvider>{buyElement()}</ThemeProvider>);
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     await act(async () => {
       fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
     });
@@ -1165,11 +1141,7 @@ describe('BuyTradeAdapter', () => {
 
     mockIsDfxAuthenticated = true;
     await act(async () => {
-      view.rerender(
-        <ThemeProvider>
-          <BuyScreenImpl />
-        </ThemeProvider>,
-      );
+      view.rerender(<ThemeProvider>{buyElement()}</ThemeProvider>);
     });
 
     await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
@@ -1182,19 +1154,15 @@ describe('BuyTradeAdapter', () => {
     const loginGate: DfxAuthGateState = { kind: 'login', message: 'sign in' };
     mockCreatePaymentInfo.mockImplementation(async () => {
       flowState.authGate = loginGate;
+      flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
       return null;
     });
     mockDismissAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
       if (gate === undefined || flowState.authGate === gate) flowState.authGate = null;
     });
 
-    const view = render(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    const view = render(<ThemeProvider>{buyElement()}</ThemeProvider>);
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     await act(async () => {
       fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
     });
@@ -1206,11 +1174,7 @@ describe('BuyTradeAdapter', () => {
     expect(mockDismissAuthGate).toHaveBeenCalledWith(loginGate);
 
     await act(async () => {
-      view.rerender(
-        <ThemeProvider>
-          <BuyScreenImpl />
-        </ThemeProvider>,
-      );
+      view.rerender(<ThemeProvider>{buyElement()}</ThemeProvider>);
     });
     expect(view.queryByTestId('dfx-auth-gate')).toBeNull();
 
@@ -1224,11 +1188,7 @@ describe('BuyTradeAdapter', () => {
     mockRetryLast.mockResolvedValue({ kind: 'paymentInfo', info: PAYMENT_INFO });
     mockIsDfxAuthenticated = true;
     await act(async () => {
-      view.rerender(
-        <ThemeProvider>
-          <BuyScreenImpl />
-        </ThemeProvider>,
-      );
+      view.rerender(<ThemeProvider>{buyElement()}</ThemeProvider>);
     });
 
     await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
@@ -1258,19 +1218,15 @@ describe('BuyTradeAdapter', () => {
     const loginGate: DfxAuthGateState = { kind: 'login', message: 'sign in' };
     mockCreatePaymentInfo.mockImplementation(async () => {
       flowState.authGate = loginGate;
+      flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
       return null;
     });
     mockCancelAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
       if (gate === undefined || flowState.authGate === gate) flowState.authGate = null;
     });
 
-    const view = render(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    const view = render(<ThemeProvider>{buyElement()}</ThemeProvider>);
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     await act(async () => {
       fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
     });
@@ -1279,11 +1235,7 @@ describe('BuyTradeAdapter', () => {
     mockRetryLast.mockReturnValue(retryPromise);
     mockIsDfxAuthenticated = true;
     await act(async () => {
-      view.rerender(
-        <ThemeProvider>
-          <BuyScreenImpl />
-        </ThemeProvider>,
-      );
+      view.rerender(<ThemeProvider>{buyElement()}</ThemeProvider>);
     });
     expect(mockRetryLast).toHaveBeenCalledTimes(1);
 
@@ -1291,11 +1243,7 @@ describe('BuyTradeAdapter', () => {
       fireEvent.press(view.getByTestId('dfx-auth-gate-cancel'));
     });
     expect(mockCancelAuthGate).toHaveBeenCalledWith(loginGate);
-    view.rerender(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
+    view.rerender(<ThemeProvider>{buyElement()}</ThemeProvider>);
     expect(view.queryByTestId('dfx-auth-gate')).toBeNull();
 
     mockCreatePaymentInfo.mockReturnValue(secondPayment);
@@ -1328,6 +1276,7 @@ describe('BuyTradeAdapter', () => {
     const loginGate: DfxAuthGateState = { kind: 'login', message: 'sign in' };
     mockCreatePaymentInfo.mockImplementation(async () => {
       flowState.authGate = loginGate;
+      flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
       return null;
     });
     mockDismissAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
@@ -1338,13 +1287,8 @@ describe('BuyTradeAdapter', () => {
       info: { isValid: false, error: 'KycRequired' },
     });
 
-    const view = render(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    const view = render(<ThemeProvider>{buyElement()}</ThemeProvider>);
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
     expect(view.getByTestId('confirm-target-modal')).toBeTruthy();
 
@@ -1361,11 +1305,7 @@ describe('BuyTradeAdapter', () => {
 
     mockIsDfxAuthenticated = true;
     await act(async () => {
-      view.rerender(
-        <ThemeProvider>
-          <BuyScreenImpl />
-        </ThemeProvider>,
-      );
+      view.rerender(<ThemeProvider>{buyElement()}</ThemeProvider>);
     });
 
     const message = 'buy.quoteError.KycRequired:{"code":"KycRequired"}';
@@ -1377,12 +1317,13 @@ describe('BuyTradeAdapter', () => {
   it('does not replay when an auth gate appears while already signed in', async () => {
     mockIsDfxAuthenticated = true;
     mockRetryLast.mockResolvedValue(null);
-    const view = render(<BuyScreenImpl />);
+    const view = render(buyElement());
 
     await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
 
     flowState.authGate = { kind: 'login', message: 'sign in' };
-    view.rerender(<BuyScreenImpl />);
+    flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
+    view.rerender(buyElement());
 
     expect(mockRetryLast).toHaveBeenCalledTimes(1);
   });
@@ -1391,37 +1332,27 @@ describe('BuyTradeAdapter', () => {
     mockUseRealDfxAuthGate = true;
     const loginGate: DfxAuthGateState = { kind: 'login', message: 'sign in' };
     flowState.authGate = loginGate;
+    flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
     mockDismissAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
       if (gate === undefined || flowState.authGate === gate) flowState.authGate = null;
     });
     mockRetryLast.mockResolvedValue({ kind: 'quote', info: PAYMENT_INFO });
 
-    const view = render(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
+    const view = render(<ThemeProvider>{buyElement()}</ThemeProvider>);
     expect(mockRetryLast).not.toHaveBeenCalled();
 
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     await act(async () => {
       fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
     });
     expect(mockDismissAuthGate).toHaveBeenCalledWith(loginGate);
 
-    view.rerender(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
+    view.rerender(<ThemeProvider>{buyElement()}</ThemeProvider>);
     expect(mockRetryLast).not.toHaveBeenCalled();
 
     mockIsDfxAuthenticated = true;
     await act(async () => {
-      view.rerender(
-        <ThemeProvider>
-          <BuyScreenImpl />
-        </ThemeProvider>,
-      );
+      view.rerender(<ThemeProvider>{buyElement()}</ThemeProvider>);
     });
 
     await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
@@ -1442,9 +1373,8 @@ describe('BuyTradeAdapter', () => {
     });
     mockCreatePaymentInfo.mockReturnValueOnce(first).mockReturnValueOnce(second);
 
-    const view = render(<BuyScreenImpl />);
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    const view = render(buyElement());
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
     await act(async () => {
       fireEvent.press(view.getByTestId('confirm-target-confirm'));
@@ -1491,6 +1421,7 @@ describe('BuyTradeAdapter', () => {
     const loginGate: DfxAuthGateState = { kind: 'login', message: 'sign in' };
     mockCreatePaymentInfo.mockImplementation(async () => {
       flowState.authGate = loginGate;
+      flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
       return null;
     });
     mockDismissAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
@@ -1498,13 +1429,8 @@ describe('BuyTradeAdapter', () => {
     });
     mockRetryLast.mockReturnValue(retryPromise);
 
-    const view = render(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    const view = render(<ThemeProvider>{buyElement()}</ThemeProvider>);
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
     await act(async () => {
       fireEvent.press(view.getByTestId('confirm-target-confirm'));
@@ -1517,20 +1443,12 @@ describe('BuyTradeAdapter', () => {
     await act(async () => {
       fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
     });
-    view.rerender(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
+    view.rerender(<ThemeProvider>{buyElement()}</ThemeProvider>);
     expect(view.queryByTestId('dfx-auth-gate')).toBeNull();
 
     mockIsDfxAuthenticated = true;
     await act(async () => {
-      view.rerender(
-        <ThemeProvider>
-          <BuyScreenImpl />
-        </ThemeProvider>,
-      );
+      view.rerender(<ThemeProvider>{buyElement()}</ThemeProvider>);
     });
     expect(mockRetryLast).toHaveBeenCalledTimes(1);
 
@@ -1558,6 +1476,7 @@ describe('BuyTradeAdapter', () => {
     const pending = new Promise<null>((resolve) => {
       settle401 = () => {
         if (!replayDropped) flowState.authGate = loginGate;
+        flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
         resolve(null);
       };
     });
@@ -1572,13 +1491,8 @@ describe('BuyTradeAdapter', () => {
       return { kind: 'paymentInfo', info: PAYMENT_INFO };
     });
 
-    const view = render(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    const view = render(<ThemeProvider>{buyElement()}</ThemeProvider>);
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
     await act(async () => {
       fireEvent.press(view.getByTestId('confirm-target-confirm'));
@@ -1596,20 +1510,12 @@ describe('BuyTradeAdapter', () => {
       settle401();
       await pending;
     });
-    view.rerender(
-      <ThemeProvider>
-        <BuyScreenImpl />
-      </ThemeProvider>,
-    );
+    view.rerender(<ThemeProvider>{buyElement()}</ThemeProvider>);
     expect(view.queryByTestId('dfx-auth-gate')).toBeNull();
 
     mockIsDfxAuthenticated = true;
     await act(async () => {
-      view.rerender(
-        <ThemeProvider>
-          <BuyScreenImpl />
-        </ThemeProvider>,
-      );
+      view.rerender(<ThemeProvider>{buyElement()}</ThemeProvider>);
     });
     await waitFor(() => expect(mockRetryLast).toHaveBeenCalledTimes(1));
     expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
@@ -1628,9 +1534,8 @@ describe('BuyTradeAdapter', () => {
     mockReauthAs.mockReturnValue(reauthPromise);
     mockCreatePaymentInfo.mockResolvedValue(PAYMENT_INFO);
 
-    const view = render(<BuyScreenImpl />);
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    const view = render(buyElement());
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
     expect(view.getByTestId('confirm-target-modal')).toBeTruthy();
 
@@ -1641,7 +1546,8 @@ describe('BuyTradeAdapter', () => {
     expect(mockCreatePaymentInfo).not.toHaveBeenCalled();
 
     flowState.authGate = { kind: 'login', message: 'sign in' };
-    view.rerender(<BuyScreenImpl />);
+    flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
+    view.rerender(buyElement());
     await waitFor(() => expect(view.queryByTestId('confirm-target-modal')).toBeNull());
 
     await act(async () => {
@@ -1651,7 +1557,7 @@ describe('BuyTradeAdapter', () => {
     expect(mockCreatePaymentInfo).not.toHaveBeenCalled();
 
     flowState.authGate = null;
-    view.rerender(<BuyScreenImpl />);
+    view.rerender(buyElement());
     fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
     expect(view.getByTestId('confirm-target-modal')).toBeTruthy();
     await act(async () => {
@@ -1665,8 +1571,10 @@ describe('BuyTradeAdapter', () => {
     const request = createDeferred<string>();
     mockDfxAuthService.linkAddress.mockImplementationOnce(() => request.promise);
     flowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'Link Bitcoin' };
-    const { getByTestId, queryByText } = render(<BuyScreenImpl />);
+    flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
+    const { getByTestId, queryByText } = render(buyElement());
 
+    fireEvent.changeText(getByTestId('buy-amount-input'), '100');
     fireEvent.press(getByTestId('dfx-auth-gate-primary'));
     await waitFor(() => expect(mockDfxAuthService.linkAddress).toHaveBeenCalledTimes(1));
     await waitFor(() =>
@@ -1694,8 +1602,10 @@ describe('BuyTradeAdapter', () => {
     const invalidated = new DfxAuthFlowInvalidatedError();
     mockDfxAuthService.linkAddress.mockRejectedValueOnce(invalidated);
     flowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'Link Bitcoin' };
-    const { getByTestId, queryByText } = render(<BuyScreenImpl />);
+    flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
+    const { getByTestId, queryByText } = render(buyElement());
 
+    fireEvent.changeText(getByTestId('buy-amount-input'), '100');
     fireEvent.press(getByTestId('dfx-auth-gate-primary'));
 
     await waitFor(() => expect(mockDfxAuthService.linkAddress).toHaveBeenCalledTimes(1));
@@ -1715,13 +1625,13 @@ describe('BuyTradeAdapter', () => {
     };
     mockCreatePaymentInfo.mockImplementation(async () => {
       flowState.authGate = gate;
+      flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
       return null;
     });
     mockDfxAuthService.linkAddress.mockRejectedValue(new DfxAuthFlowInvalidatedError());
 
-    const view = render(<BuyScreenImpl />);
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    const view = render(buyElement());
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     await act(async () => {
       fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
     });
@@ -1749,13 +1659,13 @@ describe('BuyTradeAdapter', () => {
     };
     mockCreatePaymentInfo.mockImplementation(async () => {
       flowState.authGate = gate;
+      flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
       return null;
     });
     linkAddressThatEndsSessionAfterPersist('linked-buy-token');
 
-    const view = render(<BuyScreenImpl />);
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    const view = render(buyElement());
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     await act(async () => {
       fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
     });
@@ -1789,13 +1699,13 @@ describe('BuyTradeAdapter', () => {
     };
     mockCreatePaymentInfo.mockImplementation(async () => {
       flowState.authGate = gate;
+      flowState.actionErrorKey = '100|CHF|BTC|Bitcoin|bitcoin';
       return null;
     });
     linkLnurlAddressThatEndsSessionAfterPersist('linked-lnurl-buy-token');
 
-    const view = render(<BuyScreenImpl />);
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    const view = render(buyElement());
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     await act(async () => {
       fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
     });
@@ -1831,9 +1741,8 @@ describe('BuyTradeAdapter', () => {
       .mockResolvedValueOnce({ ok: true, token: 't' });
     mockCreatePaymentInfo.mockResolvedValue(PAYMENT_INFO);
 
-    const view = render(<BuyScreenImpl />);
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    const view = render(buyElement());
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
     expect(view.getByTestId('confirm-target-modal')).toBeTruthy();
 
@@ -1859,9 +1768,8 @@ describe('BuyTradeAdapter', () => {
     const invalidated = new DfxAuthFlowInvalidatedError();
     mockReauthAs.mockRejectedValueOnce(invalidated);
 
-    const view = render(<BuyScreenImpl />);
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '100');
+    const view = render(buyElement());
+    fireEvent.changeText(view.getByTestId('buy-amount-input'), '100');
     fireEvent.press(view.getByText('buy.cta:{"asset":"BTC"}'));
 
     await act(async () => {
@@ -1872,27 +1780,12 @@ describe('BuyTradeAdapter', () => {
   });
 });
 
-describe('SellScreenImpl', () => {
-  it('uses on-primary for the active currency and CTA icon in dark mode', () => {
+describe('SellTradeAdapter session', () => {
+  it('uses on-primary for the CTA icon in dark mode', () => {
     useThemeStore.setState({ mode: 'dark' });
-    const { getByTestId, getByText } = render(
-      <ThemeProvider>
-        <SellScreenImpl />
-      </ThemeProvider>,
-    );
-    fireEvent.press(getByText('BTC'));
+    const { getByTestId } = render(<ThemeProvider>{sellElement()}</ThemeProvider>);
 
-    const activeCurrencyColor = StyleSheet.flatten(
-      within(getByTestId('sell-currency-CHF')).getByText('CHF').props.style,
-    ).color;
-    const inactiveCurrencyColor = StyleSheet.flatten(
-      within(getByTestId('sell-currency-EUR')).getByText('EUR').props.style,
-    ).color;
     const iconColor = StyleSheet.flatten(getByTestId('mock-icon-arrow-right').props.style).color;
-    expect(activeCurrencyColor).toBe(darkColors.onPrimary);
-    expect(activeCurrencyColor).not.toBe(darkColors.white);
-    expect(inactiveCurrencyColor).not.toBe(activeCurrencyColor);
-    expect(inactiveCurrencyColor).not.toBe(darkColors.onPrimary);
     expect(iconColor).toBe(darkColors.onPrimary);
     expect(iconColor).not.toBe(darkColors.white);
   });
@@ -1909,30 +1802,28 @@ describe('SellScreenImpl', () => {
       message: 'register first',
     };
     mockSellFlowState.authGate = linkGate;
+    mockSellFlowState.actionErrorKey = '0.01|CHF|BTC|Bitcoin|bitcoin';
     mockSellDismissAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
       if (gate === undefined || mockSellFlowState.authGate === gate) {
+        mockSellFlowState.actionErrorKey = '0.01|CHF|BTC|Bitcoin|bitcoin';
         mockSellFlowState.authGate = null;
       }
     });
     mockSellRetryLast.mockImplementationOnce(async () => {
       mockSellFlowState.authGate = registrationGate;
+      mockSellFlowState.actionErrorKey = '0.01|CHF|BTC|Bitcoin|bitcoin';
       return null;
     });
 
-    const view = render(
-      <ThemeProvider>
-        <SellScreenImpl />
-      </ThemeProvider>,
-    );
+    const view = render(<ThemeProvider>{sellElement()}</ThemeProvider>);
 
+    fireEvent.press(view.getByTestId('sell-pay-asset-pill'));
+    fireEvent.press(view.getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    fireEvent.changeText(view.getByTestId('sell-amount-input'), '0.01');
     fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
     await waitFor(() => expect(mockSellDismissAuthGate).toHaveBeenCalledWith(linkGate));
 
-    view.rerender(
-      <ThemeProvider>
-        <SellScreenImpl />
-      </ThemeProvider>,
-    );
+    view.rerender(<ThemeProvider>{sellElement()}</ThemeProvider>);
     expect(view.getByText('dfxAuthGate.registration.title:{"chain":""}')).toBeTruthy();
   });
 
@@ -1944,26 +1835,23 @@ describe('SellScreenImpl', () => {
       message: 'link Bitcoin',
     };
     mockSellFlowState.authGate = linkGate;
+    mockSellFlowState.actionErrorKey = '0.01|CHF|BTC|Bitcoin|bitcoin';
     mockSellDismissAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
       if (gate === undefined || mockSellFlowState.authGate === gate) {
+        mockSellFlowState.actionErrorKey = '0.01|CHF|BTC|Bitcoin|bitcoin';
         mockSellFlowState.authGate = null;
       }
     });
     mockSellRetryLast.mockRejectedValueOnce(new Error('sell retry exploded'));
 
-    const view = render(
-      <ThemeProvider>
-        <SellScreenImpl />
-      </ThemeProvider>,
-    );
+    const view = render(<ThemeProvider>{sellElement()}</ThemeProvider>);
 
+    fireEvent.press(view.getByTestId('sell-pay-asset-pill'));
+    fireEvent.press(view.getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    fireEvent.changeText(view.getByTestId('sell-amount-input'), '0.01');
     fireEvent.press(view.getByTestId('dfx-auth-gate-primary'));
     await waitFor(() => expect(mockSellDismissAuthGate).toHaveBeenCalledWith(linkGate));
-    view.rerender(
-      <ThemeProvider>
-        <SellScreenImpl />
-      </ThemeProvider>,
-    );
+    view.rerender(<ThemeProvider>{sellElement()}</ThemeProvider>);
     expect(view.queryByTestId('dfx-auth-gate')).toBeNull();
     expect(view.queryByText('sell retry exploded')).toBeNull();
   });
@@ -1973,10 +1861,12 @@ describe('SellScreenImpl', () => {
     const loginGate: DfxAuthGateState = { kind: 'login', message: 'sign in' };
     mockSellCreatePaymentInfo.mockImplementation(async () => {
       mockSellFlowState.authGate = loginGate;
+      mockSellFlowState.actionErrorKey = '0.01|CHF|BTC|Bitcoin|bitcoin';
       return null;
     });
     mockSellDismissAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
       if (gate === undefined || mockSellFlowState.authGate === gate) {
+        mockSellFlowState.actionErrorKey = '0.01|CHF|BTC|Bitcoin|bitcoin';
         mockSellFlowState.authGate = null;
       }
     });
@@ -1985,13 +1875,10 @@ describe('SellScreenImpl', () => {
       info: SELL_PAYMENT_INFO,
     }));
 
-    const view = render(
-      <ThemeProvider>
-        <SellScreenImpl />
-      </ThemeProvider>,
-    );
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.01');
+    const view = render(<ThemeProvider>{sellElement()}</ThemeProvider>);
+    fireEvent.press(view.getByTestId('sell-pay-asset-pill'));
+    fireEvent.press(view.getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    fireEvent.changeText(view.getByTestId('sell-amount-input'), '0.01');
     fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
     fireEvent.changeText(
       view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
@@ -2010,11 +1897,7 @@ describe('SellScreenImpl', () => {
 
     mockIsDfxAuthenticated = true;
     await act(async () => {
-      view.rerender(
-        <ThemeProvider>
-          <SellScreenImpl />
-        </ThemeProvider>,
-      );
+      view.rerender(<ThemeProvider>{sellElement()}</ThemeProvider>);
     });
 
     await waitFor(() => expect(mockSellRetryLast).toHaveBeenCalledTimes(1));
@@ -2027,22 +1910,21 @@ describe('SellScreenImpl', () => {
     const loginGate: DfxAuthGateState = { kind: 'login', message: 'sign in' };
     mockSellCreatePaymentInfo.mockImplementation(async () => {
       mockSellFlowState.authGate = loginGate;
+      mockSellFlowState.actionErrorKey = '0.01|CHF|BTC|Bitcoin|bitcoin';
       return null;
     });
     mockSellCancelAuthGate.mockImplementation((gate?: DfxAuthGateState) => {
       if (gate === undefined || mockSellFlowState.authGate === gate) {
+        mockSellFlowState.actionErrorKey = '0.01|CHF|BTC|Bitcoin|bitcoin';
         mockSellFlowState.authGate = null;
       }
     });
     mockSellRetryLast.mockResolvedValue({ kind: 'paymentInfo', info: SELL_PAYMENT_INFO });
 
-    const view = render(
-      <ThemeProvider>
-        <SellScreenImpl />
-      </ThemeProvider>,
-    );
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.01');
+    const view = render(<ThemeProvider>{sellElement()}</ThemeProvider>);
+    fireEvent.press(view.getByTestId('sell-pay-asset-pill'));
+    fireEvent.press(view.getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    fireEvent.changeText(view.getByTestId('sell-amount-input'), '0.01');
     fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
     fireEvent.changeText(
       view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
@@ -2060,11 +1942,7 @@ describe('SellScreenImpl', () => {
 
     mockIsDfxAuthenticated = true;
     await act(async () => {
-      view.rerender(
-        <ThemeProvider>
-          <SellScreenImpl />
-        </ThemeProvider>,
-      );
+      view.rerender(<ThemeProvider>{sellElement()}</ThemeProvider>);
     });
 
     await waitFor(() => expect(mockSellRetryLast).toHaveBeenCalledTimes(1));
@@ -2073,46 +1951,50 @@ describe('SellScreenImpl', () => {
   });
 
   it('shows the inverse fee-inclusive rate and target-currency fee badge', () => {
-    const { getByPlaceholderText, getByText } = render(<SellScreenImpl />);
+    const { getByTestId, getByText } = render(sellElement());
 
-    fireEvent.press(getByText('BTC'));
-    fireEvent.changeText(getByPlaceholderText('0.00'), '0.01');
+    fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    fireEvent.changeText(getByTestId('sell-amount-input'), '0.01');
 
     const headline = getByText(/sell\.rateInclFees/).props.children;
     expect(headline).toMatch(/"amount":"68['’]946\.50"/);
     expect(headline).not.toContain('"amount":"0.00"');
-    expect(getByText('11.26')).toBeTruthy();
+    expect(getByText('11.26 CHF')).toBeTruthy();
   });
 
   it('falls back to the sell summary for an invalid final rate', () => {
     mockSellFlowState.paymentInfo = { ...SELL_PAYMENT_INFO, rate: 0 };
-    const { getByPlaceholderText, getByText, queryByText } = render(<SellScreenImpl />);
+    const { getByTestId, getByText, queryByText } = render(sellElement());
 
-    fireEvent.press(getByText('BTC'));
-    fireEvent.changeText(getByPlaceholderText('0.00'), '0.01');
+    fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    fireEvent.changeText(getByTestId('sell-amount-input'), '0.01');
 
     expect(getByText('sell.summary')).toBeTruthy();
     expect(queryByText(/sell\.rateInclFees/)).toBeNull();
   });
 
   it('shows target-currency fees and the inverse market rate in the expanded quote', () => {
-    const { getByPlaceholderText, getByText } = render(<SellScreenImpl />);
+    const { getByTestId, getByText } = render(sellElement());
 
-    fireEvent.press(getByText('BTC'));
-    fireEvent.changeText(getByPlaceholderText('0.00'), '0.01');
+    fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    fireEvent.changeText(getByTestId('sell-amount-input'), '0.01');
     fireEvent.press(getByText(/sell\.rateInclFees/));
 
-    expect(getByText('2.00 CHF')).toBeTruthy();
-    expect(getByText('11.26 CHF')).toBeTruthy();
+    expect(getByText('−2.00 CHF')).toBeTruthy();
+    expect(getByText('−11.26 CHF')).toBeTruthy();
     expect(getByText(/^1 BTC = 70['’]072\.17 CHF$/)).toBeTruthy();
   });
 
   it('names the IBAN continue step and omits fees without feesTarget', () => {
     mockSellFlowState.paymentInfo = { ...SELL_PAYMENT_INFO, feesTarget: undefined };
-    const { getByPlaceholderText, getByText, queryByText } = render(<SellScreenImpl />);
+    const { getByTestId, getByText, queryByText } = render(sellElement());
 
-    fireEvent.press(getByText('BTC'));
-    fireEvent.changeText(getByPlaceholderText('0.00'), '0.01');
+    fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    fireEvent.changeText(getByTestId('sell-amount-input'), '0.01');
 
     const hint = getByText(/sell\.continueHint/).props.children;
     expect(hint).toContain('"next":"common.continue"');
@@ -2121,10 +2003,11 @@ describe('SellScreenImpl', () => {
 
   it('shows target-currency fees and the inverse market rate on confirmation', async () => {
     mockSellCreatePaymentInfo.mockResolvedValueOnce(SELL_PAYMENT_INFO);
-    const { getByPlaceholderText, getByText } = render(<SellScreenImpl />);
+    const { getByTestId, getByText, getByPlaceholderText } = render(sellElement());
 
-    fireEvent.press(getByText('BTC'));
-    fireEvent.changeText(getByPlaceholderText('0.00'), '0.01');
+    fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    fireEvent.changeText(getByTestId('sell-amount-input'), '0.01');
     fireEvent.press(getByText('sell.cta:{"asset":"BTC"}'));
     fireEvent.changeText(
       getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
@@ -2143,10 +2026,11 @@ describe('SellScreenImpl', () => {
   it('surfaces a rejected sell quote while the quote card is collapsed', () => {
     mockSellFlowState.paymentInfo = { ...SELL_PAYMENT_INFO, isValid: false, error: 'KycRequired' };
 
-    const { getByPlaceholderText, getByText } = render(<SellScreenImpl />);
+    const { getByTestId, getByText } = render(sellElement());
 
-    fireEvent.press(getByText('BTC'));
-    fireEvent.changeText(getByPlaceholderText('0.00'), '0.01');
+    fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    fireEvent.changeText(getByTestId('sell-amount-input'), '0.01');
 
     expect(getByText(/sell\.quoteError\.KycRequired/).props.children).toContain(
       'sell.quoteError.KycRequired',
@@ -2158,8 +2042,12 @@ describe('SellScreenImpl', () => {
     const request = createDeferred<string>();
     mockDfxAuthService.linkAddress.mockImplementationOnce(() => request.promise);
     mockSellFlowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'Link Bitcoin' };
-    const { getByTestId, queryByText } = render(<SellScreenImpl />);
+    mockSellFlowState.actionErrorKey = '0.01|CHF|BTC|Bitcoin|bitcoin';
+    const { getByTestId, queryByText } = render(sellElement());
 
+    fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    fireEvent.changeText(getByTestId('sell-amount-input'), '0.01');
     fireEvent.press(getByTestId('dfx-auth-gate-primary'));
     await waitFor(() => expect(mockDfxAuthService.linkAddress).toHaveBeenCalledTimes(1));
     await waitFor(() =>
@@ -2187,8 +2075,12 @@ describe('SellScreenImpl', () => {
     const invalidated = new DfxAuthFlowInvalidatedError();
     mockDfxAuthService.linkAddress.mockRejectedValueOnce(invalidated);
     mockSellFlowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'Link Bitcoin' };
-    const { getByTestId, queryByText } = render(<SellScreenImpl />);
+    mockSellFlowState.actionErrorKey = '0.01|CHF|BTC|Bitcoin|bitcoin';
+    const { getByTestId, queryByText } = render(sellElement());
 
+    fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    fireEvent.changeText(getByTestId('sell-amount-input'), '0.01');
     fireEvent.press(getByTestId('dfx-auth-gate-primary'));
 
     await waitFor(() => expect(mockDfxAuthService.linkAddress).toHaveBeenCalledTimes(1));
@@ -2208,13 +2100,15 @@ describe('SellScreenImpl', () => {
     };
     mockSellCreatePaymentInfo.mockImplementation(async () => {
       mockSellFlowState.authGate = gate;
+      mockSellFlowState.actionErrorKey = '0.01|CHF|BTC|Bitcoin|bitcoin';
       return null;
     });
     linkAddressThatEndsSessionAfterPersist('linked-sell-token');
 
-    const view = render(<SellScreenImpl />);
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.01');
+    const view = render(sellElement());
+    fireEvent.press(view.getByTestId('sell-pay-asset-pill'));
+    fireEvent.press(view.getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    fireEvent.changeText(view.getByTestId('sell-amount-input'), '0.01');
     fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
     fireEvent.changeText(
       view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
@@ -2253,13 +2147,15 @@ describe('SellScreenImpl', () => {
     };
     mockSellCreatePaymentInfo.mockImplementation(async () => {
       mockSellFlowState.authGate = gate;
+      mockSellFlowState.actionErrorKey = '0.01|CHF|BTC|Bitcoin|bitcoin';
       return null;
     });
     linkLnurlAddressThatEndsSessionAfterPersist('linked-lnurl-sell-token');
 
-    const view = render(<SellScreenImpl />);
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.01');
+    const view = render(sellElement());
+    fireEvent.press(view.getByTestId('sell-pay-asset-pill'));
+    fireEvent.press(view.getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    fireEvent.changeText(view.getByTestId('sell-amount-input'), '0.01');
     fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
     fireEvent.changeText(
       view.getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
@@ -2297,9 +2193,10 @@ describe('SellScreenImpl', () => {
     };
     mockReauthAs.mockResolvedValueOnce({ ok: false, cancelled: true });
 
-    const view = render(<SellScreenImpl />);
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.01');
+    const view = render(sellElement());
+    fireEvent.press(view.getByTestId('sell-pay-asset-pill'));
+    fireEvent.press(view.getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    fireEvent.changeText(view.getByTestId('sell-amount-input'), '0.01');
     fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
     expect(view.getByTestId('confirm-target-modal')).toBeTruthy();
 
@@ -2317,9 +2214,10 @@ describe('SellScreenImpl', () => {
     };
     mockReauthAs.mockRejectedValueOnce(new Error(LOCAL_SESSION_ENDED_MESSAGE));
 
-    const view = render(<SellScreenImpl />);
-    fireEvent.press(view.getByText('BTC'));
-    fireEvent.changeText(view.getByPlaceholderText('0.00'), '0.01');
+    const view = render(sellElement());
+    fireEvent.press(view.getByTestId('sell-pay-asset-pill'));
+    fireEvent.press(view.getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    fireEvent.changeText(view.getByTestId('sell-amount-input'), '0.01');
     fireEvent.press(view.getByText('sell.cta:{"asset":"BTC"}'));
 
     await act(async () => {
@@ -2327,19 +2225,10 @@ describe('SellScreenImpl', () => {
     });
     await waitFor(() => expect(view.queryByTestId('confirm-target-modal')).toBeNull());
     expect(view.queryByText(LOCAL_SESSION_ENDED_MESSAGE)).toBeNull();
-    const { getByTestId, getByText, queryByText } = render(<BuyScreenImpl />);
-    const { getByTestId, getByText, queryByText } = renderAdapter();
-    fireEvent.changeText(getByTestId('buy-amount-input'), '1');
-    fireEvent.press(within(getByTestId('buy-fees-panel')).getByRole('button'));
-
-    expect(getByText('network failed')).toBeTruthy();
-    expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(false);
-
-    fireEvent.changeText(getByTestId('buy-amount-input'), '2');
-    expect(queryByText('network failed')).toBeNull();
-    expect(getByTestId('buy-cta').props.accessibilityState.disabled).toBe(true);
   });
+});
 
+describe('BuyTradeAdapter quote display', () => {
   it('does not reopen an old auth gate after the quote inputs change', () => {
     flowState.paymentInfo = null;
     flowState.authGate = { kind: 'login', message: 'sign in' };

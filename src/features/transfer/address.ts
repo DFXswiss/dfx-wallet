@@ -1,3 +1,6 @@
+import { getAddress, isAddress, ZeroAddress } from 'ethers';
+
+import { isBitcoinOnChainAddress, isSparkMainnetAddress } from '@/services/bitcoin-address';
 import { toEip55Address } from '@/services/evm/address';
 
 /**
@@ -8,9 +11,6 @@ import { toEip55Address } from '@/services/evm/address';
 
 export type AddressKind = 'evm' | 'other';
 
-// Shortest address the old send screen accepted (`recipient.length >= 26`):
-// a legacy Bitcoin address is 26 characters long.
-const MIN_ADDRESS_LENGTH = 26;
 const IBAN_PATTERN = /^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/;
 
 /** Strip the `ethereum:` / `bitcoin:` URI scheme and any `?query` from a scanned or pasted string. */
@@ -31,15 +31,28 @@ export function isEvmAddress(value: string): boolean {
 }
 
 /**
- * Format sanity check, not proof of ownership. Any 0x-prefixed string must be
- * a well-formed EVM address (the existing helper rejects everything else);
- * other strings keep the previous rule: no whitespace, at least 26 characters.
+ * The send screen rejects the zero address whenever `ethers` can read it:
+ * `0x` plus 40 zeros, the same 40 hex digits without the prefix, and the
+ * ICAP form. `isEvmAddress` only sees the `0x` form, so the other two are
+ * rejected here as well.
+ */
+function isZeroEvmAddress(value: string): boolean {
+  if (!isAddress(value)) return false;
+  return getAddress(value) === ZeroAddress;
+}
+
+/**
+ * Format sanity check, not proof of ownership. True only for a non-zero EVM
+ * address, a mainnet Bitcoin on-chain address, or a plain Spark mainnet address.
  */
 export function isPlausibleAddress(value: string): boolean {
   const candidate = value.trim();
-  if (/\s/.test(candidate)) return false;
-  if (candidate.startsWith('0x')) return isEvmAddress(candidate);
-  return candidate.length >= MIN_ADDRESS_LENGTH;
+  if (/\s/.test(candidate) || isZeroEvmAddress(candidate)) return false;
+  return (
+    isEvmAddress(candidate) ||
+    isBitcoinOnChainAddress(candidate) ||
+    isSparkMainnetAddress(candidate)
+  );
 }
 
 export function getAddressKind(address: string): AddressKind {
@@ -57,7 +70,11 @@ export function addressesEqual(a: string, b: string): boolean {
 }
 
 export function isIban(value: string): boolean {
-  return IBAN_PATTERN.test(value.replace(/\s/g, ''));
+  const compact = value.replace(/\s/g, '');
+  // ICAP addresses use the XE prefix and otherwise match the IBAN shape.
+  // XE is not an IBAN country code, so they stay on the address path.
+  if (compact.startsWith('XE')) return false;
+  return IBAN_PATTERN.test(compact);
 }
 
 /** `bc1qq0jv…66ujdm` — shortened for lists and headers; short strings pass through. */

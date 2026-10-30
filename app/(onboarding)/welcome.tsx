@@ -39,7 +39,7 @@ export default function WelcomeScreen() {
         <GlassIconButton
           icon={<Icon name="arrow-left" size={24} color={colors.text} />}
           onPress={handleBack}
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.back')}
           testID="welcome-back-button"
         />
       </View>

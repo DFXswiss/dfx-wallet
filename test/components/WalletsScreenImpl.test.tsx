@@ -110,6 +110,35 @@ jest.mock('@/components', () => {
       }),
     RenameWalletModal: () => null,
     Skeleton: () => ReactActual.createElement(View, { testID: 'wallets-skeleton' }),
+    GlassCard: ({ children, testID }: { children?: React.ReactNode; testID?: string }) =>
+      ReactActual.createElement(View, { testID }, children),
+    GlassListGroup: Object.assign(
+      ({ children, testID }: { children?: React.ReactNode; testID?: string }) =>
+        ReactActual.createElement(View, { testID }, children),
+      {
+        Row: ({
+          children,
+          disabled,
+          onPress,
+          testID,
+        }: {
+          children?: React.ReactNode;
+          disabled?: boolean;
+          onPress?: () => void;
+          testID?: string;
+        }) =>
+          ReactActual.createElement(
+            Pressable,
+            {
+              accessibilityState: { disabled: !!disabled },
+              disabled,
+              onPress,
+              testID,
+            },
+            children,
+          ),
+      },
+    ),
   };
 });
 

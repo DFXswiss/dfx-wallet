@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -12,9 +12,12 @@ import { DfxAuthGate } from '@/features/dfx-backend/DfxAuthGate';
 import {
   formatFiat as fmtFiat,
   formatCryptoAmount as fmtCrypto,
+  normalizeDecimalAmount,
   SYMBOL_GLYPH,
 } from '@/config/portfolio-presentation';
+import { isLocalSessionEndedError } from '@/features/dfx-backend/session-guard';
 import { useLinkedWalletReauth } from '@/features/linked-wallets/useLinkedWalletReauth';
+import { canAdvanceToPayment, getPaymentInfoErrorCode } from './services/quote-display';
 import { useBuyFlow } from './useBuyFlow';
 import { useLinkChainToDfx } from './useLinkChainToDfx';
 import { useAuthStore } from '@/store';
@@ -71,9 +74,9 @@ export function BuyTradeAdapter({
     createPaymentInfo,
     confirmPayment,
     dismissAuthGate,
+    cancelAuthGate,
     retryLast,
   } = useBuyFlow();
-  const { linkChainToDfx } = useLinkChainToDfx({ retryLast });
   const [step, setStep] = useState<BuyStep>('amount');
 
   // When the user opened the buy screen by tapping a linked-wallet card in
@@ -97,8 +100,27 @@ export function BuyTradeAdapter({
     : '';
   const { reauthAs } = useLinkedWalletReauth();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Handlers started while the modal was open must see a close that happens
+  // before their await resumes. The layout effect closes it when the gate opens.
+  const confirmOpenRef = useRef(false);
+  confirmOpenRef.current = confirmOpen;
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [paymentInfoError, setPaymentInfoError] = useState<string | null>(null);
+  // Same-tick double presses both see confirmLoading === false. The ref
+  // closes that window; confirmLoading still guards a press after paint.
+  // Taken on submit. Released on a terminal payment-info result, on cancel,
+  // and on Back. A replay and an opening auth gate leave it held.
+  const submitLockRef = useRef(false);
+  // Bumped on every payment submit and on every cancel, so a response from
+  // an earlier submit cannot be applied to a later one.
+  const submitGenRef = useRef(0);
+  // The submit whose payment-info result may still open the payment step.
+  // Null after cancel, Back, or a terminal result. A null payload that opens
+  // an auth gate keeps it, so the replay after sign-in can still apply.
+  const pendingGenRef = useRef<number | null>(null);
+  const unresolvedPaymentRef = useRef(false);
+  const [unresolvedPayment, setUnresolvedPayment] = useState(0);
   const initialPreselect = useMemo(() => {
     const wantedSymbol = typeof asset === 'string' ? asset.toUpperCase() : null;
     const wantedChain = typeof chain === 'string' ? chain : null;
@@ -121,15 +143,146 @@ export function BuyTradeAdapter({
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(true);
 
+  useEffect(() => {
+    setPaymentInfoError(null);
+  }, [amount, selectedAsset, selectedChainIndex, selectedTokenIndex, selectedCurrency]);
+
+  const beginPaymentSubmit = (): number => {
+    const gen = ++submitGenRef.current;
+    pendingGenRef.current = gen;
+    submitLockRef.current = true;
+    return gen;
+  };
+
+  const cancelPaymentSubmit = useCallback((): void => {
+    submitGenRef.current += 1;
+    pendingGenRef.current = null;
+    submitLockRef.current = false;
+  }, []);
+
+  const handlePaymentInfoResult = useCallback(
+    (info: Awaited<ReturnType<typeof createPaymentInfo>>, gen: number) => {
+      // Back, confirm-modal cancel, or auth-gate cancel may have landed
+      // while this request was in flight. A newer submit owns the generation
+      // then, and this result must not be applied to it.
+      if (pendingGenRef.current === null || pendingGenRef.current !== gen) return;
+      if (canAdvanceToPayment(info)) {
+        pendingGenRef.current = null;
+        submitLockRef.current = false;
+        setPaymentInfoError(null);
+        setConfirmError(null);
+        setConfirmOpen(false);
+        setStep('payment');
+        return;
+      }
+
+      const errorCode = getPaymentInfoErrorCode(info);
+      if (errorCode) {
+        pendingGenRef.current = null;
+        submitLockRef.current = false;
+        const translatedError =
+          errorCode === 'noCode'
+            ? t('buy.quoteError.noCode')
+            : t([`buy.quoteError.${errorCode}`, 'buy.quoteError.generic'], { code: errorCode });
+        // The gate closes the confirm modal. An error stored only there is
+        // invisible, so the amount step has to show it.
+        if (confirmOpenRef.current) {
+          setConfirmError(translatedError);
+        } else {
+          setPaymentInfoError(translatedError);
+        }
+        return;
+      }
+
+      // null, and no error code on the payload. The hook's auth gate or
+      // error lands on the next render; decide there so a stale closure
+      // cannot show an error beside the gate. Keep the generation: a gate
+      // is not a terminal result, and the replay still has to apply.
+      unresolvedPaymentRef.current = true;
+      setUnresolvedPayment((n) => n + 1);
+    },
+    [t],
+  );
+
+  const resumeAfterAuth = useCallback(async () => {
+    const gen = pendingGenRef.current;
+    const result = await retryLast();
+    if (result?.kind === 'paymentInfo') {
+      if (gen === null || pendingGenRef.current !== gen) return;
+      handlePaymentInfoResult(result.info, gen);
+    }
+    // quote results are applied by the hook's own state
+  }, [retryLast, handlePaymentInfoResult]);
+
   // After the user goes through the DFX login flow we land back on this
   // screen; replay the failed call so they don't have to retap "Continue".
+  // retryLast only replays an action that was gated and not cancelled.
+  // Read the gate through a ref so this callback stays stable while the
+  // modal opens and closes.
   const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
+  const authGateRef = useRef(authGate);
+  authGateRef.current = authGate;
   useFocusEffect(
     useCallback(() => {
       if (isDfxAuthenticated) {
-        void retryLast();
+        void resumeAfterAuth();
+        return;
       }
-    }, [isDfxAuthenticated, retryLast]),
+      // Act only when signed out with no gate and a payment submit still pending
+      // (the user backed out of login): then drop the replay and unlock below.
+      if (authGateRef.current || pendingGenRef.current === null) return;
+      cancelAuthGate();
+      pendingGenRef.current = null;
+      submitLockRef.current = false;
+    }, [isDfxAuthenticated, resumeAfterAuth, cancelAuthGate]),
+  );
+
+  // One modal at a time: the auth gate replaces the confirm dialog.
+  // Closing the dialog must not release the submit lock. The replay of the
+  // call that opened the gate still owns it.
+  useLayoutEffect(() => {
+    if (!authGate || !confirmOpen) return;
+    setConfirmOpen(false);
+    setConfirmLoading(false);
+  }, [authGate, confirmOpen]);
+
+  useEffect(() => {
+    if (!unresolvedPaymentRef.current) return;
+    if (isLoading) return;
+    unresolvedPaymentRef.current = false;
+    if (authGate) {
+      // Hold the submit lock and the pending generation until cancel or the
+      // replay. The gate is the only control the user has until then.
+      return;
+    }
+    pendingGenRef.current = null;
+    submitLockRef.current = false;
+    setConfirmLoading(false);
+    const message = error ?? t('buy.quoteError.noCode');
+    if (confirmOpenRef.current) {
+      setConfirmError(message);
+      return;
+    }
+    if (!error) setPaymentInfoError(message); // the amount step already renders the hook error
+  }, [unresolvedPayment, authGate, error, isLoading, t]);
+
+  const { linkChainToDfx } = useLinkChainToDfx({ retryLast: resumeAfterAuth });
+
+  const handleLinkChainToDfx = useCallback(
+    async (chain: Parameters<typeof linkChainToDfx>[0]) => {
+      const gateForLink = authGateRef.current ?? undefined;
+      try {
+        await linkChainToDfx(chain);
+      } catch (linkError) {
+        if (isLocalSessionEndedError(linkError)) {
+          cancelPaymentSubmit();
+          cancelAuthGate(gateForLink);
+          return;
+        }
+        throw linkError;
+      }
+    },
+    [linkChainToDfx, cancelAuthGate, cancelPaymentSubmit],
   );
 
   // eslint-disable-next-line security/detect-object-injection -- selectedChainIndex is bounded by chains.length
@@ -138,8 +291,10 @@ export function BuyTradeAdapter({
   const selectedTokenSpec = selectedChainSpec?.tokens[selectedTokenIndex] ?? null;
   const targetAsset = selectedTokenSpec?.assetSymbol ?? '';
   const blockchain = selectedChainSpec?.blockchain ?? '';
+  const normalizedAmount = normalizeDecimalAmount(amount);
+  const numAmount = normalizedAmount === null ? null : Number(normalizedAmount);
   const currentQuoteKey = makeTradeQuoteKey({
-    amount: parseFloat(amount),
+    amount: numAmount ?? Number.NaN,
     currency: selectedCurrency,
     asset: targetAsset,
     blockchain,
@@ -148,12 +303,12 @@ export function BuyTradeAdapter({
 
   // Live quote: fetch a fresh exchange-rate + fee preview whenever the user
   // changes amount, currency, or target chain. Debounced so we don't hammer
-  // the API on every keystroke.
+  // the API on every keystroke. A comma and a dot are the same amount; two
+  // separators stay gated and must not quote.
   useEffect(() => {
     if (step !== 'amount' || !selectedChainSpec) return;
     if (selectedChainSpec.unsupported) return;
-    const numAmount = parseFloat(amount);
-    if (!numAmount || numAmount <= 0) return;
+    if (numAmount === null || numAmount <= 0) return;
     const id = setTimeout(() => {
       if (!selectedChainSpec || selectedChainSpec.unsupported) return;
       void getQuote({
@@ -165,15 +320,18 @@ export function BuyTradeAdapter({
       });
     }, 350);
     return () => clearTimeout(id);
-  }, [amount, selectedCurrency, targetAsset, blockchain, step, getQuote, selectedChainSpec]);
+  }, [numAmount, selectedCurrency, targetAsset, blockchain, step, getQuote, selectedChainSpec]);
 
   // Own callback (real deps) instead of an inline closure in the effect
   // below — keeps `router` out of that effect's dependency list entirely,
   // since the effect body never reads it directly.
   const onBack = useCallback(() => {
+    // Leave the payment-info flow. A response still in flight must not
+    // open the payment step after this.
+    cancelPaymentSubmit();
     if (step === 'payment') setStep('amount');
     else router.back();
-  }, [step, router]);
+  }, [step, router, cancelPaymentSubmit]);
 
   // Report the shell chrome for the step currently active. Runs after every
   // step change so the one shared `TradeScreenShell` in `TradeScreen` always
@@ -213,7 +371,8 @@ export function BuyTradeAdapter({
     !!paymentInfo &&
     paymentInfo.isValid &&
     !!paymentInfo.fees &&
-    parseFloat(amount) > 0;
+    numAmount !== null &&
+    numAmount > 0;
   // DFX returns 200 with `error` set for soft validation failures (e.g.
   // KycRequired, AssetUnsupported). We need to surface that to the user
   // instead of getting stuck on "Angebot wird berechnet …".
@@ -272,9 +431,9 @@ export function BuyTradeAdapter({
             : null;
   const minVolume = paymentInfo?.minVolume;
   const maxVolume = paymentInfo?.maxVolume;
-  const numAmount = parseFloat(amount);
-  const belowMin = minVolume != null && numAmount > 0 && numAmount < minVolume;
-  const aboveMax = maxVolume != null && numAmount > maxVolume;
+  const belowMin =
+    minVolume != null && numAmount !== null && numAmount > 0 && numAmount < minVolume;
+  const aboveMax = maxVolume != null && numAmount !== null && numAmount > maxVolume;
 
   const renderAmountStepContent = () => (
     <View style={styles.stepContent}>
@@ -421,6 +580,8 @@ export function BuyTradeAdapter({
             </Text>
           ) : null}
 
+          {paymentInfoError ? <Text style={sharedStyles.errorText}>{paymentInfoError}</Text> : null}
+
           <GlassCard
             testID="buy-payment-method-row"
             padding={0}
@@ -443,9 +604,9 @@ export function BuyTradeAdapter({
           <PrimaryButton
             testID="buy-cta"
             title={buyAction}
-            icon={<Icon name="arrow-right" size={18} color={colors.white} />}
+            icon={<Icon name="arrow-right" size={18} color={colors.onPrimary} />}
             onPress={async () => {
-              if (!selectedChainSpec) return;
+              if (!selectedChainSpec || numAmount === null || numAmount <= 0) return;
               if (hasTargetWallet) {
                 // Linked-wallet flow: gate the bank-data step behind a
                 // confirmation modal so the user verifies asset+wallet
@@ -456,6 +617,9 @@ export function BuyTradeAdapter({
                 setConfirmOpen(true);
                 return;
               }
+              if (submitLockRef.current) return;
+              const gen = beginPaymentSubmit();
+              setPaymentInfoError(null);
               const info = await createPaymentInfo({
                 amount: numAmount,
                 currency: selectedCurrency,
@@ -463,7 +627,8 @@ export function BuyTradeAdapter({
                 blockchain,
                 chain: selectedChainSpec.chain,
               });
-              if (info) setStep('payment');
+              if (pendingGenRef.current !== gen) return;
+              handlePaymentInfoResult(info, gen);
             }}
             disabled={
               !numAmount ||
@@ -572,8 +737,14 @@ export function BuyTradeAdapter({
       {step === 'confirm' && renderConfirmStep()}
       <DfxAuthGate
         gate={authGateIsCurrent ? authGate : null}
-        onClose={dismissAuthGate}
-        onLinkChain={linkChainToDfx}
+        onClose={() => {
+          dismissAuthGate(authGate ?? undefined);
+        }}
+        onCancel={() => {
+          cancelPaymentSubmit();
+          cancelAuthGate(authGate ?? undefined);
+        }}
+        onLinkChain={handleLinkChainToDfx}
       />
       <ConfirmTargetWalletModal
         visible={confirmOpen}
@@ -584,17 +755,45 @@ export function BuyTradeAdapter({
         loading={confirmLoading}
         error={confirmError}
         onCancel={() => {
-          if (confirmLoading) return;
+          // Also while confirmLoading: createPaymentInfo may already be in
+          // flight, and the modal's own disabled state is not the only caller.
+          // Drop the replay too, or a later 401 commits an order the UI ignores.
+          cancelPaymentSubmit();
+          cancelAuthGate();
           setConfirmOpen(false);
+          setConfirmLoading(false);
           setConfirmError(null);
         }}
         onConfirm={async () => {
-          if (!selectedChainSpec || !targetAddress || !targetBlockchain) return;
+          if (confirmLoading || submitLockRef.current) return;
+          if (
+            !selectedChainSpec ||
+            !targetAddress ||
+            !targetBlockchain ||
+            numAmount === null ||
+            numAmount <= 0
+          ) {
+            return;
+          }
+          const gen = beginPaymentSubmit();
           setConfirmLoading(true);
           setConfirmError(null);
           try {
             const reauth = await reauthAs(targetAddress, targetBlockchain);
+            if (pendingGenRef.current !== gen) return;
+            if (!confirmOpenRef.current) {
+              // A quote gate closed the modal during reauth. Release the
+              // submit so Continue can start a new payment info.
+              cancelPaymentSubmit();
+              return;
+            }
             if (!reauth.ok) {
+              pendingGenRef.current = null;
+              submitLockRef.current = false;
+              if ('cancelled' in reauth) {
+                setConfirmOpen(false);
+                return;
+              }
               setConfirmError(
                 t([`linkedWallet.reauthError.${reauth.error}`, 'linkedWallet.reauthError.generic']),
               );
@@ -607,11 +806,16 @@ export function BuyTradeAdapter({
               blockchain,
               chain: selectedChainSpec.chain,
             });
-            if (info) {
-              setConfirmOpen(false);
-              setStep('payment');
-            }
+            if (pendingGenRef.current !== gen) return;
+            handlePaymentInfoResult(info, gen);
           } catch (err) {
+            if (pendingGenRef.current !== gen) return;
+            pendingGenRef.current = null;
+            submitLockRef.current = false;
+            if (isLocalSessionEndedError(err)) {
+              setConfirmOpen(false);
+              return;
+            }
             setConfirmError(
               err instanceof Error ? err.message : t('linkedWallet.reauthError.generic'),
             );

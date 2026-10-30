@@ -1,5 +1,4 @@
 import React from 'react';
-import { Alert } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { ThemeProvider, useThemeStore } from '@/theme';
 
@@ -52,7 +51,9 @@ jest.mock('react-native-safe-area-context', () => {
 jest.mock('@/components', () => {
   const ReactActual = jest.requireActual('react');
   const { View } = jest.requireActual('react-native');
+  const actual = jest.requireActual('@/components');
   return {
+    ...actual,
     BrandLogo: () => ReactActual.createElement(View, { testID: 'brand-logo' }),
     DarkBackdrop: () => ReactActual.createElement(View, { testID: 'dark-backdrop' }),
     Icon: () => ReactActual.createElement(View, { testID: 'icon' }),
@@ -74,7 +75,6 @@ describe('PayScreenImpl', () => {
     mockRequestPermission.mockReset();
     mockScanData.current = 'raw-non-opencryptopay-payment-data';
     useThemeStore.setState({ mode: 'dark' });
-    jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -82,8 +82,8 @@ describe('PayScreenImpl', () => {
     useThemeStore.setState({ mode: 'light' });
   });
 
-  it('hides raw non-OpenCryptoPay data and returns on alert confirmation', () => {
-    const { getByTestId } = render(
+  it('shows unknown payment data in the sheet without navigating', () => {
+    const { getByTestId, getByText } = render(
       <ThemeProvider>
         <PayScreen />
       </ThemeProvider>,
@@ -91,19 +91,12 @@ describe('PayScreenImpl', () => {
 
     fireEvent.press(getByTestId('pay-camera-view'));
 
-    expect(Alert.alert).toHaveBeenCalledTimes(1);
-    const [title, message, buttons] = (Alert.alert as jest.Mock).mock.calls[0]!;
-    expect(title).toBe('pay.comingSoonTitle');
-    expect(message).toBe('pay.comingSoonMessage');
-    expect(message).not.toContain(mockScanData.current);
-
-    const okButton = (buttons as { text: string; onPress?: () => void }[]).find(
-      (button) => button.text === 'common.ok',
-    );
-    expect(okButton).toBeDefined();
-    okButton?.onPress?.();
-    expect(mockBack).toHaveBeenCalledTimes(1);
+    expect(getByTestId('scanner-unknown')).toBeTruthy();
+    expect(getByText(mockScanData.current)).toBeTruthy();
     expect(mockPush).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
+
+    fireEvent.press(getByTestId('pay-back-button'));
+    expect(mockBack).toHaveBeenCalledTimes(1);
   });
 });

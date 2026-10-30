@@ -75,6 +75,8 @@ jest.mock('@/features/dfx-backend/useDfxAutoLinkImpl', () => ({
 
 const mockLinkAddress = jest.fn();
 const mockLoginAsAddressOwner = jest.fn();
+const mockGetAccessToken = jest.fn((): string | null => null);
+const mockLogout = jest.fn();
 // The class is defined INLINE in the factory (not as an outer variable) to
 // avoid a TDZ ReferenceError: jest.mock factories run during the hoisted
 // import-resolution pass, before a same-file `class`/`const` declared later
@@ -86,6 +88,8 @@ jest.mock('@/features/dfx-backend/services', () => ({
     linkLnurlAddress: jest.fn(),
     loginAsAddressOwner: (...args: unknown[]) => mockLoginAsAddressOwner(...args),
     loginAsLnurlAddressOwner: jest.fn(),
+    getAccessToken: () => mockGetAccessToken(),
+    logout: () => mockLogout(),
   },
   DfxApiError: class DfxApiError extends Error {
     statusCode: number;
@@ -105,6 +109,7 @@ const mockSecureStorageRemove = jest.fn();
 jest.mock('@/services/storage', () => ({
   secureStorage: {
     set: (...args: unknown[]) => mockSecureStorageSet(...args),
+    get: async () => null,
     remove: (...args: unknown[]) => mockSecureStorageRemove(...args),
   },
   StorageKeys: {
@@ -113,9 +118,19 @@ jest.mock('@/services/storage', () => ({
   },
 }));
 
+const mockAuthState = {
+  isDfxAuthenticated: false,
+  isAuthenticated: true,
+  isOnboarded: true,
+  sessionEpoch: 1,
+  setDfxAuthenticated: jest.fn(),
+};
 jest.mock('@/store', () => ({
-  useAuthStore: (selector: (state: { isDfxAuthenticated: boolean }) => unknown) =>
-    selector({ isDfxAuthenticated: false }),
+  useAuthStore: Object.assign(
+    (selector?: (state: typeof mockAuthState) => unknown) =>
+      typeof selector === 'function' ? selector(mockAuthState) : mockAuthState,
+    { getState: () => mockAuthState },
+  ),
 }));
 
 jest.mock('@/components', () => ({
@@ -274,6 +289,9 @@ beforeEach(() => {
   mockSign.mockClear();
   mockLinkAddress.mockReset();
   mockLoginAsAddressOwner.mockReset();
+  mockGetAccessToken.mockReset();
+  mockGetAccessToken.mockReturnValue(null);
+  mockLogout.mockReset();
   mockSecureStorageSet.mockReset();
   mockSecureStorageRemove.mockReset();
   mockMarkChainLinked.mockReset();
@@ -357,7 +375,10 @@ describe('BuyTradeAdapter — payment/confirm steps', () => {
 
 describe('BuyTradeAdapter — linkChainToDfx (linkChain gate recovery)', () => {
   it('links the chain, caches it, and replays the last call on success', async () => {
-    mockLinkAddress.mockResolvedValueOnce('new-token');
+    mockLinkAddress.mockImplementationOnce(async () => {
+      mockGetAccessToken.mockReturnValue('new-token');
+      return 'new-token';
+    });
     renderAdapter();
     const onLinkChain = requireCallback(capturedOnLinkChain);
 
@@ -380,7 +401,10 @@ describe('BuyTradeAdapter — linkChainToDfx (linkChain gate recovery)', () => {
     mockLinkAddress.mockRejectedValueOnce(
       new DfxApiError(409, 'CONFLICT', 'address owned by another user'),
     );
-    mockLoginAsAddressOwner.mockResolvedValueOnce('owner-token');
+    mockLoginAsAddressOwner.mockImplementationOnce(async () => {
+      mockGetAccessToken.mockReturnValue('owner-token');
+      return 'owner-token';
+    });
     renderAdapter();
     const onLinkChain = requireCallback(capturedOnLinkChain);
 

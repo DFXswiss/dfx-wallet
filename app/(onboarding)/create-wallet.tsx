@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
-import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
 import {
   AppHeader,
@@ -13,12 +12,12 @@ import {
   PrimaryButton,
   SeedWordTile,
 } from '@/components';
+import { useScreenCaptureProtection } from '@/hooks/useScreenCaptureProtection';
+import { copySensitive } from '@/services/clipboard';
+import { secureStorage, StorageKeys } from '@/services/storage';
 import { generateSeedPhrase, wordsToSeed } from '@/services/wallet';
+import { isWalletAlreadyExistsError } from '@/services/wallet/wallet-errors';
 import { Typography, useColors, type ThemeColors } from '@/theme';
-
-function isWalletAlreadyExistsError(err: unknown): boolean {
-  return err instanceof Error && err.message.toLowerCase().includes('already exists');
-}
 
 export default function CreateWalletScreen() {
   const router = useRouter();
@@ -30,6 +29,8 @@ export default function CreateWalletScreen() {
   const [copied, setCopied] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const captureProtection = useScreenCaptureProtection(revealed, 'create-wallet-seed');
+  const canRenderSeed = revealed && captureProtection !== 'pending';
 
   const handleReveal = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -37,7 +38,7 @@ export default function CreateWalletScreen() {
   };
 
   const handleCopy = async () => {
-    await Clipboard.setStringAsync(wordsToSeed(seedWords));
+    await copySensitive(wordsToSeed(seedWords));
     setCopied(true);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTimeout(() => setCopied(false), 2000);
@@ -58,6 +59,9 @@ export default function CreateWalletScreen() {
         await deleteWallet('default');
         await restoreWallet(seed, 'default');
       }
+      await secureStorage.remove(StorageKeys.WALLET_ORIGIN);
+      await secureStorage.remove(StorageKeys.PASSKEY_CREDENTIAL_ID);
+      await secureStorage.remove(StorageKeys.PASSKEY_DERIVATION_VERSION);
       router.push('/(onboarding)/setup-pin');
     } catch (err) {
       console.warn('create-wallet: failed to create wallet', err);
@@ -96,8 +100,17 @@ export default function CreateWalletScreen() {
             <Text style={styles.revealText}>{t('onboarding.seedReveal')}</Text>
             <Text style={styles.revealHint}>{t('onboarding.seedRevealHint')}</Text>
           </GlassCard>
+        ) : !canRenderSeed ? (
+          <ActivityIndicator testID="create-wallet-protection-loading" color={colors.primary} />
         ) : (
           <>
+            {captureProtection === 'unavailable' && (
+              <View style={styles.captureWarning} testID="create-wallet-capture-warning">
+                <Text style={styles.captureWarningText}>
+                  {t('common.screenCaptureUnavailable')}
+                </Text>
+              </View>
+            )}
             <View style={styles.seedContainer} testID="create-wallet-seed-container">
               {seedWords.map((word, index) => (
                 <SeedWordTile
@@ -131,7 +144,7 @@ export default function CreateWalletScreen() {
         testID="create-wallet-continue-button"
         title={t('common.continue')}
         onPress={handleContinue}
-        disabled={!revealed}
+        disabled={!canRenderSeed}
         loading={isCreating}
       />
     </DfxBackgroundScreen>
@@ -157,6 +170,18 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodyMedium,
       color: colors.text,
       textAlign: 'center',
+    },
+    captureWarning: {
+      backgroundColor: colors.surfaceLight,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.warning,
+      padding: 12,
+      marginBottom: 12,
+    },
+    captureWarningText: {
+      ...Typography.bodyMedium,
+      color: colors.warning,
     },
     revealButton: {
       minHeight: 168,

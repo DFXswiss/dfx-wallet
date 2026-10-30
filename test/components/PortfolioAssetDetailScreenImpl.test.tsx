@@ -62,15 +62,6 @@ jest.mock('react-native-safe-area-context', () => {
 jest.mock('@/features/portfolio/useEnabledChains', () => ({
   useEnabledChains: () => ({
     enabledChains: mockEnabledChains,
-    enabledChains: [
-      'ethereum',
-      'bitcoin',
-      'bitcoin-taproot',
-      'spark',
-      'arbitrum',
-      'polygon',
-      'base',
-    ],
     setEnabledChains: jest.fn(),
     toggleChain: jest.fn(),
   }),
@@ -145,11 +136,9 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     jest.spyOn(pricingService, 'isReady').mockReturnValue(true);
     jest.spyOn(pricingService, 'initialize').mockResolvedValue(undefined);
     jest.spyOn(pricingService, 'getExchangeRate').mockImplementation((ticker, currency) => {
-      if (currency !== mockBtcRateCurrency) return undefined;
-      if (ticker === 'btc') return mockBtcRate;
       if (ticker === 'btc' && currency === FiatCurrency.CHF) return 48_000;
       if (ticker === 'btc' && currency === FiatCurrency.EUR) return 45_000;
-      if (ticker === 'btc' && currency === FiatCurrency.USD) return 50_000;
+      if (ticker === 'btc' && currency === mockBtcRateCurrency) return mockBtcRate;
       if (ticker === 'usdt') return 1;
       return undefined;
     });
@@ -250,6 +239,7 @@ describe('PortfolioAssetDetailScreenImpl', () => {
   it('shows an incomplete placeholder when a queried balance entry is missing', () => {
     mockBalanceMap = new Map();
     const { getByTestId, getByText } = renderScreen();
+    fireEvent.press(getByTestId('asset-detail-expand'));
     expect(within(getByTestId('holding-bitcoin-BTC')).getAllByText('—')).toHaveLength(2);
     expect(getByTestId('asset-detail-total-crypto').props.children).toBe('—');
     expect(getByText('portfolio.balanceUnavailable')).toBeTruthy();
@@ -271,6 +261,7 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     setCompleteBtcBalances();
 
     const { getByTestId, queryByText } = renderScreen();
+    fireEvent.press(getByTestId('asset-detail-expand'));
 
     expect(getByTestId('asset-detail-total-crypto').props.children).toBe('1.00 BTC');
     expect(within(getByTestId('holding-bitcoin-taproot-BTC')).getAllByText('—')).toHaveLength(2);
@@ -287,6 +278,7 @@ describe('PortfolioAssetDetailScreenImpl', () => {
       mockBalanceMap = new Map(mockBalanceMap).set('bitcoin-native', { ...bitcoin, status });
 
       const { getByTestId } = renderScreen();
+      fireEvent.press(getByTestId('asset-detail-expand'));
 
       expect(within(getByTestId('holding-bitcoin-BTC')).getAllByText('—')).toHaveLength(2);
     },
@@ -363,6 +355,7 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     mockBtcRate = undefined;
 
     const missing = renderScreen();
+    fireEvent.press(missing.getByTestId('asset-detail-expand'));
 
     expect(missing.getByTestId('asset-detail-total-crypto').props.children).toBe('1.00 BTC');
     expect(missing.getByTestId('asset-detail-total-fiat').props.children).toBe('—');
@@ -373,13 +366,12 @@ describe('PortfolioAssetDetailScreenImpl', () => {
 
     mockBtcRate = 50_000;
     const available = renderScreen();
+    fireEvent.press(available.getByTestId('asset-detail-expand'));
     const totalFiat = String(available.getByTestId('asset-detail-total-fiat').props.children);
 
     expect(totalFiat.replace(/\D/g, '')).toBe('5000000');
     expect(within(available.getByTestId('holding-bitcoin-BTC')).queryByText('—')).toBeNull();
     expect(available.queryByText('dashboard.incompleteBalance')).toBeNull();
-    fireEvent.press(getByTestId('asset-detail-expand'));
-    expect(getByTestId('holding-bitcoin-BTC')).toBeTruthy();
   });
 
   it('collapses the address rows again', () => {
@@ -405,6 +397,7 @@ describe('PortfolioAssetDetailScreenImpl', () => {
     useWalletStore.setState({ selectedCurrency: 'CHF' });
     const { getByTestId, getByText } = renderScreen();
     await act(async () => undefined);
+    fireEvent.press(getByTestId('asset-detail-expand'));
     expect(getByTestId('asset-detail-total-fiat').props.children).toBe('—');
     expect(within(getByTestId('holding-bitcoin-BTC')).getByText('—')).toBeTruthy();
     expect(getByText('dashboard.incompleteBalance')).toBeTruthy();

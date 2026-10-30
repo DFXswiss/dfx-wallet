@@ -132,6 +132,8 @@ describe('CreateWalletScreen', () => {
     const protectionTag = mockPreventScreenCapture.mock.calls[0]![0]!;
     view.unmount();
     await waitFor(() => expect(mockAllowScreenCapture).toHaveBeenCalledWith(protectionTag));
+  });
+
   it('renders the seed card and word tiles on glass surfaces', () => {
     const { getByTestId, UNSAFE_queryAllByType } = render(<CreateWalletScreen />);
     fireEvent.press(getByTestId('create-wallet-reveal-button'));

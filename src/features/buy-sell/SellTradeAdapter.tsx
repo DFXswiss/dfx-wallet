@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -14,11 +14,14 @@ import {
   formatBalance,
   formatCryptoAmount as fmtCrypto,
   formatFiat as fmtFiat,
+  normalizeDecimalAmount,
   toNumeric,
 } from '@/config/portfolio-presentation';
+import { isLocalSessionEndedError } from '@/features/dfx-backend/session-guard';
 import { getAssetMeta, getAssets, WDK_SUPPORTED_CHAINS } from '@/config/tokens';
 import { useEnabledChains } from '@/features/portfolio/useEnabledChains';
 import { useLinkedWalletReauth } from '@/features/linked-wallets/useLinkedWalletReauth';
+import { canAdvanceToPayment, getPaymentInfoErrorCode } from './services/quote-display';
 import { useSellFlow } from './useSellFlow';
 import { useLinkChainToDfx } from './useLinkChainToDfx';
 import { useAuthStore } from '@/store';
@@ -80,6 +83,21 @@ export function SellTradeAdapter({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [paymentInfoError, setPaymentInfoError] = useState<string | null>(null);
+  // Same-tick double presses both see confirmLoading === false. The ref
+  // closes that window; confirmLoading still guards a press after paint.
+  // Taken on submit. Released on a terminal payment-info result, on cancel,
+  // and on Back. A replay and an opening auth gate leave it held.
+  const submitLockRef = useRef(false);
+  // Bumped on every payment submit and on every cancel, so a response from
+  // an earlier submit cannot be applied to a later one.
+  const submitGenRef = useRef(0);
+  // The submit whose payment-info result may still open the confirm step.
+  // Null after cancel, Back, or a terminal result. A null payload that opens
+  // an auth gate keeps it, so the replay after sign-in can still apply.
+  const pendingGenRef = useRef<number | null>(null);
+  const unresolvedPaymentRef = useRef(false);
+  const [unresolvedPayment, setUnresolvedPayment] = useState(0);
   const { enabledChains } = useEnabledChains();
   const {
     paymentInfo,
@@ -92,9 +110,9 @@ export function SellTradeAdapter({
     getQuote,
     createPaymentInfo,
     dismissAuthGate,
+    cancelAuthGate,
     retryLast,
   } = useSellFlow();
-  const { linkChainToDfx } = useLinkChainToDfx({ retryLast });
   const [step, setStep] = useState<SellStep>('amount');
   const initialPreselect = useMemo(() => {
     const wantedSymbol = typeof asset === 'string' ? asset.toUpperCase() : null;
@@ -118,14 +136,137 @@ export function SellTradeAdapter({
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(true);
 
+  useEffect(() => {
+    setPaymentInfoError(null);
+  }, [amount, selectedAsset, selectedChainIndex, selectedTokenIndex, payoutCurrency]);
+
+  const beginPaymentSubmit = (): number => {
+    const gen = ++submitGenRef.current;
+    pendingGenRef.current = gen;
+    submitLockRef.current = true;
+    return gen;
+  };
+
+  const cancelPaymentSubmit = useCallback((): void => {
+    submitGenRef.current += 1;
+    pendingGenRef.current = null;
+    submitLockRef.current = false;
+  }, []);
+
+  const handlePaymentInfoResult = useCallback(
+    (info: Awaited<ReturnType<typeof createPaymentInfo>>, gen: number) => {
+      // Back or auth-gate cancel may have landed while this request was in
+      // flight. A newer submit owns the generation then, and this result
+      // must not be applied to it.
+      if (pendingGenRef.current === null || pendingGenRef.current !== gen) return;
+      if (canAdvanceToPayment(info)) {
+        pendingGenRef.current = null;
+        submitLockRef.current = false;
+        setPaymentInfoError(null);
+        setConfirmError(null);
+        setConfirmOpen(false);
+        setStep('confirm');
+        return;
+      }
+
+      const errorCode = getPaymentInfoErrorCode(info);
+      if (errorCode) {
+        pendingGenRef.current = null;
+        submitLockRef.current = false;
+        setPaymentInfoError(
+          errorCode === 'noCode'
+            ? t('sell.quoteError.noCode')
+            : t([`sell.quoteError.${errorCode}`, 'sell.quoteError.generic'], { code: errorCode }),
+        );
+        return;
+      }
+
+      // null, and no error code on the payload. The hook's auth gate or
+      // error lands on the next render; decide there so a stale closure
+      // cannot show an error beside the gate. Keep the generation: a gate
+      // is not a terminal result, and the replay still has to apply.
+      unresolvedPaymentRef.current = true;
+      setUnresolvedPayment((n) => n + 1);
+    },
+    [t],
+  );
+
+  const resumeAfterAuth = useCallback(async () => {
+    const gen = pendingGenRef.current;
+    const result = await retryLast();
+    if (result?.kind === 'paymentInfo') {
+      if (gen === null || pendingGenRef.current !== gen) return;
+      handlePaymentInfoResult(result.info, gen);
+    }
+    // quote results are applied by the hook's own state
+  }, [retryLast, handlePaymentInfoResult]);
+
   // Replay the last failed call after the user finishes the DFX login flow.
+  // retryLast only replays an action that was gated and not cancelled.
+  // Read the gate through a ref so this callback stays stable while the
+  // modal opens and closes.
   const isDfxAuthenticated = useAuthStore((s) => s.isDfxAuthenticated);
+  const authGateRef = useRef(authGate);
+  authGateRef.current = authGate;
   useFocusEffect(
     useCallback(() => {
       if (isDfxAuthenticated) {
-        void retryLast();
+        void resumeAfterAuth();
+        return;
       }
-    }, [isDfxAuthenticated, retryLast]),
+      // Act only when signed out with no gate and a payment submit still pending
+      // (the user backed out of login): then drop the replay and unlock below.
+      if (authGateRef.current || pendingGenRef.current === null) return;
+      cancelAuthGate();
+      pendingGenRef.current = null;
+      submitLockRef.current = false;
+    }, [isDfxAuthenticated, resumeAfterAuth, cancelAuthGate]),
+  );
+
+  // One modal at a time: the auth gate replaces the confirm dialog.
+  // Closing the dialog must not release the submit lock. The replay of the
+  // call that opened the gate still owns it.
+  useLayoutEffect(() => {
+    if (!authGate || !confirmOpen) return;
+    setConfirmOpen(false);
+    setConfirmLoading(false);
+  }, [authGate, confirmOpen]);
+
+  useEffect(() => {
+    if (!unresolvedPaymentRef.current) return;
+    if (isLoading) return;
+    unresolvedPaymentRef.current = false;
+    if (authGate) {
+      // Hold the submit lock and the pending generation until cancel or the
+      // replay. The gate is the only control the user has until then.
+      return;
+    }
+    pendingGenRef.current = null;
+    submitLockRef.current = false;
+    setConfirmLoading(false);
+    const message = error ?? t('sell.quoteError.noCode');
+    if (confirmOpen) setConfirmError(message);
+    // The bank step already renders the hook error once this update commits.
+    if (!error) setPaymentInfoError(message);
+  }, [unresolvedPayment, authGate, error, isLoading, confirmOpen, t]);
+
+  const { linkChainToDfx } = useLinkChainToDfx({ retryLast: resumeAfterAuth });
+
+  const handleLinkChainToDfx = useCallback(
+    async (chain: Parameters<typeof linkChainToDfx>[0]) => {
+      const gateForLink = authGateRef.current ?? undefined;
+      try {
+        await linkChainToDfx(chain);
+      } catch (linkError) {
+        if (isLocalSessionEndedError(linkError)) {
+          cancelPaymentSubmit();
+          cancelAuthGate(gateForLink);
+          return;
+        }
+        throw linkError;
+      }
+    },
+    [linkChainToDfx, cancelAuthGate, cancelPaymentSubmit],
   );
 
   // Wallet balances — drive the chain/token chip filter so users only see
@@ -186,8 +327,10 @@ export function SellTradeAdapter({
   const showNoBalance =
     (!selectedAsset && hasAnySellBalance === false) ||
     (selectedAsset !== null && !selectedAssetIsAvailable);
+  const normalizedAmount = normalizeDecimalAmount(amount);
+  const numAmount = normalizedAmount === null ? null : Number(normalizedAmount);
   const currentQuoteKey = makeTradeQuoteKey({
-    amount: parseFloat(amount),
+    amount: numAmount ?? Number.NaN,
     currency: payoutCurrency,
     asset: sellAsset,
     blockchain,
@@ -196,8 +339,7 @@ export function SellTradeAdapter({
 
   useEffect(() => {
     if (step !== 'amount' || !selectedChainSpec || !selectedAssetIsAvailable) return;
-    const numAmount = parseFloat(amount);
-    if (!numAmount || numAmount <= 0) return;
+    if (numAmount === null || numAmount <= 0) return;
     const id = setTimeout(() => {
       if (!selectedChainSpec || !selectedAssetIsAvailable) return;
       void getQuote({
@@ -210,7 +352,7 @@ export function SellTradeAdapter({
     }, 350);
     return () => clearTimeout(id);
   }, [
-    amount,
+    numAmount,
     payoutCurrency,
     sellAsset,
     blockchain,
@@ -224,10 +366,15 @@ export function SellTradeAdapter({
   // below — keeps `router` out of that effect's dependency list entirely,
   // since the effect body never reads it directly.
   const onBack = useCallback(() => {
-    if (step === 'bank') setStep('amount');
-    else if (step === 'confirm') setStep('bank');
+    // A payment-info response still in flight must not open confirm.
+    // Back from the bank step also drops the auth replay.
+    cancelPaymentSubmit();
+    if (step === 'bank') {
+      cancelAuthGate();
+      setStep('amount');
+    } else if (step === 'confirm') setStep('bank');
     else router.back();
-  }, [step, router]);
+  }, [step, router, cancelPaymentSubmit, cancelAuthGate]);
 
   // Report the shell chrome for the step currently active. `t` re-creates
   // on every render in the test mocks (and isn't guaranteed stable in the
@@ -263,7 +410,8 @@ export function SellTradeAdapter({
     !!paymentInfo &&
     paymentInfo.isValid &&
     !!paymentInfo.feesTarget &&
-    parseFloat(amount) > 0;
+    numAmount !== null &&
+    numAmount > 0;
   // Empty quote without an explicit error code → the chain still has to
   // be linked. The sell CTA opens the bank step; submitting the IBAN with
   // Continue triggers the linkChain modal and retries the quote.
@@ -306,9 +454,9 @@ export function SellTradeAdapter({
           : null;
   const minVolume = paymentInfo?.minVolume;
   const maxVolume = paymentInfo?.maxVolume;
-  const numAmount = parseFloat(amount);
-  const belowMin = minVolume != null && numAmount > 0 && numAmount < minVolume;
-  const aboveMax = maxVolume != null && numAmount > maxVolume;
+  const belowMin =
+    minVolume != null && numAmount !== null && numAmount > 0 && numAmount < minVolume;
+  const aboveMax = maxVolume != null && numAmount !== null && numAmount > maxVolume;
   const feesTarget = paymentInfo?.feesTarget;
 
   const renderAmountStepContent = () => (
@@ -442,7 +590,7 @@ export function SellTradeAdapter({
       <PrimaryButton
         testID="sell-cta"
         title={sellAction}
-        icon={<Icon name="arrow-right" size={18} color={colors.white} />}
+        icon={<Icon name="arrow-right" size={18} color={colors.onPrimary} />}
         onPress={() => {
           if (hasTargetWallet) {
             setConfirmError(null);
@@ -483,13 +631,17 @@ export function SellTradeAdapter({
       />
 
       {error ? <Text style={sharedStyles.errorText}>{error}</Text> : null}
+      {paymentInfoError ? <Text style={sharedStyles.errorText}>{paymentInfoError}</Text> : null}
 
       <View style={sharedStyles.spacer} />
 
       <PrimaryButton
         title={t('common.continue')}
         onPress={async () => {
-          if (!selectedChainSpec) return;
+          if (!selectedChainSpec || numAmount === null || numAmount <= 0) return;
+          if (submitLockRef.current) return;
+          const gen = beginPaymentSubmit();
+          setPaymentInfoError(null);
           const info = await createPaymentInfo({
             amount: numAmount,
             asset: sellAsset,
@@ -498,7 +650,8 @@ export function SellTradeAdapter({
             iban: iban.replace(/\s/g, ''),
             chain: selectedChainSpec.chain,
           });
-          if (info) setStep('confirm');
+          if (pendingGenRef.current !== gen) return;
+          handlePaymentInfoResult(info, gen);
         }}
         disabled={iban.replace(/\s/g, '').length < 15}
         loading={isLoading}
@@ -594,8 +747,14 @@ export function SellTradeAdapter({
       {step === 'confirm' && renderConfirmStep()}
       <DfxAuthGate
         gate={authGateIsCurrent ? authGate : null}
-        onClose={dismissAuthGate}
-        onLinkChain={linkChainToDfx}
+        onClose={() => {
+          dismissAuthGate(authGate ?? undefined);
+        }}
+        onCancel={() => {
+          cancelPaymentSubmit();
+          cancelAuthGate(authGate ?? undefined);
+        }}
+        onLinkChain={handleLinkChainToDfx}
       />
       <ConfirmTargetWalletModal
         visible={confirmOpen}
@@ -607,16 +766,24 @@ export function SellTradeAdapter({
         error={confirmError}
         onCancel={() => {
           if (confirmLoading) return;
+          cancelPaymentSubmit();
+          cancelAuthGate();
           setConfirmOpen(false);
           setConfirmError(null);
         }}
         onConfirm={async () => {
+          if (confirmLoading || submitLockRef.current) return;
           if (!targetAddress || !targetBlockchain) return;
+          submitLockRef.current = true;
           setConfirmLoading(true);
           setConfirmError(null);
           try {
             const reauth = await reauthAs(targetAddress, targetBlockchain);
             if (!reauth.ok) {
+              if ('cancelled' in reauth) {
+                setConfirmOpen(false);
+                return;
+              }
               setConfirmError(
                 t([`linkedWallet.reauthError.${reauth.error}`, 'linkedWallet.reauthError.generic']),
               );
@@ -625,10 +792,15 @@ export function SellTradeAdapter({
             setConfirmOpen(false);
             setStep('bank');
           } catch (err) {
+            if (isLocalSessionEndedError(err)) {
+              setConfirmOpen(false);
+              return;
+            }
             setConfirmError(
               err instanceof Error ? err.message : t('linkedWallet.reauthError.generic'),
             );
           } finally {
+            submitLockRef.current = false;
             setConfirmLoading(false);
           }
         }}

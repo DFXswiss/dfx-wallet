@@ -72,36 +72,27 @@ beforeEach(() => {
 
 describe('ReceiveScreen', () => {
   it('renders the asset picker with the static RECEIVE_ASSETS list', () => {
-    // The row title is the bare symbol; the subtitle is the i18n full name
-    // (`transfer.assetName.<SYMBOL>`), which the mocked `t()` above returns
-    // as the raw key instead of the translated string.
-    const { getByText } = render(<ReceiveScreen />);
+    // Coin tabs show the bare symbol. The full asset-name subtitle belonged
+    // to the old picker and is not on this screen.
+    const { getByTestId, getByText } = render(<ReceiveScreen />);
+    expect(getByTestId('receive-asset-btc')).toBeTruthy();
     expect(getByText('BTC')).toBeTruthy();
-    expect(getByText('transfer.assetName.BTC')).toBeTruthy();
+    expect(getByTestId('receive-asset-chf')).toBeTruthy();
     expect(getByText('CHF')).toBeTruthy();
-    expect(getByText('transfer.assetName.CHF')).toBeTruthy();
+    expect(getByTestId('receive-asset-eur')).toBeTruthy();
     expect(getByText('EUR')).toBeTruthy();
-    expect(getByText('transfer.assetName.EUR')).toBeTruthy();
+    expect(getByTestId('receive-asset-usd')).toBeTruthy();
     expect(getByText('USD')).toBeTruthy();
-    expect(getByText('transfer.assetName.USD')).toBeTruthy();
   });
 
   it('renders the asset list on a glass list surface', () => {
-    // Assets moved from individual `GlassCard`s to rows in one shared
-    // `GlassListGroup` (`AssetPickerStep`).
-    const { UNSAFE_queryAllByType } = render(<ReceiveScreen />);
-    expect(UNSAFE_queryAllByType(GlassListGroup).length).toBeGreaterThanOrEqual(1);
+    // The receive screen shows the selected asset on a GlassCard QR, not an
+    // AssetPickerStep list.
+    const { getByTestId } = render(<ReceiveScreen />);
+    expect(getByTestId('receive-qr')).toBeTruthy();
+    expect(getByTestId('receive-asset-btc')).toBeTruthy();
   });
 
-  it('shows the "buy from bank" affordance with its label only when FEATURES.BUY_SELL is on', () => {
-    // The test runtime sets every feature flag to true in `test/setup-globals.ts`,
-    // so the affordance must render. The branch with the flag off is verified
-    // implicitly by the `FEATURES.BUY_SELL && …` JSX guard — exercising the
-    // off-state would require restarting the module with the env unset, which
-    // we leave to the bundle-level CI.
-  it('starts on BTC and shows the BTC chain selector on the same screen', () => {
-  it('starts on BTC and shows the BTC network tabs on the same screen', () => {
-    const { getByTestId, getByText } = render(<ReceiveScreen />);
   it('starts on BTC and shows the BTC network bar on the same screen', () => {
     const { getByTestId, getByText, queryByTestId } = render(<ReceiveScreen />);
 
@@ -157,14 +148,6 @@ describe('ReceiveScreen', () => {
   it('renders the buy card when BUY_SELL is enabled and passes the selected asset', () => {
     const { getByTestId, getByText } = render(<ReceiveScreen />);
 
-    fireEvent.press(getByLabelText('common.back'));
-    expect(getByText('receive.selectAsset')).toBeTruthy();
-  });
-
-  it('back button on the asset step calls router.back()', () => {
-    const { getByLabelText } = render(<ReceiveScreen />);
-    fireEvent.press(getByLabelText('common.back'));
-    expect(mockBack).toHaveBeenCalledTimes(1);
     expect(getByTestId('receive-buy').props.accessibilityRole).toBe('button');
     expect(getByText('receive.buyAsset:BTC')).toBeTruthy();
     fireEvent.press(getByTestId('receive-asset-usd'));
@@ -289,7 +272,7 @@ describe('ReceiveScreen', () => {
 
   it('returns directly through router.back()', () => {
     const { getByLabelText } = render(<ReceiveScreen />);
-    fireEvent.press(getByLabelText('Back'));
+    fireEvent.press(getByLabelText('common.back'));
     expect(mockBack).toHaveBeenCalledTimes(1);
   });
 });

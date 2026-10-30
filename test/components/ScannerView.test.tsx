@@ -1,7 +1,8 @@
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { act, fireEvent, render } from '@testing-library/react-native';
+import { darkColors, ThemeProvider, useThemeStore } from '@/theme';
 
 const MockPressable = Pressable;
 const MockText = Text;
@@ -48,9 +49,7 @@ jest.mock('@/components', () => ({
     onPress: () => void;
     testID: string;
     accessibilityLabel: string;
-  }) => (
-    <MockPressable onPress={onPress} testID={testID} accessibilityLabel={accessibilityLabel} />
-  ),
+  }) => <MockPressable onPress={onPress} testID={testID} accessibilityLabel={accessibilityLabel} />,
   GlassPill: ({
     children,
     onPress,
@@ -64,13 +63,9 @@ jest.mock('@/components', () => ({
       {typeof children === 'string' ? <MockText>{children}</MockText> : children}
     </MockPressable>
   ),
-  GlassSurface: ({
-    children,
-    testID,
-  }: {
-    children?: React.ReactNode;
-    testID?: string;
-  }) => <MockView testID={testID}>{children}</MockView>,
+  GlassSurface: ({ children, testID }: { children?: React.ReactNode; testID?: string }) => (
+    <MockView testID={testID}>{children}</MockView>
+  ),
   Icon: () => null,
   ScreenBackdrop: () => <MockView />,
 }));
@@ -96,7 +91,11 @@ describe('ScannerView', () => {
     const onClose = jest.fn();
     const onOpenSettings = jest.fn();
     const screen = render(
-      <ScannerView onScan={jest.fn(() => true)} onClose={onClose} onOpenSettings={onOpenSettings} />,
+      <ScannerView
+        onScan={jest.fn(() => true)}
+        onClose={onClose}
+        onOpenSettings={onOpenSettings}
+      />,
     );
 
     fireEvent.press(screen.getByTestId('pay-back-button'));
@@ -187,5 +186,35 @@ describe('ScannerView', () => {
     mockRequestPermission.mockClear();
     fireEvent.press(screen.getByText('pay.grantPermission'));
     expect(mockRequestPermission).toHaveBeenCalledTimes(1);
+  });
+
+  it('requests camera permission on mount when none has been granted', () => {
+    mockPermission.current = null;
+    render(<ScannerView onScan={jest.fn()} onClose={jest.fn()} onOpenSettings={jest.fn()} />);
+    expect(mockRequestPermission).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not request camera permission when it is already granted', () => {
+    mockPermission.current = { granted: true };
+    const screen = render(
+      <ScannerView onScan={jest.fn()} onClose={jest.fn()} onOpenSettings={jest.fn()} />,
+    );
+    expect(mockRequestPermission).not.toHaveBeenCalled();
+    expect(screen.getByTestId('camera-view')).toBeTruthy();
+  });
+
+  it('uses on-primary text for the permission action in dark mode', () => {
+    mockPermission.current = { granted: false };
+    useThemeStore.setState({ mode: 'dark' });
+    const screen = render(
+      <ThemeProvider>
+        <ScannerView onScan={jest.fn()} onClose={jest.fn()} onOpenSettings={jest.fn()} />
+      </ThemeProvider>,
+    );
+
+    expect(StyleSheet.flatten(screen.getByText('pay.grantPermission').props.style).color).toBe(
+      darkColors.onPrimary,
+    );
+    useThemeStore.setState({ mode: 'light' });
   });
 });

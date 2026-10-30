@@ -1,16 +1,13 @@
 import React from 'react';
+import { Linking, Share, StyleSheet } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { act, fireEvent, render, within } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
+import { useAccount } from '@tetherto/wdk-react-native-core';
 import { bech32, bech32m } from 'bech32';
 import bs58check from 'bs58check';
 import { getIcapAddress, ZeroAddress } from 'ethers';
-import Svg, { Path } from 'react-native-svg';
-import { darkColors, ThemeProvider, useThemeStore } from '@/theme';
-import { Linking, Share } from 'react-native';
-import { Linking, Share, StyleSheet } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
-import { act, fireEvent, render } from '@testing-library/react-native';
-import { useAccount } from '@tetherto/wdk-react-native-core';
+import { useThemeStore } from '@/theme';
 
 jest.mock('react-native-mmkv', () => {
   const store = new Map<string, string>();
@@ -43,15 +40,11 @@ const mockUsePreventRemove = jest.fn();
 jest.mock('@react-navigation/native', () => ({
   usePreventRemove: (preventRemove: boolean, callback: () => void) =>
     mockUsePreventRemove(preventRemove, callback),
+}));
+
 const mockSearchParams: {
   current: { address?: string; amount?: string; query?: string };
 } = { current: {} };
-jest.mock('expo-router', () => ({
-  useLocalSearchParams: () => mockSearchParams.current,
-  useRouter: () => ({ push: mockPush, back: mockBack, replace: jest.fn(), canGoBack: () => true }),
-  Stack: { Screen: () => null },
-}));
-
 const mockStackScreenOptions: { current: { gestureEnabled?: boolean } | null } = { current: null };
 jest.mock('expo-router', () => {
   function MockStackScreen({ options }: { options: { gestureEnabled?: boolean } }) {
@@ -60,7 +53,13 @@ jest.mock('expo-router', () => {
   }
 
   return {
-    useRouter: () => ({ push: mockPush, back: mockBack, replace: jest.fn(), canGoBack: () => true }),
+    useLocalSearchParams: () => mockSearchParams.current,
+    useRouter: () => ({
+      push: mockPush,
+      back: mockBack,
+      replace: jest.fn(),
+      canGoBack: () => true,
+    }),
     Stack: { Screen: MockStackScreen },
   };
 });
@@ -101,14 +100,6 @@ jest.mock('@/hooks', () => ({
     isLoading: false,
     error: null,
     signIn: jest.fn(),
-  }),
-  useSendFlow: () => ({
-    send: mockSend,
-    estimate: mockEstimate,
-    reset: mockReset,
-    isLoading: flowState.isLoading,
-    txHash: flowState.txHash,
-    error: flowState.error,
   }),
 }));
 
@@ -196,8 +187,7 @@ const SPARK_IDENTITY_PUBLIC_KEY_HEX =
   '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798';
 const SPARK_IDENTITY_PUBLIC_KEY = Uint8Array.from(
   { length: SPARK_IDENTITY_PUBLIC_KEY_HEX.length / 2 },
-  (_, index) =>
-    Number.parseInt(SPARK_IDENTITY_PUBLIC_KEY_HEX.slice(index * 2, index * 2 + 2), 16),
+  (_, index) => Number.parseInt(SPARK_IDENTITY_PUBLIC_KEY_HEX.slice(index * 2, index * 2 + 2), 16),
 );
 const SPARK_RECIPIENT = bech32m.encode(
   'spark',
@@ -207,27 +197,13 @@ const SPARK_RECIPIENT = bech32m.encode(
 const EVM_RECIPIENT = '0x52908400098527886E0F7030069857D2E4169EE7';
 const LOWERCASE_EVM_RECIPIENT = EVM_RECIPIENT.toLowerCase();
 const WRONG_CHECKSUM_EVM_RECIPIENT = `${EVM_RECIPIENT.slice(0, -2)}e7`;
-const TESTNET_BECH32_RECIPIENT = bech32.encode('tb', [
-  0,
-  ...bech32.toWords(new Uint8Array(20)),
-]);
-const TESTNET_P2PKH_M_RECIPIENT = bs58check.encode(
-  Uint8Array.from([0x6f, ...new Uint8Array(20)]),
-);
+const TESTNET_BECH32_RECIPIENT = bech32.encode('tb', [0, ...bech32.toWords(new Uint8Array(20))]);
+const TESTNET_P2PKH_M_RECIPIENT = bs58check.encode(Uint8Array.from([0x6f, ...new Uint8Array(20)]));
 const TESTNET_P2PKH_N_RECIPIENT = bs58check.encode(
   Uint8Array.from([0x6f, ...new Uint8Array(20).fill(0xff)]),
 );
-const TESTNET_P2SH_RECIPIENT = bs58check.encode(
-  Uint8Array.from([0xc4, ...new Uint8Array(20)]),
-);
+const TESTNET_P2SH_RECIPIENT = bs58check.encode(Uint8Array.from([0xc4, ...new Uint8Array(20)]));
 
-function fillRecipientAndAmount(
-  getByPlaceholderText: ReturnType<typeof render>['getByPlaceholderText'],
-  recipient = RECIPIENT,
-) {
-  fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), recipient);
-  fireEvent.changeText(getByPlaceholderText('0.00'), '1');
-}
 const ANNA: Contact = {
   id: 'c-anna',
   name: 'Anna',
@@ -320,9 +296,6 @@ describe('SendScreen', () => {
     flowState.error = null;
     useThemeStore.setState({ mode: 'light' });
     mockStackScreenOptions.current = null;
-    qrScannerProps.visible = false;
-    qrScannerProps.onScan = null;
-    qrScannerProps.onClose = null;
     mockScannerProps.onScan = null;
     mockScannerProps.onClose = null;
     mockScannerProps.onOpenSettings = null;
@@ -397,228 +370,6 @@ describe('SendScreen', () => {
       expect(screen.queryByTestId('send-contact-c-marco')).toBeNull();
     });
 
-  describe('input step', () => {
-    it('enables Continue for a Spark mainnet BTC recipient', () => {
-      const { getByPlaceholderText, getByTestId, getByText } = render(<SendScreen />);
-      fireEvent.press(getByText('BTC'));
-      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).toBe(true);
-      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), SPARK_RECIPIENT);
-      fireEvent.changeText(getByPlaceholderText('0.00'), '1');
-      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).not.toBe(true);
-    });
-
-    it('keeps Continue disabled for a checksum-mutated mainnet BTC recipient', () => {
-      const invalidRecipient = `${RECIPIENT.slice(0, -1)}q`;
-      const { getByPlaceholderText, getByTestId, getByText } = render(<SendScreen />);
-      fireEvent.press(getByText('BTC'));
-      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), invalidRecipient);
-      fireEvent.changeText(getByPlaceholderText('0.00'), '1');
-
-      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).toBe(true);
-    });
-
-    it.each([
-      TESTNET_BECH32_RECIPIENT,
-      TESTNET_P2PKH_M_RECIPIENT,
-      TESTNET_P2PKH_N_RECIPIENT,
-      TESTNET_P2SH_RECIPIENT,
-    ])('keeps Continue disabled for testnet BTC recipient %s', (address) => {
-      const { getByPlaceholderText, getByTestId, getByText } = render(<SendScreen />);
-      fireEvent.press(getByText('BTC'));
-      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), address);
-      fireEvent.changeText(getByPlaceholderText('0.00'), '1');
-      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).toBe(true);
-
-      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), SPARK_RECIPIENT);
-      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).not.toBe(true);
-    });
-
-    it.each([
-      ['checksummed', EVM_RECIPIENT],
-      ['lowercase', LOWERCASE_EVM_RECIPIENT],
-    ])('enables Continue for a valid %s EVM recipient', (_label, address) => {
-      const { getAllByText, getByPlaceholderText, getByTestId } = render(<SendScreen />);
-      fireEvent.press(getAllByText('CHF')[0]!);
-      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), address);
-      fireEvent.changeText(getByPlaceholderText('0.00'), '1');
-
-      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).not.toBe(true);
-    });
-
-    it.each([
-      ['wrong-checksum mixed-case', WRONG_CHECKSUM_EVM_RECIPIENT],
-      ['too short', '0x1234'],
-    ])('keeps Continue disabled for a %s EVM recipient', (_label, address) => {
-      const { getAllByText, getByPlaceholderText, getByTestId } = render(<SendScreen />);
-      fireEvent.press(getAllByText('CHF')[0]!);
-      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), address);
-      fireEvent.changeText(getByPlaceholderText('0.00'), '1');
-
-      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).toBe(true);
-    });
-
-    it.each([
-      '0x0000000000000000000000000000000000000000',
-      '0000000000000000000000000000000000000000',
-      getIcapAddress(ZeroAddress),
-    ])('keeps Continue disabled for the zero EVM address %s', (address) => {
-      const { getAllByText, getByPlaceholderText, getByTestId } = render(<SendScreen />);
-      fireEvent.press(getAllByText('CHF')[0]!);
-      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), address);
-      fireEvent.changeText(getByPlaceholderText('0.00'), '1');
-
-      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).toBe(true);
-    });
-
-    it('keeps Continue disabled when the amount exceeds the asset precision', () => {
-      const { getAllByText, getByPlaceholderText, getByTestId } = render(<SendScreen />);
-      fireEvent.press(getAllByText('CHF')[0]!);
-      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), EVM_RECIPIENT);
-
-      // Every configured CHF send asset is ZCHF with 18 decimals.
-      fireEvent.changeText(getByPlaceholderText('0.00'), '1.123456789012345678');
-      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).not.toBe(true);
-
-      fireEvent.changeText(getByPlaceholderText('0.00'), '1.1234567890123456789');
-      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).toBe(true);
-      expect(mockEstimate).not.toHaveBeenCalled();
-    });
-
-    it('renders the chain bar with multiple chains when the asset has >1 chain', () => {
-      const { getByText } = render(<SendScreen />);
-      // CHF has 4 EVM chains — picking it should render the chain bar.
-      fireEvent.press(getAllByText('CHF')[0]!);
-      fireEvent.press(getByText('CHF'));
-      expect(getByText('Ethereum')).toBeTruthy();
-      expect(getByText('Arbitrum')).toBeTruthy();
-      expect(getByText('Polygon')).toBeTruthy();
-      expect(getByText('Base')).toBeTruthy();
-    });
-
-    it('switches the selected chain when a different chip is pressed', () => {
-      const { getAllByText, getByText } = render(<SendScreen />);
-      fireEvent.press(getAllByText('CHF')[0]!);
-      const { getByText } = render(<SendScreen />);
-      fireEvent.press(getByText('CHF'));
-      // Default is the first chain (Ethereum). Tap Polygon — the chain
-      // switches but stays in the input step.
-      fireEvent.press(getByText('Polygon'));
-      expect(getByText('common.continue')).toBeTruthy();
-    });
-
-    it('opens the QR scanner when "scan" is pressed', () => {
-      const { getByText } = render(<SendScreen />);
-      fireEvent.press(getByText('BTC'));
-      // The scanner is mocked to null but the press must not throw.
-      expect(() => fireEvent.press(getByText('send.scan'))).not.toThrow();
-    });
-
-    it('navigates to /(auth)/sell when the "sell instead" shortcut is pressed', () => {
-      const { getByTestId, getByText } = render(<SendScreen />);
-      fireEvent.press(getByText('BTC'));
-      fireEvent.press(getByTestId('send-action-sell'));
-      expect(mockPush).toHaveBeenCalledWith('/(auth)/sell');
-    });
-  });
-
-  describe('confirm step', () => {
-    it('transitions to confirm after a successful estimate and shows the formatted fee', async () => {
-      mockEstimate.mockResolvedValueOnce({ success: true, fee: '1234' });
-      const { getByText, getByPlaceholderText, getByTestId, findByText } = render(
-        <SendScreen />,
-      );
-      fireEvent.press(getByText('BTC'));
-      fillRecipientAndAmount(getByPlaceholderText);
-      await act(async () => {
-        fireEvent.press(getByText('common.continue'));
-      });
-      // Confirm-step title is `send.confirmTransaction`.
-      expect(await findByText('send.confirmTransaction')).toBeTruthy();
-      expect(mockEstimate).toHaveBeenCalledWith(
-        expect.objectContaining({ to: RECIPIENT, amount: '1' }),
-      );
-      expect(getByText('send.networkFee')).toBeTruthy();
-      expect(getByText('0.00001234 BTC')).toBeTruthy();
-      expect(getByText('Bitcoin (SegWit)')).toBeTruthy();
-      expect(mockUseSendFlow).toHaveBeenLastCalledWith('bitcoin');
-      expect(getByTestId('send-confirm-button').props.accessibilityState?.disabled).not.toBe(true);
-    });
-
-    it('uses Spark for a Spark BTC recipient and displays its network label', async () => {
-      const { getByText, getByPlaceholderText, findByText } = render(<SendScreen />);
-      fireEvent.press(getByText('BTC'));
-      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), SPARK_RECIPIENT);
-      fireEvent.changeText(getByPlaceholderText('0.00'), '1');
-      await act(async () => {
-        fireEvent.press(getByText('common.continue'));
-      });
-
-      expect(await findByText('Bitcoin Lightning')).toBeTruthy();
-      expect(mockUseSendFlow).toHaveBeenLastCalledWith('spark');
-      expect(mockEstimate).toHaveBeenCalledWith(
-        expect.objectContaining({ to: SPARK_RECIPIENT, amount: '1' }),
-      );
-    });
-
-    it('normalizes the recipient for validation, estimate, and send', async () => {
-      mockSend.mockResolvedValueOnce('btc-hash');
-      const paddedRecipient = ` \n${RECIPIENT}\n `;
-      const { getByText, getByPlaceholderText, getByTestId } = render(<SendScreen />);
-      fireEvent.press(getByText('BTC'));
-      fireEvent.changeText(getByPlaceholderText('send.addressPlaceholder'), paddedRecipient);
-      fireEvent.changeText(getByPlaceholderText('0.00'), '1');
-      expect(getByTestId('send-continue-button').props.accessibilityState?.disabled).not.toBe(true);
-
-      await act(async () => {
-        fireEvent.press(getByText('common.continue'));
-      });
-      expect(mockEstimate).toHaveBeenCalledWith(expect.objectContaining({ to: RECIPIENT }));
-
-      await act(async () => {
-        fireEvent.press(getByText('common.confirm'));
-      });
-      expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ to: RECIPIENT }));
-    });
-
-    it('shows a retry action instead of Confirm when the estimate fails', async () => {
-      mockEstimate.mockResolvedValueOnce({ success: false, error: 'rpc-error' });
-      const { getByText, getByPlaceholderText, findByText, getAllByText, queryByText } = render(
-        <SendScreen />,
-      );
-      // CHF has a paymaster — the fee row actually renders.
-      // CHF has 2 occurrences (symbol + label) — press the first.
-      fireEvent.press(getAllByText('CHF')[0]!);
-      fillRecipientAndAmount(getByPlaceholderText, EVM_RECIPIENT);
-      const { getByText, getByPlaceholderText, findByText } = render(<SendScreen />);
-      // CHF has a paymaster — the fee row actually renders. Its row title
-      // ("CHF") is the only place that literal string renders now — the
-      // i18n full name (`transfer.assetName.CHF`) is a separate string.
-      fireEvent.press(getByText('CHF'));
-      fillRecipientAndAmount(getByPlaceholderText);
-      await act(async () => {
-        fireEvent.press(getByText('common.continue'));
-      });
-      expect(await findByText('send.feeUnavailable')).toBeTruthy();
-      expect(queryByText('common.confirm')).toBeNull();
-      expect(getByText('common.retry')).toBeTruthy();
-
-      await act(async () => {
-        fireEvent.press(getByText('common.retry'));
-      });
-      expect(mockEstimate).toHaveBeenCalledTimes(2);
-      expect(getByText('common.confirm')).toBeTruthy();
-    });
-
-    it('renders the irreversibility warning + confirm + cancel CTAs', async () => {
-      const { getByText, getByPlaceholderText, findByText, getAllByText } = render(<SendScreen />);
-      // CHF has 2 occurrences (symbol + label) — press the first.
-      fireEvent.press(getAllByText('CHF')[0]!);
-      fillRecipientAndAmount(getByPlaceholderText, EVM_RECIPIENT);
-      const { getByText, getByPlaceholderText, findByText } = render(<SendScreen />);
-      fireEvent.press(getByText('CHF'));
-      fillRecipientAndAmount(getByPlaceholderText);
-      await act(async () => {
-        fireEvent.press(getByText('common.continue'));
     it('offers to continue once the composer holds a valid address', () => {
       const screen = render(<SendScreen />);
       expect(screen.queryByTestId('send-recipient-continue')).toBeNull();
@@ -776,6 +527,17 @@ describe('SendScreen', () => {
       expect(screen.getByTestId('send-amount-value').props.children).toBe('0.001');
     });
 
+    it('a scanned ethereum URI populates the bare address on an EVM asset', () => {
+      const screen = render(<SendScreen />);
+      fireEvent.press(screen.getByTestId('send-recipient-scan-button'));
+      act(() => {
+        mockScannerProps.onScan!(`ethereum:${EVM_RECIPIENT}?amount=1`);
+      });
+      expect(screen.getByTestId('send-amount-step')).toBeTruthy();
+      expect(screen.getByTestId('send-recipient-meta').props.children).toBe('0x529084…169EE7');
+      expect(screen.queryByTestId('scanner-view')).toBeNull();
+    });
+
     it('returns to the overview with a scanned IBAN', () => {
       const screen = render(<SendScreen />);
       fireEvent.press(screen.getByTestId('send-recipient-scan-button'));
@@ -828,33 +590,24 @@ describe('SendScreen', () => {
             resolveSend = resolve;
           }),
       );
-      const { getByLabelText, getByPlaceholderText, getByTestId, getByText } = render(
-        <SendScreen />,
-      );
-      fireEvent.press(getByText('BTC'));
-      fillRecipientAndAmount(getByPlaceholderText);
-      await act(async () => {
-        fireEvent.press(getByText('common.continue'));
-      });
+      seedContacts(ANNA);
+      const screen = render(<SendScreen />);
+      await openConfirm(screen, ANNA, '1');
+      fireEvent.press(screen.getByTestId('send-confirm-button'));
 
-      fireEvent.press(getByTestId('send-confirm-button'));
-
-      const cancelButton = getByTestId('send-cancel-button');
-      const backButton = getByLabelText('common.back');
+      const cancelButton = screen.getByTestId('send-cancel-button');
+      const backButton = screen.getByLabelText('common.back');
       expect(mockUsePreventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
-      expect(cancelButton.props.accessibilityState?.disabled).toBe(true);
-      expect(backButton.props.accessibilityState?.disabled).toBe(true);
+      expect(cancelButton.props.accessibilityState.disabled).toBe(true);
+      expect(backButton.props.accessibilityState).toEqual({ disabled: true });
       expect(mockStackScreenOptions.current?.gestureEnabled).toBe(false);
 
       fireEvent.press(cancelButton);
       fireEvent.press(backButton);
-      fireEvent.press(getByTestId('send-confirm-button'));
+      fireEvent.press(screen.getByTestId('send-confirm-button'));
       expect(mockSend).toHaveBeenCalledTimes(1);
-      expect(mockSend).toHaveBeenCalledWith({
-        asset: expect.anything(),
-        to: RECIPIENT,
-        amount: '1',
-      });
+      expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ to: BTC_ADDR, amount: '1' }));
+      expect(screen.getByTestId('send-confirm-step')).toBeTruthy();
 
       await act(async () => {
         resolveSend?.(null);
@@ -872,23 +625,136 @@ describe('SendScreen', () => {
             resolveSend = resolve;
           }),
       );
-      const { getByPlaceholderText, getByTestId, getByText, unmount } = render(<SendScreen />);
-      fireEvent.press(getByText('BTC'));
-      fillRecipientAndAmount(getByPlaceholderText);
-      await act(async () => {
-        fireEvent.press(getByText('common.continue'));
-      });
-      fireEvent.press(getByTestId('send-confirm-button'));
+      seedContacts(ANNA);
+      const screen = render(<SendScreen />);
+      await openConfirm(screen, ANNA, '1');
+      fireEvent.press(screen.getByTestId('send-confirm-button'));
 
       // User actions cannot supersede an in-flight send because cancel, back,
       // and the navigation gesture are disabled; unmount is the reachable case.
-      unmount();
+      screen.unmount();
 
       await act(async () => {
         resolveSend?.('late-hash');
         await Promise.resolve();
       });
       expect(Haptics.notificationAsync).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('recipient validation', () => {
+    const openTypedAddress = (address: string, digits = '1') => {
+      const screen = render(<SendScreen />);
+      fireEvent.changeText(screen.getByTestId('send-recipient-input'), address);
+      fireEvent.press(screen.getByTestId('send-recipient-continue'));
+      typeAmount(screen, digits);
+      return screen;
+    };
+
+    it('enables Continue for a Spark mainnet BTC recipient', () => {
+      const screen = openTypedAddress(SPARK_RECIPIENT);
+      expect(screen.getByTestId('send-continue-button').props.disabled).not.toBe(true);
+      expect(screen.getByText(/send\.ctaSend/)).toBeTruthy();
+    });
+
+    it('does not offer send for a checksum-mutated mainnet BTC recipient', () => {
+      const invalidRecipient = `${RECIPIENT.slice(0, -1)}q`;
+      const screen = render(<SendScreen />);
+      fireEvent.changeText(screen.getByTestId('send-recipient-input'), invalidRecipient);
+      expect(screen.queryByTestId('send-recipient-continue')).toBeNull();
+      expect(mockEstimate).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      TESTNET_BECH32_RECIPIENT,
+      TESTNET_P2PKH_M_RECIPIENT,
+      TESTNET_P2PKH_N_RECIPIENT,
+      TESTNET_P2SH_RECIPIENT,
+    ])('does not offer send for testnet BTC recipient %s', (address) => {
+      const screen = render(<SendScreen />);
+      fireEvent.changeText(screen.getByTestId('send-recipient-input'), address);
+      expect(screen.queryByTestId('send-recipient-continue')).toBeNull();
+      expect(mockEstimate).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['checksummed', EVM_RECIPIENT],
+      ['lowercase', LOWERCASE_EVM_RECIPIENT],
+    ])('enables Continue for a valid %s EVM recipient', (_label, address) => {
+      const screen = openTypedAddress(address);
+      expect(screen.getByTestId('send-continue-button').props.disabled).not.toBe(true);
+    });
+
+    it('keeps Continue disabled for a wrong-checksum mixed-case EVM recipient', () => {
+      const screen = openTypedAddress(WRONG_CHECKSUM_EVM_RECIPIENT);
+      expect(screen.getByTestId('send-continue-button').props.accessibilityState.disabled).toBe(
+        true,
+      );
+    });
+
+    it('keeps Continue disabled for a too short EVM recipient', () => {
+      const screen = render(<SendScreen />);
+      fireEvent.changeText(screen.getByTestId('send-recipient-input'), '0x1234');
+      expect(screen.queryByTestId('send-recipient-continue')).toBeNull();
+    });
+
+    it.each([
+      '0x0000000000000000000000000000000000000000',
+      '0000000000000000000000000000000000000000',
+      getIcapAddress(ZeroAddress),
+    ])('does not offer send for the zero EVM address %s', (address) => {
+      const screen = render(<SendScreen />);
+      fireEvent.changeText(screen.getByTestId('send-recipient-input'), address);
+      expect(screen.queryByTestId('send-recipient-continue')).toBeNull();
+      expect(mockEstimate).not.toHaveBeenCalled();
+    });
+
+    it('uses Spark for a Spark BTC recipient and displays its network label', async () => {
+      const screen = openTypedAddress(SPARK_RECIPIENT);
+      await tap(screen, 'send-continue-button');
+      expect(screen.getByTestId('send-confirm-network').props.children).toBe('Bitcoin Lightning');
+      expect(mockUseSendFlow).toHaveBeenLastCalledWith('spark');
+      expect(mockEstimate).toHaveBeenCalledWith(
+        expect.objectContaining({ to: SPARK_RECIPIENT, amount: '1' }),
+      );
+    });
+
+    it('transitions to confirm for an on-chain recipient and names the SegWit network', async () => {
+      const screen = openTypedAddress(RECIPIENT);
+      await tap(screen, 'send-continue-button');
+      expect(screen.getByText('send.confirmTransaction')).toBeTruthy();
+      expect(screen.getByTestId('send-confirm-network').props.children).toBe('Bitcoin (SegWit)');
+      expect(mockUseSendFlow).toHaveBeenLastCalledWith('bitcoin');
+      expect(mockEstimate).toHaveBeenCalledWith(
+        expect.objectContaining({ to: RECIPIENT, amount: '1' }),
+      );
+      // Bitcoin has no paymaster token, so a successful estimate renders a dash.
+      expect(screen.getByTestId('send-confirm-fee').props.children).toBe('–');
+      expect(screen.getByTestId('send-confirm-button').props.disabled).not.toBe(true);
+    });
+
+    it('normalizes the recipient for validation, estimate, and send', async () => {
+      mockSend.mockResolvedValueOnce('btc-hash');
+      const screen = openTypedAddress(` \n${RECIPIENT}\n `);
+      expect(screen.getByTestId('send-continue-button').props.disabled).not.toBe(true);
+      await tap(screen, 'send-continue-button');
+      expect(mockEstimate).toHaveBeenCalledWith(expect.objectContaining({ to: RECIPIENT }));
+      await tap(screen, 'send-confirm-button');
+      expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ to: RECIPIENT }));
+    });
+
+    it('shows a retry action instead of Confirm when the estimate fails', async () => {
+      mockEstimate.mockResolvedValueOnce({ success: false, error: 'rpc-error' });
+      const screen = openTypedAddress(EVM_RECIPIENT);
+      await tap(screen, 'send-continue-button');
+      expect(screen.getByTestId('send-confirm-fee').props.children).toBe('send.feeUnavailable');
+      expect(screen.queryByTestId('send-confirm-button')).toBeNull();
+      expect(screen.getByText('common.retry')).toBeTruthy();
+
+      await tap(screen, 'send-fee-retry-button');
+      expect(mockEstimate).toHaveBeenCalledTimes(2);
+      expect(screen.getByTestId('send-confirm-button')).toBeTruthy();
+      expect(screen.queryByText('common.retry')).toBeNull();
     });
   });
 
@@ -912,7 +778,7 @@ describe('SendScreen', () => {
       const screen = render(<SendScreen />);
       fireEvent.press(screen.getByTestId('send-contact-new'));
       fireEvent.changeText(screen.getByTestId('send-contact-name-input'), 'Nora');
-      fireEvent.changeText(screen.getByTestId('send-contact-address-input'), OWN);
+      fireEvent.changeText(screen.getByTestId('send-contact-address-input'), BTC_ADDR);
       fireEvent.press(screen.getByTestId('send-contact-save-button'));
       const saved = useAddressBookStore.getState().contacts.find((c) => c.name === 'Nora');
       expect(saved).toMatchObject({ chain: 'spark', assetSymbol: 'BTC' });
@@ -982,9 +848,6 @@ describe('SendScreen', () => {
       );
     });
 
-      fireEvent.press(getByLabelText('common.back'));
-      expect(queryByText('send.confirmTransaction')).toBeNull();
-      expect(getByText('common.continue')).toBeTruthy();
     it('shows "new address" for an address without a contact', () => {
       const screen = render(<SendScreen />);
       fireEvent.changeText(screen.getByTestId('send-recipient-input'), EVM_ADDR);
@@ -1007,8 +870,6 @@ describe('SendScreen', () => {
       },
     );
 
-      fireEvent.press(getByLabelText('common.back'));
-      expect(getByText('send.sendToCrypto')).toBeTruthy();
     it('starts on the asset unit and marks it selected', () => {
       seedContacts(ANNA);
       const screen = render(<SendScreen />);
@@ -1094,35 +955,6 @@ describe('SendScreen', () => {
     });
   });
 
-  describe('QR scanner integration', () => {
-    it('a scanned bitcoin URI populates the bare address on the BTC screen', () => {
-      const { getByText, getByPlaceholderText } = render(<SendScreen />);
-      fireEvent.press(getByText('BTC'));
-      // Drive the scanner's `onScan` directly — the screen exposes it via
-      // the QrScanner mock. The handler should strip the prefix/query and
-      // pipe the bare address into the recipient state. RECIPIENT is the public
-      // BIP173 example; its declaration carries the no-secrets disable.
-      expect(qrScannerProps.onScan).not.toBeNull();
-      act(() => {
-        qrScannerProps.onScan!(`bitcoin:${RECIPIENT}?amount=1`);
-      });
-      expect(
-        (getByPlaceholderText('send.addressPlaceholder') as unknown as { props: { value: string } })
-          .props.value,
-      ).toBe(RECIPIENT);
-    });
-
-    it('a scanned ethereum URI populates the bare address on an EVM asset', () => {
-      const { getAllByText, getByPlaceholderText } = render(<SendScreen />);
-      fireEvent.press(getAllByText('CHF')[0]!);
-      expect(qrScannerProps.onScan).not.toBeNull();
-      act(() => {
-        qrScannerProps.onScan!(`ethereum:${EVM_RECIPIENT}?amount=1`);
-      });
-      expect(
-        (getByPlaceholderText('send.addressPlaceholder') as unknown as { props: { value: string } })
-          .props.value,
-      ).toBe(EVM_RECIPIENT);
   describe('amount step: input and send button', () => {
     it('types a fiat amount, shows the asset equivalent and names the recipient on the button', () => {
       seedContacts(ANNA);
@@ -1162,10 +994,6 @@ describe('SendScreen', () => {
       expect(screen.getByTestId('send-amount-value').props.children).toBe('0');
     });
 
-    it('back from asset step calls router.back()', () => {
-      const { getByLabelText } = render(<SendScreen />);
-      fireEvent.press(getByLabelText('common.back'));
-      expect(mockBack).toHaveBeenCalledTimes(1);
     it('disables the button at 0 and does not estimate', () => {
       seedContacts(ANNA);
       const screen = render(<SendScreen />);
@@ -1177,7 +1005,10 @@ describe('SendScreen', () => {
     });
 
     it('disables the button when the amount exceeds the balance', () => {
-      setBtcBalance('100000');
+      // Anna's on-chain bech32 is spent as bitcoin, not as the spark asset
+      // id setBtcBalance writes.
+      const id = getSendAssetForCanonical('BTC', 'bitcoin')!.getId();
+      mockBalances.set(id, { assetId: id, rawBalance: '100000', status: 'ok' });
       seedContacts(ANNA);
       const screen = render(<SendScreen />);
       openAmount(screen, ANNA, '1');
@@ -1226,37 +1057,13 @@ describe('SendScreen', () => {
       const screen = render(<SendScreen />);
       fireEvent.changeText(screen.getByTestId('send-recipient-input'), BTC_ADDR);
       fireEvent.press(screen.getByTestId('send-recipient-continue'));
-      fireEvent.press(screen.getByLabelText('Back'));
+      fireEvent.press(screen.getByLabelText('common.back'));
       expect(screen.getByTestId('send-overview-step')).toBeTruthy();
       expect(screen.getByTestId('send-recipient-input').props.value).toBe(BTC_ADDR);
       expect(mockBack).not.toHaveBeenCalled();
     });
   });
 
-  describe('theme colors', () => {
-    it('uses the on-primary token for the sell shortcut icon in dark mode', () => {
-      useThemeStore.setState({ mode: 'dark' });
-      const { getByTestId, getByText } = render(
-        <ThemeProvider>
-          <SendScreen />
-        </ThemeProvider>,
-      );
-      fireEvent.press(getByText('BTC'));
-
-      const [swapIcon] = within(getByTestId('send-action-sell')).UNSAFE_getAllByType(Svg);
-      const swapPaths = within(swapIcon!).UNSAFE_getAllByType(Path);
-      expect(swapPaths.length).toBeGreaterThan(0);
-      for (const swapPath of swapPaths) {
-        expect(swapPath.props.stroke).toBe(darkColors.onPrimary);
-        expect(swapPath.props.stroke).not.toBe(darkColors.white);
-      }
-    });
-  });
-
-  describe('fee state intermediate display', () => {
-    it('shows the "estimating" copy while the estimate is in flight (loading branch)', async () => {
-      // Make the estimate hang so we can observe the in-flight render.
-      let releaseEstimate: ((value: { success: boolean; fee: string }) => void) | undefined;
   describe('amount step: fee preview', () => {
     beforeEach(() => {
       jest.useFakeTimers();
@@ -1325,11 +1132,6 @@ describe('SendScreen', () => {
             resolveFirst = resolve;
           }),
       );
-      const { getByText, getByPlaceholderText, getByTestId } = render(<SendScreen />);
-      fireEvent.press(getByText('BTC'));
-      fillRecipientAndAmount(getByPlaceholderText);
-      fireEvent.press(getByText('common.continue'));
-      // Confirm step now mounts and the fee row shows the loading label.
       mockEstimate.mockResolvedValueOnce({ success: true, fee: '42000' });
       seedContacts(MARCO);
       const screen = render(<SendScreen />);
@@ -1344,10 +1146,6 @@ describe('SendScreen', () => {
       await act(async () => {
         resolveFirst?.({ success: true, fee: '99000000' });
       });
-      expect(getByText('send.feeEstimating')).toBeTruthy();
-      expect(getByTestId('send-confirm-button').props.accessibilityState?.disabled).toBe(true);
-      // Release so the promise queue drains before the test ends.
-      releaseEstimate?.({ success: true, fee: '21000000000000' });
       expect(screen.getByTestId('send-fee-line').props.children).toBe(
         'send.feeLine:{"fee":"0.042 USDT"}',
       );
@@ -1439,7 +1237,7 @@ describe('SendScreen', () => {
       seedContacts(ANNA);
       const screen = render(<SendScreen />);
       await openConfirm(screen, ANNA, '1');
-      fireEvent.press(screen.getByLabelText('Back'));
+      fireEvent.press(screen.getByLabelText('common.back'));
       expect(screen.getByTestId('send-amount-step')).toBeTruthy();
       expect(mockBack).not.toHaveBeenCalled();
     });
@@ -1453,11 +1251,6 @@ describe('SendScreen', () => {
     });
 
     it('drops the stale fee result when a second estimate races the first', async () => {
-      // First estimate hangs; navigating back and continuing starts a second
-      // overlapping estimate. The second resolves first and must remain visible
-      // after the older request eventually resolves.
-      // First estimate hangs; cancel + retry bumps the request counter. The
-      // first promise finally resolves — its result must be discarded.
       let resolveFirst: ((value: { success: boolean; fee: string }) => void) | undefined;
       mockEstimate.mockImplementationOnce(
         () =>
@@ -1465,36 +1258,13 @@ describe('SendScreen', () => {
             resolveFirst = resolve;
           }),
       );
-      mockEstimate.mockResolvedValueOnce({ success: true, fee: '2222' });
-
-      const { getByText, getByPlaceholderText, getByLabelText, queryByText } = render(
-        <SendScreen />,
-      );
-      fireEvent.press(getByText('BTC'));
-      fillRecipientAndAmount(getByPlaceholderText);
-      fireEvent.press(getByText('common.continue'));
-      await act(async () => {
-        await Promise.resolve();
-      });
-      fireEvent.press(getByLabelText('common.back'));
-      fireEvent.press(getByText('common.continue'));
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-      expect(getByText('0.00002222 BTC')).toBeTruthy();
-      // Late resolve of the stale first estimate — the `reqId !==
-      // estimateReqRef.current` guard discards it without touching state.
-      await act(async () => {
-        resolveFirst?.({ success: true, fee: '1111' });
-        await Promise.resolve();
-      });
-      expect(getByText('0.00002222 BTC')).toBeTruthy();
-      expect(queryByText('0.00001111 BTC')).toBeNull();
-      mockEstimate.mockResolvedValue({ success: true, fee: '21000' });
       seedContacts(MARCO);
       const screen = render(<SendScreen />);
       await openConfirm(screen, MARCO, '5');
+      expect(screen.getByTestId('send-confirm-fee').props.children).toBe('send.feeEstimating');
+      expect(screen.getByTestId('send-confirm-button').props.accessibilityState.disabled).toBe(
+        true,
+      );
       fireEvent.press(screen.getByTestId('send-cancel-button'));
       await tap(screen, 'send-continue-button');
       await act(async () => {
@@ -1552,7 +1322,7 @@ describe('SendScreen', () => {
       seedContacts(ANNA);
       const screen = render(<SendScreen />);
       await sendTo(screen, ANNA, '1', '0xdeadbeef');
-      expect(screen.queryByLabelText('Back')).toBeNull();
+      expect(screen.queryByLabelText('common.back')).toBeNull();
       fireEvent.press(screen.getByTestId('send-done-button'));
       expect(mockBack).toHaveBeenCalledTimes(1);
     });
@@ -1625,7 +1395,7 @@ describe('SendScreen', () => {
   describe('back navigation', () => {
     it('back from the overview leaves the screen', () => {
       const screen = render(<SendScreen />);
-      fireEvent.press(screen.getByLabelText('Back'));
+      fireEvent.press(screen.getByLabelText('common.back'));
       expect(mockBack).toHaveBeenCalledTimes(1);
     });
 
@@ -1634,7 +1404,7 @@ describe('SendScreen', () => {
       const screen = render(<SendScreen />);
       fireEvent.press(screen.getByTestId('send-contact-c-anna'));
       mockReset.mockClear();
-      fireEvent.press(screen.getByLabelText('Back'));
+      fireEvent.press(screen.getByLabelText('common.back'));
       expect(mockReset).toHaveBeenCalled();
     });
   });

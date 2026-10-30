@@ -1,4 +1,5 @@
 import { StyleSheet, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { BrandLogo } from './BrandLogo';
 import { GlassIconButton } from './GlassIconButton';
 import { Icon } from './Icon';
@@ -10,6 +11,7 @@ type Props = {
 };
 
 export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
+  const { t } = useTranslation();
   const colors = useColors();
 
   return (
@@ -19,7 +21,7 @@ export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
           icon={<Icon name="shield" size={26} color={colors.primary} strokeWidth={2.5} />}
           onPress={onShieldPress}
           size={44}
-          accessibilityLabel="Multi-Sig"
+          accessibilityLabel={t('common.multiSig')}
           testID="dashboard-shield-button"
         />
       ) : (
@@ -31,7 +33,7 @@ export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
           icon={<Icon name="menu" size={26} color={colors.primary} strokeWidth={2.5} />}
           onPress={onMenuPress}
           size={44}
-          accessibilityLabel="Menu"
+          accessibilityLabel={t('common.menu')}
           testID="dashboard-menu-button"
         />
       ) : (

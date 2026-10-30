@@ -180,9 +180,8 @@ describe('PortfolioScreenImpl', () => {
     mockGetName.mockReturnValue(null);
     mockDiscovery.clear();
     (getAssets as jest.Mock).mockReset();
-    (getAssets as jest.Mock).mockImplementation(
-      (...args: unknown[]) =>
-        jest.requireActual('@/config/tokens').getAssets(...args),
+    (getAssets as jest.Mock).mockImplementation((...args: unknown[]) =>
+      jest.requireActual('@/config/tokens').getAssets(...args),
     );
     mockBalancesLoading = false;
     setBalances({});
@@ -247,7 +246,7 @@ describe('PortfolioScreenImpl', () => {
     const screen = renderScreen();
 
     expect(screen.getByTestId('portfolio-total-value').props.children).toBe('—');
-    expect(within(screen.getByTestId('portfolio-asset-USD')).getAllByText('—')).toHaveLength(2);
+    expect(within(screen.getByTestId('portfolio-asset-USD')).getAllByText('—')).toHaveLength(1);
   });
 
   it('shows the empty card, both actions, and all four assets for a zero balance', () => {
@@ -289,7 +288,7 @@ describe('PortfolioScreenImpl', () => {
     const screen = renderScreen();
 
     expect(screen.getByTestId('portfolio-total-value').props.children).toBe('—');
-    expect(within(screen.getByTestId('portfolio-asset-USD')).getAllByText('—')).toHaveLength(2);
+    expect(within(screen.getByTestId('portfolio-asset-USD')).getAllByText('—')).toHaveLength(1);
     expect(screen.getAllByText('dashboard.incompleteBalance')).toHaveLength(1);
     expect(screen.UNSAFE_queryAllByType(Skeleton)).toHaveLength(0);
   });
@@ -303,7 +302,7 @@ describe('PortfolioScreenImpl', () => {
       const screen = renderScreen();
 
       expect(screen.getByTestId('portfolio-total-value').props.children).toBe('—');
-      expect(within(screen.getByTestId('portfolio-asset-USD')).getAllByText('—')).toHaveLength(2);
+      expect(within(screen.getByTestId('portfolio-asset-USD')).getAllByText('—')).toHaveLength(1);
       expect(screen.getAllByText('dashboard.incompleteBalance')).toHaveLength(1);
     },
   );
@@ -381,7 +380,6 @@ describe('PortfolioScreenImpl', () => {
     expect(screen.queryByText('dashboard.incompleteBalance')).toBeNull();
   });
 
-  it('renders filled groups, merges networks, sorts BTC first, and navigates on tap', async () => {
   it('renders actions and only non-zero groups without network-count copy', async () => {
     setBalances({
       [WBTC_ETH_ID]: '100000000',
@@ -426,9 +424,9 @@ describe('PortfolioScreenImpl', () => {
   });
 
   it('uses the CHF / EUR currency glyphs', () => {
-    jest.spyOn(pricingService, 'getExchangeRate').mockImplementation((ticker) =>
-      ticker === 'usdt' ? 1 : undefined,
-    );
+    jest
+      .spyOn(pricingService, 'getExchangeRate')
+      .mockImplementation((ticker) => (ticker === 'usdt' ? 1 : undefined));
     setBalances({ [USDT_ETH_ID]: '1000000' });
     useWalletStore.setState({ selectedCurrency: 'CHF' });
     const chf = renderScreen();
@@ -489,9 +487,7 @@ describe('PortfolioScreenImpl', () => {
       addresses: [WALLET_LONG, WALLET_SHORT, WALLET_ACTIVE],
       activeAddress: WALLET_ACTIVE,
     });
-    mockGetName.mockImplementation((addr: string) =>
-      addr === LONG_ADDR ? 'Office cold' : null,
-    );
+    mockGetName.mockImplementation((addr: string) => (addr === LONG_ADDR ? 'Office cold' : null));
     mockDiscovery.set(LONG_ADDR.toLowerCase(), {
       address: LONG_ADDR.toLowerCase(),
       assets: [],
@@ -509,7 +505,9 @@ describe('PortfolioScreenImpl', () => {
     setBalances({ [USDT_ETH_ID]: '1000000' });
 
     const { getAllByText, getByTestId, getByText } = renderScreen();
-    await waitFor(() => expect(getByTestId(`portfolio-linked-wallet-${LONG_ADDR.slice(0, 8)}`)).toBeTruthy());
+    await waitFor(() =>
+      expect(getByTestId(`portfolio-linked-wallet-${LONG_ADDR.slice(0, 8)}`)).toBeTruthy(),
+    );
     expect(getByTestId(`portfolio-linked-wallet-${SHORT_ADDR.slice(0, 8)}`)).toBeTruthy();
     expect(getByText('Office cold')).toBeTruthy();
     expect(getAllByText('—')).toHaveLength(2);

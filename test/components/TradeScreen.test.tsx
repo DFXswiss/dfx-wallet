@@ -419,7 +419,7 @@ describe('TradeScreen', () => {
     // etc. straight off this same object.
     buyFlowState.paymentInfo = PAYMENT_INFO;
     buyFlowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
-    mockBuyCreatePaymentInfo.mockResolvedValueOnce({ id: 1 });
+    mockBuyCreatePaymentInfo.mockResolvedValueOnce({ ...PAYMENT_INFO, id: 1 });
     const { getByTestId, queryByTestId } = render(<TradeScreen initialMode="buy" />);
 
     expect(getByTestId('trade-mode-tabs')).toBeTruthy();

@@ -3,15 +3,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
 import { AppHeader, GlassSurface, ScreenBackdrop } from '@/components';
-import type { ChainId } from '@/config/chains';
 import {
   getAssetsForCanonicalSymbol,
   getAssets,
-  getCategoryForCanonicalSymbol,
   getCanonicalNameForSymbol,
-  WDK_SUPPORTED_CHAINS,
+  getCategoryForCanonicalSymbol,
 } from '@/config/tokens';
 import {
   CHAIN_LABELS,
@@ -25,10 +22,13 @@ import {
   SYMBOL_TO_TICKER,
   toNumeric,
 } from '@/config/portfolio-presentation';
+import { getPortfolioAssetCompleteness } from '@/features/portfolio/portfolio-completeness';
 import { useEnabledChains } from './useEnabledChains';
 import { WalletActions } from './WalletActions';
+import { getRawBalance, useBalances } from '@/services/balances';
 import { useWalletStore } from '@/store';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
+import { usePricingSnapshot } from '@/hooks/usePricingSnapshot';
 import {
   BackdropText,
   Card,
@@ -58,6 +58,9 @@ type Holding = {
   balanceNum: number;
   balanceFormatted: string;
   fiatValue: number;
+  isFiatAvailable: boolean;
+  isQueried: boolean;
+  isBalanceComplete: boolean;
 };
 
 const BTC_VARIANT_LABEL: Record<string, string> = {
@@ -89,22 +92,15 @@ export default function AssetDetailScreen() {
     [canonicalSymbol, enabledChains],
   );
   const allAssetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const wdkAssets = useMemo(
-    () => allAssetConfigs.filter((a) => WDK_SUPPORTED_CHAINS.includes(a.getNetwork() as ChainId)),
-    [allAssetConfigs],
-  );
-  const { data: balanceResults } = useBalancesForWallet(0, wdkAssets);
-  const [pricingReady, setPricingReady] = useState(pricingService.isReady());
+  const { data: balances, isLoading: balancesLoading } = useBalances(allAssetConfigs);
+  const pricingRevision = usePricingSnapshot();
+  const pricingReady = pricingService.isReady();
 
   useEffect(() => {
     if (pricingService.isReady()) {
-      setPricingReady(true);
       return;
     }
-    void pricingService
-      .initialize()
-      .then(() => setPricingReady(true))
-      .catch(() => setPricingReady(false));
+    void pricingService.initialize().catch(() => undefined);
   }, []);
 
   const fiatCurrency = resolveFiatCurrency(selectedCurrency);
@@ -112,6 +108,7 @@ export default function AssetDetailScreen() {
     fiatCurrency === FiatCurrency.CHF ? 'CHF' : fiatCurrency === FiatCurrency.EUR ? '€' : '$';
 
   const holdings = useMemo<Holding[]>(() => {
+    void pricingRevision;
     const NETWORK_ORDER: Record<string, number> = {
       ethereum: 0,
       arbitrum: 1,
@@ -123,12 +120,23 @@ export default function AssetDetailScreen() {
     };
 
     const list = holdingMetas.map((meta) => {
-      const result = balanceResults?.find((r) => r.assetId === meta.id);
-      const rawBalance = result?.success ? (result.balance ?? '0') : '0';
+      const asset = allAssetConfigs.find((candidate) => candidate.getId() === meta.id);
+      const balanceEntry = balances.get(meta.id);
+      const rawBalance = getRawBalance(balances, meta.id);
       const balanceFormatted = formatBalance(rawBalance, meta.decimals);
       const balanceNum = toNumeric(balanceFormatted);
 
       const fiatValue = computeFiatValue(balanceNum, canonicalSymbol, fiatCurrency, pricingReady);
+      const completeness = getPortfolioAssetCompleteness({
+        asset,
+        balanceEntry,
+        balance: balanceNum,
+        canonicalSymbol,
+        fiatCurrency,
+        pricingReady,
+      });
+      const isFiatAvailable =
+        completeness.isFiatAvailable && (balanceNum <= 0 || Number.isFinite(fiatValue));
 
       const chainLabel = CHAIN_LABELS.get(meta.network) ?? meta.network;
       const isBtc = meta.canonicalSymbol === 'BTC';
@@ -147,6 +155,9 @@ export default function AssetDetailScreen() {
         balanceNum,
         balanceFormatted,
         fiatValue,
+        isFiatAvailable,
+        isQueried: completeness.isQueried,
+        isBalanceComplete: completeness.isBalanceComplete,
       };
     });
 
@@ -155,7 +166,28 @@ export default function AssetDetailScreen() {
       if (symbolCmp !== 0) return symbolCmp;
       return (NETWORK_ORDER[a.network] ?? 99) - (NETWORK_ORDER[b.network] ?? 99);
     });
-  }, [holdingMetas, balanceResults, canonicalSymbol, fiatCurrency, pricingReady]);
+  }, [
+    holdingMetas,
+    allAssetConfigs,
+    balances,
+    canonicalSymbol,
+    fiatCurrency,
+    pricingReady,
+    pricingRevision,
+  ]);
+
+  // Never-queried holdings have balanceNum 0, so they neither contribute to nor invalidate totals.
+  const balancesIncomplete =
+    balancesLoading || holdings.some((holding) => holding.isQueried && !holding.isBalanceComplete);
+  const pricesIncomplete = holdings.some((holding) => !holding.isFiatAvailable);
+  const detailIncomplete = balancesIncomplete || pricesIncomplete;
+  const balancesPending =
+    balancesLoading ||
+    holdings.some((holding) => {
+      if (!holding.isQueried) return false;
+      const status = balances.get(holding.id)?.status;
+      return status === 'idle' || status === 'loading';
+    });
 
   const totalBalance = useMemo(
     () => holdings.reduce((sum, h) => sum + h.balanceNum, 0),
@@ -202,9 +234,21 @@ export default function AssetDetailScreen() {
             <Text style={styles.totalCurrency} testID="asset-detail-total-currency">
               {currencySymbol}
             </Text>
-            <Text style={styles.totalValue}>{formatFiat(totalFiat)}</Text>
+            <Text style={styles.totalValue}>{detailIncomplete ? '—' : formatFiat(totalFiat)}</Text>
           </View>
-          <Text style={styles.totalMeta}>{balanceAndRate}</Text>
+          {detailIncomplete ? (
+            <Text style={styles.balanceStatus} testID="asset-detail-balance-incomplete">
+              {t(
+                balancesIncomplete
+                  ? balancesPending
+                    ? 'portfolio.balanceLoading'
+                    : 'portfolio.balanceUnavailable'
+                  : 'dashboard.incompleteBalance',
+              )}
+            </Text>
+          ) : (
+            <Text style={styles.totalMeta}>{balanceAndRate}</Text>
+          )}
         </View>
 
         <View style={styles.actionsRow}>
@@ -225,11 +269,11 @@ export default function AssetDetailScreen() {
             <Text style={styles.holdingSymbol}>{t('portfolio.onYourWallet')}</Text>
           </View>
           <View style={styles.holdingBalance}>
-            <Text style={styles.holdingValue}>
-              {currencySymbol} {formatFiat(totalFiat)}
+            <Text style={styles.holdingValue} testID="asset-detail-total-fiat">
+              {detailIncomplete ? '—' : `${currencySymbol} ${formatFiat(totalFiat)}`}
             </Text>
-            <Text style={styles.holdingCrypto}>
-              {formatNumber(totalBalance)} {canonicalSymbol}
+            <Text style={styles.holdingCrypto} testID="asset-detail-total-crypto">
+              {balancesIncomplete ? '—' : `${formatNumber(totalBalance)} ${canonicalSymbol}`}
             </Text>
           </View>
         </GlassSurface>
@@ -269,7 +313,7 @@ export default function AssetDetailScreen() {
                         the generic canonical name ("Dollar") is redundant
                         with the screen title. For BTC and other groups where
                         every holding shares the same symbol, fall back to
-                    the canonical name + variant label as before. */}
+                        the canonical name + variant label as before. */}
                     <Text style={styles.holdingChain}>
                       {holding.symbol !== canonicalSymbol ? holding.symbol : holding.canonicalName}
                     </Text>
@@ -277,16 +321,24 @@ export default function AssetDetailScreen() {
                   </View>
                   <View style={styles.holdingBalance}>
                     <Text style={styles.holdingValue}>
-                      {currencySymbol}{' '}
-                      {Number.isFinite(holding.fiatValue)
-                        ? (Math.round(holding.fiatValue * 100) / 100).toLocaleString('de-CH', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })
-                        : '0.00'}
+                      {holding.isBalanceComplete && holding.isFiatAvailable
+                        ? `${currencySymbol} ${
+                            Number.isFinite(holding.fiatValue)
+                              ? (Math.round(holding.fiatValue * 100) / 100).toLocaleString(
+                                  'de-CH',
+                                  {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  },
+                                )
+                              : '0.00'
+                          }`
+                        : '—'}
                     </Text>
                     <Text style={styles.holdingCrypto}>
-                      {formatNumber(holding.balanceNum)} {holding.symbol}
+                      {holding.isBalanceComplete
+                        ? `${formatNumber(holding.balanceNum)} ${holding.symbol}`
+                        : '—'}
                     </Text>
                   </View>
                 </GlassSurface>
@@ -376,6 +428,12 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
     },
     actionsRow: {
       alignSelf: 'stretch',
+    },
+    balanceStatus: {
+      ...Typography.bodySmall,
+      color: colors.warningText,
+      textAlign: 'center',
+      ...onBackdrop,
     },
     summaryRow: {
       flexDirection: 'row',

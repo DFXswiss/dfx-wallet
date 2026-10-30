@@ -1,21 +1,24 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import * as Haptics from 'expo-haptics';
 import {
   AppHeader,
   GlassCard,
   GlassListGroup,
   Icon,
+  ReauthPinModal,
   ScreenBackdrop,
   SectionTitle,
 } from '@/components';
 import { FEATURES } from '@/config/features';
-import { isBiometricAvailable } from '@/features/biometric/biometric';
-import { dfxUserService } from '@/features/dfx-backend/services';
+import { dfxApi, dfxUserService } from '@/features/dfx-backend/services';
+import { deleteWalletFlow } from '@/features/settings/services/delete-wallet';
+import { useReauthenticate } from '@/hooks/useReauthenticate';
+import { setLanguage } from '@/i18n/language';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
 import { Typography, useColors, useThemeStore, type ThemeColors, type ThemeMode } from '@/theme';
@@ -40,6 +43,17 @@ type SettingsSection = {
   rows: SettingsRow[];
 };
 
+const biometricModule: {
+  authenticateWithBiometric: (options: {
+    promptMessage: string;
+    cancelLabel: string;
+  }) => Promise<boolean>;
+  isBiometricAvailable: () => Promise<boolean>;
+} | null = FEATURES.BIOMETRIC
+  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('@/features/biometric/biometric')
+  : null;
+
 const THEME_MODE_LABEL: Record<ThemeMode, string> = {
   light: 'Light',
   dark: 'Dark',
@@ -55,63 +69,91 @@ export default function SettingsScreen() {
   const setThemeMode = useThemeStore((s) => s.setMode);
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [biometricSupported, setBiometricSupported] = useState<boolean | null>(null);
+  const [biometricSupported, setBiometricSupported] = useState<boolean | null>(
+    biometricModule ? null : false,
+  );
+  const currencySyncGeneration = useRef(0);
+  const currencySyncQueue = useRef<Promise<void>>(Promise.resolve());
+  const languageSyncGeneration = useRef(0);
+  const languageSyncQueue = useRef<Promise<void>>(Promise.resolve());
 
-  // Probe the OS for Face ID / Touch ID support so the toggle is greyed
-  // out on devices that can't honour it (older simulators, no enrolled
-  // biometric). Single one-shot check on mount — re-checks not needed
-  // because enrolment changes mid-session are rare and `setBiometricEnabled`
-  // re-validates before persisting anyway.
+  // Probe the OS for Face ID / Touch ID support once on mount. Enabling still
+  // requires a fresh successful authentication before the preference is saved.
   useEffect(() => {
     let mounted = true;
-    void isBiometricAvailable()
-      .then((avail) => {
-        if (mounted) setBiometricSupported(avail);
-      })
-      .catch(() => {
-        if (mounted) setBiometricSupported(false);
-      });
+    if (biometricModule) {
+      void biometricModule
+        .isBiometricAvailable()
+        .then((avail) => {
+          if (mounted) setBiometricSupported(avail);
+        })
+        .catch(() => {
+          if (mounted) setBiometricSupported(false);
+        });
+    }
     return () => {
       mounted = false;
     };
   }, []);
 
   const handleBiometricToggle = async (next: boolean) => {
-    // Honour the user's intent even when the OS reports no enrolled
-    // biometric (sim, freshly-wiped phone, …) — the lock screen falls
-    // back to PIN when Face ID is unavailable, so flipping the toggle
-    // off would just force the user to flip it again the moment they
-    // enrol biometrics. We surface a one-shot hint when they switch it
-    // on without hardware so it's obvious why no Face ID prompt fires.
-    if (next && biometricSupported === false) {
-      Alert.alert(t('settings.biometric'), t('settings.biometricUnsupported'));
+    if (!next) {
+      await setBiometricEnabled(false);
+      return;
     }
-    await setBiometricEnabled(next);
+    if (!biometricModule || biometricSupported === false) {
+      Alert.alert(t('settings.biometric'), t('settings.biometricUnsupported'));
+      return;
+    }
+    const authenticated = await biometricModule.authenticateWithBiometric({
+      promptMessage: t('biometric.enable'),
+      cancelLabel: t('biometric.usePin'),
+    });
+    if (authenticated) await setBiometricEnabled(true);
   };
 
-  const syncLanguageToDfx = (locale: 'de' | 'en') => {
+  const enqueueLatestDfxSync = (
+    requestGenerationRef: { current: number },
+    queueRef: { current: Promise<void> },
+    authGeneration: number,
+    run: () => Promise<unknown>,
+  ) => {
+    const requestGeneration = ++requestGenerationRef.current;
     if (!isDfxAuthenticated) return;
-    void dfxUserService
-      .updateUser({ language: { symbol: locale.toUpperCase() } })
-      .catch(() => undefined);
+    const syncLatest = async () => {
+      if (requestGeneration !== requestGenerationRef.current) return;
+      if (dfxApi.getAuthGeneration() !== authGeneration) return;
+      await run().catch(() => undefined);
+    };
+    queueRef.current = queueRef.current.then(syncLatest, syncLatest);
+  };
+
+  const syncLanguageToDfx = (locale: 'de' | 'en', authGeneration: number) => {
+    enqueueLatestDfxSync(languageSyncGeneration, languageSyncQueue, authGeneration, () =>
+      dfxUserService.updateUser({ language: { symbol: locale.toUpperCase() } }),
+    );
   };
 
   const syncCurrencyToDfx = (currency: string) => {
-    if (!isDfxAuthenticated) return;
-    void dfxUserService.updateUser({ currency: { name: currency } }).catch(() => undefined);
+    const authGeneration = dfxApi.getAuthGeneration();
+    enqueueLatestDfxSync(currencySyncGeneration, currencySyncQueue, authGeneration, () =>
+      dfxUserService.updateUser({ currency: { name: currency } }),
+    );
   };
   const CURRENCIES = ['CHF', 'EUR', 'USD'] as const;
   const currentLang = i18n.language?.startsWith('de') ? 'DE' : 'EN';
-  const { deleteWallet } = useWalletManager();
+  const { deleteWallet, getEncryptedEntropy, getEncryptedSeed, getEncryptionKey } =
+    useWalletManager();
+  const { requestReauth, modalProps } = useReauthenticate();
   const [walletOrigin, setWalletOrigin] = useState<string | null>(null);
+  const isPasskeyOrigin = walletOrigin === 'passkey' || walletOrigin === 'passkey-pending';
 
   useEffect(() => {
     void secureStorage.get(StorageKeys.WALLET_ORIGIN).then(setWalletOrigin);
   }, []);
 
   const handleDeleteWallet = () => {
-    const isPasskey = walletOrigin === 'passkey';
-    const message = isPasskey
+    const message = isPasskeyOrigin
       ? t('settings.deleteWalletConfirmPasskey')
       : t('settings.deleteWalletConfirm');
 
@@ -121,13 +163,33 @@ export default function SettingsScreen() {
         text: t('settings.deleteWallet'),
         style: 'destructive',
         onPress: async () => {
-          try {
-            await deleteWallet('default');
-          } catch {
-            // Wallet may not exist; reset auth state regardless.
+          const result = await deleteWalletFlow({
+            requestReauth,
+            deleteWallet: () => deleteWallet('default'),
+            getRemainingWalletItems: async () => {
+              const [key, encryptedSeed, encryptedEntropy] = await Promise.all([
+                getEncryptionKey('default'),
+                getEncryptedSeed('default'),
+                getEncryptedEntropy('default'),
+              ]);
+              return {
+                key: key !== null,
+                seed: encryptedSeed !== null,
+                entropy: encryptedEntropy !== null,
+              };
+            },
+            reset,
+          });
+          if (result === 'failed') {
+            Alert.alert(t('common.error'), t('settings.deleteWalletFailed'));
+            return;
           }
-          await reset();
-          router.replace('/');
+          if (result === 'deleted-with-cleanup-error') {
+            router.replace('/');
+            Alert.alert(t('common.error'), t('settings.deleteWalletCleanupFailed'));
+            return;
+          }
+          if (result === 'deleted') router.replace('/');
         },
       },
     ]);
@@ -181,7 +243,7 @@ export default function SettingsScreen() {
         },
         {
           icon: 'shield',
-          label: t(walletOrigin === 'passkey' ? 'settings.seed' : 'settings.seedPhrase'),
+          label: t(isPasskeyOrigin ? 'settings.seed' : 'settings.seedPhrase'),
           testID: 'settings-seed',
           route: '/(auth)/seed-export',
         },
@@ -207,10 +269,15 @@ export default function SettingsScreen() {
           label: t('settings.language'),
           value: currentLang,
           testID: 'settings-language',
-          onPress: () => {
+          onPress: async () => {
             const next = currentLang === 'DE' ? 'en' : 'de';
-            void i18n.changeLanguage(next);
-            syncLanguageToDfx(next);
+            const authGeneration = dfxApi.getAuthGeneration();
+            try {
+              const persisted = await setLanguage(next, i18n);
+              if (persisted) syncLanguageToDfx(next, authGeneration);
+            } catch {
+              // Activation failed; keep the current language and remote preference unchanged.
+            }
           },
         },
         {
@@ -338,6 +405,7 @@ export default function SettingsScreen() {
         <ScreenBackdrop />
         {body}
       </View>
+      <ReauthPinModal {...modalProps} />
     </>
   );
 }

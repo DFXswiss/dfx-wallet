@@ -4,8 +4,20 @@ import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, GlassCard, GlassIconButton, Icon, ScreenContainer } from '@/components';
 import { useDfxAuth } from '@/hooks';
+import { LOCAL_SESSION_ENDED_MESSAGE } from '@/features/dfx-backend/session-guard';
+import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
 import { DfxApiError, dfxUserService } from '@/features/dfx-backend/services';
 import { Typography, useColors, type ThemeColors } from '@/theme';
+
+const SILENT_DFX_AUTH_ERRORS = new Set<string>([
+  LOCAL_SESSION_ENDED_MESSAGE,
+  new DfxAuthFlowInvalidatedError().message,
+]);
+
+function visibleDfxAuthError(message: string | null): string | null {
+  if (message !== null && SILENT_DFX_AUTH_ERRORS.has(message)) return null;
+  return message;
+}
 
 /**
  * Read-only user-data page mirroring realunit-app's
@@ -100,7 +112,9 @@ export default function UserDataScreen() {
                   <Text style={styles.reauthLabel}>{t('wallets.reauthCta')}</Text>
                 )}
               </Pressable>
-              {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
+              {visibleDfxAuthError(authError) ? (
+                <Text style={styles.errorText}>{authError}</Text>
+              ) : null}
             </GlassCard>
           ) : (
             <>
@@ -132,6 +146,7 @@ type UserDataRowProps = {
 };
 
 function UserDataRow({ label, value, onEdit, editTestID }: UserDataRowProps) {
+  const { t } = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
@@ -145,7 +160,7 @@ function UserDataRow({ label, value, onEdit, editTestID }: UserDataRowProps) {
           icon={<Icon name="document" size={18} color={colors.primary} />}
           onPress={onEdit}
           size={36}
-          accessibilityLabel="Edit"
+          accessibilityLabel={t('common.edit')}
           {...(editTestID ? { testID: editTestID } : {})}
         />
       ) : null}

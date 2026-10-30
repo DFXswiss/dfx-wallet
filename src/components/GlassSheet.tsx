@@ -84,7 +84,7 @@ export function GlassSheet({
       {...(backdropTestID ? { testID: backdropTestID } : {})}
     >
       <Pressable
-        onPress={(event) => event.stopPropagation()}
+        onPress={(event) => event?.stopPropagation?.()}
         style={bodyBoxFor(position)}
         accessibilityViewIsModal
         {...(bodyTestID ? { testID: bodyTestID } : {})}

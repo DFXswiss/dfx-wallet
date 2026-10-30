@@ -14,7 +14,14 @@ type Props = {
   rows: Row[];
   error: string | null;
   isLoading: boolean;
+  /** The fee estimate failed. Confirm is replaced by a retry of that estimate. */
+  feeFailed?: boolean;
+  /** Confirm stays disabled until the fee estimate has succeeded. */
+  confirmDisabled?: boolean;
+  /** Cancel is disabled while a send is in flight. */
+  cancelDisabled?: boolean;
   onConfirm: () => void;
+  onRetryFee?: () => void;
   onCancel: () => void;
 };
 
@@ -23,7 +30,17 @@ type Props = {
  * value, fee) on one glass card, the irreversibility note and the two
  * buttons. The screen builds the rows so this component stays presentational.
  */
-export function SendConfirmStep({ rows, error, isLoading, onConfirm, onCancel }: Props) {
+export function SendConfirmStep({
+  rows,
+  error,
+  isLoading,
+  feeFailed = false,
+  confirmDisabled = false,
+  cancelDisabled = false,
+  onConfirm,
+  onRetryFee,
+  onCancel,
+}: Props) {
   const { t } = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -58,17 +75,27 @@ export function SendConfirmStep({ rows, error, isLoading, onConfirm, onCancel }:
       </ScrollView>
 
       <View style={styles.actions}>
-        <PrimaryButton
-          testID="send-confirm-button"
-          title={t('common.confirm')}
-          onPress={onConfirm}
-          loading={isLoading}
-        />
+        {feeFailed ? (
+          <PrimaryButton
+            testID="send-fee-retry-button"
+            title={t('common.retry')}
+            onPress={() => onRetryFee?.()}
+          />
+        ) : (
+          <PrimaryButton
+            testID="send-confirm-button"
+            title={t('common.confirm')}
+            onPress={onConfirm}
+            disabled={confirmDisabled}
+            loading={isLoading}
+          />
+        )}
         <PrimaryButton
           testID="send-cancel-button"
           title={t('common.cancel')}
           variant="outlined"
           onPress={onCancel}
+          disabled={cancelDisabled}
         />
       </View>
     </View>
@@ -114,7 +141,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
     warning: {
       ...Typography.bodySmall,
-      color: colors.warning,
+      color: colors.warningText,
       textAlign: 'center',
     },
     errorText: {

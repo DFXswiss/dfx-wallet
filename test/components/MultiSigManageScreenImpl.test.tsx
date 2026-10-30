@@ -133,7 +133,6 @@ describe('MultiSigManageScreenImpl', () => {
     expect(getByText(SHORT)).toBeTruthy();
   });
 
-  it('adds another plan from the filled list', () => {
   it('renders the vault and summary cards as GlassCard (theme Card.radius, not a hardcoded value)', () => {
     useMultiSigStore.setState({ vaults: [VAULT] });
     const { getByTestId } = renderScreen();

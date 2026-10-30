@@ -3,7 +3,9 @@ import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { usePreventRemove } from '@react-navigation/native';
 import { useAccount, type IAsset } from '@tetherto/wdk-react-native-core';
+import { getAddress, isAddress, ZeroAddress } from 'ethers';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,7 +13,7 @@ import { AppHeader, GlassSheet, Icon, ScreenBackdrop, type AmountKey } from '@/c
 import type { ChainId } from '@/config/chains';
 import { getPaymasterTokenInfo } from '@/config/chains';
 import { getExplorerTxUrl } from '@/config/explorer';
-import { formatBalance } from '@/config/portfolio-presentation';
+import { CHAIN_LABELS, formatBalance } from '@/config/portfolio-presentation';
 import { getSendAssetForCanonical } from '@/config/tokens';
 import { ScannerView } from '@/features/scan/ScannerView';
 import { parseBitcoinAmount } from '@/features/scan/classifyScan';
@@ -53,6 +55,7 @@ import { describeLastUsed } from '@/features/transfer/contacts';
 import { useBankAccounts } from '@/features/transfer/useBankAccounts';
 import { useSendFlow } from '@/hooks';
 import { getRawBalance, useBalances } from '@/services/balances';
+import { isBitcoinOnChainAddress, isSparkMainnetAddress } from '@/services/bitcoin-address';
 import { pricingService } from '@/services/pricing-service';
 import {
   findContactByAddress,
@@ -110,11 +113,34 @@ export default function SendScreen() {
   const [pricingReady, setPricingReady] = useState(pricingService.isReady());
   const [feeState, setFeeState] = useState<FeeState>({ status: 'idle' });
   const [previewFee, setPreviewFee] = useState<FeeState>({ status: 'idle' });
+  const [isSending, setIsSending] = useState(false);
   const estimateReqRef = useRef(0);
   const previewReqRef = useRef(0);
   const routeParamsHandledRef = useRef(false);
+  const sendAttemptRef = useRef(0);
+  const sendingRef = useRef(false);
 
-  const { send, estimate, isLoading, txHash, error, reset } = useSendFlow(selectedChain);
+  usePreventRemove(isSending, () => {
+    // The screen blocks navigation during a send without showing a confirmation dialog.
+  });
+
+  useEffect(
+    () => () => {
+      sendAttemptRef.current += 1;
+    },
+    [],
+  );
+
+  const normalizedRecipient = recipient.trim();
+  const effectiveChain: ChainId =
+    assetSymbol === 'BTC' && isBitcoinOnChainAddress(normalizedRecipient)
+      ? 'bitcoin'
+      : selectedChain;
+  const isValidAddress =
+    assetSymbol === 'BTC'
+      ? isBitcoinOnChainAddress(normalizedRecipient) || isSparkMainnetAddress(normalizedRecipient)
+      : isAddress(normalizedRecipient) && getAddress(normalizedRecipient) !== ZeroAddress;
+  const { send, estimate, isLoading, txHash, error, reset } = useSendFlow(effectiveChain);
   const estimateRef = useRef(estimate);
   useEffect(() => {
     estimateRef.current = estimate;
@@ -174,8 +200,8 @@ export default function SendScreen() {
     return bySymbol;
   }, []);
   const sendAsset = useMemo(
-    () => getSendAssetForCanonical(assetSymbol, selectedChain),
-    [assetSymbol, selectedChain],
+    () => getSendAssetForCanonical(assetSymbol, effectiveChain),
+    [assetSymbol, effectiveChain],
   );
   const balanceAssets = useMemo(() => {
     const assets = Array.from(defaultAssets.values());
@@ -214,7 +240,7 @@ export default function SendScreen() {
   const rate = rates.get(unit);
   const rateMissing = unit !== assetSymbol && rate === undefined;
   const assetAmount = toAssetAmount(input, unit, amountAsset, rate);
-  const paymasterToken = useMemo(() => getPaymasterTokenInfo(selectedChain), [selectedChain]);
+  const paymasterToken = useMemo(() => getPaymasterTokenInfo(effectiveChain), [effectiveChain]);
   const balanceEntry = sendAsset ? balances.get(sendAsset.getId()) : undefined;
   const insufficient =
     assetAmount !== undefined &&
@@ -224,7 +250,7 @@ export default function SendScreen() {
 
   // Fee preview under the amount: debounced, and a stale answer is dropped.
   useEffect(() => {
-    if (step !== 'amount' || !sendAsset || !assetAmount) {
+    if (step !== 'amount' || !sendAsset || !assetAmount || !isValidAddress) {
       setPreviewFee((prev) => (prev.status === 'idle' ? prev : { status: 'idle' }));
       return;
     }
@@ -234,7 +260,7 @@ export default function SendScreen() {
       const run = async () => {
         const result = await estimateRef.current({
           asset: sendAsset,
-          to: recipient,
+          to: normalizedRecipient,
           amount: assetAmount,
         });
         if (reqId !== previewReqRef.current) return;
@@ -250,7 +276,7 @@ export default function SendScreen() {
       clearTimeout(timer);
       previewReqRef.current += 1;
     };
-  }, [step, sendAsset, recipient, assetAmount]);
+  }, [step, sendAsset, normalizedRecipient, assetAmount, isValidAddress]);
 
   const formatFee = (state: FeeState): string | undefined => {
     if (state.status !== 'ok' || !paymasterToken) return undefined;
@@ -362,12 +388,17 @@ export default function SendScreen() {
   };
 
   const goToConfirm = useCallback(async () => {
-    // The continue button is gated on `sendAsset` and `assetAmount` via its
-    // `disabled` prop, so both are set by the time this handler runs.
+    // The continue button is gated on a valid address, `sendAsset` and
+    // `assetAmount`, so all three are set by the time this handler runs.
+    if (!sendAsset || !assetAmount || !isValidAddress || isSending) return;
     setStep('confirm');
     setFeeState({ status: 'loading' });
     const reqId = ++estimateReqRef.current;
-    const result = await estimate({ asset: sendAsset!, to: recipient, amount: assetAmount! });
+    const result = await estimate({
+      asset: sendAsset,
+      to: normalizedRecipient,
+      amount: assetAmount,
+    });
     // Drop stale results from earlier estimate calls (e.g. user went back, edited, returned).
     if (reqId !== estimateReqRef.current) return;
     if (result.success) {
@@ -375,9 +406,12 @@ export default function SendScreen() {
     } else {
       setFeeState({ status: 'error', message: result.error });
     }
-  }, [sendAsset, estimate, recipient, assetAmount]);
+  }, [sendAsset, estimate, normalizedRecipient, assetAmount, isValidAddress, isSending]);
 
   const backToAmount = () => {
+    sendAttemptRef.current += 1;
+    sendingRef.current = false;
+    setIsSending(false);
     reset();
     // Drop any in-flight estimate so a late-arriving result doesn't render after cancel.
     estimateReqRef.current += 1;
@@ -386,15 +420,32 @@ export default function SendScreen() {
   };
 
   const handleSend = async () => {
-    const hash = await send({ asset: sendAsset!, to: recipient, amount: assetAmount! });
-    if (hash) {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      if (recipientContact) markUsed(recipientContact.id);
-      setStep('success');
+    if (!sendAsset || !assetAmount || !isValidAddress || sendingRef.current) return;
+    if (feeState.status !== 'ok') return;
+
+    const confirmedParams = { asset: sendAsset, to: normalizedRecipient, amount: assetAmount };
+    const attemptId = ++sendAttemptRef.current;
+    sendingRef.current = true;
+    setIsSending(true);
+
+    try {
+      const hash = await send(confirmedParams);
+      if (attemptId !== sendAttemptRef.current) return;
+      if (hash) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (recipientContact) markUsed(recipientContact.id);
+        setStep('success');
+      }
+    } finally {
+      if (attemptId === sendAttemptRef.current) {
+        sendingRef.current = false;
+        setIsSending(false);
+      }
     }
   };
 
   const handleBack = () => {
+    if (isSending) return;
     if (step === 'confirm') {
       backToAmount();
     } else if (step === 'amount') {
@@ -447,12 +498,14 @@ export default function SendScreen() {
 
   // Send button: one state at a time, in the order the user has to fix them.
   const ctaTitle = (): string => {
+    if (!isValidAddress) return t('send.contactInvalidAddress');
     if (rateMissing) return t('send.rateUnavailable');
     if (!assetAmount) return t('send.enterAmount');
     if (insufficient) return t('send.insufficientBalance');
     return t('send.ctaSend', { amount: formatAmountLabel(input, unit), name: recipientName });
   };
-  const ctaDisabled = rateMissing || !assetAmount || insufficient || !sendAsset;
+  const ctaDisabled =
+    !isValidAddress || rateMissing || !assetAmount || insufficient || !sendAsset || isSending;
 
   const previewFeeLine = (): string => {
     if (previewFee.status === 'loading') return t('send.feeEstimating');
@@ -474,9 +527,9 @@ export default function SendScreen() {
     if (feeState.status === 'error') return t('send.feeUnavailable');
     return formatFee(feeState) ?? '–';
   };
-  const chainLabel = currentAsset.chains.find((c) => c.chain === selectedChain)?.label;
+  const chainLabel = CHAIN_LABELS.get(effectiveChain) ?? effectiveChain;
   const confirmRows: { key: string; label: string; value: string }[] = [
-    { key: 'network', label: t('send.network'), value: chainLabel ?? selectedChain },
+    { key: 'network', label: t('send.network'), value: chainLabel },
     { key: 'recipient', label: t('send.recipient'), value: recipientName },
   ];
   if (recipientContact) {
@@ -494,7 +547,7 @@ export default function SendScreen() {
   }
   confirmRows.push({ key: 'fee', label: t('send.networkFee'), value: confirmFee() });
 
-  const explorerUrl = txHash ? getExplorerTxUrl(selectedChain, txHash) : undefined;
+  const explorerUrl = txHash ? getExplorerTxUrl(effectiveChain, txHash) : undefined;
 
   const scanAction = (
     <Pressable
@@ -514,6 +567,7 @@ export default function SendScreen() {
         title=""
         onBack={handleBack}
         hideBack={step === 'success'}
+        backDisabled={isSending}
         testID="send-screen"
         {...(step === 'overview' ? { rightAction: scanAction } : {})}
       />
@@ -567,9 +621,16 @@ export default function SendScreen() {
         <SendConfirmStep
           rows={confirmRows}
           error={error}
-          isLoading={isLoading}
+          isLoading={isLoading || isSending || feeState.status === 'loading'}
+          feeFailed={feeState.status === 'error'}
+          confirmDisabled={feeState.status !== 'ok'}
+          cancelDisabled={isSending}
           onConfirm={handleSend}
-          onCancel={backToAmount}
+          onRetryFee={goToConfirm}
+          onCancel={() => {
+            if (isSending) return;
+            backToAmount();
+          }}
         />
       )}
 
@@ -647,7 +708,7 @@ export default function SendScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: !isSending }} />
       <View style={styles.bg}>
         <ScreenBackdrop />
         {body}
