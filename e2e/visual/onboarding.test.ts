@@ -61,7 +61,9 @@ describe('Visual Regression', () => {
     it('shows revealed seed phrase', async () => {
       await element(by.id('create-wallet-reveal-button')).tap();
       await pause(2_000);
-      await expectScreenToMatchBaseline('create-wallet-revealed');
+      await expectScreenToMatchBaseline('create-wallet-revealed', {
+        maskTestIDs: ['create-wallet-seed-container'],
+      });
     });
 
     it('shows dashboard via the disabled-stub redirect', async () => {
@@ -194,7 +196,9 @@ describe('Visual Regression', () => {
     it('shows revealed seed phrase', async () => {
       await element(by.id('create-wallet-reveal-button')).tap();
       await pause(2_000);
-      await expectScreenToMatchBaseline('create-wallet-revealed');
+      await expectScreenToMatchBaseline('create-wallet-revealed', {
+        maskTestIDs: ['create-wallet-seed-container'],
+      });
     });
 
     it('shows setup PIN screen', async () => {

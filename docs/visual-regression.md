@@ -48,6 +48,8 @@ e2e/
 ├── jest.config.js         # Detox/jest config
 ├── utils/
 │   ├── launch.ts          # launchAndWaitForWelcome / launchWithExistingState
+│   ├── mask-artifact.ts   # masks a Detox capture in memory and deletes the raw file
+│   ├── mask-png.ts        # paints element frames over a PNG
 │   ├── pin.ts             # enterPin helper
 │   └── screenshot.ts      # expectScreenToMatchBaseline (the matcher)
 └── visual/
@@ -65,6 +67,14 @@ await expectScreenToMatchBaseline('create-wallet');
 ```
 
 It writes the screenshot to `e2e/__baselines__/create-wallet.png` on first run and compares against it on every subsequent run with a 1% pixel-difference tolerance.
+
+Screens that show secrets or per-run random values pass `maskTestIDs`; the frames of those elements are painted over before the comparison and before a baseline is written, and the raw Detox capture is deleted:
+
+```ts
+await expectScreenToMatchBaseline('create-wallet-revealed', {
+  maskTestIDs: ['create-wallet-seed-container'],
+});
+```
 
 ## Running locally
 
@@ -117,10 +127,11 @@ A build with the feature off skips the block instead of running it against the `
    ```bash
    ls e2e/__diffs__ e2e/__baselines__
    ```
-4. Find your screenshot under the local Detox artifacts directory named after the test.
+4. Find your screenshot under the local Detox artifacts directory named after the test. A masked screenshot has no raw artifact there (it is deleted after masking); inspect the matcher-written baseline instead.
 5. Inspect the PNG — make sure it captures the state you actually want to baseline (not an error screen, not a half-loaded WDK, etc.).
-6. Copy it into `e2e/__baselines__/your-name.png` and commit.
-7. Push and re-trigger the visual workflow (see [Triggering visual regression](#triggering-visual-regression) below).
+6. For screenshots without masked test IDs, copy it into `e2e/__baselines__/your-name.png`. For screenshots using `maskTestIDs`, let the matcher write the baseline during the first local run or an update-snapshot run; never copy a raw Detox artifact into `e2e/__baselines__/`.
+7. For a masked screenshot, open the matcher-written baseline and visually confirm that every sensitive area is fully covered before committing it.
+8. Push and re-trigger the visual workflow (see [Triggering visual regression](#triggering-visual-regression) below).
 
 ## Pitfalls
 
@@ -213,4 +224,4 @@ detox-artifacts/ios.release.<ts>Z/
 └── …
 ```
 
-The `✗`-prefixed directories are the ones you copy into `e2e/__baselines__/` when [adding a new screenshot](#adding-a-new-screenshot).
+For unmasked screenshots, the `✗`-prefixed directories contain the artifacts you copy into `e2e/__baselines__/` when [adding a new screenshot](#adding-a-new-screenshot). For screenshots using `maskTestIDs`, always use the baseline written by the matcher instead.
