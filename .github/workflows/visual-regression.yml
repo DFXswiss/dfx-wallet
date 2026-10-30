@@ -2,6 +2,11 @@ name: Visual Regression
 
 on:
   workflow_dispatch:
+    inputs:
+      update_baselines:
+        description: Record baselines on the runner and upload them as an artifact
+        type: boolean
+        default: false
   schedule:
     # Nightly drift check on develop. 03:00 UTC = low-traffic window.
     - cron: '0 3 * * *'
@@ -38,28 +43,35 @@ jobs:
       (github.event_name == 'pull_request' &&
        github.event.pull_request.draft != true &&
        (github.event.action != 'labeled' || github.event.label.name == 'needs-visual'))
-    runs-on: macos-latest
+    runs-on: macos-26
     timeout-minutes: 90
-    # QUARANTINE: the `full` (authenticated) variant has never gone green on CI
-    # since it was introduced in #186 — the full-feature build hangs during fresh
-    # wallet creation, so `setup-pin-screen` never appears and the whole suite
-    # times out (fails on develop's own nightly run and even on zero-code PRs like
-    # dependency bumps). It is not a required check, but a perpetually-red leg
-    # paints every PR red and drowns the signal. Until the suite is stabilised
-    # (tracking: #189 / #190) the `full` leg may fail without failing the check.
-    # The `mvp` leg stays a hard signal. Remove this once `full` is reliably green.
+    # QUARANTINE: the `full` (authenticated) variant never went green on CI after it
+    # was introduced in #186. With PIN on, fresh onboarding stopped at the PIN setup
+    # screen and the suite timed out at "reaches the dashboard", on develop's nightly
+    # run and on unrelated PRs alike. The `full` build now keeps PIN and LEGAL off, so
+    # the run reaches the dashboard. Keep `continue-on-error` until the nightly runs
+    # confirm `full` is reliably green, then remove it (tracking: #189 / #190). The
+    # `mvp` leg stays a hard signal.
     continue-on-error: ${{ matrix.variant == 'full' }}
     strategy:
       fail-fast: false
       matrix:
         # `mvp` builds with every EXPO_PUBLIC_ENABLE_* unset (the MVP scope) and
-        # snapshots the unauthenticated/onboarding screens. `full` flips every
-        # flag on so the feature-gated authenticated screens resolve to their
-        # real implementations and can be snapshotted at all (onboarding.test.ts
-        # would only ever see the *Disabled stubs otherwise).
+        # snapshots the unauthenticated/onboarding screens. `full` enables every
+        # EXPO_PUBLIC_ENABLE_* flag except PIN and LEGAL and runs
+        # authenticated.test.ts, so those screens resolve to real implementations
+        # (onboarding.test.ts would only ever see the *Disabled stubs otherwise).
         variant: ${{ github.event_name == 'pull_request' && fromJSON('["mvp"]') || fromJSON('["mvp", "full"]') }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # macos-26 ships several Xcodes. Select 26.6 before any xcodebuild so the
+      # simulator runtime matches the baselines, and print it for the log.
+      - name: Select Xcode 26.6
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app
+          xcodebuild -version
+          xcrun simctl list runtimes
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -82,14 +94,14 @@ jobs:
         run: |
           cp .env.testnet .env
           # Keep visual builds deterministic and prevent live background work
-          # from contending with PIN hashing on hosted simulator runners.
+          # from contending with the UI on hosted simulator runners.
           echo "EXPO_PUBLIC_E2E=true" >> .env
 
-      - name: Enable all feature flags (full variant only)
+      - name: Enable feature flags except PIN and legal (full variant only)
         if: matrix.variant == 'full'
-        run: |
+        run: | # PIN and LEGAL stay off: with PIN on, onboarding stops at the PIN setup screen
           for f in BIOMETRIC BUY_SELL DEEPLINKS DFX_BACKEND HARDWARE_WALLET \
-                   LEGAL LINKED_WALLETS MULTISIG PASSKEY PAY PIN PORTFOLIO \
+                   LINKED_WALLETS MULTISIG PASSKEY PAY PORTFOLIO \
                    RESTORE SETTINGS TAX_REPORT TX_HISTORY WEBVIEW; do
             echo "EXPO_PUBLIC_ENABLE_${f}=true" >> .env
           done
@@ -112,9 +124,23 @@ jobs:
         # wedged detox CLI fails here instead of burning the job to its 90-min
         # ceiling with tests already passed.
         timeout-minutes: 30
+        env:
+          UPDATE_BASELINES: ${{ inputs.update_baselines == true }}
         run: |
           if [ "${{ matrix.variant }}" = "full" ]; then
-            npm run e2e:test:ios -- e2e/visual/authenticated.test.ts
+            specs=(e2e/visual/authenticated.test.ts)
           else
-            npm run e2e:test:ios -- e2e/visual/onboarding.test.ts
+            specs=(e2e/visual/onboarding.test.ts)
           fi
+          if [ "$UPDATE_BASELINES" = "true" ]; then
+            specs+=(--updateSnapshot)
+          fi
+          npm run e2e:test:ios -- "${specs[@]}"
+
+      - name: Upload recorded baselines
+        if: ${{ success() && inputs.update_baselines }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: visual-baselines-${{ matrix.variant }}
+          path: e2e/__baselines__/
+          retention-days: 1

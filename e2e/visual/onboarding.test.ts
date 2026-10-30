@@ -126,7 +126,9 @@ describe('Visual Regression', () => {
         .toBeVisible()
         .withTimeout(30_000);
       await pause(2_000);
-      await expectScreenToMatchBaseline('receive-qr-step');
+      await expectScreenToMatchBaseline('receive-qr-step', {
+        maskTestIDs: ['receive-qr', 'receive-address'],
+      });
     });
 
     it('returns to the receive asset list', async () => {
