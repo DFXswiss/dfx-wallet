@@ -223,8 +223,8 @@ jobs:
       # paths; the @react-navigation/core parser that calls queryString.parse is replaced by
       # that fork, and the app's deep-link handler uses Linking.parse. No call of the decoder
       # on untrusted input is known; the advisory affects availability only. Remove this entry
-      # once no decode-uri-component <0.5.1 is left in the lockfile; expo-router 55 to 58 still
-      # pull query-string 7, so an Expo upgrade alone does not remove it.
+      # once no decode-uri-component <0.5.1 is left in the lockfile; expo-router 58.0.13 and
+      # @react-navigation/core 7.24.0 no longer depend on query-string.
       # Unidentified advisories, unresolved package references and unknown via types fail closed.
       # The classifier is validated against synthetic audit fixtures so a
       # refactor cannot quietly stop catching mixed-severity or fail-closed cases.
