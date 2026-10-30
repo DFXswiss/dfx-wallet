@@ -1,4 +1,4 @@
-import { TextStyle } from 'react-native';
+import { Platform, TextStyle } from 'react-native';
 
 export const Typography = {
   headlineLarge: {
@@ -31,4 +31,14 @@ export const Typography = {
     fontWeight: '400',
     lineHeight: 16,
   } as TextStyle,
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  } as TextStyle,
 } as const;
+
+// iOS has no family named "monospace" and falls back to a proportional face.
+export const MonospaceFontFamily = Platform.select({ ios: 'Menlo', default: 'monospace' });

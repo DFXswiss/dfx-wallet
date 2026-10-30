@@ -1,15 +1,26 @@
-appId: swiss.dfx.wallet
+appId: ${APP_ID}
 name: 01-welcome
 tags:
   - smoke
   - onboarding
+  - mvp
 ---
 - launchApp:
     clearState: true
     clearKeychain: true
-- assertVisible:
-    id: "welcome-screen"
+# Belt-and-suspenders for the Android emulator: in case the
+# Pixel-Launcher disable in the workflow does not take effect (e.g.
+# on a future AVD without launcher3 as fallback), dismiss any ANR
+# dialog that still overlays the app. 'optional: true' makes this a
+# no-op on iOS and when the dialog does not appear.
+- tapOn:
+    text: "Wait"
+    optional: true
+# Cold boot warms the WDK worklet; wait for the first screen instead of
+# asserting against the short default timeout (avoids a flaky boot race).
+- extendedWaitUntil:
+    visible:
+      id: "welcome-screen"
+    timeout: 30000
 - assertVisible:
     id: "welcome-create-wallet-button"
-- assertVisible:
-    id: "welcome-restore-toggle"

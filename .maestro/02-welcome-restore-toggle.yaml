@@ -1,0 +1,22 @@
+appId: ${APP_ID}
+name: 02-welcome-restore-toggle
+tags:
+  - smoke
+  - onboarding
+  - feature-restore
+---
+# welcome-restore-toggle is only rendered when EXPO_PUBLIC_ENABLE_RESTORE
+# or EXPO_PUBLIC_ENABLE_PASSKEY is set. With both off (the MVP build),
+# the welcome screen has the Create-Wallet button only; this flow runs
+# whenever restore-style onboarding gets shipped.
+- launchApp:
+    clearState: true
+    clearKeychain: true
+# Cold boot warms the WDK worklet; wait for the first screen instead of
+# asserting against the short default timeout (avoids a flaky boot race).
+- extendedWaitUntil:
+    visible:
+      id: "welcome-screen"
+    timeout: 30000
+- assertVisible:
+    id: "welcome-restore-toggle"

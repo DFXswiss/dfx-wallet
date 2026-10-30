@@ -1,5 +1,6 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
-import { DfxColors, Typography } from '@/theme';
+import { useMemo, type ReactNode } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type Props = {
   title: string;
@@ -8,6 +9,7 @@ type Props = {
   loading?: boolean;
   variant?: 'filled' | 'outlined';
   testID?: string;
+  icon?: ReactNode;
 };
 
 export function PrimaryButton({
@@ -17,8 +19,11 @@ export function PrimaryButton({
   loading,
   variant = 'filled',
   testID,
+  icon,
 }: Props) {
   const isFilled = variant === 'filled';
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
     <Pressable
@@ -34,42 +39,57 @@ export function PrimaryButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isFilled ? DfxColors.white : DfxColors.primary} />
+        <ActivityIndicator color={isFilled ? colors.white : colors.primary} />
       ) : (
-        <Text style={[styles.text, !isFilled && styles.outlinedText]}>{title}</Text>
+        <View style={styles.content}>
+          <Text style={[styles.text, !isFilled && styles.outlinedText]}>{title}</Text>
+          {icon}
+        </View>
       )}
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  button: {
-    height: 56,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  filled: {
-    backgroundColor: DfxColors.primary,
-  },
-  outlined: {
-    backgroundColor: DfxColors.transparent,
-    borderWidth: 1,
-    borderColor: DfxColors.primary,
-  },
-  disabled: {
-    opacity: 0.5,
-  },
-  pressed: {
-    opacity: 0.8,
-  },
-  text: {
-    ...Typography.bodyLarge,
-    fontWeight: '600',
-    color: DfxColors.white,
-  },
-  outlinedText: {
-    color: DfxColors.primary,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    button: {
+      height: 56,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+    },
+    content: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    filled: {
+      backgroundColor: colors.primary,
+      shadowColor: colors.primaryDark,
+      shadowOpacity: 0.22,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 7 },
+      elevation: 3,
+    },
+    outlined: {
+      backgroundColor: colors.cardOverlay,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    disabled: {
+      opacity: 0.5,
+    },
+    pressed: {
+      opacity: 0.88,
+      transform: [{ scale: 0.99 }],
+    },
+    text: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.white,
+    },
+    outlinedText: {
+      color: colors.primary,
+    },
+  });

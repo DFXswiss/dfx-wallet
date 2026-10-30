@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { DfxColors } from '@/theme';
+import { useColors } from '@/theme';
 
 type Props = {
   value: string;
@@ -8,13 +8,14 @@ type Props = {
 };
 
 export function QrCode({ value, size = 200 }: Props) {
+  const colors = useColors();
   return (
     <View style={styles.container}>
       <QRCode
         value={value || ' '}
         size={size}
-        backgroundColor={DfxColors.white}
-        color={DfxColors.black}
+        backgroundColor={colors.white}
+        color={colors.black}
         quietZone={16}
       />
     </View>

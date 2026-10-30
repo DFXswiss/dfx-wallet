@@ -1,0 +1,195 @@
+diff --git a/node_modules/@tetherto/wdk-react-native-core/dist/hooks/useAddressLoader.d.ts b/node_modules/@tetherto/wdk-react-native-core/dist/hooks/useAddressLoader.d.ts
+new file mode 100644
+index 0000000..88341cc
+--- /dev/null
++++ b/node_modules/@tetherto/wdk-react-native-core/dist/hooks/useAddressLoader.d.ts
+@@ -0,0 +1,10 @@
++export interface UseAddressLoaderParams {
++    network: string;
++    accountIndex: number;
++}
++export interface UseAddressLoaderResult {
++    address: string | null;
++    isLoading: boolean;
++    error: Error | null;
++}
++export declare function useAddressLoader({ network, accountIndex, }: UseAddressLoaderParams): UseAddressLoaderResult;
+diff --git a/node_modules/@tetherto/wdk-react-native-core/dist/hooks/useAddressLoader.js b/node_modules/@tetherto/wdk-react-native-core/dist/hooks/useAddressLoader.js
+new file mode 100644
+index 0000000..6abe48a
+--- /dev/null
++++ b/node_modules/@tetherto/wdk-react-native-core/dist/hooks/useAddressLoader.js
+@@ -0,0 +1,97 @@
++// Copyright 2026 Tether Operations Limited
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++import { useEffect, useMemo, useRef, useState } from 'react';
++import { useShallow } from 'zustand/react/shallow';
++import { AddressService } from '../services/addressService';
++import { getWalletStore } from '../store/walletStore';
++import { logError } from '../utils/logger';
++// `getAddress` for a blockchain with no registered wallet rejects on every
++// call. This effect re-runs on each failure (the per-key loading flag flips
++// true -> false while `address` stays null), so without a cap it respawns the
++// load thousands of times a second and starves the JS thread. Allow a few
++// attempts to ride out a transient/warmup error, then stop until an input
++// changes.
++const MAX_LOAD_ATTEMPTS = 5;
++export function useAddressLoader({ network, accountIndex, }) {
++    const walletStore = getWalletStore();
++    const [error, setError] = useState(null);
++    const attemptsRef = useRef(0);
++    const attemptsKeyRef = useRef('');
++    const { activeWalletId, address, isAddressLoadingInStore } = walletStore(useShallow((state) => {
++        const walletId = state.activeWalletId;
++        if (!walletId) {
++            return {
++                activeWalletId: null,
++                address: null,
++                isAddressLoadingInStore: false,
++            };
++        }
++        const key = `${network}-${accountIndex}`;
++        return {
++            activeWalletId: walletId,
++            address: state.addresses[walletId]?.[network]?.[accountIndex] || null,
++            isAddressLoadingInStore: state.walletLoading[walletId]?.[key] || false,
++        };
++    }));
++    useEffect(() => {
++        // Reset the attempt counter whenever the load identity changes so a
++        // genuinely new address load starts with a fresh budget.
++        const attemptsKey = `${activeWalletId}-${network}-${accountIndex}`;
++        if (attemptsKeyRef.current !== attemptsKey) {
++            attemptsKeyRef.current = attemptsKey;
++            attemptsRef.current = 0;
++        }
++        const shouldLoad = activeWalletId &&
++            !address &&
++            !isAddressLoadingInStore &&
++            attemptsRef.current < MAX_LOAD_ATTEMPTS;
++        if (!shouldLoad) {
++            return;
++        }
++        // Count the attempt up-front: getAddress sets the per-key loading flag,
++        // which re-runs this effect and cancels the in-flight closure before its
++        // rejection lands, so incrementing inside the catch never sticks.
++        attemptsRef.current += 1;
++        let isCancelled = false;
++        const load = async () => {
++            setError(null);
++            try {
++                await AddressService.getAddress(network, accountIndex, activeWalletId);
++            }
++            catch (e) {
++                if (!isCancelled) {
++                    logError(`[useAddressLoader] Failed to load address for ${network}:${accountIndex}`, e);
++                    setError(e instanceof Error ? e : new Error(String(e)));
++                }
++            }
++        };
++        load();
++        return () => {
++            isCancelled = true;
++        };
++    }, [
++        activeWalletId,
++        network,
++        accountIndex,
++        address,
++        isAddressLoadingInStore,
++    ]);
++    const isLoading = isAddressLoadingInStore && !error;
++    return useMemo(() => ({
++        address,
++        isLoading,
++        error,
++    }), [address, isLoading, error]);
++}
++//# sourceMappingURL=useAddressLoader.js.map
+\ No newline at end of file
+diff --git a/node_modules/@tetherto/wdk-react-native-core/dist/hooks/useAddressLoader.js.map b/node_modules/@tetherto/wdk-react-native-core/dist/hooks/useAddressLoader.js.map
+new file mode 100644
+index 0000000..15100aa
+--- /dev/null
++++ b/node_modules/@tetherto/wdk-react-native-core/dist/hooks/useAddressLoader.js.map
+@@ -0,0 +1 @@
++{"version":3,"file":"useAddressLoader.js","sourceRoot":"","sources":["../../src/hooks/useAddressLoader.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
+diff --git a/node_modules/@tetherto/wdk-react-native-core/src/hooks/useAddressLoader.ts b/node_modules/@tetherto/wdk-react-native-core/src/hooks/useAddressLoader.ts
+index e8cb6d7..a021001 100644
+--- a/node_modules/@tetherto/wdk-react-native-core/src/hooks/useAddressLoader.ts
++++ b/node_modules/@tetherto/wdk-react-native-core/src/hooks/useAddressLoader.ts
+@@ -12,13 +12,21 @@
+ // See the License for the specific language governing permissions and
+ // limitations under the License.
+ 
+-import { useEffect, useMemo, useState } from 'react'
++import { useEffect, useMemo, useRef, useState } from 'react'
+ import { useShallow } from 'zustand/react/shallow'
+ 
+ import { AddressService } from '../services/addressService'
+ import { getWalletStore } from '../store/walletStore'
+ import { logError } from '../utils/logger'
+ 
++// `getAddress` for a blockchain with no registered wallet rejects on every
++// call. This effect re-runs on each failure (the per-key loading flag flips
++// true -> false while `address` stays null), so without a cap it respawns the
++// load thousands of times a second and starves the JS thread. Allow a few
++// attempts to ride out a transient/warmup error, then stop until an input
++// changes.
++const MAX_LOAD_ATTEMPTS = 5
++
+ export interface UseAddressLoaderParams {
+   network: string
+   accountIndex: number
+@@ -36,6 +44,8 @@ export function useAddressLoader({
+ }: UseAddressLoaderParams): UseAddressLoaderResult {
+   const walletStore = getWalletStore()
+   const [error, setError] = useState<Error | null>(null)
++  const attemptsRef = useRef(0)
++  const attemptsKeyRef = useRef('')
+ 
+   const { activeWalletId, address, isAddressLoadingInStore } = walletStore(
+     useShallow((state) => {
+@@ -60,15 +70,29 @@ export function useAddressLoader({
+   )
+ 
+   useEffect(() => {
++    // Reset the attempt counter whenever the load identity changes so a
++    // genuinely new address load starts with a fresh budget.
++    const attemptsKey = `${activeWalletId}-${network}-${accountIndex}`
++    if (attemptsKeyRef.current !== attemptsKey) {
++      attemptsKeyRef.current = attemptsKey
++      attemptsRef.current = 0
++    }
++
+     const shouldLoad =
+       activeWalletId &&
+       !address &&
+-      !isAddressLoadingInStore
++      !isAddressLoadingInStore &&
++      attemptsRef.current < MAX_LOAD_ATTEMPTS
+ 
+     if (!shouldLoad) {
+       return
+     }
+ 
++    // Count the attempt up-front: getAddress sets the per-key loading flag,
++    // which re-runs this effect and cancels the in-flight closure before its
++    // rejection lands, so incrementing inside the catch never sticks.
++    attemptsRef.current += 1
++
+     let isCancelled = false
+ 
+     const load = async () => {
