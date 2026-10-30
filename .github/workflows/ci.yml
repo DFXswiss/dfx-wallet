@@ -215,9 +215,9 @@ jobs:
       # once every resolved zod is >=4.6.6; the Expo SDK 55/56 upgrade with a newer wallet
       # core is the expected way to get there.
       # decode-uri-component GHSA-qr28-fpjm-wq7f: quadratic run time when decoding long runs of
-      # malformed percent-encoded input (affects <=0.5.0, patched 0.5.1). expo-router 6 and
-      # @react-navigation/core 7 reach it through query-string 7.1.3, which requires ^0.2.2;
-      # there is no patched 0.2.x and 0.5.1 is ESM-only, so an override would break
+      # malformed percent-encoded input (affects <=0.5.0, patched 0.5.1). Resolved expo-router
+      # 6.0.23 and @react-navigation/core 7.17.2 reach it through query-string 7.1.3, which
+      # requires ^0.2.2; there is no patched 0.2.x and 0.5.1 is ESM-only, so an override would break
       # query-string's require. Runtime path: expo-router parses incoming links with
       # URL/searchParams in its own getStateFromPath fork and uses query-string only to build
       # paths; the @react-navigation/core parser that calls queryString.parse is replaced by
