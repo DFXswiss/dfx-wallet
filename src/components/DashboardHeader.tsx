@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { BrandLogo } from './BrandLogo';
 import { Icon } from './Icon';
 import { useColors, type ThemeColors } from '@/theme';
@@ -10,6 +11,7 @@ type Props = {
 };
 
 export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
+  const { t } = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -18,7 +20,7 @@ export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
       {onShieldPress ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Multi-Sig"
+          accessibilityLabel={t('common.multiSig')}
           hitSlop={12}
           onPress={onShieldPress}
           style={styles.iconButton}
@@ -33,7 +35,7 @@ export function DashboardHeader({ onMenuPress, onShieldPress }: Props) {
       {onMenuPress ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Menu"
+          accessibilityLabel={t('common.menu')}
           hitSlop={12}
           onPress={onMenuPress}
           style={styles.iconButton}

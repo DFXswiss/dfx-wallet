@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useNetInfo } from '@react-native-community/netinfo';
+import { useTranslation } from 'react-i18next';
 import { useColors, type ThemeColors, Typography } from '@/theme';
 
 /**
@@ -8,6 +9,7 @@ import { useColors, type ThemeColors, Typography } from '@/theme';
  * Mount in the root layout to show across all screens.
  */
 export function OfflineBanner() {
+  const { t } = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const netInfo = useNetInfo();
@@ -16,7 +18,7 @@ export function OfflineBanner() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>No internet connection</Text>
+      <Text style={styles.text}>{t('offline.message')}</Text>
     </View>
   );
 }
@@ -24,13 +26,13 @@ export function OfflineBanner() {
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: {
-      backgroundColor: colors.error,
+      backgroundColor: colors.offlineBanner,
       paddingVertical: 8,
       alignItems: 'center',
     },
     text: {
       ...Typography.bodySmall,
       fontWeight: '600',
-      color: colors.white,
+      color: colors.offlineBannerText,
     },
   });

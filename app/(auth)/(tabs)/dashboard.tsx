@@ -48,7 +48,7 @@ export default function DashboardScreen() {
   const { selectedCurrency } = useWalletStore();
   const { isDfxAuthenticated } = useAuthStore();
   const { authenticate, isAuthenticating } = useDfxAuth();
-  const totalPortfolioFiat = useTotalPortfolioFiat();
+  const { totalFiat: totalPortfolioFiat, isIncomplete } = useTotalPortfolioFiat();
   const colors = useColors();
   const scheme = useResolvedScheme();
   const styles = useMemo(() => makeStyles(colors, scheme), [colors, scheme]);
@@ -97,23 +97,33 @@ export default function DashboardScreen() {
             style={styles.balanceValueRow}
             testID={balanceVisible ? 'dashboard-balance-value' : 'dashboard-balance-hidden'}
           >
-            <Text style={styles.balanceSymbol}>{symbol}</Text>
             {balanceVisible ? (
-              <>
-                <Text style={styles.balanceWhole}>{whole}</Text>
-                <Text style={styles.balanceFraction}>.{fraction}</Text>
-              </>
+              isIncomplete ? (
+                <Text style={styles.balanceWhole}>—</Text>
+              ) : (
+                <>
+                  <Text style={styles.balanceSymbol}>{symbol}</Text>
+                  <Text style={styles.balanceWhole}>{whole}</Text>
+                  <Text style={styles.balanceFraction}>.{fraction}</Text>
+                </>
+              )
             ) : (
-              <Text style={styles.balanceHidden}>••••</Text>
+              <>
+                <Text style={styles.balanceSymbol}>{symbol}</Text>
+                <Text style={styles.balanceHidden}>••••</Text>
+              </>
             )}
           </View>
+          {isIncomplete ? (
+            <Text style={styles.incompleteHint}>{t('dashboard.incompleteBalance')}</Text>
+          ) : null}
         </View>
 
         {(FEATURES.PORTFOLIO || FEATURES.PAY) && (
           <View style={styles.actions}>
             {FEATURES.PORTFOLIO && (
               <ShortcutAction
-                icon={<Icon name="wallet" size={18} color={colors.white} strokeWidth={2.2} />}
+                icon={<Icon name="wallet" size={18} color={colors.onPrimary} strokeWidth={2.2} />}
                 label={t('dashboard.portfolio')}
                 testID="dashboard-action-portfolio"
                 onPress={() => router.push('/(auth)/portfolio')}
@@ -122,7 +132,7 @@ export default function DashboardScreen() {
             )}
             {FEATURES.PAY && (
               <ShortcutAction
-                icon={<Icon name="grid" size={18} color={colors.white} strokeWidth={2.2} />}
+                icon={<Icon name="grid" size={18} color={colors.onPrimary} strokeWidth={2.2} />}
                 label={t('dashboard.pay')}
                 testID="dashboard-action-pay"
                 onPress={() => router.push('/(auth)/pay')}
@@ -234,6 +244,12 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
       ...Typography.bodyMedium,
       color: colors.textSecondary,
       fontWeight: '500',
+      ...overImage,
+    },
+    incompleteHint: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      marginTop: 4,
       ...overImage,
     },
     balanceEyeBubble: {

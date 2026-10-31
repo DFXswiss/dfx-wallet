@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   computeFiatValue,
   formatBalance,
@@ -6,12 +6,17 @@ import {
   toNumeric,
 } from '@/config/portfolio-presentation';
 import { getAssetMeta, getAssets } from '@/config/tokens';
+import {
+  areLocalPortfolioBalancesComplete,
+  getPortfolioAssetCompleteness,
+  isCombinedPortfolioComplete,
+} from '@/features/portfolio/portfolio-completeness';
+import { useLinkedWalletProfile } from '@/features/portfolio/useLinkedWalletProfile';
 import { getRawBalance, useBalances } from '@/services/balances';
-import { dfxUserService } from '@/features/dfx-backend/services';
-import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { pricingService } from '@/services/pricing-service';
 import { useAuthStore, useWalletStore } from '@/store';
-import { useEnabledChains } from './useEnabledChains';
+import { usePricingSnapshot } from '@/hooks/usePricingSnapshot';
+import { useEnabledChains } from '@/features/portfolio/useEnabledChains';
 import { useLinkedWalletDiscovery } from '@/features/linked-wallets/useLinkedWalletDiscovery';
 import { useLinkedWalletSelection } from '@/features/linked-wallets/useLinkedWalletSelection';
 
@@ -35,58 +40,31 @@ export function useTotalPortfolioFiat() {
   const { isSelected } = useLinkedWalletSelection();
 
   const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const { data: balances } = useBalances(assetConfigs);
-  const [pricingReady, setPricingReady] = useState(pricingService.isReady());
-
-  const [linkedAddresses, setLinkedAddresses] = useState<UserAddressDto[]>([]);
-  const [activeAddress, setActiveAddress] = useState<string | null>(null);
+  const { data: balances, isLoading: balancesLoading } = useBalances(assetConfigs);
+  const pricingRevision = usePricingSnapshot();
+  const pricingReady = pricingService.isReady();
+  const {
+    linkedAddresses,
+    activeAddress,
+    isIncomplete: linkedProfileIncomplete,
+  } = useLinkedWalletProfile(isDfxAuthenticated);
 
   useEffect(() => {
     if (pricingService.isReady()) {
-      setPricingReady(true);
       return;
     }
-    void pricingService
-      .initialize()
-      .then(() => setPricingReady(true))
-      .catch(() => setPricingReady(false));
+    void pricingService.initialize().catch(() => undefined);
   }, []);
 
-  // Pull the DFX user once on dashboard mount (and on auth state changes)
-  // so the linked-wallets balance hook can fan out without each consumer
-  // having to bring its own fetch.
-  useEffect(() => {
-    if (!isDfxAuthenticated) {
-      setLinkedAddresses([]);
-      setActiveAddress(null);
-      return;
-    }
-    let cancelled = false;
-    void dfxUserService
-      .getUser()
-      .then((user) => {
-        if (cancelled) return;
-        setLinkedAddresses(user.addresses ?? []);
-        setActiveAddress(user.activeAddress?.address ?? null);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setLinkedAddresses([]);
-        setActiveAddress(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isDfxAuthenticated]);
-
   const linkedWallets = useMemo(() => {
+    if (!isDfxAuthenticated) return [];
     const lcActive = activeAddress?.toLowerCase() ?? null;
     return linkedAddresses.filter((a) => {
       const lc = a.address.toLowerCase();
       if (lc === lcActive) return false;
       return isSelected(a.address);
     });
-  }, [linkedAddresses, activeAddress, isSelected]);
+  }, [linkedAddresses, activeAddress, isDfxAuthenticated, isSelected]);
 
   const fiatCurrency = resolveFiatCurrency(selectedCurrency);
 
@@ -96,26 +74,62 @@ export function useTotalPortfolioFiat() {
     pricingReady,
   );
 
-  const totalFiat = useMemo(() => {
+  const result = useMemo(() => {
+    void pricingRevision;
     let sum = 0;
+    const localBalancesComplete = areLocalPortfolioBalancesComplete({
+      assets: assetConfigs,
+      balances,
+      isLoading: balancesLoading,
+      pricingReady,
+      fiatCurrency,
+    });
     for (const asset of assetConfigs) {
       const meta = getAssetMeta(asset.getId());
       if (!meta || meta.category === 'native') continue;
       const rawBalance = getRawBalance(balances, asset.getId());
       const balanceNum = toNumeric(formatBalance(rawBalance, asset.getDecimals()));
+      const completeness = getPortfolioAssetCompleteness({
+        asset,
+        balanceEntry: balances.get(asset.getId()),
+        balance: balanceNum,
+        canonicalSymbol: meta.canonicalSymbol,
+        fiatCurrency,
+        pricingReady,
+      });
+      if (!completeness.isQueried) continue;
       sum += computeFiatValue(balanceNum, meta.canonicalSymbol, fiatCurrency, pricingReady);
     }
     for (const wallet of linkedWallets) {
       const entry = linkedDiscovery.get(wallet.address.toLowerCase());
       if (entry?.known) sum += entry.totalFiat;
     }
-    return sum;
-  }, [assetConfigs, balances, fiatCurrency, pricingReady, linkedWallets, linkedDiscovery]);
+    const isComplete = isCombinedPortfolioComplete({
+      localBalancesComplete,
+      linkedProfileIncomplete,
+      linkedWalletAddresses: linkedWallets.map((wallet) => wallet.address),
+      linkedDiscovery,
+    });
+    return { totalFiat: sum, isIncomplete: !isComplete };
+  }, [
+    assetConfigs,
+    balances,
+    balancesLoading,
+    fiatCurrency,
+    pricingReady,
+    pricingRevision,
+    linkedWallets,
+    linkedDiscovery,
+    linkedProfileIncomplete,
+  ]);
 
   useEffect(() => {
-    const formatted = Number.isFinite(totalFiat) ? Math.round(totalFiat * 100) / 100 : 0;
+    if (result.isIncomplete) return;
+    const formatted = Number.isFinite(result.totalFiat)
+      ? Math.round(result.totalFiat * 100) / 100
+      : 0;
     setTotalBalanceFiat(String(formatted));
-  }, [totalFiat, setTotalBalanceFiat]);
+  }, [result.isIncomplete, result.totalFiat, setTotalBalanceFiat]);
 
-  return totalFiat;
+  return result;
 }

@@ -77,7 +77,7 @@ const SHORT = 'short-addr';
 
 const VAULT: MultiSigVault = {
   id: 'vault-1',
-  name: 'Family vault',
+  name: 'Family plan',
   required: 2,
   total: 3,
   createdAt: 1,
@@ -122,25 +122,25 @@ describe('MultiSigManageScreenImpl', () => {
     expect(mockBack).toHaveBeenCalled();
   });
 
-  it('lists vaults, truncates long addresses, keeps short ones, and uses the label fallback', () => {
+  it('lists saved plans, truncates long addresses, keeps short ones, and uses the label fallback', () => {
     useMultiSigStore.setState({ vaults: [VAULT] });
     const { getByTestId, getByText } = renderScreen();
     expect(getByTestId('vault-vault-1')).toBeTruthy();
-    expect(getByText('Family vault')).toBeTruthy();
+    expect(getByText('Family plan')).toBeTruthy();
     expect(getByText('Alice')).toBeTruthy();
     expect(getByText('multiSig.manage.cosignerLabel:{"n":2}')).toBeTruthy();
     expect(getByText(`${LONG.slice(0, 8)}…${LONG.slice(-6)}`)).toBeTruthy();
     expect(getByText(SHORT)).toBeTruthy();
   });
 
-  it('adds another vault from the filled list', () => {
+  it('adds another plan from the filled list', () => {
     useMultiSigStore.setState({ vaults: [VAULT] });
     const { getByTestId } = renderScreen();
     fireEvent.press(getByTestId('multi-sig-add-another'));
     expect(mockPush).toHaveBeenCalledWith('/(auth)/multi-sig/setup');
   });
 
-  it('removes a vault when the destructive alert is confirmed', () => {
+  it('removes a plan when the destructive alert is confirmed', () => {
     useMultiSigStore.setState({ vaults: [VAULT] });
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
       const confirm = (buttons as { onPress?: () => void }[])[1];
@@ -152,7 +152,7 @@ describe('MultiSigManageScreenImpl', () => {
     expect(useMultiSigStore.getState().vaults).toEqual([]);
   });
 
-  it('keeps the vault when the remove alert is cancelled', () => {
+  it('keeps the plan when the remove alert is cancelled', () => {
     useMultiSigStore.setState({ vaults: [VAULT] });
     jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
       const cancel = (buttons as { onPress?: () => void }[])[0];

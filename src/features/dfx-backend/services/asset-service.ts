@@ -27,7 +27,13 @@ let cache: Promise<DfxAsset[]> | null = null;
 export class DfxAssetService {
   /** Fetch all DFX-supported assets. Cached per app session. */
   list(): Promise<DfxAsset[]> {
-    cache ??= dfxApi.getPublic<DfxAsset[]>('/v1/asset');
+    if (!cache) {
+      const request = dfxApi.getPublic<DfxAsset[]>('/v1/asset');
+      cache = request;
+      void request.catch(() => {
+        if (cache === request) cache = null;
+      });
+    }
     return cache;
   }
 
