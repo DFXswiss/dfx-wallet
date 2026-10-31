@@ -1,8 +1,11 @@
 import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { LOCAL_SESSION_ENDED_MESSAGE } from '@/features/dfx-backend/session-guard';
+import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
 
 const mockGetUser = jest.fn();
 const mockPush = jest.fn();
+let mockAuthError: string | null = null;
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -33,7 +36,7 @@ jest.mock('@/hooks', () => ({
   useDfxAuth: () => ({
     reauthenticateAsOwner: jest.fn(),
     isAuthenticating: false,
-    error: null,
+    error: mockAuthError,
   }),
 }));
 
@@ -49,6 +52,7 @@ import EmailScreenImpl from '@/features/dfx-backend/screens/EmailScreenImpl';
 
 describe('EmailScreenImpl', () => {
   beforeEach(() => {
+    mockAuthError = null;
     mockGetUser.mockReset();
     mockPush.mockReset();
     mockGetUser.mockResolvedValue({ mail: 'user@example.com', phone: '+41000000000' });
@@ -62,5 +66,24 @@ describe('EmailScreenImpl', () => {
 
     fireEvent.press(editActions[0]!);
     expect(mockPush).toHaveBeenCalledWith('/(auth)/kyc');
+  });
+
+  it('hides a session-ended or invalidated auth error on the merged account', async () => {
+    const services = jest.requireMock('@/features/dfx-backend/services') as {
+      DfxApiError: new (message: string) => Error;
+    };
+    mockGetUser.mockRejectedValue(new services.DfxApiError('User is merged'));
+    const messages = [
+      LOCAL_SESSION_ENDED_MESSAGE,
+      new DfxAuthFlowInvalidatedError().message,
+    ];
+
+    for (const message of messages) {
+      mockAuthError = message;
+      const view = render(<EmailScreenImpl />);
+      await waitFor(() => expect(view.getByText('wallets.mergedExplanation')).toBeTruthy());
+      expect(view.queryByText(message)).toBeNull();
+      view.unmount();
+    }
   });
 });

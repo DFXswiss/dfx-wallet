@@ -4,9 +4,15 @@ import { useDfxAuth } from '@/features/dfx-backend/useDfxAuthImpl';
 
 const mockLogin = jest.fn();
 const mockRefresh = jest.fn();
+const mockGetAccessToken = jest.fn(() => null as string | null);
 const mockSecureSet = jest.fn();
 const mockSetDfxAuthenticated = jest.fn();
 const mockSign = jest.fn();
+const mockAuthState = {
+  isAuthenticated: true,
+  isOnboarded: true,
+  sessionEpoch: 1,
+};
 
 jest.mock('@tetherto/wdk-react-native-core', () => ({
   useAccount: () => ({ address: '0xaccount', sign: mockSign }),
@@ -16,6 +22,7 @@ jest.mock('@/features/dfx-backend/services', () => ({
   dfxAuthService: {
     login: (...args: unknown[]) => mockLogin(...args),
     refresh: (...args: unknown[]) => mockRefresh(...args),
+    getAccessToken: () => mockGetAccessToken(),
   },
 }));
 
@@ -30,21 +37,31 @@ jest.mock('@/services/storage', () => ({
 }));
 
 jest.mock('@/store', () => ({
-  useAuthStore: () => ({ setDfxAuthenticated: mockSetDfxAuthenticated }),
+  useAuthStore: Object.assign(() => ({ setDfxAuthenticated: mockSetDfxAuthenticated }), {
+    getState: () => mockAuthState,
+  }),
 }));
 
 describe('useDfxAuth', () => {
   beforeEach(() => {
     mockLogin.mockReset();
     mockRefresh.mockReset();
+    mockGetAccessToken.mockReset();
+    mockGetAccessToken.mockReturnValue(null);
     mockSecureSet.mockReset();
     mockSetDfxAuthenticated.mockReset();
     mockSign.mockReset();
     mockSign.mockResolvedValue({ success: true, signature: 'SIGNATURE' });
+    mockAuthState.isAuthenticated = true;
+    mockAuthState.isOnboarded = true;
+    mockAuthState.sessionEpoch = 1;
   });
 
   it('forwards the API auth generation through the silent refresh path', async () => {
-    mockRefresh.mockResolvedValue('REFRESHED_TOKEN');
+    mockRefresh.mockImplementation(async () => {
+      mockGetAccessToken.mockReturnValue('REFRESHED_TOKEN');
+      return 'REFRESHED_TOKEN';
+    });
     const { result } = renderHook(() => useDfxAuth());
 
     let token: string | null = null;

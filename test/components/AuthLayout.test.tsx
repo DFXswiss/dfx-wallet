@@ -28,6 +28,11 @@ jest.mock('@/features/dfx-backend/services', () => {
   return { dfxApi: { setOnUnauthorized }, __spies: { setOnUnauthorized } };
 });
 
+const mockUseAutoLock = jest.fn();
+jest.mock('@/hooks/useAutoLock', () => ({
+  useAutoLock: () => mockUseAutoLock(),
+}));
+
 const mockSegments: { current: string[] } = { current: ['(auth)', '(tabs)', 'dashboard'] };
 jest.mock('expo-router', () => {
   const { Text } = jest.requireActual('react-native');
@@ -51,6 +56,7 @@ describe('AuthLayout', () => {
   beforeEach(() => {
     Object.values(hookSpies).forEach((s) => s.mockReset());
     Object.values(dfxSpies).forEach((s) => s.mockReset());
+    mockUseAutoLock.mockReset();
     useAuthStore.setState({ isAuthenticated: false });
     mockSegments.current = ['(auth)', '(tabs)', 'dashboard'];
   });
@@ -69,11 +75,21 @@ describe('AuthLayout', () => {
     expect(getByTestId('stack-rendered')).toBeTruthy();
   });
 
-  it('wires the silent 401 handler + auto-link hook once the user is authenticated', () => {
+  it('wires the silent 401 handler and auto-link without auto-lock', () => {
     useAuthStore.setState({ isAuthenticated: true });
     render(<AuthLayout />);
     expect(dfxSpies.setOnUnauthorized).toHaveBeenCalledWith(hookSpies.authenticateSilent);
     expect(hookSpies.useDfxAutoLinkSpy).toHaveBeenCalled();
+    expect(mockUseAutoLock).toHaveBeenCalledTimes(0);
+  });
+
+  it('unregisters the silent 401 handler when the authenticated layout unmounts', () => {
+    useAuthStore.setState({ isAuthenticated: true });
+    const view = render(<AuthLayout />);
+
+    view.unmount();
+
+    expect(dfxSpies.setOnUnauthorized).toHaveBeenLastCalledWith(null);
   });
 
   it('invokes useDeepLink on every render (unconditional hook call)', () => {

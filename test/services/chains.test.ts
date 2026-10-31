@@ -95,4 +95,37 @@ describe('getWdkConfigs', () => {
     const configs = getWdkConfigs();
     expect(configs.networks.sepolia?.config.chainId).toBe(11155111);
   });
+
+  it('uses TLS and the secure default port for Bitcoin Electrum', () => {
+    const originalPort = process.env.EXPO_PUBLIC_BTC_ELECTRUM_PORT;
+    delete process.env.EXPO_PUBLIC_BTC_ELECTRUM_PORT;
+    try {
+      const configs = getWdkConfigs();
+      expect(configs.networks.bitcoin?.config.client).toEqual({
+        type: 'electrum',
+        clientConfig: {
+          host: process.env.EXPO_PUBLIC_BTC_ELECTRUM_HOST ?? 'electrum.blockstream.info',
+          port: 50002,
+          protocol: 'tls',
+        },
+      });
+    } finally {
+      if (originalPort === undefined) delete process.env.EXPO_PUBLIC_BTC_ELECTRUM_PORT;
+      else process.env.EXPO_PUBLIC_BTC_ELECTRUM_PORT = originalPort;
+    }
+  });
+
+  it('keeps the Bitcoin Electrum port override while using TLS', () => {
+    const originalPort = process.env.EXPO_PUBLIC_BTC_ELECTRUM_PORT;
+    process.env.EXPO_PUBLIC_BTC_ELECTRUM_PORT = '60002';
+    try {
+      const configs = getWdkConfigs();
+      expect(configs.networks.bitcoin?.config.client).toMatchObject({
+        clientConfig: { port: 60002, protocol: 'tls' },
+      });
+    } finally {
+      if (originalPort === undefined) delete process.env.EXPO_PUBLIC_BTC_ELECTRUM_PORT;
+      else process.env.EXPO_PUBLIC_BTC_ELECTRUM_PORT = originalPort;
+    }
+  });
 });

@@ -4,6 +4,7 @@ import {
   isPasskeySupported,
   createPasskey,
   authenticatePasskey,
+  PasskeyCredentialMismatchError,
   PasskeyPrfUnsupportedError,
 } from '../../src/features/passkey/services/passkey-service';
 
@@ -174,7 +175,32 @@ describe('authenticatePasskey', () => {
     const arg = mockPasskey.get.mock.calls[0][0];
     expect(arg.rpId).toBe('dfx.swiss');
     expect(arg.userVerification).toBe('required');
+    expect(arg.allowCredentials).toBeUndefined();
     expect(arg.extensions.prf.eval.first).toBeInstanceOf(Uint8Array);
+  });
+
+  it('restricts authentication to the provided credential ID', async () => {
+    mockPasskey.get.mockResolvedValue({
+      id: 'cred-y',
+      clientExtensionResults: { prf: { results: { first: RAW } } },
+    });
+
+    await authenticatePasskey({ credentialId: 'cred-y' });
+
+    expect(mockPasskey.get.mock.calls[0][0].allowCredentials).toEqual([
+      { id: 'cred-y', type: 'public-key' },
+    ]);
+  });
+
+  it('rejects an authenticator result for a different credential ID', async () => {
+    mockPasskey.get.mockResolvedValue({
+      id: 'cred-other',
+      clientExtensionResults: { prf: { results: { first: RAW } } },
+    });
+
+    await expect(authenticatePasskey({ credentialId: 'cred-expected' })).rejects.toBeInstanceOf(
+      PasskeyCredentialMismatchError,
+    );
   });
 
   it('propagates PasskeyPrfUnsupportedError when the authenticator omits PRF', async () => {
