@@ -15,7 +15,7 @@ This is a **local-only, stateless** design. No server interaction, no Nostr rela
 │ 1. Passkey Creation (WebAuthn)                                      │
 │                                                                     │
 │    navigator.credentials.create({                                   │
-│      rp: { id: "dfx.swiss" },                                      │
+│      rp: { id: "passkey.wallet.dfx.swiss" },                       │
 │      extensions: { prf: { eval: { first: salt } } }                │
 │    })                                                               │
 │                                                                     │
@@ -86,15 +86,15 @@ The Breez SDK (launched March 2026) validated this approach for Bitcoin Lightnin
 ### Relying Party
 
 ```
-rpId: "dfx.swiss"
+rpId: "passkey.wallet.dfx.swiss"
 rpName: "DFX Wallet"
 ```
 
-The rpId is set to the top-level domain `dfx.swiss` (not a subdomain like `wallet.dfx.swiss`). This means:
+The rpId is the dedicated host `passkey.wallet.dfx.swiss`. This means:
 
-- Any subdomain of dfx.swiss can use the same passkey (future web app, other services)
+- Only this host (and its subdomains) can use the passkey
 - The rpId can never be changed — all existing passkeys would become invalid
-- Associated Domains must be configured on `https://dfx.swiss/.well-known/`
+- Associated Domains must be configured on `https://passkey.wallet.dfx.swiss/.well-known/`
 
 ### User Identity
 
@@ -104,7 +104,7 @@ user.name:        "DFX Wallet"
 user.displayName: "DFX Wallet"
 ```
 
-No PII (email, phone) is used. The user sees "dfx.swiss — DFX Wallet" in their passkey manager.
+No PII (email, phone) is used. The user sees "passkey.wallet.dfx.swiss — DFX Wallet" in their passkey manager.
 
 ### Authenticator Selection
 
@@ -136,24 +136,23 @@ Passkeys in native apps require server-side verification files.
 
 ### iOS — Apple App Site Association
 
-File: `https://dfx.swiss/.well-known/apple-app-site-association`
+File: `https://passkey.wallet.dfx.swiss/.well-known/apple-app-site-association`
 
 ```json
 {
   "webcredentials": {
-    "apps": ["<TEAM_ID>.swiss.dfx.wallet"]
+    "apps": ["Y4QBY6387T.wallet.dfx.swiss"]
   }
 }
 ```
 
-- `<TEAM_ID>` is the Apple Developer Team ID from the signing certificate
+- The app ID is the Apple Developer Team ID (`appleTeamId`) followed by the iOS bundle identifier from `app.json`
 - Must be served with `Content-Type: application/json`
 - No redirects allowed — must be served directly from the domain
-- Hosted in the `DFXswiss/landing-page` repo under `.well-known/`
 
 ### Android — Asset Links
 
-File: `https://dfx.swiss/.well-known/assetlinks.json`
+File: `https://passkey.wallet.dfx.swiss/.well-known/assetlinks.json`
 
 ```json
 [{
@@ -196,14 +195,14 @@ The mnemonic is cached locally after derivation. This means:
 | Rooted/jailbroken device | expo-secure-store readable → mnemonic exposed | Same as current seed-based model — no regression |
 | Passkey deleted without backup | Wallet funds permanently lost | Seed export available in Settings; warning shown at creation and deletion |
 | Authenticator without PRF support | Wallet creation fails | Error caught, user redirected to seed phrase flow |
-| rpId domain change | All passkeys invalid | rpId set to stable top-level domain `dfx.swiss` |
+| rpId domain change | All passkeys invalid | rpId set to the stable dedicated host `passkey.wallet.dfx.swiss` |
 | CTAP2 transport interception | PRF salt/output visible on USB/NFC | CTAP2 encrypts hmac-secret via ECDH (PIN/UV Auth Protocol) |
 
 ### PRF Security Properties
 
 - **Deterministic**: Same credential + same salt = same output, always
 - **Credential-bound**: Different credentials with the same salt produce different outputs
-- **Origin-bound**: Only `dfx.swiss` (and subdomains) can evaluate the PRF
+- **Origin-bound**: Only `passkey.wallet.dfx.swiss` (and its subdomains) can evaluate the PRF
 - **User-verified**: Every PRF evaluation requires biometric/PIN interaction
 - **Hardware-backed**: The CredRandom key never leaves the Secure Enclave
 

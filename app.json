@@ -22,7 +22,7 @@
       "bundleIdentifier": "wallet.dfx.swiss",
       "appleTeamId": "Y4QBY6387T",
       "deploymentTarget": "18.0",
-      "associatedDomains": ["webcredentials:dfx.swiss?mode=developer"],
+      "associatedDomains": ["webcredentials:passkey.wallet.dfx.swiss?mode=developer"],
       "infoPlist": {
         "NSBluetoothAlwaysUsageDescription": "Bluetooth is needed to connect to BitBox02 Nova hardware wallet.",
         "NSBluetoothPeripheralUsageDescription": "Bluetooth is needed to connect to BitBox02 Nova hardware wallet.",
