@@ -14,7 +14,7 @@ import {
   ScreenBackdrop,
 } from '@/components';
 import { useMultiSigStore } from './store';
-import { Radius, Typography, useColors, type ThemeColors } from '@/theme';
+import { MonospaceFontFamily, Radius, Typography, useColors, type ThemeColors } from '@/theme';
 
 type Step = 'intro' | 'concept' | 'quorum' | 'cosigners' | 'backup' | 'success';
 
@@ -821,7 +821,7 @@ const makeStyles = (colors: ThemeColors) =>
       letterSpacing: 1,
     },
     input: {
-      fontFamily: 'monospace',
+      fontFamily: MonospaceFontFamily,
     },
     helperHint: {
       ...Typography.bodySmall,

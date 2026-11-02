@@ -25,7 +25,7 @@ import {
 } from '@/components';
 import { CHAIN_LABELS } from '@/config/portfolio-presentation';
 import { dfxTransactionService, type TransactionDto } from '@/features/dfx-backend/services';
-import { Layout, Typography, useColors, type ThemeColors } from '@/theme';
+import { Layout, MonospaceFontFamily, Typography, useColors, type ThemeColors } from '@/theme';
 
 type FilterType = 'all' | 'in' | 'out' | 'pay';
 

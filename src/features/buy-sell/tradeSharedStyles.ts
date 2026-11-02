@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { Typography, type ThemeColors } from '@/theme';
+import { MonospaceFontFamily, Typography, type ThemeColors } from '@/theme';
 
 /**
  * Styles shared by the post-amount steps of Buy and Sell (payment/bank
@@ -33,7 +33,7 @@ export const makeTradeSharedStyles = (colors: ThemeColors) =>
     copyValue: {
       ...Typography.bodyMedium,
       color: colors.text,
-      fontFamily: 'monospace',
+      fontFamily: MonospaceFontFamily,
     },
     copyValueHighlight: {
       color: colors.primary,
@@ -130,7 +130,7 @@ export const makeTradeSharedStyles = (colors: ThemeColors) =>
       ...Typography.bodyMedium,
       fontWeight: '600',
       color: colors.text,
-      fontFamily: 'monospace',
+      fontFamily: MonospaceFontFamily,
     },
     hint: {
       ...Typography.bodySmall,

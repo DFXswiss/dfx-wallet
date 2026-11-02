@@ -1,5 +1,5 @@
 export { DfxColors, Interaction, lightColors, darkColors, type ThemeColors } from './colors';
-export { Typography } from './typography';
+export { Typography, MonospaceFontFamily } from './typography';
 export {
   Spacing,
   Radius,

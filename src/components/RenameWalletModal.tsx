@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useTranslation } from 'react-i18next';
 import { GlassInputField } from './GlassInputField';
 import { GlassSheet } from './GlassSheet';
-import { useColors, type ThemeColors, Typography } from '@/theme';
+import { useColors, type ThemeColors, Typography, MonospaceFontFamily } from '@/theme';
 
 type Props = {
   visible: boolean;
