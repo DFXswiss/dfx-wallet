@@ -104,6 +104,13 @@ module.exports = {
       displayName: 'components',
       preset: 'jest-expo',
       transform: sharedTransform,
+      // ESM-only dependency of query-string. Babel must emit CJS the way Metro
+      // does. The other entries mirror jest-expo's defaults and must stay in
+      // sync when jest-expo changes.
+      transformIgnorePatterns: [
+        '/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|decode-uri-component))',
+        '/node_modules/react-native-reanimated/plugin/',
+      ],
       testMatch: [
         '<rootDir>/test/components/**/*.test.tsx',
         '<rootDir>/test/hooks/**/*.test.tsx',
