@@ -194,8 +194,6 @@ jobs:
       # dependency tree of a wallet is a merge blocker, not a yellow badge.
       # image-size GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq: patched only in 2.0.3 (repo archived); metro 0.83
       # (Expo SDK 54) needs ^1 and passes file paths, which the 2.x API rejects — allowlist only those.
-      # node-forge GHSA-86w9-cpqp-85rv: no published patched release (affects <=1.4.0, latest 1.4.0);
-      # only reached through expo -> @expo/cli build tooling, not the app bundle — allowlist only that ID.
       # braces GHSA-vfj7-8cjw-p6xm: no published patched release (affects <=3.0.3, latest 3.0.3);
       # only reached through micromatch in jest, metro, @expo/cli and patch-package tooling
       # (patch-package -> find-yarn-workspace-root -> micromatch -> braces), not the app bundle.
@@ -226,7 +224,6 @@ jobs:
           python3 <<'PY'
           import json, re, sys
           ALLOWED = {
-              "GHSA-86W9-CPQP-85RV",
               "GHSA-W3RX-R6R6-PGPR",
               "GHSA-5P2G-FCMC-QVQQ",
               "GHSA-VFJ7-8CJW-P6XM",

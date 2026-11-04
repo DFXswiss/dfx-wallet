@@ -53,7 +53,8 @@ e2e/
 │   ├── pin.ts             # enterPin helper
 │   └── screenshot.ts      # expectScreenToMatchBaseline (the matcher)
 └── visual/
-    └── onboarding.test.ts # the actual `describe` blocks
+    ├── authenticated.test.ts # full variant, authenticated screens
+    └── onboarding.test.ts    # MVP variant
 ```
 
 `expectScreenToMatchBaseline(name)` is the only matcher the test files use:
@@ -90,6 +91,8 @@ npm run e2e:test:ios
 
 The build uses the `ios.release` Detox configuration in `.detoxrc.js` (which mirrors the Maestro release build). Same `.env.testnet` setup as the Maestro suite — see [docs/maestro.md](maestro.md#test-configuration).
 
+`.detoxrc.js` pins the simulator to iPhone 17 Pro on iOS 26.5, the same device CI uses; install that runtime in Xcode before running locally.
+
 To update a baseline locally after an intentional UI change:
 
 ```bash
@@ -98,7 +101,7 @@ rm e2e/__baselines__/dashboard.png
 npm run e2e:test:ios
 ```
 
-Then commit the new PNG.
+Inspect the PNG locally. Do not commit it. Baselines that CI compares are recorded on the CI runner; see [Refreshing baselines on the CI runner](#refreshing-baselines-on-the-ci-runner).
 
 ## Feature-gated `describe` blocks
 
@@ -119,19 +122,20 @@ describePinLegal('Create wallet flow with PIN + legal', () => {
 
 A build with the feature off skips the block instead of running it against the `*Disabled` stub. The MVP `describe`s — Welcome, Create-wallet-MVP, Dashboard-navigation-MVP — stay unconditional and end at the dashboard via the `SetupPinDisabled` redirect.
 
+Neither CI leg enables both PIN and LEGAL: `mvp` leaves every flag off, and `full` keeps PIN and LEGAL off so fresh onboarding reaches the dashboard. `describePinLegal` and `describePin` are therefore skipped in CI, and their baselines (`setup-pin*`, `verify-pin*`, `legal-disclaimer`, `pin-unlock-dashboard`, and the not yet committed `dashboard-with-pin-legal`) are not compared there. `describeRestoreFlow` needs RESTORE (it taps `welcome-restore-seed-button`, which renders only with `EXPO_PUBLIC_ENABLE_RESTORE`) as well as PIN and LEGAL, so it is skipped in CI too, and its baselines (`restore-wallet`, `restore-wallet-filled`) are not compared there. `describeRestoreToggle` (`welcome-restore-expanded`) needs restore or passkey, which only `full` enables, and `full` runs `authenticated.test.ts`, not `onboarding.test.ts`, so it is skipped in CI as well. To run them locally when you change those screens, set the flags in two places: in `.env` before `npm run e2e:build:ios`, so the app is built with them, and in the environment of the test run, because the gates read `process.env` in the Jest process (for example `EXPO_PUBLIC_ENABLE_PIN=true EXPO_PUBLIC_ENABLE_LEGAL=true npm run e2e:test:ios -- e2e/visual/onboarding.test.ts --testNamePattern 'PIN'`; add `EXPO_PUBLIC_ENABLE_RESTORE=true` and `|Restore wallet flow` to the pattern for `describeRestoreFlow`). The name filter matters: the unconditional MVP blocks expect the dashboard right after wallet creation and time out on a PIN-enabled build. `describeRestoreToggle` (`welcome-restore-expanded`) needs only `EXPO_PUBLIC_ENABLE_RESTORE=true` or `EXPO_PUBLIC_ENABLE_PASSKEY=true`, without PIN or LEGAL.
+
 ## Adding a new screenshot
 
 1. Add a new `it` block that taps to the screen and calls `expectScreenToMatchBaseline('your-name')`.
-2. Capture the baseline locally (see [Running locally](#running-locally)); CI will not write a missing baseline.
-3. Inspect the PNG under `e2e/__diffs__/` or the local Detox `artifacts/` tree:
-   ```bash
-   ls e2e/__diffs__ e2e/__baselines__
-   ```
-4. Find your screenshot under the local Detox artifacts directory named after the test. A masked screenshot has no raw artifact there (it is deleted after masking); inspect the matcher-written baseline instead.
-5. Inspect the PNG — make sure it captures the state you actually want to baseline (not an error screen, not a half-loaded WDK, etc.).
-6. For screenshots without masked test IDs, copy it into `e2e/__baselines__/your-name.png`. For screenshots using `maskTestIDs`, let the matcher write the baseline during the first local run or an update-snapshot run; never copy a raw Detox artifact into `e2e/__baselines__/`.
-7. For a masked screenshot, open the matcher-written baseline and visually confirm that every sensitive area is fully covered before committing it.
+2. Record the baseline on the CI runner (see [Refreshing baselines on the CI runner](#refreshing-baselines-on-the-ci-runner)). A normal CI run will not write a missing baseline. This works only for a screen that a CI leg actually runs; for the gated blocks no leg runs (see [Feature-gated `describe` blocks](#feature-gated-describe-blocks)) there is no runner artifact, so CI cannot record such a baseline until a leg covers it. Do not add a new local capture in its place; the existing gated PNGs are older local captures (#77).
+3. When the dispatched run finishes, download the `visual-baselines-<variant>` artifact.
+4. Find `your-name.png` in it.
+5. Inspect it, and check it is not an error screen or a half-loaded WDK.
+6. Commit the PNG from the runner artifact (`visual-baselines-mvp` or `visual-baselines-full`), not a copy out of the local Detox artifacts directory. The matcher writes that PNG after applying `maskTestIDs`, so masked areas are already covered.
+7. Open every masked baseline and confirm that each sensitive area is fully covered before committing it.
 8. Push and re-trigger the visual workflow (see [Triggering visual regression](#triggering-visual-regression) below).
+
+A local run stays useful for iterating on the test itself.
 
 ## Pitfalls
 
@@ -143,7 +147,7 @@ A build with the feature off skips the block instead of running it against the `
 New snapshot was not written. The update flag must be explicitly passed to write a new snapshot.
 ```
 
-This is by design — it prevents merging a green run that only passes because it silently wrote the baseline. Adding a baseline is a local capture (see [Adding a new screenshot](#adding-a-new-screenshot)), not a CI download pass.
+This is by design — it prevents merging a green run that only passes because it silently wrote the baseline. A normal CI run still does not write baselines. Recording them is a separate dispatch; see [Refreshing baselines on the CI runner](#refreshing-baselines-on-the-ci-runner).
 
 ### Detox `toBeVisible` is strict (>75% on screen)
 
@@ -196,7 +200,7 @@ This is fragile: a failure in the preceding block leaves the next one starting f
 
 ## CI
 
-`.github/workflows/visual-regression.yml` runs the suite on `macos-latest`.
+`.github/workflows/visual-regression.yml` runs the suite on the pinned `macos-26` runner. Baselines that the CI legs compare are recorded in that environment: macOS 26, Xcode 26.6, iPhone 17 Pro, iOS 26.5. The gated PIN, legal and restore baselines listed under Feature-gated `describe` blocks are older local captures (#77) that no CI leg compares. Re-recording them on the runner needs a leg that runs `onboarding.test.ts` with their flags on: `welcome-restore-expanded` needs restore or passkey (which `full` already enables, but `full` runs only `authenticated.test.ts`), the PIN and legal baselines also need PIN and LEGAL, and the restore-flow baselines need RESTORE together with PIN and LEGAL; `mvp` cannot enable PIN and LEGAL without changing its unconditional dashboard route.
 
 ### Triggering visual regression
 
@@ -213,9 +217,21 @@ To re-trigger after a push:
 gh pr edit <pr> --remove-label needs-visual && gh pr edit <pr> --add-label needs-visual
 ```
 
+### Refreshing baselines on the CI runner
+
+Baselines that CI compares are recorded in the pinned environment: `macos-26`, Xcode 26.6, iPhone 17 Pro on iOS 26.5. Captures from another Xcode or simulator runtime are not guaranteed to match this runner (the same screen differed by about 2 % between local machines and the runner).
+
+Start the workflow on the branch that should own the new PNGs:
+
+```bash
+gh workflow run visual-regression.yml --ref <branch> -f update_baselines=true
+```
+
+When the run finishes, download the artifacts `visual-baselines-mvp` and `visual-baselines-full`. Only a leg whose test step passed uploads its artifact, and a missing artifact means that leg failed and must be fixed first. Look at every image and confirm that masked regions are fully covered. Commit only the PNGs that changed. Then start the workflow once more without `update_baselines` and keep that run as the evidence that the committed baselines match.
+
 ### Artifacts
 
-On failure those trees stay on the runner and are not uploaded. A local Detox run writes the actual screenshot for each test under a directory named after the test:
+On failure the diff trees stay on the runner and are not uploaded. Recorded baselines are uploaded only when the workflow is dispatched with `update_baselines`. A local Detox run writes the actual screenshot for each test under a directory named after the test:
 
 ```
 detox-artifacts/ios.release.<ts>Z/
@@ -224,4 +240,4 @@ detox-artifacts/ios.release.<ts>Z/
 └── …
 ```
 
-For unmasked screenshots, the `✗`-prefixed directories contain the artifacts you copy into `e2e/__baselines__/` when [adding a new screenshot](#adding-a-new-screenshot). For screenshots using `maskTestIDs`, always use the baseline written by the matcher instead.
+The `✗`-prefixed directories are local failures. For a screen a CI leg runs, the committed PNG comes from the runner artifact, written by the matcher (masked where `maskTestIDs` is set); see [Refreshing baselines on the CI runner](#refreshing-baselines-on-the-ci-runner).

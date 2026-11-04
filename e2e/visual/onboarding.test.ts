@@ -19,8 +19,7 @@ const enableLegal = featureOn('EXPO_PUBLIC_ENABLE_LEGAL');
 const describeRestoreToggle = enableRestore || enablePasskey ? describe : describe.skip;
 const describePinLegal = enablePin && enableLegal ? describe : describe.skip;
 const describePin = enablePin ? describe : describe.skip;
-const describeRestoreFlow =
-  (enableRestore || enablePasskey) && enablePin && enableLegal ? describe : describe.skip;
+const describeRestoreFlow = enableRestore && enablePin && enableLegal ? describe : describe.skip;
 
 describe('Visual Regression', () => {
   describe('Welcome screen', () => {
@@ -126,7 +125,9 @@ describe('Visual Regression', () => {
         .toBeVisible()
         .withTimeout(30_000);
       await pause(2_000);
-      await expectScreenToMatchBaseline('receive-qr-step');
+      await expectScreenToMatchBaseline('receive-qr-step', {
+        maskTestIDs: ['receive-qr', 'receive-address'],
+      });
     });
 
     it('returns to the receive asset list', async () => {

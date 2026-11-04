@@ -59,7 +59,7 @@
       "status": "baselined",
       "baselines": ["dashboard", "dashboard-balance-hidden", "pin-unlock-dashboard"],
       "pendingBaselines": ["dashboard-with-pin-legal"],
-      "note": "dashboard-with-pin-legal is asserted only in the PIN+legal feature-variant run; its PNG is captured by that variant and not yet committed."
+      "note": "dashboard-with-pin-legal is asserted only in describePinLegal, which no CI leg runs while PIN and LEGAL are off; its PNG is not committed yet."
     },
     "(auth)/receive/index.tsx": {
       "status": "baselined",

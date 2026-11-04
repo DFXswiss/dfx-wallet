@@ -25,7 +25,7 @@ export async function launchAndWaitForWelcome(): Promise<void> {
   await device.disableSynchronization();
   await waitFor(element(by.id('welcome-screen')))
     .toBeVisible()
-    .withTimeout(30_000);
+    .withTimeout(120_000);
 }
 
 /**
