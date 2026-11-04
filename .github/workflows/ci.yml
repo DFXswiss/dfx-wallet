@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       # `postinstall` builds @tetherto/wdk-react-native-core's dist/, which
       # ships only `src/` on npm. Typecheck reads its `dist/index.d.ts`.
@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       # `postinstall` builds @tetherto/wdk-react-native-core's dist/, which
       # ESLint's `import/no-unresolved` resolver depends on.
@@ -42,7 +42,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - run: npm ci --legacy-peer-deps --ignore-scripts
       - run: npm run format
@@ -53,7 +53,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - run: npm ci --legacy-peer-deps --ignore-scripts
       - run: npx patch-package
@@ -116,7 +116,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 24
       # Dependency-free script — no npm install needed.
       - run: node scripts/check-feature-matrix.mjs
 
@@ -130,7 +130,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 24
       # Dependency-free script — no npm install needed.
       - run: node scripts/check-visual-coverage.mjs
       # The gate validates its own logic against synthetic fixtures so a
@@ -146,7 +146,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 24
       - run: >
           npx --yes lockfile-lint@4.14.1
           --path package-lock.json
@@ -188,7 +188,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       # Blocking since the test-gates overhaul — a known-high vuln in the
       # dependency tree of a wallet is a merge blocker, not a yellow badge.
@@ -310,7 +310,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       # `postinstall` builds @tetherto/wdk-react-native-core's dist/ and the
       # `.wdk/` worklet bundle that the app imports unconditionally.
