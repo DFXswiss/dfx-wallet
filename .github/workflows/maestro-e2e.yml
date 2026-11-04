@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: 22
+  NODE_VERSION: 24
   # Public testnet URLs live in the committed `.env.testnet` and are copied
   # into `.env` during the build step. Only the indexer API key is secret.
   EXPO_PUBLIC_WDK_INDEXER_API_KEY: ${{ secrets.E2E_WDK_INDEXER_API_KEY }}
