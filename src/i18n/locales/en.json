@@ -1,6 +1,7 @@
 {
   "biometric": {
     "enable": "Enable Biometric",
+    "prompt": "Authenticate to access your wallet",
     "usePin": "Use PIN"
   },
   "buy": {
@@ -76,6 +77,7 @@
     "requestTimeout": "The request took too long. Please try again.",
     "retry": "Retry",
     "save": "Save",
+    "screenCaptureUnavailable": "Screen-capture protection is unavailable on this device. Make sure nobody can see or record your Seed Phrase.",
     "submit": "Submit"
   },
   "contact": {
@@ -437,6 +439,9 @@
     "featureSelfCustody": "Self-custody — only you hold the keys",
     "featureSwiss": "Direct Swiss bank-payment integration",
     "invalidSeed": "This Seed Phrase is not valid yet. Enter exactly 12 or 24 words in the original order.",
+    "restoreConfirmAction": "Replace wallet",
+    "restoreConfirmMessage": "Your current wallet will be removed before the new wallet is imported. It can only be recovered with its own Seed Phrase.",
+    "restoreConfirmTitle": "Replace current wallet?",
     "restoreError": "Could not restore this wallet. Check the Seed Phrase and try again.",
     "restorePasskey": "From Passkey",
     "restoreSeed": "From Seed Phrase",
@@ -505,15 +510,18 @@
     "createDescription": "Choose a 6-digit PIN to secure your wallet.",
     "enter": "Enter PIN",
     "enterTitle": "Welcome back",
+    "finishError": "Authentication could not be completed. Please try again.",
     "incorrect": "Incorrect PIN.",
     "incorrectAttemptsLeft_one": "Incorrect PIN. {{count}} attempt remaining.",
     "incorrectAttemptsLeft_other": "Incorrect PIN. {{count}} attempts remaining.",
+    "lockedFor_one": "Too many failed attempts. Try again in {{count}} second.",
+    "lockedFor_other": "Too many failed attempts. Try again in {{count}} seconds.",
     "mismatch": "PINs do not match.",
     "processing": "One moment…",
     "recoveryCta": "Restore your wallet",
     "remainingAttempts": "{{count}} attempts remaining.",
     "saveError": "Could not save PIN. Please try again.",
-    "tooMany": "Too many failed attempts. Please restart the app.",
+    "tooMany": "Too many failed attempts. Please try again later.",
     "unlockFailed": "Your wallet couldn't be unlocked. Please try again or restore your wallet."
   },
   "portfolio": {
@@ -538,6 +546,11 @@
     "grantPermission": "Grant permission",
     "paste": "Paste from clipboard"
   },
+  "reauth": {
+    "description": "Confirm your identity with your PIN.",
+    "pinLabel": "Confirmation PIN",
+    "title": "Confirm your identity"
+  },
   "receive": {
     "buyBtcWithEuro": "Buy BTC with Euro",
     "buyFromBank": "Buy with your bank account",
@@ -553,8 +566,10 @@
     "deriveFailed": "Failed to derive the Seed Phrase from the passkey. Please try again.",
     "descriptionPasskey": "Authenticate with your passkey to reveal your Seed Phrase. Write it down and store it in a safe place as a backup.",
     "descriptionSeed": "Your Seed Phrase is the only way to recover your wallet. Keep it safe and never share it.",
+    "passkeyVerificationUnavailable": "The Seed Phrase could not be verified against this wallet and was not displayed.",
     "revealPasskey": "Authenticate to reveal",
     "revealSeed": "Tap to reveal Seed Phrase",
+    "seedMismatch": "The Seed Phrase derived from the passkey does not match your wallet. It was not displayed.",
     "warning": "Never share your Seed Phrase. Anyone with these words can access your wallet."
   },
   "sell": {
@@ -643,8 +658,10 @@
     "contact": "Contact",
     "currencies": "Currencies",
     "deleteWallet": "Delete Wallet",
+    "deleteWalletCleanupFailed": "The wallet was deleted, but some local access data could not be cleared.",
     "deleteWalletConfirm": "This will permanently remove your wallet from this device. Make sure you have backed up your Seed Phrase.",
     "deleteWalletConfirmPasskey": "This will permanently remove your wallet from this device. If you need to restore it, you will need your passkey or your exported Seed Phrase. Please also delete the passkey from your device settings.",
+    "deleteWalletFailed": "The wallet could not be deleted safely. Your local access data was not reset.",
     "dfxWallets": "DFX wallets",
     "email": "Contact details",
     "hardwareWallet": "Hardware Wallet",
@@ -662,6 +679,10 @@
     "taxReport": "Tax Report",
     "title": "Settings",
     "userData": "Profile"
+  },
+  "startup": {
+    "hydrateErrorDescription": "Your protected wallet data could not be loaded. Try again without deleting the app data.",
+    "hydrateErrorTitle": "Wallet could not be loaded"
   },
   "support": {
     "createError": "Ticket could not be created. Please try again.",

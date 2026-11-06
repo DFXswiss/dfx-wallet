@@ -28,6 +28,10 @@ import {
   getPaymentInfoErrorCode,
   getQuoteErrorCode,
 } from '@/features/buy-sell/services/quote-display';
+import {
+  createDfxSessionGuard,
+  isLocalSessionEndedError,
+} from '@/features/dfx-backend/session-guard';
 import type { ChainId } from '@/config/chains';
 import {
   formatBalance,
@@ -289,11 +293,11 @@ export default function SellScreen() {
     return gen;
   };
 
-  const cancelPaymentSubmit = (): void => {
+  const cancelPaymentSubmit = useCallback((): void => {
     submitGenRef.current += 1;
     pendingGenRef.current = null;
     submitLockRef.current = false;
-  };
+  }, []);
 
   const handlePaymentInfoResult = useCallback(
     (info: Awaited<ReturnType<typeof createPaymentInfo>>, gen: number) => {
@@ -402,13 +406,20 @@ export default function SellScreen() {
       const retryAfterSuccessfulLink = async () => {
         try {
           await resumeAfterAuth();
-        } catch {
+        } catch (err) {
           // The flow owns retry errors; do not surface them as link failures.
+          // A session end must escape so the caller releases the submit lock.
+          if (isLocalSessionEndedError(err)) throw err;
         }
       };
-
+      const guard = createDfxSessionGuard();
+      let latestToken: string | undefined;
+      const assertFlowActive = () =>
+        latestToken === undefined ? guard.assertActive() : guard.assertActive(latestToken);
+      await guard.assertActive();
       if (chain === 'bitcoin-taproot' || chain === 'bitcoin-lightning') {
         const user = lds.user ?? (await lds.signIn());
+        await guard.assertActive();
         if (!user) {
           throw new Error('DFX Lightning wallet not ready — please retry.');
         }
@@ -418,17 +429,23 @@ export default function SellScreen() {
             user.lightning.addressOwnershipProof,
             { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
           );
-          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ldsToken);
+          latestToken = ldsToken;
+          await guard.persistToken(ldsToken);
+          await assertFlowActive();
           await markChainLinkedInAutoLinkCache('lightning');
           await retryAfterSuccessfulLink();
         } catch (err) {
+          if (isLocalSessionEndedError(err)) throw err;
+          await assertFlowActive();
           if (err instanceof DfxApiError && err.statusCode === 409) {
             const ownerToken = await dfxAuthService.loginAsLnurlAddressOwner(
               user.lightning.addressLnurl,
               user.lightning.addressOwnershipProof,
               { wallet: 'DFX Bitcoin', blockchain: 'Lightning' },
             );
-            await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
+            latestToken = ownerToken;
+            await guard.persistToken(ownerToken);
+            await assertFlowActive();
             await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
             await retryAfterSuccessfulLink();
             return;
@@ -467,11 +484,15 @@ export default function SellScreen() {
           wallet: 'DFX Wallet',
           blockchain: blockchainName,
         });
-        await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, newToken);
+        latestToken = newToken;
+        await guard.persistToken(newToken);
+        await assertFlowActive();
         if (chain === 'bitcoin' || chain === 'arbitrum' || chain === 'polygon' || chain === 'base')
           await markChainLinkedInAutoLinkCache(chain);
         await retryAfterSuccessfulLink();
       } catch (err) {
+        if (isLocalSessionEndedError(err)) throw err;
+        await assertFlowActive();
         // 409 → address belongs to another DFX user. Re-auth as that user
         // (drop the prior session) so the rest of the flow runs against the
         // account that already owns this wallet. See buy/index.tsx for full
@@ -481,7 +502,9 @@ export default function SellScreen() {
             wallet: 'DFX Wallet',
             blockchain: blockchainName,
           });
-          await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, ownerToken);
+          latestToken = ownerToken;
+          await guard.persistToken(ownerToken);
+          await assertFlowActive();
           await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
           await retryAfterSuccessfulLink();
           return;
@@ -490,6 +513,23 @@ export default function SellScreen() {
       }
     },
     [btcAccount, sparkAccount, ethAccount, lds, resumeAfterAuth],
+  );
+
+  const handleLinkChainToDfx = useCallback(
+    async (chain: ChainId) => {
+      const gateForLink = authGateRef.current ?? undefined;
+      try {
+        await linkChainToDfx(chain);
+      } catch (error) {
+        if (isLocalSessionEndedError(error)) {
+          cancelPaymentSubmit();
+          cancelAuthGate(gateForLink);
+          return;
+        }
+        throw error;
+      }
+    },
+    [linkChainToDfx, cancelAuthGate, cancelPaymentSubmit],
   );
 
   // Wallet balances — drive the chain/token chip filter so users only see
@@ -1077,7 +1117,7 @@ export default function SellScreen() {
           cancelPaymentSubmit();
           cancelAuthGate(authGate ?? undefined);
         }}
-        onLinkChain={linkChainToDfx}
+        onLinkChain={handleLinkChainToDfx}
       />
       <ConfirmTargetWalletModal
         visible={confirmOpen}
@@ -1103,6 +1143,10 @@ export default function SellScreen() {
           try {
             const reauth = await reauthAs(targetAddress, targetBlockchain);
             if (!reauth.ok) {
+              if ('cancelled' in reauth) {
+                setConfirmOpen(false);
+                return;
+              }
               setConfirmError(
                 t([`linkedWallet.reauthError.${reauth.error}`, 'linkedWallet.reauthError.generic']),
               );
@@ -1111,6 +1155,10 @@ export default function SellScreen() {
             setConfirmOpen(false);
             setStep('bank');
           } catch (err) {
+            if (isLocalSessionEndedError(err)) {
+              setConfirmOpen(false);
+              return;
+            }
             setConfirmError(
               err instanceof Error ? err.message : t('linkedWallet.reauthError.generic'),
             );

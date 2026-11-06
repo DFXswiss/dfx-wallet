@@ -109,8 +109,8 @@ class DfxApi {
     return true;
   }
 
-  /** Register a callback to refresh the token on 401 */
-  setOnUnauthorized(handler: (authGeneration: number) => Promise<string | null>) {
+  /** Register a 401 refresh callback. Pass null to clear it. */
+  setOnUnauthorized(handler: ((authGeneration: number) => Promise<string | null>) | null) {
     this.onUnauthorized = handler;
   }
 

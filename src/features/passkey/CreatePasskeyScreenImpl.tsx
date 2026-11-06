@@ -18,16 +18,21 @@ export default function CreatePasskeyScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
-  const { restoreWallet } = useWalletManager();
+  const { restoreWallet, getEncryptedSeed } = useWalletManager();
   const [isCreating, setIsCreating] = useState(false);
 
   const handleCreate = async () => {
     setIsCreating(true);
     try {
       const { prfOutput, credentialId } = await createPasskey();
-      await setupPasskeyWallet(prfOutput, credentialId, async (mnemonic) => {
-        await restoreWallet(mnemonic, 'default');
-      });
+      await setupPasskeyWallet(
+        prfOutput,
+        credentialId,
+        async (mnemonic) => {
+          await restoreWallet(mnemonic, 'default');
+        },
+        async () => (await getEncryptedSeed('default')) !== null,
+      );
 
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.push('/(onboarding)/setup-pin');

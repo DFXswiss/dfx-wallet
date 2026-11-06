@@ -15,6 +15,8 @@ describe('StorageKeys', () => {
     expect(StorageKeys.WALLET_ORIGIN).toBe('walletOrigin');
     expect(StorageKeys.PASSKEY_CREDENTIAL_ID).toBe('passkeyCredentialId');
     expect(StorageKeys.PASSKEY_DERIVATION_VERSION).toBe('passkeyDerivationVersion');
+    expect(StorageKeys.PIN_FAILED_ATTEMPTS).toBe('pinFailedAttempts');
+    expect(StorageKeys.PIN_LOCKED_UNTIL).toBe('pinLockedUntil');
   });
 
   it('has unique values', () => {
@@ -37,9 +39,11 @@ describe('secureStorage', () => {
     delSpy.mockResolvedValue(undefined);
   });
 
-  it('forwards `set` to expo-secure-store with the same key/value', async () => {
+  it('writes with device-only keychain accessibility', async () => {
     await secureStorage.set('k', 'v');
-    expect(setSpy).toHaveBeenCalledWith('k', 'v');
+    expect(setSpy).toHaveBeenCalledWith('k', 'v', {
+      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    });
   });
 
   it('forwards `get` and returns the underlying value', async () => {

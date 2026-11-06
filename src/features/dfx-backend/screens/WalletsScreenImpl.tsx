@@ -12,6 +12,7 @@ import {
   RenameWalletModal,
   Skeleton,
 } from '@/components';
+import { isLocalSessionEndedError } from '@/features/dfx-backend/session-guard';
 import { dfxAuthService, dfxUserService, DfxApiError } from '@/features/dfx-backend/services';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { useDfxAuth } from '@/hooks';
@@ -62,6 +63,7 @@ export default function WalletsScreen() {
   const btc = useAccount({ network: 'bitcoin', accountIndex: 0 });
 
   const refresh = useCallback(async () => {
+    setLoadingUser(true);
     setRefreshError(null);
     setIsMergedState(false);
     try {
@@ -86,12 +88,17 @@ export default function WalletsScreen() {
   }, [t]);
 
   const reauthenticate = useCallback(async () => {
-    setRefreshError(null);
-    setLoadingUser(true);
+    // Leave the merged card in place until reauthentication succeeds.
+    // The button already shows its own loading state; flipping loadingUser
+    // would replace the card with skeletons.
     try {
       await reauthenticateAsOwner();
       await refresh();
     } catch (err) {
+      if (isLocalSessionEndedError(err)) {
+        setLoadingUser(false);
+        return;
+      }
       const message = err instanceof Error ? err.message : t('wallets.linkError');
       setRefreshError(message);
       setLoadingUser(false);
@@ -123,6 +130,7 @@ export default function WalletsScreen() {
       );
       await refresh();
     } catch (err) {
+      if (isLocalSessionEndedError(err)) return;
       setLinkError(err instanceof Error ? err.message : t('wallets.linkError'));
     } finally {
       setLinkingChain(null);
