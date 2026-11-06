@@ -1,6 +1,7 @@
 import { ActivityIndicator, Text } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
 import { PrimaryButton } from '../../src/components/PrimaryButton';
+import { darkColors, ThemeProvider, useThemeStore } from '@/theme';
 
 describe('PrimaryButton', () => {
   it('renders the title text in the filled (default) variant', () => {
@@ -31,6 +32,18 @@ describe('PrimaryButton', () => {
     expect(queryByText('Continue')).toBeNull();
     expect(UNSAFE_getByType(ActivityIndicator)).toBeTruthy();
     expect(onPress).not.toHaveBeenCalled();
+  });
+
+  it('uses the on-primary token for a filled loading indicator in dark mode', () => {
+    useThemeStore.setState({ mode: 'dark' });
+    const { UNSAFE_getByType } = render(
+      <ThemeProvider>
+        <PrimaryButton title="Continue" onPress={() => {}} loading />
+      </ThemeProvider>,
+    );
+
+    expect(UNSAFE_getByType(ActivityIndicator).props.color).toBe(darkColors.onPrimary);
+    useThemeStore.setState({ mode: 'light' });
   });
 
   it('renders the outlined variant', () => {

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getEvmRpcUrl, type ChainId } from '@/config/chains';
 import { DISCOVERABLE_TOKENS_BY_CHAIN, type DiscoverableToken } from '@/config/discoverable-tokens';
 import { formatBalance, toNumeric } from '@/config/portfolio-presentation';
@@ -8,7 +8,7 @@ import { EvmBalanceFetcher, type EvmAssetSpec } from '@/services/balances/evm-fe
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { getTokenList, isBlockscoutSupported } from '@/services/explorer/blockscout';
 import { lookupCoinIds } from '@/services/pricing/coingecko-coins-list';
-import { fetchSimplePrices } from '@/services/pricing/coingecko-simple-price';
+import { fetchSimplePrices, type SimplePriceMap } from '@/services/pricing/coingecko-simple-price';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
 
 const sharedFetcher = new EvmBalanceFetcher(getEvmRpcUrl);
@@ -50,6 +50,8 @@ export type DiscoveredAsset = {
   rawBalance: string;
   /** Human-readable balance number (with decimals applied). */
   balance: number;
+  /** Whether a price source exists for this asset. */
+  hasPriceSource: boolean;
   /** Fiat value in the user's display currency. `null` when CoinGecko
    *  didn't have a price for this contract. */
   fiatValue: number | null;
@@ -60,10 +62,42 @@ export type WalletDiscovery = {
   address: string;
   assets: DiscoveredAsset[];
   totalFiat: number;
-  /** True when at least one chain scan succeeded, false when every scan
-   *  errored — drives the `—` placeholder on the Portfolio card. */
+  /** True when at least one wallet blockchain maps to a scannable chain. */
+  scannable: boolean;
+  /** True when every scan and asset balance query on mapped chains succeeded. */
+  complete: boolean;
+  /** True when at least one chain scan succeeded; false when none succeeded or no chain is scannable. */
   known: boolean;
 };
+
+export function calculateDiscoveredFiatValue(
+  balance: number,
+  price: number | undefined,
+): number | null {
+  if (price == null || price <= 0) return null;
+  const fiatValue = balance * price;
+  return fiatValue > 0 ? fiatValue : null;
+}
+
+export function createDiscoveredAsset(
+  input: Omit<DiscoveredAsset, 'balance' | 'fiatValue'> & {
+    decimals: number;
+    price?: number;
+  },
+): DiscoveredAsset | null {
+  const balance = toNumeric(formatBalance(input.rawBalance, input.decimals));
+  if (balance <= 0) return null;
+  return {
+    chain: input.chain,
+    symbol: input.symbol,
+    name: input.name,
+    contract: input.contract,
+    rawBalance: input.rawBalance,
+    balance,
+    hasPriceSource: input.hasPriceSource,
+    fiatValue: calculateDiscoveredFiatValue(balance, input.price),
+  };
+}
 
 // Wallet holdings + prices must read as "minute-fresh". The 60s
 // staleTime lets a brand-new mount short-circuit on an in-cache result
@@ -91,10 +125,9 @@ export const LINKED_WALLET_DISCOVERY_KEY = ['balances', 'linked-wallet-discovery
  *     balance API we can pivot on, and DFX' wallet list rarely surfaces
  *     real holdings on those.
  *
- * Only tokens whose CoinGecko ID has a known price land in `totalFiat`.
- * Tokens without a price (`fiatValue: null`) still appear in `assets`
- * so the linked-wallet detail screen can show the raw balance with a
- * "no price available" note.
+ * Only assets with a known price contribute to `totalFiat`. Tokens without
+ * a CoinGecko ID remain visible but do not block aggregate completeness;
+ * assets with a price source and a missing price still block it.
  */
 export function useLinkedWalletDiscovery(
   wallets: UserAddressDto[],
@@ -134,43 +167,45 @@ export function useLinkedWalletDiscovery(
         for (const bc of blockchains) {
           // eslint-disable-next-line security/detect-object-injection -- BLOCKCHAIN_TO_CHAIN is a closed lookup; misses fall through
           const c = BLOCKCHAIN_TO_CHAIN[bc];
-          if (c && !chains.includes(c)) chains.push(c);
+          if (!c) continue;
+          if (!chains.includes(c)) chains.push(c);
         }
 
         const assets: DiscoveredAsset[] = [];
         let anyKnown = false;
+        let complete = true;
 
         for (const chain of chains) {
           if (chain === 'bitcoin') {
             const r = await fetchBtcBalance(cleanAddress);
             if ('rawBalance' in r) {
               anyKnown = true;
-              const balanceNum = toNumeric(formatBalance(r.rawBalance, 8));
-              if (balanceNum > 0) {
+              if (toNumeric(formatBalance(r.rawBalance, 8)) > 0) {
                 // Always pull a fresh BTC price for the active fiat
                 // rather than reading the singleton cache — the cache is
                 // primed once at app boot and can be minutes stale.
-                const fresh = await fetchSimplePrices(['bitcoin'], [fiatCurrency]);
+                const fresh = await fetchSimplePrices(['bitcoin'], [fiatCurrency]).catch(
+                  (): SimplePriceMap => new Map(),
+                );
                 // eslint-disable-next-line security/detect-object-injection -- fiatCurrency is a typed FiatCurrency enum
                 const priceFresh = fresh.get('bitcoin')?.[fiatCurrency];
                 const priceCached = pricingService.getPriceById('bitcoin', fiatCurrency);
                 const price =
                   typeof priceFresh === 'number' && priceFresh > 0 ? priceFresh : priceCached;
-                if (price != null && price > 0) {
-                  const fiatValue = balanceNum * price;
-                  if (fiatValue > 0) {
-                    assets.push({
-                      chain: 'bitcoin',
-                      symbol: 'BTC',
-                      name: 'Bitcoin',
-                      contract: null,
-                      rawBalance: r.rawBalance,
-                      balance: balanceNum,
-                      fiatValue,
-                    });
-                  }
-                }
+                const asset = createDiscoveredAsset({
+                  chain: 'bitcoin',
+                  symbol: 'BTC',
+                  name: 'Bitcoin',
+                  contract: null,
+                  hasPriceSource: true,
+                  rawBalance: r.rawBalance,
+                  decimals: 8,
+                  ...(price !== undefined ? { price } : {}),
+                });
+                if (asset) assets.push(asset);
               }
+            } else {
+              complete = false;
             }
             continue;
           }
@@ -199,7 +234,7 @@ export function useLinkedWalletDiscovery(
             name: string;
             contract: string;
             decimals: number;
-            coingeckoId: string;
+            coingeckoId?: string;
           };
           const tokenSpecs: ChainToken[] = [];
 
@@ -217,17 +252,20 @@ export function useLinkedWalletDiscovery(
                   const coinIdByContract = await lookupCoinIds(
                     chain,
                     list.value.map((t) => t.contractAddress),
-                  );
+                  ).catch((): Map<string, string> => {
+                    // Without the lookup, missing price sources cannot be distinguished from errors.
+                    complete = false;
+                    return new Map();
+                  });
                   for (const t of list.value) {
                     const coingeckoId = coinIdByContract.get(t.contractAddress.toLowerCase());
-                    if (!coingeckoId) continue;
                     tokenSpecs.push({
                       assetId: `discovery:${chain}:${t.contractAddress.toLowerCase()}`,
                       symbol: t.symbol || 'ERC20',
                       name: t.name || t.symbol || 'Unknown',
                       contract: t.contractAddress,
                       decimals: t.decimals,
-                      coingeckoId,
+                      ...(coingeckoId ? { coingeckoId } : {}),
                     });
                   }
                 }
@@ -235,9 +273,12 @@ export function useLinkedWalletDiscovery(
                 // "known" — drives the `—` placeholder semantics on the
                 // Portfolio card. Empty result is still a known-empty.
                 anyKnown = true;
+              } else {
+                complete = false;
               }
             } catch {
               // Blockscout errored — fall through to the curated path.
+              complete = false;
             }
           }
 
@@ -260,12 +301,15 @@ export function useLinkedWalletDiscovery(
           // arbitrarily stale (5+ minutes between user gestures). React
           // Query's staleTime/refetchInterval gives us at-most-60s
           // freshness for the linked-wallet view this way.
-          const allCoingeckoIds = tokenSpecs.map((t) => t.coingeckoId);
+          const allCoingeckoIds = tokenSpecs.flatMap((t) => (t.coingeckoId ? [t.coingeckoId] : []));
           if (native) allCoingeckoIds.push(native.coingeckoId);
           const dynamicPrices = allCoingeckoIds.length
-            ? await fetchSimplePrices(Array.from(new Set(allCoingeckoIds)), [fiatCurrency])
+            ? await fetchSimplePrices(Array.from(new Set(allCoingeckoIds)), [fiatCurrency]).catch(
+                (): SimplePriceMap => new Map(),
+              )
             : new Map();
-          const priceFor = (coingeckoId: string): number | undefined => {
+          const priceFor = (coingeckoId: string | undefined): number | undefined => {
+            if (!coingeckoId) return undefined;
             const entry = dynamicPrices.get(coingeckoId);
             // eslint-disable-next-line security/detect-object-injection -- fiatCurrency is a typed FiatCurrency enum
             const fresh = entry?.[fiatCurrency];
@@ -309,69 +353,76 @@ export function useLinkedWalletDiscovery(
 
             for (const spec of specs) {
               const r = result.get(spec.assetId);
-              if (!r) continue;
-              if (!('rawBalance' in r)) continue;
+              if (!r || !('rawBalance' in r)) {
+                complete = false;
+                continue;
+              }
               anyKnown = true;
 
               if (spec.isNative && native) {
-                const balanceNum = toNumeric(formatBalance(r.rawBalance, native.decimals));
-                if (balanceNum <= 0) continue;
                 const price = priceFor(native.coingeckoId);
-                if (price == null || price <= 0) continue;
-                const fiatValue = balanceNum * price;
-                if (fiatValue <= 0) continue;
-                assets.push({
+                const asset = createDiscoveredAsset({
                   chain,
                   symbol: native.symbol,
                   name: native.symbol,
                   contract: null,
+                  hasPriceSource: true,
                   rawBalance: r.rawBalance,
-                  balance: balanceNum,
-                  fiatValue,
+                  decimals: native.decimals,
+                  ...(price !== undefined ? { price } : {}),
                 });
+                if (asset) assets.push(asset);
                 continue;
               }
 
               const token = tokenSpecs.find((t) => t.assetId === spec.assetId);
               if (!token) continue;
-              const balanceNum = toNumeric(formatBalance(r.rawBalance, token.decimals));
-              if (balanceNum <= 0) continue;
               const price = priceFor(token.coingeckoId);
-              if (price == null || price <= 0) continue;
-              const fiatValue = balanceNum * price;
-              if (fiatValue <= 0) continue;
-              assets.push({
+              const asset = createDiscoveredAsset({
                 chain,
                 symbol: token.symbol,
                 name: token.name,
                 contract: token.contract,
+                hasPriceSource: Boolean(token.coingeckoId),
                 rawBalance: r.rawBalance,
-                balance: balanceNum,
-                fiatValue,
+                decimals: token.decimals,
+                ...(price !== undefined ? { price } : {}),
               });
+              if (asset) assets.push(asset);
             }
           } catch {
             // Per-chain failure is contained — other chains for this
             // wallet still report. Pricing-only tokens with no fetch
             // result fall through as missing.
+            complete = false;
           }
         }
 
         const totalFiat = assets.reduce((sum, a) => sum + (a.fiatValue ?? 0), 0);
-        out.set(lc, { address: lc, assets, totalFiat, known: anyKnown });
+        out.set(lc, {
+          address: lc,
+          assets,
+          totalFiat,
+          scannable: chains.length > 0,
+          complete,
+          known: anyKnown,
+        });
       });
 
       await Promise.all(tasks);
       return out;
     },
-    enabled: enabled && pricingReady,
+    enabled,
     staleTime: STALE_TIME_MS,
     refetchInterval: REFETCH_INTERVAL_MS,
-    // Show the previous (still-valid) result while a refetch — or a
-    // queryKey change like the pricing service flipping to "ready" —
-    // is in flight. Without this the UI flashed `—` on every linked
-    // wallet card during the seconds it took the new fetch to land.
-    placeholderData: keepPreviousData,
+    // Reuse the previous result only for the same wallet/chain signature
+    // (queryKey[2]) and fiat currency (queryKey[3]). pricingReady may change.
+    // A chain-list change is a different scan and must not keep the old total.
+    placeholderData: (previousData, previousQuery) => {
+      const sameWallet = previousQuery?.queryKey[2] === queryKey[2];
+      const sameFiat = previousQuery?.queryKey[3] === queryKey[3];
+      return sameWallet && sameFiat ? previousData : undefined;
+    },
   });
 
   const refetch = useMemo(

@@ -11,8 +11,19 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 type Props = {
   /** Non-null state means the modal is visible. */
   gate: DfxAuthGateState | null;
-  /** Called when the user dismisses the modal. */
+  /**
+   * The user is proceeding through the gate: sign-in, KYC, email, or a
+   * finished chain link. Hides the modal only. A pending buy or sell stays
+   * so the screen can replay it after the user comes back.
+   */
   onClose: () => void;
+  /**
+   * The user gave up, via the Cancel control or the back gesture. When
+   * omitted, those gestures call `onClose`, so every other caller keeps
+   * today's behaviour. The primary action calls `onClose`, except the
+   * no-chain `linkChain` dead end, which counts as a cancel.
+   */
+  onCancel?: () => void;
   /**
    * Sign and attach the given chain's wallet address to the active DFX
    * account. Buy/Sell screens implement this with a per-chain WDK
@@ -29,13 +40,20 @@ type Props = {
  * - `linkChain` → sign with the missing chain's wallet so DFX adds it to
  *   the user's `jwt.blockchains` (resolves "Asset blockchain mismatch")
  */
-export function DfxAuthGate({ gate, onClose, onLinkChain }: Props) {
+export function DfxAuthGate({ gate, onClose, onCancel, onLinkChain }: Props) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { t } = useTranslation();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // While the chain link (and the payment replay it awaits) is in flight,
+  // Cancel and the back gesture must not drop that call.
+  const requestClose = () => {
+    if (busy) return;
+    if (onCancel) onCancel();
+    else onClose();
+  };
 
   if (!gate) return null;
 
@@ -58,7 +76,10 @@ export function DfxAuthGate({ gate, onClose, onLinkChain }: Props) {
     }
     if (gate.kind === 'linkChain') {
       if (!gate.chain || !onLinkChain) {
-        onClose();
+        // Nothing to link and nowhere to navigate. Closing without cancelling
+        // leaves the buy/sell pending flag and submit lock set, with no
+        // Cancel control left on screen.
+        requestClose();
         return;
       }
       setBusy(true);
@@ -79,7 +100,13 @@ export function DfxAuthGate({ gate, onClose, onLinkChain }: Props) {
   };
 
   return (
-    <Modal transparent visible animationType="fade" onRequestClose={onClose} testID="dfx-auth-gate">
+    <Modal
+      transparent
+      visible
+      animationType="fade"
+      onRequestClose={requestClose}
+      testID="dfx-auth-gate"
+    >
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <View style={styles.iconCircle}>
@@ -96,8 +123,16 @@ export function DfxAuthGate({ gate, onClose, onLinkChain }: Props) {
               loading={busy}
               testID="dfx-auth-gate-primary"
             />
-            <Pressable onPress={onClose} hitSlop={8} testID="dfx-auth-gate-cancel">
-              <Text style={styles.cancelButton}>{t('common.cancel')}</Text>
+            <Pressable
+              onPress={requestClose}
+              disabled={busy}
+              accessibilityState={{ disabled: busy }}
+              hitSlop={8}
+              testID="dfx-auth-gate-cancel"
+            >
+              <Text style={[styles.cancelButton, busy && styles.cancelButtonDisabled]}>
+                {t('common.cancel')}
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -159,5 +194,8 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textTertiary,
       textAlign: 'center',
       paddingVertical: 8,
+    },
+    cancelButtonDisabled: {
+      opacity: 0.4,
     },
   });

@@ -11,6 +11,7 @@ const sharedFetcher = new EvmBalanceFetcher(getEvmRpcUrl);
 const STALE_TIME_MS = 15_000;
 const REFETCH_INTERVAL_MS = 30_000;
 const EMPTY_BALANCES: BalanceMap = new Map();
+const lastSuccessfulByAddress = new Map<string, BalanceEntry>();
 
 /** Prefix shared with `useRefreshBalances` so invalidation matches every key. */
 export const EVM_BALANCES_QUERY_KEY_PREFIX = ['balances', 'evm'] as const;
@@ -88,6 +89,10 @@ export function useEvmBalances(assets: IAsset[], accountIndex = 0): BalanceSourc
       const fetchedAt = Date.now();
       for (const spec of specs) {
         const r = result.get(spec.assetId);
+        const address = addressByChain.get(spec.network);
+        const cacheKey = address
+          ? `${spec.network}:${address.toLowerCase()}:${spec.assetId}`
+          : null;
         if (!r) {
           map.set(spec.assetId, {
             assetId: spec.assetId,
@@ -97,21 +102,24 @@ export function useEvmBalances(assets: IAsset[], accountIndex = 0): BalanceSourc
             fetchedAt,
           });
         } else if ('rawBalance' in r) {
-          map.set(spec.assetId, {
+          const entry: BalanceEntry = {
             assetId: spec.assetId,
             rawBalance: r.rawBalance,
             status: 'ok',
             source: 'evm',
             fetchedAt,
-          });
+          };
+          map.set(spec.assetId, entry);
+          if (cacheKey) lastSuccessfulByAddress.set(cacheKey, entry);
         } else {
+          const previous = cacheKey ? lastSuccessfulByAddress.get(cacheKey) : undefined;
           map.set(spec.assetId, {
             assetId: spec.assetId,
-            rawBalance: '0',
-            status: 'error',
+            rawBalance: previous?.rawBalance ?? '0',
+            status: previous ? 'stale' : 'error',
             source: 'evm',
             error: r.error,
-            fetchedAt,
+            fetchedAt: previous?.fetchedAt ?? fetchedAt,
           });
         }
       }

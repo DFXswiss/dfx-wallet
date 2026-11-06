@@ -26,9 +26,8 @@ import { Typography, useColors, type ThemeColors } from '@/theme';
  * up in a follow-up — first iteration's contract is "scan a DFX
  * `LNURL1…` QR and land on the right invoice screen, with the right
  * amount in the right currency, instead of the generic Coming-Soon
- * alert". The Continue CTA today persists the asset/chain pick to a
- * "Coming soon: signing" hint, the API surface for the next iteration
- * is already in place via `getPaymentTarget` + `commitTx`.
+ * alert". The payment CTA remains disabled with a neutral availability
+ * hint until the signing and broadcast path is implemented.
  */
 
 const FALLBACK_EXPIRY_MS = 5 * 60 * 1000;
@@ -86,7 +85,7 @@ function OpenCryptoPayScreen() {
         if (err instanceof OpenCryptoPayError) {
           setError(messageForError(err, t));
         } else {
-          setError(err instanceof Error ? err.message : t('opencryptopay.errors.fetchFailed'));
+          setError(t('opencryptopay.errors.fetchFailed'));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -126,14 +125,6 @@ function OpenCryptoPayScreen() {
     if (invoice?.callbackUrl) void cancelQuote(invoice.callbackUrl);
     if (router.canGoBack()) router.back();
     else router.replace('/(auth)/(tabs)/dashboard');
-  };
-
-  const handleConfirm = () => {
-    // First iteration: confirm prepares for the next step (sign + broadcast
-    // via WDK). We surface a transparent hint instead of pretending the
-    // payment went through. Subsequent PR wires `getPaymentTarget` →
-    // WDK send → `commitTx` once the wallet-side signing harness exists.
-    setError(t('opencryptopay.confirmHint'));
   };
 
   return (
@@ -231,10 +222,11 @@ function OpenCryptoPayScreen() {
                 amount: activeAmount ?? '',
                 asset: pickedAsset ?? '',
               })}
-              onPress={handleConfirm}
-              disabled={isExpired || !pickedAsset || !pickedMethod}
+              onPress={() => undefined}
+              disabled
               testID="opencryptopay-confirm"
             />
+            <Text style={styles.summaryHint}>{t('opencryptopay.confirmHint')}</Text>
 
             <Pressable
               style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}

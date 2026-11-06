@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
+import { useTranslation } from 'react-i18next';
 import { useColors, type ThemeColors, Typography } from '@/theme';
 
 type Props = {
@@ -11,6 +12,7 @@ type Props = {
 };
 
 export function QrScanner({ visible, onScan, onClose }: Props) {
+  const { t } = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [permission, requestPermission] = useCameraPermissions();
@@ -53,21 +55,19 @@ export function QrScanner({ visible, onScan, onClose }: Props) {
           </CameraView>
         ) : (
           <View style={styles.permissionContainer}>
-            <Text style={styles.permissionText}>
-              Camera permission is required to scan QR codes.
-            </Text>
+            <Text style={styles.permissionText}>{t('qrScanner.cameraPermission')}</Text>
             <Pressable style={styles.permissionButton} onPress={requestPermission}>
-              <Text style={styles.permissionButtonText}>Grant Permission</Text>
+              <Text style={styles.permissionButtonText}>{t('qrScanner.grantPermission')}</Text>
             </Pressable>
           </View>
         )}
 
         <Pressable style={styles.pasteButton} onPress={handlePasteFromClipboard}>
-          <Text style={styles.pasteText}>Paste from clipboard</Text>
+          <Text style={styles.pasteText}>{t('qrScanner.paste')}</Text>
         </Pressable>
 
         <Pressable style={styles.closeButton} onPress={onClose}>
-          <Text style={styles.closeText}>Close</Text>
+          <Text style={styles.closeText}>{t('common.close')}</Text>
         </Pressable>
       </View>
     </Modal>
@@ -118,7 +118,7 @@ const makeStyles = (colors: ThemeColors) =>
     permissionButtonText: {
       ...Typography.bodyMedium,
       fontWeight: '600',
-      color: colors.white,
+      color: colors.onPrimary,
     },
     pasteButton: {
       position: 'absolute',
@@ -131,7 +131,7 @@ const makeStyles = (colors: ThemeColors) =>
     },
     pasteText: {
       ...Typography.bodyMedium,
-      color: colors.white,
+      color: colors.onPrimary,
       fontWeight: '600',
     },
     closeButton: {

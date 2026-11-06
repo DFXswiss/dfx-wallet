@@ -112,15 +112,13 @@ describe('dfxTransactionService.getTransactions', () => {
   it('propagates network-level rejections unchanged', async () => {
     fetchMock.mockRejectedValueOnce(new TypeError('Network request failed'));
 
-    await expect(dfxTransactionService.getTransactions()).rejects.toThrow(
-      'Network request failed',
-    );
+    await expect(dfxTransactionService.getTransactions()).rejects.toThrow('Network request failed');
   });
 });
 
 describe('dfxTransactionService.createCsvExport', () => {
   it('PUTs the filters in the query string with ISO dates URL-encoded and the userAddress in the body', async () => {
-    fetchMock.mockResolvedValueOnce(jsonOk('0123abcd4567efgh'));
+    fetchMock.mockResolvedValueOnce(httpResponse(200, '0123abcd4567efgh'));
 
     const result = await dfxTransactionService.createCsvExport({
       userAddress: '0xabc',
@@ -144,7 +142,7 @@ describe('dfxTransactionService.createCsvExport', () => {
   });
 
   it('defaults the report type to CoinTracking and omits absent date filters', async () => {
-    fetchMock.mockResolvedValueOnce(jsonOk('key1'));
+    fetchMock.mockResolvedValueOnce(httpResponse(200, 'key1'));
 
     await dfxTransactionService.createCsvExport({ userAddress: '0xabc' });
 
@@ -152,7 +150,7 @@ describe('dfxTransactionService.createCsvExport', () => {
   });
 
   it('sends only the provided bound when the range is half-open', async () => {
-    fetchMock.mockResolvedValueOnce(jsonOk('key1'));
+    fetchMock.mockResolvedValueOnce(httpResponse(200, 'key1'));
 
     await dfxTransactionService.createCsvExport({
       userAddress: '0xabc',
@@ -169,36 +167,41 @@ describe('dfxTransactionService.createCsvExport', () => {
     // The key is server-controlled input that gets embedded into a URL —
     // encodeURIComponent must neutralize separators so a hostile key cannot
     // smuggle extra query parameters into the download request.
-    fetchMock.mockResolvedValueOnce(jsonOk('a+b/c=&d?e'));
+    fetchMock.mockResolvedValueOnce(httpResponse(200, 'a+b/c=&d?e'));
 
     const result = await dfxTransactionService.createCsvExport({ userAddress: '0xabc' });
 
-    expect(result.downloadUrl).toBe(
-      `${BASE}/v1/transaction/csv?key=a%2Bb%2Fc%3D%26d%3Fe`,
-    );
+    expect(result.downloadUrl).toBe(`${BASE}/v1/transaction/csv?key=a%2Bb%2Fc%3D%26d%3Fe`);
   });
 
-  it('turns an empty 200 body into fileKey undefined and a key=undefined URL', async () => {
-    // NOTE: passes through unvalidated — an empty success response yields
-    // { fileKey: undefined, downloadUrl: ".../csv?key=undefined" } instead
-    // of a controlled failure. The caller would hand a dead URL to the
-    // share sheet.
-    fetchMock.mockResolvedValueOnce(jsonOk(undefined));
+  it('trims the returned file key before exposing or URL-encoding it', async () => {
+    fetchMock.mockResolvedValueOnce(httpResponse(200, '  key-with-padding  '));
 
     const result = await dfxTransactionService.createCsvExport({ userAddress: '0xabc' });
 
-    expect(result.fileKey).toBeUndefined();
-    expect(result.downloadUrl).toBe(`${BASE}/v1/transaction/csv?key=undefined`);
+    expect(result).toEqual({
+      fileKey: 'key-with-padding',
+      downloadUrl: `${BASE}/v1/transaction/csv?key=key-with-padding`,
+    });
   });
 
-  it('passes a non-string file key through unvalidated', async () => {
-    // NOTE: passes through unvalidated — a numeric body becomes a numeric
-    // fileKey typed as string; an object body would yield key=[object Object].
-    fetchMock.mockResolvedValueOnce(jsonOk(12345));
+  it.each([
+    ['an empty body', jsonOk(undefined)],
+    ['a whitespace-only key', httpResponse(200, '   ')],
+  ])('rejects %s instead of building an unusable download URL', async (_label, response) => {
+    fetchMock.mockResolvedValueOnce(response);
+
+    await expect(
+      dfxTransactionService.createCsvExport({ userAddress: '0xabc' }),
+    ).rejects.toThrow('empty file key');
+  });
+
+  it('keeps a raw numeric-looking file key as text', async () => {
+    fetchMock.mockResolvedValueOnce(httpResponse(200, '12345'));
 
     const result = await dfxTransactionService.createCsvExport({ userAddress: '0xabc' });
 
-    expect(result.fileKey).toBe(12345 as unknown as string);
+    expect(result.fileKey).toBe('12345');
     expect(result.downloadUrl).toBe(`${BASE}/v1/transaction/csv?key=12345`);
   });
 

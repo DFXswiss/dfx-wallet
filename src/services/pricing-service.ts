@@ -102,6 +102,8 @@ class PricingService {
   private isInitialized: boolean = false;
   private inflight: Promise<void> | null = null;
   private autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
+  private listeners = new Set<() => void>();
+  private revision = 0;
 
   private constructor() {}
 
@@ -119,6 +121,7 @@ class PricingService {
       try {
         this.cache = await fetchCoinGeckoPrices();
         this.isInitialized = true;
+        this.notify();
       } catch (error) {
         throw error instanceof Error ? error : new Error('Failed to initialize pricing service');
       } finally {
@@ -137,6 +140,7 @@ class PricingService {
     try {
       this.cache = await fetchCoinGeckoPrices();
       this.isInitialized = true;
+      this.notify();
     } catch (error) {
       // Keep the previous cache on failure — surfacing stale prices is
       // better than wiping the headline total to zero.
@@ -172,6 +176,20 @@ class PricingService {
 
   isReady(): boolean {
     return this.isInitialized;
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  getSnapshot(): number {
+    return this.revision;
+  }
+
+  private notify(): void {
+    this.revision += 1;
+    for (const listener of this.listeners) listener();
   }
 
   /**
@@ -212,6 +230,7 @@ class PricingService {
     this.cache = undefined;
     this.isInitialized = false;
     this.inflight = null;
+    this.notify();
   }
 }
 

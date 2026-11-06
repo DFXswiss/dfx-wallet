@@ -17,7 +17,7 @@ export type ChainId =
   // mapping — the address comes from the LDS user.
   | 'bitcoin-lightning';
 
-const CANDIDE_PAYMASTER_ADDRESS = '0x8b1f6cb5d062aa2ce8d581942bbb960420d875ba';
+const CANDIDE_PAYMASTER_ADDRESS = '0x8b1f6cb5d062aa2Ce8d581942bbb960420d875BA';
 const ENTRY_POINT_ADDRESS = '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
 const SAFE_MODULES_VERSION = '0.3.0';
 
@@ -173,7 +173,7 @@ const buildAllNetworks = (): WdkConfigs['networks'] => ({
       paymasterAddress: CANDIDE_PAYMASTER_ADDRESS,
       entryPointAddress: ENTRY_POINT_ADDRESS,
       safeModulesVersion: SAFE_MODULES_VERSION,
-      paymasterToken: { address: '0xd077a400968890eacc75cdc901f0356c943e4fdb' },
+      paymasterToken: { address: '0xd077A400968890Eacc75cdc901F0356c943e4fDb' },
       transferMaxFee: 500000,
     },
   },
