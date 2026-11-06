@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ImageBackground,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader, DarkBackdrop, EmptyState, Icon, Skeleton } from '@/components';
+import {
+  AppHeader,
+  DfxMark,
+  GlassCard,
+  GlassSurface,
+  Icon,
+  ScreenBackdrop,
+  Skeleton,
+} from '@/components';
+import { FEATURES } from '@/config/features';
 import { getAssetMeta, getAssets, type TokenCategory } from '@/config/tokens';
 import { getRawBalance, useBalances } from '@/services/balances';
 import {
@@ -24,24 +25,33 @@ import {
   SYMBOL_GLYPH,
   toNumeric,
 } from '@/config/portfolio-presentation';
+import {
+  areLocalPortfolioBalancesComplete,
+  getPortfolioAssetCompleteness,
+  hasSettledBalanceEntry,
+  isCombinedPortfolioComplete,
+  isLinkedWalletEntryComplete,
+} from '@/features/portfolio/portfolio-completeness';
+import { useLinkedWalletProfile } from '@/features/portfolio/useLinkedWalletProfile';
 import { useEnabledChains } from './useEnabledChains';
+import { WalletActions } from './WalletActions';
 import {
   defaultLinkedWalletName,
   useLinkedWalletNames,
 } from '@/features/linked-wallets/useLinkedWalletNames';
 import { useLinkedWalletDiscovery } from '@/features/linked-wallets/useLinkedWalletDiscovery';
 import { useLinkedWalletSelection } from '@/features/linked-wallets/useLinkedWalletSelection';
-import { dfxUserService } from '@/features/dfx-backend/services';
 import type { UserAddressDto } from '@/features/dfx-backend/services/dto';
 import { useAuthStore, useWalletStore } from '@/store';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
+import { usePricingSnapshot } from '@/hooks/usePricingSnapshot';
 import {
   BackdropText,
   Card,
   IconTile,
-  Interaction,
   Layout,
   MonospaceFontFamily,
+  Radius,
   Spacing,
   Typography,
   useColors,
@@ -56,6 +66,8 @@ type PortfolioGroup = {
   category: TokenCategory;
   totalBalanceNum: number;
   totalFiat: number;
+  isBalanceComplete: boolean;
+  isFiatComplete: boolean;
   // Distinct networks the canonical asset is held on. USDC + USDT on
   // Ethereum still counts as one network — the user cares about chains, not
   // token variants on the same chain.
@@ -75,38 +87,15 @@ export default function PortfolioScreen() {
   const { getName } = useLinkedWalletNames();
 
   const assetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const { data: balances } = useBalances(assetConfigs);
-  const [pricingReady, setPricingReady] = useState(pricingService.isReady());
-  const [linkedAddresses, setLinkedAddresses] = useState<UserAddressDto[]>([]);
-  const [activeAddress, setActiveAddress] = useState<string | null>(null);
-
-  // Pull the DFX-linked wallet list once whenever the screen mounts with an
-  // authenticated session. The active address is excluded from the
-  // "Linked wallets" rail because the existing portfolio cards above
-  // already represent the user's primary holdings.
-  useEffect(() => {
-    if (!isDfxAuthenticated) {
-      setLinkedAddresses([]);
-      setActiveAddress(null);
-      return;
-    }
-    let cancelled = false;
-    void dfxUserService
-      .getUser()
-      .then((user) => {
-        if (cancelled) return;
-        setLinkedAddresses(user.addresses ?? []);
-        setActiveAddress(user.activeAddress?.address ?? null);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setLinkedAddresses([]);
-        setActiveAddress(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isDfxAuthenticated]);
+  const { data: balances, isLoading: balancesLoading } = useBalances(assetConfigs);
+  const pricingRevision = usePricingSnapshot();
+  const pricingReady = pricingService.isReady();
+  const [linkedProfileRefreshKey, setLinkedProfileRefreshKey] = useState(0);
+  const {
+    linkedAddresses,
+    activeAddress,
+    isIncomplete: linkedProfileIncomplete,
+  } = useLinkedWalletProfile(isDfxAuthenticated, linkedProfileRefreshKey);
 
   const linkedWalletsUnordered = useMemo(() => {
     const lcActive = activeAddress?.toLowerCase() ?? null;
@@ -142,13 +131,9 @@ export default function PortfolioScreen() {
 
   useEffect(() => {
     if (pricingService.isReady()) {
-      setPricingReady(true);
       return;
     }
-    void pricingService
-      .initialize()
-      .then(() => setPricingReady(true))
-      .catch(() => setPricingReady(false));
+    void pricingService.initialize().catch(() => undefined);
   }, []);
 
   const fiatCurrency = resolveFiatCurrency(selectedCurrency);
@@ -156,6 +141,7 @@ export default function PortfolioScreen() {
     fiatCurrency === FiatCurrency.CHF ? 'CHF' : fiatCurrency === FiatCurrency.EUR ? '€' : '$';
 
   const groups = useMemo<PortfolioGroup[]>(() => {
+    void pricingRevision;
     const byCanonical = new Map<string, PortfolioGroup>();
 
     for (const asset of assetConfigs) {
@@ -167,6 +153,14 @@ export default function PortfolioScreen() {
       const rawBalance = getRawBalance(balances, asset.getId());
       const balance = formatBalance(rawBalance, asset.getDecimals());
       const balanceNum = toNumeric(balance);
+      const completeness = getPortfolioAssetCompleteness({
+        asset,
+        balanceEntry: balances.get(asset.getId()),
+        balance: balanceNum,
+        canonicalSymbol: meta.canonicalSymbol,
+        fiatCurrency,
+        pricingReady,
+      });
 
       const fiatValue = computeFiatValue(
         balanceNum,
@@ -179,6 +173,12 @@ export default function PortfolioScreen() {
       if (existing) {
         existing.totalBalanceNum += balanceNum;
         existing.totalFiat += fiatValue;
+        existing.isBalanceComplete =
+          existing.isBalanceComplete &&
+          !balancesLoading &&
+          (!completeness.isQueried || completeness.isBalanceComplete);
+        existing.isFiatComplete =
+          existing.isFiatComplete && !balancesLoading && completeness.isComplete;
         existing.networks.add(meta.network);
       } else {
         byCanonical.set(meta.canonicalSymbol, {
@@ -187,6 +187,9 @@ export default function PortfolioScreen() {
           category: meta.category,
           totalBalanceNum: balanceNum,
           totalFiat: fiatValue,
+          isBalanceComplete:
+            !balancesLoading && (!completeness.isQueried || completeness.isBalanceComplete),
+          isFiatComplete: !balancesLoading && completeness.isComplete,
           networks: new Set([meta.network]),
         });
       }
@@ -212,24 +215,49 @@ export default function PortfolioScreen() {
       if (cat !== 0) return cat;
       return a.canonicalSymbol.localeCompare(b.canonicalSymbol);
     });
-  }, [assetConfigs, balances, fiatCurrency, pricingReady]);
+  }, [assetConfigs, balances, balancesLoading, fiatCurrency, pricingReady, pricingRevision]);
+
+  const localBalancesComplete = useMemo(() => {
+    void pricingRevision;
+    return areLocalPortfolioBalancesComplete({
+      assets: assetConfigs,
+      balances,
+      isLoading: balancesLoading,
+      pricingReady,
+      fiatCurrency,
+    });
+  }, [assetConfigs, balances, balancesLoading, fiatCurrency, pricingReady, pricingRevision]);
+  const showSkeleton = balancesLoading && !hasSettledBalanceEntry(assetConfigs, balances);
 
   // Headline total = local WDK groups + selected linked-wallet discovery
-  // fiat. Wallets the discovery couldn't resolve contribute nothing
-  // instead of zeroing the headline.
+  // fiat. Any unresolved chain or price makes the combined value partial,
+  // so the UI must not present it as an exact total.
   const linkedWalletsFiat = useMemo(() => {
     let sum = 0;
     for (const wallet of linkedWallets) {
       const entry = linkedDiscovery.get(wallet.address.toLowerCase());
-      if (entry?.known) sum += entry.totalFiat;
+      if (isLinkedWalletEntryComplete(entry)) sum += entry.totalFiat;
     }
     return sum;
   }, [linkedWallets, linkedDiscovery]);
+
+  const portfolioComplete = isCombinedPortfolioComplete({
+    localBalancesComplete,
+    linkedProfileIncomplete,
+    linkedWalletAddresses: linkedWallets.map((wallet) => wallet.address),
+    linkedDiscovery,
+  });
 
   const totalFiat = useMemo(
     () => groups.reduce((sum, g) => sum + g.totalFiat, 0) + linkedWalletsFiat,
     [groups, linkedWalletsFiat],
   );
+  const hasHoldings = groups.some((group) => group.totalBalanceNum > 0);
+  // An empty map is "unknown", not "known zero". The empty card is only for
+  // a complete portfolio with nothing held; incomplete groups stay visible
+  // so their placeholders are not replaced by the empty state.
+  const showEmptyState = portfolioComplete && !hasHoldings;
+  const visibleGroups = hasHoldings ? groups.filter((group) => group.totalBalanceNum > 0) : groups;
 
   // Pull-to-refresh: invalidates every balance + pricing source so the
   // user gets a fresh round-trip rather than the staleTime-cached view.
@@ -237,22 +265,12 @@ export default function PortfolioScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
+    if (isDfxAuthenticated) setLinkedProfileRefreshKey((current) => current + 1);
     try {
       await Promise.all([
         pricingService.refresh().catch(() => undefined),
         queryClient.invalidateQueries({ queryKey: ['balances'] }),
         refetchDiscovery(),
-        // Re-pull the DFX user payload so a newly-linked wallet shows up
-        // immediately after the user adds it on another device.
-        isDfxAuthenticated
-          ? dfxUserService
-              .getUser()
-              .then((user) => {
-                setLinkedAddresses(user.addresses ?? []);
-                setActiveAddress(user.activeAddress?.address ?? null);
-              })
-              .catch(() => undefined)
-          : Promise.resolve(),
       ]);
     } finally {
       setRefreshing(false);
@@ -293,24 +311,32 @@ export default function PortfolioScreen() {
       >
         <Text style={styles.totalLabel}>{t('portfolio.totalValue')}</Text>
         <View style={styles.totalRow}>
-          <Text style={styles.totalCurrency}>{currencySymbol}</Text>
-          <Text style={styles.totalValue}>
-            {Number.isFinite(totalFiat)
-              ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })
-              : '0.00'}
-          </Text>
+          {portfolioComplete ? (
+            <>
+              <Text style={styles.totalCurrency}>{currencySymbol}</Text>
+              <Text style={styles.totalValue} testID="portfolio-total-value">
+                {Number.isFinite(totalFiat)
+                  ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
+                  : '0.00'}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.totalValue} testID="portfolio-total-value">
+              —
+            </Text>
+          )}
         </View>
+        {!portfolioComplete ? (
+          <Text style={styles.incompleteHint}>{t('dashboard.incompleteBalance')}</Text>
+        ) : null}
 
-        {balances === undefined ? (
-          // Balance fetch hasn't resolved yet — surface skeleton rows in
-          // the same shape as PortfolioGroupCard so layout doesn't shift
-          // when data lands.
+        {showSkeleton ? (
           <View style={styles.assetList}>
             {[0, 1, 2, 3].map((i) => (
-              <View key={i} style={styles.skeletonRow}>
+              <GlassCard key={i} style={styles.skeletonRow}>
                 <Skeleton
                   width={IconTile.md.size}
                   height={IconTile.md.size}
@@ -321,32 +347,72 @@ export default function PortfolioScreen() {
                   <Skeleton width={'40%'} height={11} radius={6} />
                 </View>
                 <Skeleton width={84} height={16} radius={6} />
-              </View>
-            ))}
-          </View>
-        ) : groups.length > 0 ? (
-          <View style={styles.assetList}>
-            {groups.map((group) => (
-              <PortfolioGroupCard
-                key={group.canonicalSymbol}
-                group={group}
-                currencySymbol={currencySymbol}
-                onPress={() =>
-                  router.push({
-                    pathname: '/(auth)/portfolio/[symbol]',
-                    params: { symbol: group.canonicalSymbol },
-                  })
-                }
-              />
+              </GlassCard>
             ))}
           </View>
         ) : (
-          <EmptyState
-            icon="wallet"
-            title={t('portfolio.empty')}
-            description={t('portfolio.emptyDescription')}
-            testID="portfolio-empty"
-          />
+          <>
+            {!showEmptyState ? (
+              <View style={styles.actionsSection}>
+                <WalletActions />
+              </View>
+            ) : (
+              <GlassCard contentStyle={styles.emptyCard} testID="portfolio-empty">
+                <Text style={styles.emptyTitle}>{t('portfolio.emptyTitle')}</Text>
+                <Text style={styles.emptyText}>{t('portfolio.emptyText')}</Text>
+                <View style={styles.emptyActions}>
+                  {FEATURES.BUY_SELL ? (
+                    <Pressable
+                      accessibilityLabel={t('portfolio.actionBuy')}
+                      accessibilityRole="button"
+                      onPress={() => router.push('/(auth)/buy')}
+                      style={({ pressed }) => [
+                        styles.emptyButton,
+                        styles.emptyBuyButton,
+                        pressed && styles.emptyButtonPressed,
+                      ]}
+                      testID="portfolio-empty-buy"
+                    >
+                      <View style={styles.emptyDfxMark}>
+                        <DfxMark size={15} />
+                      </View>
+                      <Text style={styles.emptyBuyLabel}>{t('portfolio.actionBuy')}</Text>
+                    </Pressable>
+                  ) : null}
+                  <Pressable
+                    accessibilityLabel={t('portfolio.actionReceive')}
+                    accessibilityRole="button"
+                    onPress={() => router.push('/(auth)/receive')}
+                    style={({ pressed }) => [
+                      styles.emptyActionSlot,
+                      pressed && styles.emptyButtonPressed,
+                    ]}
+                    testID="portfolio-empty-receive"
+                  >
+                    <GlassSurface radius={12} style={styles.emptyButton} variant="quiet">
+                      <Text style={styles.emptyReceiveLabel}>{t('portfolio.actionReceive')}</Text>
+                    </GlassSurface>
+                  </Pressable>
+                </View>
+              </GlassCard>
+            )}
+
+            <View style={styles.assetList}>
+              {visibleGroups.map((group) => (
+                <PortfolioGroupCard
+                  key={group.canonicalSymbol}
+                  group={group}
+                  currencySymbol={currencySymbol}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(auth)/portfolio/[symbol]',
+                      params: { symbol: group.canonicalSymbol },
+                    })
+                  }
+                />
+              ))}
+            </View>
+          </>
         )}
 
         {linkedWallets.length > 0 ? (
@@ -364,7 +430,7 @@ export default function PortfolioScreen() {
                     displayName={displayName}
                     currencySymbol={currencySymbol}
                     fiatValue={entry?.totalFiat ?? 0}
-                    fiatKnown={entry?.known ?? false}
+                    fiatExact={isLinkedWalletEntryComplete(entry)}
                     onPress={() =>
                       router.push({
                         pathname: '/(auth)/linked-wallet/[address]',
@@ -385,15 +451,7 @@ export default function PortfolioScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>
@@ -411,14 +469,14 @@ function LinkedWalletCard({
   displayName,
   currencySymbol,
   fiatValue,
-  fiatKnown,
+  fiatExact,
   onPress,
 }: {
   wallet: UserAddressDto;
   displayName: string;
   currencySymbol: string;
   fiatValue: number;
-  fiatKnown: boolean;
+  fiatExact: boolean;
   onPress: () => void;
 }) {
   const { t } = useTranslation();
@@ -430,19 +488,18 @@ function LinkedWalletCard({
   const chains = (wallet.blockchains?.length ? wallet.blockchains : [wallet.blockchain]).join(
     ' · ',
   );
-  // Fiat is known when at least one of the wallet's chains matches a
-  // local WDK address. Cards for wallets linked from another device
-  // surface a `—` glyph instead of misleading 0.00s.
-  const fiatLabel = fiatKnown
+  // Only a fully scanned and priced wallet has an exact fiat value.
+  // Partial or unavailable discovery surfaces a placeholder instead.
+  const fiatLabel = fiatExact
     ? `${currencySymbol} ${(Math.round(fiatValue * 100) / 100).toLocaleString('de-CH', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       })}`
     : '—';
   return (
-    <Pressable
+    <GlassCard
+      contentStyle={styles.linkedCard}
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       testID={`portfolio-linked-wallet-${address.slice(0, 8)}`}
       accessibilityRole="button"
       accessibilityLabel={t('portfolio.linkedWalletA11y', { address: truncated })}
@@ -466,7 +523,7 @@ function LinkedWalletCard({
           {truncated}
         </Text>
       </View>
-    </Pressable>
+    </GlassCard>
   );
 }
 
@@ -477,17 +534,25 @@ function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) 
   const styles = useMemo(() => makeStyles(colors, scheme), [colors, scheme]);
   const color = SYMBOL_COLORS.get(group.canonicalSymbol) ?? colors.primary;
   const glyph = SYMBOL_GLYPH.get(group.canonicalSymbol) ?? group.canonicalSymbol.slice(0, 1);
-  const networkLabel =
-    group.networks.size === 1
-      ? t('portfolio.networkCount_one', { count: group.networks.size })
-      : t('portfolio.networkCount_other', { count: group.networks.size });
+  const name =
+    group.category === 'stablecoin'
+      ? t(`portfolio.assetName.${group.canonicalSymbol}`)
+      : group.canonicalName;
+  const subtitle =
+    group.category === 'stablecoin'
+      ? t('portfolio.stablecoinHint', { currency: group.canonicalSymbol })
+      : null;
+  const fiatLabel = group.isFiatComplete ? `${currencySymbol} ${group.totalFiat.toFixed(2)}` : '—';
+  const balanceLabel = group.isBalanceComplete
+    ? `${formatNumber(group.totalBalanceNum)} ${group.canonicalSymbol}`
+    : '—';
   return (
-    <Pressable
+    <GlassCard
+      contentStyle={styles.card}
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       testID={`portfolio-asset-${group.canonicalSymbol}`}
       accessibilityRole="button"
-      accessibilityLabel={group.canonicalName}
+      accessibilityLabel={name}
     >
       <View
         style={[styles.iconBubble, { backgroundColor: color }]}
@@ -497,29 +562,23 @@ function PortfolioGroupCard({ group, currencySymbol, onPress }: GroupCardProps) 
       </View>
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>
-          {group.canonicalName}
+          {name}
         </Text>
-        <Text style={styles.chainCountText}>{networkLabel}</Text>
+        {subtitle ? <Text style={styles.chainCountText}>{subtitle}</Text> : null}
       </View>
       <View style={styles.balanceColumn}>
         <Text style={styles.fiatValue} numberOfLines={1}>
-          {currencySymbol} {group.totalFiat.toFixed(2)}
+          {fiatLabel}
         </Text>
-        <Text style={styles.cryptoBalance} numberOfLines={1}>
-          {formatNumber(group.totalBalanceNum)} {group.canonicalSymbol}
-        </Text>
+        {group.category === 'btc' ? (
+          <Text style={styles.cryptoBalance} numberOfLines={1}>
+            {balanceLabel}
+          </Text>
+        ) : null}
       </View>
-    </Pressable>
+    </GlassCard>
   );
 }
-
-const cardElevation = (colors: ThemeColors) => ({
-  shadowColor: colors.shadow,
-  shadowOpacity: 0.07,
-  shadowRadius: 12,
-  shadowOffset: { width: 0, height: 5 },
-  elevation: 2,
-});
 
 const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
   const onBackdrop =
@@ -562,7 +621,7 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
       gap: Spacing.xs,
     },
     totalCurrency: {
-      fontSize: 20,
+      fontSize: Typography.headlineSmall.fontSize,
       color: colors.textTertiary,
       fontWeight: '500',
       ...onBackdrop,
@@ -575,20 +634,82 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
       flexShrink: 1,
       ...onBackdrop,
     },
+    incompleteHint: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      ...onBackdrop,
+    },
+    actionsSection: {
+      marginTop: Spacing.base,
+    },
+    emptyCard: {
+      alignItems: 'center',
+      gap: Spacing.md,
+      marginTop: Spacing.base,
+    },
+    emptyTitle: {
+      ...Typography.bodyLarge,
+      color: colors.text,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    emptyText: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      fontWeight: '500',
+      textAlign: 'center',
+      marginTop: -10,
+    },
+    emptyActions: {
+      flexDirection: 'row',
+      gap: Spacing.sm,
+      alignSelf: 'stretch',
+    },
+    emptyActionSlot: {
+      flex: 1,
+    },
+    emptyButton: {
+      flex: 1,
+      minHeight: 46,
+      borderRadius: Radius.sm,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+    },
+    emptyBuyButton: {
+      backgroundColor: colors.primary,
+    },
+    emptyButtonPressed: {
+      opacity: 0.85,
+    },
+    emptyDfxMark: {
+      width: 22,
+      height: 22,
+      borderRadius: Radius.xs,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.white,
+    },
+    emptyBuyLabel: {
+      ...Typography.bodyMedium,
+      color: colors.white,
+      fontWeight: '700',
+    },
+    emptyReceiveLabel: {
+      ...Typography.bodyMedium,
+      color: colors.text,
+      fontWeight: '700',
+    },
     assetList: {
       gap: Layout.listGap,
-      marginTop: Spacing.xl,
+      marginTop: Spacing.base,
     },
     skeletonRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: Card.radius,
-      borderWidth: Card.borderWidth,
-      borderColor: colors.cardOverlayBorder,
-      padding: Card.padding,
       gap: Card.gap,
-      ...cardElevation(colors),
     },
     skeletonCopy: {
       flex: 1,
@@ -597,16 +718,12 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
     card: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: Card.radius,
-      borderWidth: Card.borderWidth,
-      borderColor: colors.cardOverlayBorder,
-      padding: Card.padding,
       gap: Card.gap,
-      ...cardElevation(colors),
     },
-    cardPressed: {
-      opacity: Interaction.pressedCardOpacity,
+    linkedCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Card.gap,
     },
     iconBubble: {
       width: IconTile.md.size,

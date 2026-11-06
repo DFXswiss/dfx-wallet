@@ -1,7 +1,7 @@
 import React from 'react';
-import { Alert } from 'react-native';
+import { Alert, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
-import { ThemeProvider, useThemeStore } from '@/theme';
+import { Card, ThemeProvider, useThemeStore } from '@/theme';
 
 jest.mock('react-native-mmkv', () => {
   const store = new Map<string, string>();
@@ -51,7 +51,7 @@ jest.mock('@/components', () => {
   return {
     ...actual,
     Icon: ({ name }: { name: string }) => ReactActual.createElement(Text, null, name),
-    DarkBackdrop: () => ReactActual.createElement(View, { testID: 'dark-backdrop' }),
+    ScreenBackdrop: () => ReactActual.createElement(View, { testID: 'screen-backdrop' }),
     PrimaryButton: ({
       title,
       onPress,
@@ -77,7 +77,7 @@ const SHORT = 'short-addr';
 
 const VAULT: MultiSigVault = {
   id: 'vault-1',
-  name: 'Family vault',
+  name: 'Family plan',
   required: 2,
   total: 3,
   createdAt: 1,
@@ -122,15 +122,26 @@ describe('MultiSigManageScreenImpl', () => {
     expect(mockBack).toHaveBeenCalled();
   });
 
-  it('lists vaults, truncates long addresses, keeps short ones, and uses the label fallback', () => {
+  it('lists saved plans, truncates long addresses, keeps short ones, and uses the label fallback', () => {
     useMultiSigStore.setState({ vaults: [VAULT] });
     const { getByTestId, getByText } = renderScreen();
     expect(getByTestId('vault-vault-1')).toBeTruthy();
-    expect(getByText('Family vault')).toBeTruthy();
+    expect(getByText('Family plan')).toBeTruthy();
     expect(getByText('Alice')).toBeTruthy();
     expect(getByText('multiSig.manage.cosignerLabel:{"n":2}')).toBeTruthy();
     expect(getByText(`${LONG.slice(0, 8)}…${LONG.slice(-6)}`)).toBeTruthy();
     expect(getByText(SHORT)).toBeTruthy();
+  });
+
+  it('renders the vault and summary cards as GlassCard (theme Card.radius, not a hardcoded value)', () => {
+    useMultiSigStore.setState({ vaults: [VAULT] });
+    const { getByTestId } = renderScreen();
+    const flatten = (style: unknown) =>
+      StyleSheet.flatten(style as StyleProp<ViewStyle>) as Record<string, unknown>;
+    expect(flatten(getByTestId('vault-vault-1').props.style).borderRadius).toBe(Card.radius);
+    expect(flatten(getByTestId('multi-sig-summary-card').props.style).borderRadius).toBe(
+      Card.radius,
+    );
   });
 
   it('adds another vault from the filled list', () => {
@@ -140,7 +151,7 @@ describe('MultiSigManageScreenImpl', () => {
     expect(mockPush).toHaveBeenCalledWith('/(auth)/multi-sig/setup');
   });
 
-  it('removes a vault when the destructive alert is confirmed', () => {
+  it('removes a plan when the destructive alert is confirmed', () => {
     useMultiSigStore.setState({ vaults: [VAULT] });
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
       const confirm = (buttons as { onPress?: () => void }[])[1];
@@ -152,7 +163,7 @@ describe('MultiSigManageScreenImpl', () => {
     expect(useMultiSigStore.getState().vaults).toEqual([]);
   });
 
-  it('keeps the vault when the remove alert is cancelled', () => {
+  it('keeps the plan when the remove alert is cancelled', () => {
     useMultiSigStore.setState({ vaults: [VAULT] });
     jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
       const cancel = (buttons as { onPress?: () => void }[])[0];
@@ -163,9 +174,9 @@ describe('MultiSigManageScreenImpl', () => {
     expect(useMultiSigStore.getState().vaults).toHaveLength(1);
   });
 
-  it('renders the dark backdrop when the theme is dark', () => {
+  it('renders the screen backdrop', () => {
     useThemeStore.setState({ mode: 'dark' });
     const { getByTestId } = renderScreen();
-    expect(getByTestId('dark-backdrop')).toBeTruthy();
+    expect(getByTestId('screen-backdrop')).toBeTruthy();
   });
 });

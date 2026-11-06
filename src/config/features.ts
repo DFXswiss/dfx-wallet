@@ -13,10 +13,10 @@
  *     ? require('@/features/x/XScreenImpl').default
  *     : require('@/features/x/XDisabled').default;
  *
- * Metro's dead-code elimination drops the unused branch — a production
- * build with the flag unset will not load, parse, or execute the
- * deferred code. This is the "code-isolation" property the README's
- * Feature-flags section commits to.
+ * A production build with the flag unset will not load or execute the
+ * deferred module at runtime. Metro may still retain the disabled branch's
+ * source in the bundle, so these flags are execution gates rather than a
+ * confidentiality or bundle-exclusion boundary.
  *
  * Always import the named `FEATURES` constant; never re-read
  * `process.env.EXPO_PUBLIC_ENABLE_*` directly elsewhere, otherwise the

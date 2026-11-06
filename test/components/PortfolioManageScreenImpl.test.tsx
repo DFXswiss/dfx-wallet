@@ -1,7 +1,8 @@
 import React from 'react';
+import { Switch } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { ThemeProvider, useThemeStore } from '@/theme';
-import { SELECTABLE_CHAINS } from '@/config/tokens';
+import { ALWAYS_ON_CHAINS, SELECTABLE_CHAINS } from '@/config/tokens';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -25,7 +26,7 @@ jest.mock('react-native-safe-area-context', () => {
 
 const mockToggleChain = jest.fn();
 const mockEnabled: string[] = ['ethereum', 'bitcoin', 'polygon'];
-jest.mock('../../src/features/portfolio/useEnabledChains', () => ({
+jest.mock('@/features/portfolio/useEnabledChains', () => ({
   useEnabledChains: () => ({
     enabledChains: mockEnabled,
     setEnabledChains: jest.fn(),
@@ -40,12 +41,14 @@ jest.mock('@/components', () => {
   return {
     ...actual,
     Icon: ({ name }: { name: string }) => ReactActual.createElement(Text, null, name),
-    DarkBackdrop: () => ReactActual.createElement(View, { testID: 'dark-backdrop' }),
+    ScreenBackdrop: () => ReactActual.createElement(View, { testID: 'screen-backdrop' }),
   };
 });
 
 // eslint-disable-next-line import/first
 import PortfolioManageScreenImpl from '../../src/features/portfolio/PortfolioManageScreenImpl';
+// eslint-disable-next-line import/first
+import { GlassCard } from '../../src/components/GlassCard';
 
 function renderScreen() {
   return render(
@@ -63,13 +66,23 @@ describe('PortfolioManageScreenImpl', () => {
   });
 
   it('renders always-on + optional chains and goes back', () => {
-    const { getByTestId, getByText } = renderScreen();
+    const { getByTestId, getByText, getAllByText, UNSAFE_getAllByType } = renderScreen();
     expect(getByTestId('manage-back-button')).toBeTruthy();
     expect(getByText('Ethereum')).toBeTruthy();
     expect(getByText('Bitcoin')).toBeTruthy();
+    // Every chain row renders on the shared glass card module, not a
+    // one-off opaque card (JK: "alle Karten ... müssen Glas design haben").
+    expect(UNSAFE_getAllByType(GlassCard).length).toBe(
+      SELECTABLE_CHAINS.length + ALWAYS_ON_CHAINS.length,
+    );
     for (const chain of SELECTABLE_CHAINS) {
       expect(getByTestId(`manage-chain-${chain}`)).toBeTruthy();
     }
+    for (const chain of ALWAYS_ON_CHAINS) {
+      const row = getByTestId(`manage-always-on-${chain}`);
+      expect(row.findAllByType(Switch)).toHaveLength(0);
+    }
+    expect(getAllByText('portfolio.alwaysOn')).toHaveLength(ALWAYS_ON_CHAINS.length + 1);
     fireEvent.press(getByTestId('manage-back-button'));
     expect(mockBack).toHaveBeenCalled();
   });
@@ -82,9 +95,9 @@ describe('PortfolioManageScreenImpl', () => {
     expect(mockToggleChain).toHaveBeenCalledWith('arbitrum');
   });
 
-  it('renders the dark backdrop when the theme is dark', () => {
+  it('renders the screen backdrop', () => {
     useThemeStore.setState({ mode: 'dark' });
     const { getByTestId } = renderScreen();
-    expect(getByTestId('dark-backdrop')).toBeTruthy();
+    expect(getByTestId('screen-backdrop')).toBeTruthy();
   });
 });

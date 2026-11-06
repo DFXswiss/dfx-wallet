@@ -52,7 +52,10 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 
+// eslint-disable-next-line import/first
 import OpenCryptoPayScreen from '../../app/(auth)/pay/opencryptopay';
+// eslint-disable-next-line import/first
+import { GlassCard } from '../../src/components/GlassCard';
 
 const SAMPLE_INVOICE = {
   displayName: 'Test Merchant',
@@ -94,7 +97,13 @@ describe('OpenCryptoPayScreen', () => {
     expect(getByTestId('opencryptopay-method-Polygon')).toBeTruthy();
     expect(getByTestId('opencryptopay-asset-ZCHF')).toBeTruthy();
     expect(getByTestId('opencryptopay-asset-USDC')).toBeTruthy();
-    expect(getByTestId('opencryptopay-confirm').props.accessibilityState?.disabled).toBeFalsy();
+    expect(getByTestId('opencryptopay-confirm').props.accessibilityState?.disabled).toBe(true);
+  });
+
+  it('renders the merchant summary on a glass card', async () => {
+    const { getByText, UNSAFE_queryAllByType } = render(<OpenCryptoPayScreen />);
+    await waitFor(() => expect(getByText('Test Merchant')).toBeTruthy());
+    expect(UNSAFE_queryAllByType(GlassCard).length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows the invalid-QR error and a Close button when no lnurl param is present', async () => {
@@ -116,11 +125,11 @@ describe('OpenCryptoPayScreen', () => {
     expect(getByTestId('opencryptopay-close')).toBeTruthy();
   });
 
-  it('falls back to the raw message for an untyped fetch error', async () => {
+  it('uses the translated fallback for an untyped fetch error', async () => {
     mockFetchQuote.mockRejectedValueOnce(new Error('network exploded'));
     const { getByText } = render(<OpenCryptoPayScreen />);
 
-    await waitFor(() => expect(getByText('network exploded')).toBeTruthy());
+    await waitFor(() => expect(getByText('opencryptopay.errors.fetchFailed')).toBeTruthy());
   });
 
   it.each([
@@ -146,7 +155,7 @@ describe('OpenCryptoPayScreen', () => {
     expect(getByTestId('opencryptopay-asset-USDC')).toBeTruthy();
   });
 
-  it('picking a different asset within the same method keeps both assets listed and Confirm enabled', async () => {
+  it('picking a different asset keeps both assets listed while payment remains unavailable', async () => {
     const { getByTestId } = render(<OpenCryptoPayScreen />);
     await waitFor(() => expect(getByTestId('opencryptopay-asset-USDC')).toBeTruthy());
 
@@ -154,7 +163,7 @@ describe('OpenCryptoPayScreen', () => {
 
     expect(getByTestId('opencryptopay-asset-ZCHF')).toBeTruthy();
     expect(getByTestId('opencryptopay-asset-USDC')).toBeTruthy();
-    expect(getByTestId('opencryptopay-confirm').props.accessibilityState?.disabled).toBeFalsy();
+    expect(getByTestId('opencryptopay-confirm').props.accessibilityState?.disabled).toBe(true);
   });
 
   it('disables Confirm and shows the expired hint once the quote has lapsed', async () => {
@@ -168,13 +177,12 @@ describe('OpenCryptoPayScreen', () => {
     expect(getByTestId('opencryptopay-confirm').props.accessibilityState?.disabled).toBe(true);
   });
 
-  it('Confirm sets the coming-soon hint without navigating away', async () => {
+  it('shows the neutral availability hint next to a disabled Confirm button', async () => {
     const { getByTestId, getByText } = render(<OpenCryptoPayScreen />);
     await waitFor(() => expect(getByTestId('opencryptopay-confirm')).toBeTruthy());
 
-    fireEvent.press(getByTestId('opencryptopay-confirm'));
-
     await waitFor(() => expect(getByText('opencryptopay.confirmHint')).toBeTruthy());
+    expect(getByTestId('opencryptopay-confirm').props.accessibilityState?.disabled).toBe(true);
     expect(mockBack).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
   });

@@ -41,6 +41,8 @@ module.exports = {
     // but must still be measured (and is pinned in .coverage-floors.json).
     'src/features/biometric/biometric.ts',
     // Portfolio logic + screens (full-area coverage).
+    'src/features/portfolio/portfolio-completeness.ts',
+    'src/features/portfolio/useLinkedWalletProfile.ts',
     'src/features/portfolio/useTotalPortfolioFiatFull.ts',
     'src/features/portfolio/useEnabledChains.ts',
     'src/features/portfolio/PortfolioScreenImpl.tsx',
@@ -73,6 +75,7 @@ module.exports = {
       transformIgnorePatterns: ['/node_modules/(?!decode-uri-component/)'],
       setupFiles: ['<rootDir>/test/setup-globals.ts'],
       testMatch: [
+        '<rootDir>/test/features/**/*.test.ts',
         '<rootDir>/test/services/**/*.test.ts',
         '<rootDir>/test/store/**/*.test.ts',
         '<rootDir>/test/theme/**/*.test.ts',
@@ -101,7 +104,17 @@ module.exports = {
       displayName: 'components',
       preset: 'jest-expo',
       transform: sharedTransform,
-      testMatch: ['<rootDir>/test/components/**/*.test.tsx'],
+      // ESM-only dependency of query-string. Babel must emit CJS the way Metro
+      // does. The other entries mirror jest-expo's defaults and must stay in
+      // sync when jest-expo changes.
+      transformIgnorePatterns: [
+        '/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|decode-uri-component))',
+        '/node_modules/react-native-reanimated/plugin/',
+      ],
+      testMatch: [
+        '<rootDir>/test/components/**/*.test.tsx',
+        '<rootDir>/test/hooks/**/*.test.tsx',
+      ],
       // Same global flag setup as the unit project: pin every
       // EXPO_PUBLIC_ENABLE_* to "true" before any feature wrapper loads,
       // so `FEATURES.X` resolves to the real implementation in the

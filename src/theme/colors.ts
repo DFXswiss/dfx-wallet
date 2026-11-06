@@ -2,6 +2,7 @@ export type ThemeColors = {
   primary: string;
   primaryDark: string;
   primaryLight: string;
+  onPrimary: string;
 
   background: string;
   surface: string;
@@ -14,8 +15,15 @@ export type ThemeColors = {
   textTertiary: string;
 
   success: string;
+  /** Soft halo around a success mark (the check circle of the send flow). */
+  successGlow: string;
   warning: string;
+  warningText: string;
+  warningSurface: string;
+  warningBorder: string;
   error: string;
+  offlineBanner: string;
+  offlineBannerText: string;
   info: string;
 
   border: string;
@@ -46,12 +54,46 @@ export type ThemeColors = {
   divider: string;
   shadow: string;
   statusBar: 'dark' | 'light';
+
+  /**
+   * Shared scrim scale for anything that dims content behind a modal or a
+   * cutout (all on the brand-navy base `rgb(11, 20, 38)`). Replaces the
+   * five identical `rgba(11, 20, 38, …)` literals that used to be copied
+   * into each modal's stylesheet.
+   */
+  scrimStrong: string; // 0.45 — full-screen modal backdrops
+  scrimMedium: string; // 0.35 — side-sheet backdrops (MenuModal)
+  scrimSoft: string; // 0.18 — in-content cutouts (Pay QR window)
+
+  /**
+   * Wordmark ink for `BrandLogo` / `DfxLogoLoader`. The icon-circle
+   * gradients themselves are scheme-invariant (see `theme/brand.ts`) — only
+   * the lettering switches per scheme.
+   */
+  logoInk: string;
+
+  /**
+   * Transaction-type chip backgrounds (the icon-chip fill in
+   * `TransactionRow`), one per `TransactionDto['type']`. Foregrounds reuse
+   * `success` / `error` / `primary` directly (Buy/Receive → success,
+   * Sell/Send → error, Swap → primary) since those already carry the right
+   * per-scheme value; only Pay's accent has no existing analog, hence
+   * `payChipFg`.
+   */
+  buyChipBg: string;
+  sellChipBg: string;
+  swapChipBg: string;
+  payChipBg: string;
+  payChipFg: string;
+  sendChipBg: string;
+  receiveChipBg: string;
 };
 
 export const lightColors: ThemeColors = {
   primary: '#1E6EF7',
   primaryDark: '#0B57CF',
   primaryLight: '#E6F0FF',
+  onPrimary: '#FFFFFF',
 
   background: '#F6F8FC',
   surface: '#FFFFFF',
@@ -61,11 +103,17 @@ export const lightColors: ThemeColors = {
 
   text: '#0B1426',
   textSecondary: '#566174',
-  textTertiary: '#8D98AA',
+  textTertiary: '#5F6B7A',
 
   success: '#16A34A',
+  successGlow: 'rgba(22,163,74,0.38)',
   warning: '#EAB308',
+  warningText: '#765600',
+  warningSurface: 'rgba(234,179,8,0.16)',
+  warningBorder: 'rgba(234,179,8,0.45)',
   error: '#DC2626',
+  offlineBanner: '#DC2626',
+  offlineBannerText: '#FFFFFF',
   info: '#2F7CF7',
 
   border: '#DDE5F0',
@@ -84,6 +132,20 @@ export const lightColors: ThemeColors = {
   divider: '#DDE5F0',
   shadow: '#0B1426',
   statusBar: 'dark',
+
+  scrimStrong: 'rgba(11, 20, 38, 0.45)',
+  scrimMedium: 'rgba(11, 20, 38, 0.35)',
+  scrimSoft: 'rgba(11, 20, 38, 0.18)',
+
+  logoInk: '#072440',
+
+  buyChipBg: '#DCFCE7',
+  sellChipBg: '#FEE2E2',
+  swapChipBg: '#DCEAFE',
+  payChipBg: '#EDE9FE',
+  payChipFg: '#7C3AED',
+  sendChipBg: '#FEE2E2',
+  receiveChipBg: '#DCFCE7',
 };
 
 /**
@@ -95,6 +157,9 @@ export const lightColors: ThemeColors = {
 export const Interaction = {
   pressedOpacity: 0.85,
   pressedCardOpacity: 0.92,
+  /** Shared dim for any disabled pressable — matches the pre-existing 0.5
+   *  literal every disabled style in the app already converged on. */
+  disabledOpacity: 0.5,
 } as const;
 
 // DFX brand-navy dark palette — sourced from the DFX Design Pod
@@ -105,13 +170,14 @@ export const Interaction = {
 //   the bg via tone alone, without competing card-borders.
 // - hairlines are white-alpha (pod convention) — a subtle top-light edge,
 //   not an outlined frame.
-// - text scale = pod darkText ramp (#f9fafb / #a8b5c8 / #8a99b7).
+// - text scale = #F9FAFB / #A8B5C8 / #A8B5C8; tertiary equals secondary for contrast.
 // - primary stays DFX blue (contrast-lightened for navy); brand red
 //   #F5516C is reserved for accents/error/logo. No ambient brand wash.
 export const darkColors: ThemeColors = {
   primary: '#5FA8FF',
   primaryDark: '#3B82F6',
   primaryLight: 'rgba(95,168,255,0.14)',
+  onPrimary: '#0B1426',
 
   background: '#0A3055',
   surface: '#0E3A63',
@@ -121,11 +187,17 @@ export const darkColors: ThemeColors = {
 
   text: '#F9FAFB',
   textSecondary: '#A8B5C8',
-  textTertiary: '#8A99B7',
+  textTertiary: '#A8B5C8',
 
   success: '#34D399',
+  successGlow: 'rgba(52,211,153,0.42)',
   warning: '#FBBF24',
+  warningText: '#FBBF24',
+  warningSurface: 'rgba(251,191,36,0.16)',
+  warningBorder: 'rgba(251,191,36,0.45)',
   error: '#F87171',
+  offlineBanner: '#991B1B',
+  offlineBannerText: '#FFFFFF',
   info: '#5FA8FF',
 
   border: 'rgba(255,255,255,0.10)',
@@ -144,6 +216,20 @@ export const darkColors: ThemeColors = {
   divider: 'rgba(255,255,255,0.10)',
   shadow: '#000000',
   statusBar: 'light',
+
+  scrimStrong: 'rgba(11, 20, 38, 0.45)',
+  scrimMedium: 'rgba(11, 20, 38, 0.35)',
+  scrimSoft: 'rgba(11, 20, 38, 0.18)',
+
+  logoInk: '#F1F4F9',
+
+  buyChipBg: 'rgba(52,211,153,0.16)',
+  sellChipBg: 'rgba(248,113,113,0.16)',
+  swapChipBg: 'rgba(95,168,255,0.16)',
+  payChipBg: 'rgba(167,139,250,0.18)',
+  payChipFg: '#A78BFA',
+  sendChipBg: 'rgba(248,113,113,0.16)',
+  receiveChipBg: 'rgba(52,211,153,0.16)',
 };
 
 // Backwards-compat alias for screens that still consume the static colour

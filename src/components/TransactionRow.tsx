@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from './Icon';
 import { computeFiatValue, resolveFiatCurrency } from '@/config/portfolio-presentation';
@@ -6,7 +6,8 @@ import { getCanonicalForSymbol } from '@/config/tokens';
 import { pricingService } from '@/services/pricing-service';
 import type { TransactionDto } from '@/features/dfx-backend/services';
 import { useWalletStore } from '@/store';
-import { useColors, useResolvedScheme, type ThemeColors, Typography } from '@/theme';
+import { usePricingSnapshot } from '@/hooks/usePricingSnapshot';
+import { useColors, type ThemeColors, Typography } from '@/theme';
 
 const FIAT_LABEL = new Map<string, string>([
   ['CHF', 'CHF'],
@@ -24,28 +25,21 @@ type IconConfig = {
 // Send/Receive are on-chain transfers between addresses.
 // Swap is in-wallet asset conversion. Pay is a merchant payment.
 //
-// The icon-chip background is theme-aware: light mode uses soft pastel
-// fills; dark mode uses a low-alpha tint of the icon's own colour so the
-// chip reads as a glowing accent on navy instead of a bright pastel
-// sticker. The Pay purple is lightened in dark for contrast on navy.
-const makeTypeIcon = (
-  colors: ThemeColors,
-  isDark: boolean,
-): Map<TransactionDto['type'], IconConfig> => {
-  const payFg = isDark ? '#A78BFA' : '#7C3AED';
-  const greenBg = isDark ? 'rgba(52,211,153,0.16)' : '#DCFCE7';
-  const redBg = isDark ? 'rgba(248,113,113,0.16)' : '#FEE2E2';
-  const blueBg = isDark ? 'rgba(95,168,255,0.16)' : '#DCEAFE';
-  const purpleBg = isDark ? 'rgba(167,139,250,0.18)' : '#EDE9FE';
-  return new Map<TransactionDto['type'], IconConfig>([
-    ['Buy', { iconName: 'arrow-down', fg: colors.success, bg: greenBg }],
-    ['Sell', { iconName: 'arrow-up', fg: colors.error, bg: redBg }],
-    ['Swap', { iconName: 'swap', fg: colors.primary, bg: blueBg }],
-    ['Pay', { iconName: 'storefront', fg: payFg, bg: purpleBg }],
-    ['Send', { iconName: 'send', fg: colors.error, bg: redBg }],
-    ['Receive', { iconName: 'receive', fg: colors.success, bg: greenBg }],
+// The icon-chip background comes from the theme's per-type chip tokens
+// (`ThemeColors.<type>ChipBg`): light mode's are soft pastel fills, dark
+// mode's are a low-alpha tint of the icon's own colour so the chip reads as
+// a glowing accent on navy instead of a bright pastel sticker — the values
+// differ per scheme already inside `colors`, so this map needs no `isDark`
+// branch of its own.
+const makeTypeIcon = (colors: ThemeColors): Map<TransactionDto['type'], IconConfig> =>
+  new Map<TransactionDto['type'], IconConfig>([
+    ['Buy', { iconName: 'arrow-down', fg: colors.success, bg: colors.buyChipBg }],
+    ['Sell', { iconName: 'arrow-up', fg: colors.error, bg: colors.sellChipBg }],
+    ['Swap', { iconName: 'swap', fg: colors.primary, bg: colors.swapChipBg }],
+    ['Pay', { iconName: 'storefront', fg: colors.payChipFg, bg: colors.payChipBg }],
+    ['Send', { iconName: 'send', fg: colors.error, bg: colors.sendChipBg }],
+    ['Receive', { iconName: 'receive', fg: colors.success, bg: colors.receiveChipBg }],
   ]);
-};
 
 const OUTGOING_TYPES = new Set<TransactionDto['type']>(['Sell', 'Pay', 'Send']);
 
@@ -63,30 +57,22 @@ type Props = {
 export function TransactionRow({ tx, onPress, showState = true, testID }: Props) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const isDark = useResolvedScheme() === 'dark';
   const isOutgoing = OUTGOING_TYPES.has(tx.type);
   const isPay = tx.type === 'Pay';
-  const typeIcon = useMemo(() => makeTypeIcon(colors, isDark), [colors, isDark]);
+  const typeIcon = useMemo(() => makeTypeIcon(colors), [colors]);
   const iconConfig =
     typeIcon.get(tx.type) ??
-    ({
-      iconName: 'swap',
-      fg: colors.primary,
-      bg: isDark ? 'rgba(95,168,255,0.16)' : '#DCEAFE',
-    } satisfies IconConfig);
+    ({ iconName: 'swap', fg: colors.primary, bg: colors.swapChipBg } satisfies IconConfig);
 
   const { selectedCurrency } = useWalletStore();
   const fiatCurrency = resolveFiatCurrency(selectedCurrency);
-  const [pricingReady, setPricingReady] = useState(pricingService.isReady());
+  const pricingRevision = usePricingSnapshot();
+  const pricingReady = pricingService.isReady();
   useEffect(() => {
     if (pricingService.isReady()) {
-      setPricingReady(true);
       return;
     }
-    void pricingService
-      .initialize()
-      .then(() => setPricingReady(true))
-      .catch(() => setPricingReady(false));
+    void pricingService.initialize().catch(() => undefined);
   }, []);
 
   // Pay rows lead with the merchant — that's the answer to "where did I spend?".
@@ -97,6 +83,7 @@ export function TransactionRow({ tx, onPress, showState = true, testID }: Props)
   // user has configured. Falls back gracefully when pricing isn't available
   // or when the asset symbol isn't in the canonical map.
   const canonical = getCanonicalForSymbol(tx.outputAsset);
+  void pricingRevision;
   const fiatEstimate = canonical
     ? computeFiatValue(tx.outputAmount, canonical, fiatCurrency, pricingReady)
     : 0;
@@ -134,7 +121,11 @@ export function TransactionRow({ tx, onPress, showState = true, testID }: Props)
         </Text>
         <View style={styles.subtitleRow}>
           {isPay ? <View style={[styles.payDot, { backgroundColor: iconConfig.fg }]} /> : null}
-          <Text style={styles.subtitle} numberOfLines={1}>
+          <Text
+            style={styles.subtitle}
+            numberOfLines={1}
+            testID={testID ? `${testID}-subtitle` : undefined}
+          >
             {secondaryLabel}
           </Text>
         </View>

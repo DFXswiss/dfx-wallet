@@ -1,12 +1,12 @@
 import React from 'react';
 import { Alert, Switch } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import { ThemeProvider, useThemeStore } from '@/theme';
-import { useAuthStore, useWalletStore } from '@/store';
-import { isBiometricAvailable } from '@/features/biometric/biometric';
+import { useWalletManager } from '@tetherto/wdk-react-native-core';
+import { authenticateWithBiometric, isBiometricAvailable } from '@/features/biometric/biometric';
 import { dfxUserService } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
-import { useWalletManager } from '@tetherto/wdk-react-native-core';
+import { useAuthStore, useWalletStore } from '@/store';
+import { ThemeProvider, useThemeStore } from '@/theme';
 
 jest.mock('react-i18next', () => {
   const i18n = { language: 'en', changeLanguage: jest.fn(async () => undefined) };
@@ -26,6 +26,7 @@ const mockPush = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
 const mockCanGoBack = jest.fn(() => true);
+const mockRequestReauth = jest.fn(async () => true);
 jest.mock('expo-router', () => ({
   useRouter: () => ({
     push: mockPush,
@@ -35,6 +36,35 @@ jest.mock('expo-router', () => ({
   }),
   Stack: { Screen: () => null },
 }));
+
+jest.mock('@/hooks/useReauthenticate', () => ({
+  useReauthenticate: () => ({
+    requestReauth: mockRequestReauth,
+    modalProps: {
+      visible: false,
+      error: null,
+      locked: false,
+      verifying: false,
+      onCancel: jest.fn(),
+      onSubmit: jest.fn(),
+    },
+  }),
+}));
+const mockFeatures = { BUY_SELL: true };
+// The factory runs while imports are evaluated, before `mockFeatures` is initialised, so the
+// flag is read lazily through a getter instead of being captured eagerly.
+jest.mock('@/config/features', () => {
+  const actual = jest.requireActual('@/config/features');
+  return {
+    ...actual,
+    FEATURES: {
+      ...actual.FEATURES,
+      get BUY_SELL() {
+        return mockFeatures.BUY_SELL;
+      },
+    },
+  };
+});
 
 jest.mock('expo-haptics', () => ({
   selectionAsync: jest.fn(),
@@ -55,10 +85,19 @@ jest.mock('react-native-safe-area-context', () => {
 });
 
 jest.mock('@/features/biometric/biometric', () => ({
+  authenticateWithBiometric: jest.fn(),
   isBiometricAvailable: jest.fn(),
 }));
 
+const mockGetAuthGeneration = jest.fn(() => 0);
 jest.mock('@/features/dfx-backend/services', () => ({
+  dfxApi: {
+    clearAuthToken: jest.fn(),
+    getAuthGeneration: () => mockGetAuthGeneration(),
+  },
+  dfxAuthService: {
+    adoptStoredToken: jest.fn(),
+  },
   dfxUserService: {
     updateUser: jest.fn(),
   },
@@ -83,14 +122,18 @@ jest.mock('@/components', () => {
   return {
     ...actual,
     Icon: ({ name }: { name: string }) => ReactActual.createElement(Text, null, name),
-    DarkBackdrop: () => ReactActual.createElement(View, { testID: 'dark-backdrop' }),
+    ScreenBackdrop: () => ReactActual.createElement(View, { testID: 'screen-backdrop' }),
   };
 });
 
 // eslint-disable-next-line import/first
 import SettingsScreenImpl from '../../src/features/settings/SettingsScreenImpl';
+// eslint-disable-next-line import/first
+import { GlassListGroup } from '../../src/components/GlassListGroup';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { __i18n } = require('react-i18next') as { __i18n: { language: string; changeLanguage: jest.Mock } };
+const { __i18n } = require('react-i18next') as {
+  __i18n: { language: string; changeLanguage: jest.Mock };
+};
 
 function renderScreen() {
   return render(
@@ -105,8 +148,19 @@ function pressConfirm(alertSpy: jest.SpyInstance) {
   return buttons.find((b) => b.onPress)?.onPress?.();
 }
 
+function createDeferred() {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe('SettingsScreenImpl', () => {
   const deleteWallet = jest.fn();
+  const getEncryptedEntropy = jest.fn();
+  const getEncryptedSeed = jest.fn();
+  const getEncryptionKey = jest.fn();
 
   beforeEach(() => {
     mockPush.mockReset();
@@ -114,19 +168,40 @@ describe('SettingsScreenImpl', () => {
     mockReplace.mockReset();
     mockCanGoBack.mockReset();
     mockCanGoBack.mockReturnValue(true);
+    mockRequestReauth.mockReset();
+    mockRequestReauth.mockResolvedValue(true);
+    mockFeatures.BUY_SELL = true;
     __i18n.language = 'en';
     __i18n.changeLanguage.mockReset();
     __i18n.changeLanguage.mockResolvedValue(undefined);
     (isBiometricAvailable as jest.Mock).mockReset();
     (isBiometricAvailable as jest.Mock).mockResolvedValue(true);
+    (authenticateWithBiometric as jest.Mock).mockReset();
+    (authenticateWithBiometric as jest.Mock).mockResolvedValue(true);
     (dfxUserService.updateUser as jest.Mock).mockReset();
     (dfxUserService.updateUser as jest.Mock).mockResolvedValue(undefined);
+    mockGetAuthGeneration.mockReset();
+    mockGetAuthGeneration.mockReturnValue(0);
     (secureStorage.get as jest.Mock).mockReset();
     (secureStorage.get as jest.Mock).mockResolvedValue(null);
+    (secureStorage.set as jest.Mock).mockReset();
     (secureStorage.set as jest.Mock).mockResolvedValue(undefined);
+    (secureStorage.remove as jest.Mock).mockReset();
+    (secureStorage.remove as jest.Mock).mockResolvedValue(undefined);
     deleteWallet.mockReset();
     deleteWallet.mockResolvedValue(undefined);
-    (useWalletManager as jest.Mock).mockReturnValue({ deleteWallet });
+    getEncryptedEntropy.mockReset();
+    getEncryptedEntropy.mockResolvedValue(null);
+    getEncryptedSeed.mockReset();
+    getEncryptedSeed.mockResolvedValue(null);
+    getEncryptionKey.mockReset();
+    getEncryptionKey.mockResolvedValue(null);
+    (useWalletManager as jest.Mock).mockReturnValue({
+      deleteWallet,
+      getEncryptedEntropy,
+      getEncryptedSeed,
+      getEncryptionKey,
+    });
     useAuthStore.setState({
       isDfxAuthenticated: false,
       biometricEnabled: false,
@@ -142,9 +217,12 @@ describe('SettingsScreenImpl', () => {
   });
 
   it('renders the settings sections and navigates a route row', async () => {
-    const { getByTestId, getByText } = renderScreen();
+    const { getByTestId, getByText, UNSAFE_getAllByType } = renderScreen();
     await waitFor(() => expect(getByTestId('settings-user-data')).toBeTruthy());
     expect(getByText('settings.title')).toBeTruthy();
+    // Every section renders on the shared glass list module, not a one-off
+    // opaque card (JK: "alle Karten ... müssen Glas design haben").
+    expect(UNSAFE_getAllByType(GlassListGroup).length).toBeGreaterThan(0);
     fireEvent.press(getByTestId('settings-user-data'));
     expect(mockPush).toHaveBeenCalledWith('/(auth)/kyc');
   });
@@ -154,6 +232,7 @@ describe('SettingsScreenImpl', () => {
     await waitFor(() => expect(getByTestId('settings-email')).toBeTruthy());
     const routes: [string, string][] = [
       ['settings-email', '/(auth)/email'],
+      ['settings-bank-accounts', '/(auth)/bank-accounts'],
       ['settings-dfx-wallets', '/(auth)/wallets'],
       ['settings-seed', '/(auth)/seed-export'],
       ['settings-hardware-wallet', '/(auth)/hardware-connect'],
@@ -170,12 +249,26 @@ describe('SettingsScreenImpl', () => {
     }
   });
 
+  it('shows bank accounts only while buy/sell is enabled', async () => {
+    const enabled = renderScreen();
+    await waitFor(() => expect(enabled.getByTestId('settings-bank-accounts')).toBeTruthy());
+    fireEvent.press(enabled.getByTestId('settings-bank-accounts'));
+    expect(mockPush).toHaveBeenCalledWith('/(auth)/bank-accounts');
+    enabled.unmount();
+
+    mockFeatures.BUY_SELL = false;
+    const disabled = renderScreen();
+    await waitFor(() => expect(disabled.getByTestId('settings-user-data')).toBeTruthy());
+    expect(disabled.queryByTestId('settings-bank-accounts')).toBeNull();
+  });
+
   it('cycles language, currency and appearance', async () => {
     const { getByTestId } = renderScreen();
     await waitFor(() => expect(getByTestId('settings-language')).toBeTruthy());
 
     fireEvent.press(getByTestId('settings-language'));
-    expect(__i18n.changeLanguage).toHaveBeenCalledWith('de');
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('de'));
+    expect(secureStorage.set).toHaveBeenCalledWith(StorageKeys.SELECTED_LANGUAGE, 'de');
 
     fireEvent.press(getByTestId('settings-currencies'));
     expect(useWalletStore.getState().selectedCurrency).toBe('EUR');
@@ -200,6 +293,274 @@ describe('SettingsScreenImpl', () => {
     await waitFor(() => expect(dfxUserService.updateUser).toHaveBeenCalled());
   });
 
+  it('syncs the language to DFX only after the local language change succeeds', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    let resolveLanguageChange: () => void = () => undefined;
+    __i18n.changeLanguage.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveLanguageChange = resolve;
+      }),
+    );
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-language'));
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('de'));
+    expect(secureStorage.set).not.toHaveBeenCalled();
+    expect(dfxUserService.updateUser).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveLanguageChange();
+    });
+    await waitFor(() =>
+      expect(secureStorage.set).toHaveBeenCalledWith(StorageKeys.SELECTED_LANGUAGE, 'de'),
+    );
+    await waitFor(() =>
+      expect(dfxUserService.updateUser).toHaveBeenCalledWith({ language: { symbol: 'DE' } }),
+    );
+  });
+
+  it('syncs only the latest language after rapid toggles', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    const firstPersist = createDeferred();
+    const secondPersist = createDeferred();
+    (secureStorage.set as jest.Mock)
+      .mockImplementationOnce(() => firstPersist.promise)
+      .mockImplementationOnce(() => secondPersist.promise);
+    __i18n.changeLanguage.mockImplementation(async (language: string) => {
+      __i18n.language = language;
+    });
+    const screen = renderScreen();
+    await waitFor(() => expect(screen.getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('settings-language'));
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('de'));
+    await waitFor(() => expect(secureStorage.set).toHaveBeenCalledTimes(1));
+
+    screen.rerender(
+      <ThemeProvider>
+        <SettingsScreenImpl />
+      </ThemeProvider>,
+    );
+    fireEvent.press(screen.getByTestId('settings-language'));
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('en'));
+
+    secondPersist.resolve();
+    await act(async () => {
+      firstPersist.resolve();
+    });
+
+    await waitFor(() => expect(secureStorage.set).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(dfxUserService.updateUser).toHaveBeenCalledTimes(1));
+    expect(dfxUserService.updateUser).toHaveBeenCalledWith({ language: { symbol: 'EN' } });
+  });
+
+  it('serializes currency syncs and skips superseded selections', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    const firstSync = createDeferred();
+    const latestSync = createDeferred();
+    (dfxUserService.updateUser as jest.Mock)
+      .mockImplementationOnce(() => firstSync.promise)
+      .mockImplementationOnce(() => latestSync.promise);
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-currencies')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-currencies'));
+    await waitFor(() =>
+      expect(dfxUserService.updateUser).toHaveBeenCalledWith({ currency: { name: 'EUR' } }),
+    );
+
+    fireEvent.press(getByTestId('settings-currencies'));
+    fireEvent.press(getByTestId('settings-currencies'));
+    expect(useWalletStore.getState().selectedCurrency).toBe('CHF');
+    expect(dfxUserService.updateUser).toHaveBeenCalledTimes(1);
+
+    latestSync.resolve();
+    await act(async () => {
+      firstSync.resolve();
+    });
+
+    await waitFor(() => expect(dfxUserService.updateUser).toHaveBeenCalledTimes(2));
+    expect(dfxUserService.updateUser).toHaveBeenLastCalledWith({ currency: { name: 'CHF' } });
+  });
+
+  it('does not send a queued currency update after the session changes', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    const firstSync = createDeferred();
+    (dfxUserService.updateUser as jest.Mock).mockImplementationOnce(() => firstSync.promise);
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-currencies')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-currencies'));
+    await waitFor(() =>
+      expect(dfxUserService.updateUser).toHaveBeenCalledWith({ currency: { name: 'EUR' } }),
+    );
+
+    fireEvent.press(getByTestId('settings-currencies'));
+    expect(dfxUserService.updateUser).toHaveBeenCalledTimes(1);
+
+    mockGetAuthGeneration.mockReturnValue(1);
+    await act(async () => {
+      firstSync.resolve();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(dfxUserService.updateUser).toHaveBeenCalledTimes(1);
+    expect(dfxUserService.updateUser).not.toHaveBeenCalledWith({ currency: { name: 'USD' } });
+  });
+
+  it('does not send a queued language update after the session changes', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    const firstSync = createDeferred();
+    const secondPersist = createDeferred();
+    (dfxUserService.updateUser as jest.Mock).mockImplementationOnce(() => firstSync.promise);
+    (secureStorage.set as jest.Mock)
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(() => secondPersist.promise);
+    __i18n.changeLanguage.mockImplementation(async (language: string) => {
+      __i18n.language = language;
+    });
+    const screen = renderScreen();
+    await waitFor(() => expect(screen.getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('settings-language'));
+    await waitFor(() =>
+      expect(dfxUserService.updateUser).toHaveBeenCalledWith({ language: { symbol: 'DE' } }),
+    );
+
+    screen.rerender(
+      <ThemeProvider>
+        <SettingsScreenImpl />
+      </ThemeProvider>,
+    );
+    fireEvent.press(screen.getByTestId('settings-language'));
+    await waitFor(() => expect(secureStorage.set).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      secondPersist.resolve();
+    });
+
+    expect(dfxUserService.updateUser).toHaveBeenCalledTimes(1);
+    mockGetAuthGeneration.mockReturnValue(1);
+    await act(async () => {
+      firstSync.resolve();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(dfxUserService.updateUser).toHaveBeenCalledTimes(1);
+    expect(dfxUserService.updateUser).not.toHaveBeenCalledWith({ language: { symbol: 'EN' } });
+  });
+
+  it('does not send a language update when the session changes during the storage write', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    const persist = createDeferred();
+    (secureStorage.set as jest.Mock).mockImplementationOnce(() => persist.promise);
+    __i18n.changeLanguage.mockImplementation(async (language: string) => {
+      __i18n.language = language;
+    });
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-language'));
+    await waitFor(() =>
+      expect(secureStorage.set).toHaveBeenCalledWith(StorageKeys.SELECTED_LANGUAGE, 'de'),
+    );
+    expect(dfxUserService.updateUser).not.toHaveBeenCalled();
+
+    mockGetAuthGeneration.mockReturnValue(1);
+    await act(async () => {
+      persist.resolve();
+    });
+    await waitFor(() => expect(mockGetAuthGeneration).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(dfxUserService.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('sends only the latest language when toggled again while a sync is in flight', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    const firstSync = createDeferred();
+    const secondPersist = createDeferred();
+    const thirdPersist = createDeferred();
+    (dfxUserService.updateUser as jest.Mock).mockImplementationOnce(() => firstSync.promise);
+    (secureStorage.set as jest.Mock)
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(() => secondPersist.promise)
+      .mockImplementationOnce(() => thirdPersist.promise);
+    __i18n.changeLanguage.mockImplementation(async (language: string) => {
+      __i18n.language = language;
+    });
+    const screen = renderScreen();
+    await waitFor(() => expect(screen.getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('settings-language'));
+    await waitFor(() =>
+      expect(dfxUserService.updateUser).toHaveBeenCalledWith({ language: { symbol: 'DE' } }),
+    );
+
+    screen.rerender(
+      <ThemeProvider>
+        <SettingsScreenImpl />
+      </ThemeProvider>,
+    );
+    fireEvent.press(screen.getByTestId('settings-language'));
+    await waitFor(() => expect(secureStorage.set).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      secondPersist.resolve();
+    });
+
+    screen.rerender(
+      <ThemeProvider>
+        <SettingsScreenImpl />
+      </ThemeProvider>,
+    );
+    fireEvent.press(screen.getByTestId('settings-language'));
+    await waitFor(() => expect(secureStorage.set).toHaveBeenCalledTimes(3));
+    await act(async () => {
+      thirdPersist.resolve();
+    });
+
+    expect(dfxUserService.updateUser).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      firstSync.resolve();
+    });
+
+    await waitFor(() => expect(dfxUserService.updateUser).toHaveBeenCalledTimes(2));
+    expect(dfxUserService.updateUser).toHaveBeenLastCalledWith({ language: { symbol: 'DE' } });
+    expect(dfxUserService.updateUser).not.toHaveBeenCalledWith({ language: { symbol: 'EN' } });
+  });
+
+  it('does not sync the language to DFX when the local language change fails', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    __i18n.changeLanguage.mockRejectedValueOnce(new Error('language unavailable'));
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-language'));
+
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('de'));
+    expect(secureStorage.set).not.toHaveBeenCalled();
+    expect(dfxUserService.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('does not sync the language to DFX when persistence fails', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    (secureStorage.set as jest.Mock).mockRejectedValueOnce(new Error('storage unavailable'));
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-language')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-language'));
+
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('de'));
+    await waitFor(() => expect(secureStorage.set).toHaveBeenCalled());
+    expect(dfxUserService.updateUser).not.toHaveBeenCalled();
+  });
+
   it('does not call DFX when flipping language/currency while logged out', async () => {
     useAuthStore.setState({ isDfxAuthenticated: false });
     const { getByTestId } = renderScreen();
@@ -214,10 +575,10 @@ describe('SettingsScreenImpl', () => {
     const { getByTestId } = renderScreen();
     await waitFor(() => expect(getByTestId('settings-language')).toBeTruthy());
     fireEvent.press(getByTestId('settings-language'));
-    expect(__i18n.changeLanguage).toHaveBeenCalledWith('en');
+    await waitFor(() => expect(__i18n.changeLanguage).toHaveBeenCalledWith('en'));
   });
 
-  it('alerts and still persists when enabling biometrics without hardware', async () => {
+  it('refuses to enable biometrics without available hardware', async () => {
     (isBiometricAvailable as jest.Mock).mockResolvedValue(false);
     const alertSpy = jest.spyOn(Alert, 'alert');
     const { UNSAFE_getByType } = renderScreen();
@@ -226,11 +587,19 @@ describe('SettingsScreenImpl', () => {
       fireEvent(UNSAFE_getByType(Switch), 'valueChange', true);
     });
     expect(alertSpy).toHaveBeenCalled();
-    await waitFor(() => expect(useAuthStore.getState().biometricEnabled).toBe(true));
+    expect(authenticateWithBiometric).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().biometricEnabled).toBe(false);
   });
 
-  it('toggles biometrics on without an alert when hardware is available', async () => {
+  it('enables biometrics only after a successful localized authentication prompt', async () => {
     (isBiometricAvailable as jest.Mock).mockResolvedValue(true);
+    let resolveAuth: (value: boolean) => void = () => undefined;
+    (authenticateWithBiometric as jest.Mock).mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveAuth = resolve;
+        }),
+    );
     const alertSpy = jest.spyOn(Alert, 'alert');
     const { UNSAFE_getByType } = renderScreen();
     await waitFor(() => expect(isBiometricAvailable).toHaveBeenCalled());
@@ -238,7 +607,43 @@ describe('SettingsScreenImpl', () => {
       fireEvent(UNSAFE_getByType(Switch), 'valueChange', true);
     });
     expect(alertSpy).not.toHaveBeenCalled();
+    expect(authenticateWithBiometric).toHaveBeenCalledWith({
+      promptMessage: 'biometric.enable',
+      cancelLabel: 'biometric.usePin',
+    });
+    expect(useAuthStore.getState().biometricEnabled).toBe(false);
+
+    await act(async () => {
+      resolveAuth(true);
+    });
+
     await waitFor(() => expect(useAuthStore.getState().biometricEnabled).toBe(true));
+  });
+
+  it('keeps biometrics disabled when the enrollment authentication is cancelled', async () => {
+    (authenticateWithBiometric as jest.Mock).mockResolvedValue(false);
+    const { UNSAFE_getByType } = renderScreen();
+    await waitFor(() => expect(isBiometricAvailable).toHaveBeenCalled());
+
+    await act(async () => {
+      fireEvent(UNSAFE_getByType(Switch), 'valueChange', true);
+    });
+
+    expect(authenticateWithBiometric).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().biometricEnabled).toBe(false);
+  });
+
+  it('disables biometrics without prompting for authentication', async () => {
+    useAuthStore.setState({ biometricEnabled: true });
+    const { UNSAFE_getByType } = renderScreen();
+    await waitFor(() => expect(isBiometricAvailable).toHaveBeenCalled());
+
+    await act(async () => {
+      fireEvent(UNSAFE_getByType(Switch), 'valueChange', false);
+    });
+
+    expect(authenticateWithBiometric).not.toHaveBeenCalled();
+    await waitFor(() => expect(useAuthStore.getState().biometricEnabled).toBe(false));
   });
 
   it('treats a biometric-availability rejection as unsupported', async () => {
@@ -276,9 +681,20 @@ describe('SettingsScreenImpl', () => {
   });
 
   it('deletes a seed wallet, resets auth and replaces the root route', async () => {
-    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
-      key === StorageKeys.WALLET_ORIGIN ? 'seed' : null,
+    const stored = new Map<string, string>([[StorageKeys.WALLET_ORIGIN, 'seed']]);
+    (secureStorage.get as jest.Mock).mockImplementation(
+      async (key: string) => stored.get(key) ?? null,
     );
+    (secureStorage.remove as jest.Mock).mockImplementation(async (key: string) => {
+      stored.delete(key);
+    });
+    useAuthStore.setState({
+      isAuthenticated: true,
+      isOnboarded: true,
+      pinHash: 'seed-pin-hash',
+    });
+    const resetSpy = jest.spyOn(useAuthStore.getState(), 'reset');
+    resetSpy.mockClear();
     const alertSpy = jest.spyOn(Alert, 'alert');
     const { getByTestId } = renderScreen();
     await waitFor(() => expect(getByTestId('settings-delete-wallet')).toBeTruthy());
@@ -286,14 +702,34 @@ describe('SettingsScreenImpl', () => {
     await act(async () => {
       await pressConfirm(alertSpy);
     });
+    expect(mockRequestReauth).toHaveBeenCalledTimes(1);
     expect(deleteWallet).toHaveBeenCalledWith('default');
+    expect(resetSpy).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState()).toMatchObject({
+      isAuthenticated: false,
+      isOnboarded: false,
+      pinHash: null,
+    });
     expect(mockReplace).toHaveBeenCalledWith('/');
+    expect(alertSpy).not.toHaveBeenCalledWith('common.error', 'settings.deleteWalletCleanupFailed');
   });
 
-  it('uses the passkey confirm copy and still resets when deleteWallet throws', async () => {
-    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
-      key === StorageKeys.WALLET_ORIGIN ? 'passkey' : null,
+  // Red mutations: omit the retry or omit any WDK credential getter from dependency wiring.
+  it('uses the passkey confirm copy and resets when a throwing delete removed the wallet', async () => {
+    const stored = new Map<string, string>([[StorageKeys.WALLET_ORIGIN, 'passkey']]);
+    (secureStorage.get as jest.Mock).mockImplementation(
+      async (key: string) => stored.get(key) ?? null,
     );
+    (secureStorage.remove as jest.Mock).mockImplementation(async (key: string) => {
+      stored.delete(key);
+    });
+    useAuthStore.setState({
+      isAuthenticated: true,
+      isOnboarded: true,
+      pinHash: 'passkey-pin-hash',
+    });
+    const resetSpy = jest.spyOn(useAuthStore.getState(), 'reset');
+    resetSpy.mockClear();
     deleteWallet.mockRejectedValue(new Error('missing'));
     const alertSpy = jest.spyOn(Alert, 'alert');
     const { getByTestId } = renderScreen();
@@ -303,28 +739,117 @@ describe('SettingsScreenImpl', () => {
     await act(async () => {
       await pressConfirm(alertSpy);
     });
+    expect(deleteWallet).toHaveBeenCalledTimes(2);
+    expect(getEncryptionKey).toHaveBeenCalledWith('default');
+    expect(getEncryptedSeed).toHaveBeenCalledWith('default');
+    expect(getEncryptedEntropy).toHaveBeenCalledWith('default');
+    expect(resetSpy).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState()).toMatchObject({
+      isAuthenticated: false,
+      isOnboarded: false,
+      pinHash: null,
+    });
     expect(mockReplace).toHaveBeenCalledWith('/');
   });
 
+  // Red mutation: exclude passkey-pending from isPasskeyOrigin.
+  it('treats a pending passkey origin as passkey metadata', async () => {
+    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
+      key === StorageKeys.WALLET_ORIGIN ? 'passkey-pending' : null,
+    );
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const { getByTestId, getByText } = renderScreen();
+    await waitFor(() => expect(getByText('settings.seed')).toBeTruthy());
+
+    fireEvent.press(getByTestId('settings-delete-wallet'));
+
+    expect(alertSpy.mock.calls[0]![1]).toBe('settings.deleteWalletConfirmPasskey');
+  });
+
+  it('leaves the authenticated screen and warns when cleanup is incomplete after deletion', async () => {
+    (secureStorage.get as jest.Mock).mockImplementation(async (key: string) =>
+      key === StorageKeys.PIN_HASH ? 'hash' : null,
+    );
+    (secureStorage.remove as jest.Mock).mockImplementation(async (key: string) => {
+      if (key === StorageKeys.PIN_HASH) throw new Error('keychain unavailable');
+    });
+    useAuthStore.setState({ isOnboarded: true, isAuthenticated: true, pinHash: 'hash' });
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-delete-wallet')).toBeTruthy());
+    fireEvent.press(getByTestId('settings-delete-wallet'));
+
+    await act(async () => {
+      await pressConfirm(alertSpy);
+    });
+
+    expect(deleteWallet).toHaveBeenCalledWith('default');
+    expect(mockReplace).toHaveBeenCalledWith('/');
+    expect(alertSpy).toHaveBeenLastCalledWith('common.error', 'settings.deleteWalletCleanupFailed');
+    expect(mockReplace.mock.invocationCallOrder[0]).toBeLessThan(
+      alertSpy.mock.invocationCallOrder.at(-1)!,
+    );
+  });
+
+  it('does not delete when wallet reauthentication is declined', async () => {
+    mockRequestReauth.mockResolvedValueOnce(false);
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-delete-wallet')).toBeTruthy());
+    fireEvent.press(getByTestId('settings-delete-wallet'));
+    await act(async () => {
+      await pressConfirm(alertSpy);
+    });
+
+    expect(deleteWallet).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalledWith('/');
+  });
+
+  // Red mutation: classify three remaining WDK credential items as a partial deletion.
+  it('shows an error and keeps auth state when deletion fails and the wallet remains', async () => {
+    const expectedAuthState = {
+      isAuthenticated: true,
+      isOnboarded: true,
+      pinHash: 'distinctive-pin-hash',
+    };
+    useAuthStore.setState(expectedAuthState);
+    deleteWallet.mockRejectedValue(new Error('delete failed'));
+    getEncryptionKey.mockResolvedValue('encryption-key');
+    getEncryptedSeed.mockResolvedValue('encrypted-seed');
+    getEncryptedEntropy.mockResolvedValue('encrypted-entropy');
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const { getByTestId } = renderScreen();
+    await waitFor(() => expect(getByTestId('settings-delete-wallet')).toBeTruthy());
+    fireEvent.press(getByTestId('settings-delete-wallet'));
+    await act(async () => {
+      await pressConfirm(alertSpy);
+    });
+
+    expect(mockReplace).not.toHaveBeenCalledWith('/');
+    expect(alertSpy).toHaveBeenLastCalledWith('common.error', 'settings.deleteWalletFailed');
+    expect(useAuthStore.getState()).toMatchObject(expectedAuthState);
+  });
+
   it('goes back when history exists and replaces the dashboard otherwise', async () => {
-    const { getByText, unmount } = renderScreen();
+    const { getByText, getByLabelText, unmount } = renderScreen();
     await waitFor(() => expect(getByText('settings.title')).toBeTruthy());
-    // The back button is the first pressable in the header (no testID).
-    fireEvent.press(getByText('arrow-left'));
+    // The back button is `GlassIconButton` / `AppHeader` now — it carries no
+    // visible icon text, so it's found by its accessibility label instead.
+    fireEvent.press(getByLabelText('common.back'));
     expect(mockBack).toHaveBeenCalled();
     unmount();
 
     mockCanGoBack.mockReturnValue(false);
     const again = renderScreen();
     await waitFor(() => expect(again.getByText('settings.title')).toBeTruthy());
-    fireEvent.press(again.getByText('arrow-left'));
+    fireEvent.press(again.getByLabelText('common.back'));
     expect(mockReplace).toHaveBeenCalledWith('/(auth)/(tabs)/dashboard');
   });
 
-  it('renders the dark backdrop when the theme is dark', async () => {
+  it('renders the screen backdrop', async () => {
     useThemeStore.setState({ mode: 'dark' });
     const { getByTestId } = renderScreen();
-    await waitFor(() => expect(getByTestId('dark-backdrop')).toBeTruthy());
+    await waitFor(() => expect(getByTestId('screen-backdrop')).toBeTruthy());
   });
 
   it('cycles an unknown stored currency back onto the CHF/EUR/USD ring', async () => {

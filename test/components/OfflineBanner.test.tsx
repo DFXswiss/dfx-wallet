@@ -2,6 +2,9 @@ import React from 'react';
 import { render } from '@testing-library/react-native';
 
 const mockNetInfo = jest.fn();
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 jest.mock('@react-native-community/netinfo', () => ({
   useNetInfo: () => mockNetInfo(),
 }));
@@ -16,7 +19,7 @@ describe('OfflineBanner', () => {
   it('renders nothing when the device reports `isConnected: true`', () => {
     mockNetInfo.mockReturnValue({ isConnected: true });
     const { queryByText } = render(<OfflineBanner />);
-    expect(queryByText('No internet connection')).toBeNull();
+    expect(queryByText('offline.message')).toBeNull();
   });
 
   it('renders nothing when `isConnected` is null (NetInfo not initialised yet)', () => {
@@ -24,12 +27,12 @@ describe('OfflineBanner', () => {
     // probe — only an explicit `false` is treated as "offline".
     mockNetInfo.mockReturnValue({ isConnected: null });
     const { queryByText } = render(<OfflineBanner />);
-    expect(queryByText('No internet connection')).toBeNull();
+    expect(queryByText('offline.message')).toBeNull();
   });
 
   it('shows the offline message when `isConnected: false`', () => {
     mockNetInfo.mockReturnValue({ isConnected: false });
     const { getByText } = render(<OfflineBanner />);
-    expect(getByText('No internet connection')).toBeTruthy();
+    expect(getByText('offline.message')).toBeTruthy();
   });
 });

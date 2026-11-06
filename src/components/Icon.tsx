@@ -12,6 +12,7 @@ type IconName =
   | 'send'
   | 'receive'
   | 'close'
+  | 'expand'
   | 'lightning'
   | 'arrow-left'
   | 'arrow-right'
@@ -23,9 +24,15 @@ type IconName =
   | 'arrow-down'
   | 'arrow-up'
   | 'storefront'
+  | 'bank'
   | 'check'
   | 'copy'
-  | 'edit';
+  | 'edit'
+  | 'scan'
+  | 'paste'
+  | 'plus'
+  | 'backspace'
+  | 'share';
 
 type Props = {
   name: IconName;
@@ -193,6 +200,18 @@ export function Icon({ name, size = 24, color, strokeWidth = 2 }: Props) {
             stroke={stroke}
             strokeWidth={sw}
             strokeLinecap="round"
+          />
+        </Svg>
+      );
+    case 'expand':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M9 9L4 4m0 0h5M4 4v5m11 6l5 5m0 0h-5m5 0v-5"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
         </Svg>
       );
@@ -381,6 +400,134 @@ export function Icon({ name, size = 24, color, strokeWidth = 2 }: Props) {
           />
           <Path
             d="M3 9c0 1.7 1.3 3 3 3s3-1.3 3-3M9 9c0 1.7 1.3 3 3 3s3-1.3 3-3M15 9c0 1.7 1.3 3 3 3s3-1.3 3-3"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    // Classic bank building: triangular gable, an entablature line marking
+    // the top of the columns, three pillars, and a baseline plinth.
+    case 'bank':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M3 9L12 3l9 6"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Line
+            x1={3}
+            y1={9}
+            x2={21}
+            y2={9}
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+          <Line
+            x1={6}
+            y1={11}
+            x2={6}
+            y2={18}
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+          <Line
+            x1={12}
+            y1={11}
+            x2={12}
+            y2={18}
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+          <Line
+            x1={18}
+            y1={11}
+            x2={18}
+            y2={18}
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+          <Line
+            x1={3}
+            y1={20}
+            x2={21}
+            y2={20}
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+        </Svg>
+      );
+    case 'scan':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M4 8.5V6a2 2 0 012-2h2.5M4 15.5V18a2 2 0 002 2h2.5M20 8.5V6a2 2 0 00-2-2h-2.5M20 15.5V18a2 2 0 01-2 2h-2.5"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Path d="M4 12h16" stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+        </Svg>
+      );
+    case 'paste':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Rect x={6} y={4.2} width={12} height={17} rx={2.2} stroke={stroke} strokeWidth={sw} />
+          <Path
+            d="M9.3 4.2v-1a1 1 0 011-1h3.4a1 1 0 011 1v1"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Path d="M9 12.3h6M9 16.1h6" stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+        </Svg>
+      );
+    case 'plus':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path d="M12 5v14M5 12h14" stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+        </Svg>
+      );
+    case 'backspace':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M8.5 4H19a2 2 0 012 2v12a2 2 0 01-2 2H8.5L2 12l6.5-8z"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinejoin="round"
+          />
+          <Path
+            d="M12.3 9.3l5 5M17.3 9.3l-5 5"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+        </Svg>
+      );
+    case 'share':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M12 14.5V3.2M8.2 7L12 3.2 15.8 7"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Path
+            d="M5.2 11.8v7a2 2 0 002 2h9.6a2 2 0 002-2v-7"
             stroke={stroke}
             strokeWidth={sw}
             strokeLinecap="round"

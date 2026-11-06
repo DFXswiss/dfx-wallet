@@ -2,7 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AppHeader, PrimaryButton, ScreenContainer } from '@/components';
+import {
+  AppHeader,
+  GlassCard,
+  GlassListGroup,
+  GlassPill,
+  PrimaryButton,
+  ScreenContainer,
+} from '@/components';
 import { FEATURES } from '@/config/features';
 import {
   cancelQuote,
@@ -26,9 +33,8 @@ import { Typography, useColors, type ThemeColors } from '@/theme';
  * up in a follow-up — first iteration's contract is "scan a DFX
  * `LNURL1…` QR and land on the right invoice screen, with the right
  * amount in the right currency, instead of the generic Coming-Soon
- * alert". The Continue CTA today persists the asset/chain pick to a
- * "Coming soon: signing" hint, the API surface for the next iteration
- * is already in place via `getPaymentTarget` + `commitTx`.
+ * alert". The payment CTA remains disabled with a neutral availability
+ * hint until the signing and broadcast path is implemented.
  */
 
 const FALLBACK_EXPIRY_MS = 5 * 60 * 1000;
@@ -86,7 +92,7 @@ function OpenCryptoPayScreen() {
         if (err instanceof OpenCryptoPayError) {
           setError(messageForError(err, t));
         } else {
-          setError(err instanceof Error ? err.message : t('opencryptopay.errors.fetchFailed'));
+          setError(t('opencryptopay.errors.fetchFailed'));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -128,14 +134,6 @@ function OpenCryptoPayScreen() {
     else router.replace('/(auth)/(tabs)/dashboard');
   };
 
-  const handleConfirm = () => {
-    // First iteration: confirm prepares for the next step (sign + broadcast
-    // via WDK). We surface a transparent hint instead of pretending the
-    // payment went through. Subsequent PR wires `getPaymentTarget` →
-    // WDK send → `commitTx` once the wallet-side signing harness exists.
-    setError(t('opencryptopay.confirmHint'));
-  };
-
   return (
     <ScreenContainer scrollable>
       <AppHeader title={t('opencryptopay.title')} onBack={handleCancel} testID="opencryptopay" />
@@ -156,7 +154,7 @@ function OpenCryptoPayScreen() {
           </View>
         ) : (
           <>
-            <View style={styles.summaryCard}>
+            <GlassCard variant="lead" style={styles.summaryCard}>
               <Text style={styles.summaryLabel}>{t('opencryptopay.payTo')}</Text>
               <Text style={styles.summaryName}>
                 {invoice.displayName || t('opencryptopay.unknownMerchant')}
@@ -168,16 +166,16 @@ function OpenCryptoPayScreen() {
                     : t('opencryptopay.expiresIn', { time: formatMs(expiresInMs) })}
                 </Text>
               ) : null}
-            </View>
+            </GlassCard>
 
             <Text style={styles.sectionLabel}>{t('opencryptopay.methodLabel')}</Text>
             <View style={styles.methodList}>
               {invoice.transferAmounts.map((tm) => {
                 const active = tm.method === pickedMethod;
                 return (
-                  <Pressable
+                  <GlassPill
                     key={tm.method}
-                    style={[styles.methodChip, active && styles.methodChipActive]}
+                    selected={active}
                     onPress={() => {
                       setPickedMethod(tm.method);
                       setPickedAsset(tm.assets[0]?.asset ?? null);
@@ -190,7 +188,7 @@ function OpenCryptoPayScreen() {
                     >
                       {tm.method}
                     </Text>
-                  </Pressable>
+                  </GlassPill>
                 );
               })}
             </View>
@@ -198,13 +196,14 @@ function OpenCryptoPayScreen() {
             {activeMethod ? (
               <>
                 <Text style={styles.sectionLabel}>{t('opencryptopay.assetLabel')}</Text>
-                <View style={styles.assetList}>
-                  {activeMethod.assets.map((a) => {
+                <GlassListGroup>
+                  {activeMethod.assets.map((a, i) => {
                     const active = a.asset === pickedAsset;
                     return (
-                      <Pressable
+                      <GlassListGroup.Row
                         key={a.asset}
-                        style={[styles.assetRow, active && styles.assetRowActive]}
+                        last={i === activeMethod.assets.length - 1}
+                        style={styles.assetRow}
                         onPress={() => setPickedAsset(a.asset)}
                         testID={`opencryptopay-asset-${a.asset}`}
                       >
@@ -217,10 +216,10 @@ function OpenCryptoPayScreen() {
                             {a.amount} {a.asset}
                           </Text>
                         </View>
-                      </Pressable>
+                      </GlassListGroup.Row>
                     );
                   })}
-                </View>
+                </GlassListGroup>
               </>
             ) : null}
 
@@ -231,10 +230,11 @@ function OpenCryptoPayScreen() {
                 amount: activeAmount ?? '',
                 asset: pickedAsset ?? '',
               })}
-              onPress={handleConfirm}
-              disabled={isExpired || !pickedAsset || !pickedMethod}
+              onPress={() => undefined}
+              disabled
               testID="opencryptopay-confirm"
             />
+            <Text style={styles.summaryHint}>{t('opencryptopay.confirmHint')}</Text>
 
             <Pressable
               style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}
@@ -286,9 +286,6 @@ const makeStyles = (colors: ThemeColors) =>
       marginTop: -4,
     },
     summaryCard: {
-      backgroundColor: colors.primaryLight,
-      borderRadius: 16,
-      padding: 16,
       gap: 4,
     },
     summaryLabel: {
@@ -316,38 +313,18 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '600',
     },
     methodList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    methodChip: {
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      borderRadius: 999,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-    },
-    methodChipActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primaryLight,
-    },
     methodChipText: {
       ...Typography.bodyMedium,
       color: colors.textSecondary,
       fontWeight: '600',
     },
     methodChipTextActive: { color: colors.primary },
-    assetList: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      overflow: 'hidden',
-    },
     assetRow: {
       flexDirection: 'row',
       alignItems: 'center',
       padding: 14,
       gap: 12,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
     },
-    assetRowActive: { backgroundColor: colors.primaryLight },
     radio: {
       width: 20,
       height: 20,

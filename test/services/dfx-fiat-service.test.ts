@@ -68,18 +68,32 @@ describe('dfxFiatService.list', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('caches a FAILED fetch until reset() — a transient error poisons the session', async () => {
-    // NOTE: design weakness — the promise (not the value) is cached, so a
-    // single network hiccup is replayed to every later caller. Buy/sell
-    // stays broken for the whole session until something calls reset().
+  it('clears a failed cached request so a later call can retry', async () => {
     fetchMock.mockRejectedValueOnce(new TypeError('Network request failed'));
     await expect(dfxFiatService.list()).rejects.toThrow('Network request failed');
 
     fetchMock.mockResolvedValueOnce(jsonOk(FIATS));
-    await expect(dfxFiatService.list()).rejects.toThrow('Network request failed');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await expect(dfxFiatService.list()).resolves.toEqual(FIATS);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 
+  it('does not let an older rejection clear a newer cached request', async () => {
+    let rejectFirst!: (reason: Error) => void;
+    fetchMock
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((_resolve, reject) => {
+            rejectFirst = reject;
+          }),
+      )
+      .mockResolvedValueOnce(jsonOk(FIATS));
+
+    const first = dfxFiatService.list();
     dfxFiatService.reset();
+    await expect(dfxFiatService.list()).resolves.toEqual(FIATS);
+    rejectFirst(new Error('stale failure'));
+    await expect(first).rejects.toThrow('stale failure');
+
     await expect(dfxFiatService.list()).resolves.toEqual(FIATS);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });

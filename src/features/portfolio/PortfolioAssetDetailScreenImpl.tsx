@@ -1,30 +1,34 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useBalancesForWallet } from '@tetherto/wdk-react-native-core';
-import { AppHeader, AssetActions, DarkBackdrop } from '@/components';
-import type { ChainId } from '@/config/chains';
+import { AppHeader, GlassSurface, ScreenBackdrop } from '@/components';
 import {
   getAssetsForCanonicalSymbol,
   getAssets,
   getCanonicalNameForSymbol,
-  WDK_SUPPORTED_CHAINS,
+  getCategoryForCanonicalSymbol,
 } from '@/config/tokens';
 import {
   CHAIN_LABELS,
   computeFiatValue,
   formatBalance,
+  formatFiat,
   formatNumber,
   resolveFiatCurrency,
   SYMBOL_COLORS,
   SYMBOL_GLYPH,
+  SYMBOL_TO_TICKER,
   toNumeric,
 } from '@/config/portfolio-presentation';
+import { getPortfolioAssetCompleteness } from '@/features/portfolio/portfolio-completeness';
 import { useEnabledChains } from './useEnabledChains';
+import { WalletActions } from './WalletActions';
+import { getRawBalance, useBalances } from '@/services/balances';
 import { useWalletStore } from '@/store';
 import { FiatCurrency, pricingService } from '@/services/pricing-service';
+import { usePricingSnapshot } from '@/hooks/usePricingSnapshot';
 import {
   BackdropText,
   Card,
@@ -54,6 +58,9 @@ type Holding = {
   balanceNum: number;
   balanceFormatted: string;
   fiatValue: number;
+  isFiatAvailable: boolean;
+  isQueried: boolean;
+  isBalanceComplete: boolean;
 };
 
 const BTC_VARIANT_LABEL: Record<string, string> = {
@@ -78,28 +85,22 @@ export default function AssetDetailScreen() {
   const router = useRouter();
   const { enabledChains } = useEnabledChains();
   const { selectedCurrency } = useWalletStore();
+  const [showDetails, setShowDetails] = useState(false);
 
   const holdingMetas = useMemo(
     () => getAssetsForCanonicalSymbol(canonicalSymbol, enabledChains),
     [canonicalSymbol, enabledChains],
   );
   const allAssetConfigs = useMemo(() => getAssets(enabledChains), [enabledChains]);
-  const wdkAssets = useMemo(
-    () => allAssetConfigs.filter((a) => WDK_SUPPORTED_CHAINS.includes(a.getNetwork() as ChainId)),
-    [allAssetConfigs],
-  );
-  const { data: balanceResults } = useBalancesForWallet(0, wdkAssets);
-  const [pricingReady, setPricingReady] = useState(pricingService.isReady());
+  const { data: balances, isLoading: balancesLoading } = useBalances(allAssetConfigs);
+  const pricingRevision = usePricingSnapshot();
+  const pricingReady = pricingService.isReady();
 
   useEffect(() => {
     if (pricingService.isReady()) {
-      setPricingReady(true);
       return;
     }
-    void pricingService
-      .initialize()
-      .then(() => setPricingReady(true))
-      .catch(() => setPricingReady(false));
+    void pricingService.initialize().catch(() => undefined);
   }, []);
 
   const fiatCurrency = resolveFiatCurrency(selectedCurrency);
@@ -107,6 +108,7 @@ export default function AssetDetailScreen() {
     fiatCurrency === FiatCurrency.CHF ? 'CHF' : fiatCurrency === FiatCurrency.EUR ? '€' : '$';
 
   const holdings = useMemo<Holding[]>(() => {
+    void pricingRevision;
     const NETWORK_ORDER: Record<string, number> = {
       ethereum: 0,
       arbitrum: 1,
@@ -118,12 +120,23 @@ export default function AssetDetailScreen() {
     };
 
     const list = holdingMetas.map((meta) => {
-      const result = balanceResults?.find((r) => r.assetId === meta.id);
-      const rawBalance = result?.success ? (result.balance ?? '0') : '0';
+      const asset = allAssetConfigs.find((candidate) => candidate.getId() === meta.id);
+      const balanceEntry = balances.get(meta.id);
+      const rawBalance = getRawBalance(balances, meta.id);
       const balanceFormatted = formatBalance(rawBalance, meta.decimals);
       const balanceNum = toNumeric(balanceFormatted);
 
       const fiatValue = computeFiatValue(balanceNum, canonicalSymbol, fiatCurrency, pricingReady);
+      const completeness = getPortfolioAssetCompleteness({
+        asset,
+        balanceEntry,
+        balance: balanceNum,
+        canonicalSymbol,
+        fiatCurrency,
+        pricingReady,
+      });
+      const isFiatAvailable =
+        completeness.isFiatAvailable && (balanceNum <= 0 || Number.isFinite(fiatValue));
 
       const chainLabel = CHAIN_LABELS.get(meta.network) ?? meta.network;
       const isBtc = meta.canonicalSymbol === 'BTC';
@@ -142,6 +155,9 @@ export default function AssetDetailScreen() {
         balanceNum,
         balanceFormatted,
         fiatValue,
+        isFiatAvailable,
+        isQueried: completeness.isQueried,
+        isBalanceComplete: completeness.isBalanceComplete,
       };
     });
 
@@ -150,92 +166,186 @@ export default function AssetDetailScreen() {
       if (symbolCmp !== 0) return symbolCmp;
       return (NETWORK_ORDER[a.network] ?? 99) - (NETWORK_ORDER[b.network] ?? 99);
     });
-  }, [holdingMetas, balanceResults, canonicalSymbol, fiatCurrency, pricingReady]);
+  }, [
+    holdingMetas,
+    allAssetConfigs,
+    balances,
+    canonicalSymbol,
+    fiatCurrency,
+    pricingReady,
+    pricingRevision,
+  ]);
+
+  // Never-queried holdings have balanceNum 0, so they neither contribute to nor invalidate totals.
+  const balancesIncomplete =
+    balancesLoading || holdings.some((holding) => holding.isQueried && !holding.isBalanceComplete);
+  const pricesIncomplete = holdings.some((holding) => !holding.isFiatAvailable);
+  const detailIncomplete = balancesIncomplete || pricesIncomplete;
+  const balancesPending =
+    balancesLoading ||
+    holdings.some((holding) => {
+      if (!holding.isQueried) return false;
+      const status = balances.get(holding.id)?.status;
+      return status === 'idle' || status === 'loading';
+    });
 
   const totalBalance = useMemo(
     () => holdings.reduce((sum, h) => sum + h.balanceNum, 0),
     [holdings],
   );
   const totalFiat = useMemo(() => holdings.reduce((sum, h) => sum + h.fiatValue, 0), [holdings]);
+  const unitPrice = useMemo(() => {
+    if (!pricingReady) return undefined;
+    const ticker = SYMBOL_TO_TICKER.get(canonicalSymbol);
+    if (!ticker) return undefined;
+    const price = pricingService.getExchangeRate(ticker, fiatCurrency);
+    return price !== undefined && Number.isFinite(price) ? price : undefined;
+  }, [canonicalSymbol, fiatCurrency, pricingReady]);
 
   const color = SYMBOL_COLORS.get(canonicalSymbol) ?? colors.primary;
   const glyph = SYMBOL_GLYPH.get(canonicalSymbol) ?? canonicalSymbol.slice(0, 1);
+  const canonicalCategory = getCategoryForCanonicalSymbol(canonicalSymbol);
+  const displayName =
+    canonicalCategory === 'stablecoin'
+      ? t(`portfolio.assetName.${canonicalSymbol}`)
+      : canonicalName;
+  const formattedBalance = `${formatNumber(totalBalance)} ${canonicalSymbol}`;
+  const rateText =
+    unitPrice !== undefined
+      ? t('portfolio.assetRate', {
+          currency: currencySymbol,
+          price: formatFiat(unitPrice),
+          symbol: canonicalSymbol,
+        })
+      : null;
+  const balanceAndRate = rateText ? `${formattedBalance} · ${rateText}` : formattedBalance;
 
   const body = (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <AppHeader title={canonicalName} testID="asset-detail" />
+      <AppHeader title={displayName} testID="asset-detail" />
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.totalCard}>
+        <View style={styles.totalSection}>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalCurrency} testID="asset-detail-total-currency">
+              {currencySymbol}
+            </Text>
+            <Text style={styles.totalValue}>{detailIncomplete ? '—' : formatFiat(totalFiat)}</Text>
+          </View>
+          {detailIncomplete ? (
+            <Text style={styles.balanceStatus} testID="asset-detail-balance-incomplete">
+              {t(
+                balancesIncomplete
+                  ? balancesPending
+                    ? 'portfolio.balanceLoading'
+                    : 'portfolio.balanceUnavailable'
+                  : 'dashboard.incompleteBalance',
+              )}
+            </Text>
+          ) : (
+            <Text style={styles.totalMeta}>{balanceAndRate}</Text>
+          )}
+        </View>
+
+        <View style={styles.actionsRow}>
+          <WalletActions asset={canonicalSymbol} />
+        </View>
+
+        <GlassSurface
+          radius={Card.radius}
+          style={styles.summaryRow}
+          testID="asset-detail-summary"
+          variant="default"
+        >
           <View style={[styles.iconBubble, { backgroundColor: color }]}>
             <Text style={styles.iconText}>{glyph}</Text>
           </View>
-          <Text style={styles.totalCrypto}>
-            {formatNumber(totalBalance)} {canonicalSymbol}
-          </Text>
-          <Text style={styles.totalFiat}>
-            {currencySymbol}{' '}
-            {Number.isFinite(totalFiat)
-              ? (Math.round(totalFiat * 100) / 100).toLocaleString('de-CH', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })
-              : '0.00'}
-          </Text>
-          <View style={styles.actionsRow}>
-            <AssetActions asset={canonicalSymbol} testID={`asset-${canonicalSymbol}-actions`} />
+          <View style={styles.holdingInfo}>
+            <Text style={styles.holdingChain}>{displayName}</Text>
+            <Text style={styles.holdingSymbol}>{t('portfolio.onYourWallet')}</Text>
           </View>
-        </View>
+          <View style={styles.holdingBalance}>
+            <Text style={styles.holdingValue} testID="asset-detail-total-fiat">
+              {detailIncomplete ? '—' : `${currencySymbol} ${formatFiat(totalFiat)}`}
+            </Text>
+            <Text style={styles.holdingCrypto} testID="asset-detail-total-crypto">
+              {balancesIncomplete ? '—' : `${formatNumber(totalBalance)} ${canonicalSymbol}`}
+            </Text>
+          </View>
+        </GlassSurface>
 
-        <Text style={styles.sectionLabel}>{t('portfolio.holdings')}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showDetails }}
+          onPress={() => setShowDetails((current) => !current)}
+          style={({ pressed }) => [styles.expandButton, pressed && styles.holdingPressed]}
+          testID="asset-detail-expand"
+        >
+          <Text style={styles.expandLabel}>
+            {showDetails ? t('portfolio.hideByAddress') : t('portfolio.showByAddress')}
+          </Text>
+          <Text style={styles.expandChevron}>{showDetails ? '⌃' : '›'}</Text>
+        </Pressable>
 
-        <View style={styles.holdingsList}>
-          {holdings.map((holding) => (
-            <Pressable
-              key={holding.id}
-              style={({ pressed }) => [styles.holdingRow, pressed && styles.holdingPressed]}
-              testID={`holding-${holding.network}-${holding.symbol}`}
-              onPress={() =>
-                router.push({
-                  pathname: '/(auth)/transaction-history',
-                  params: { asset: holding.symbol, network: holding.network },
-                })
-              }
-            >
-              <View style={styles.holdingInfo}>
-                {/* For canonical groups with multiple stablecoin variants
+        {showDetails ? (
+          <View style={styles.holdingsList}>
+            {holdings.map((holding) => (
+              <Pressable
+                key={holding.id}
+                style={({ pressed }) => [pressed && styles.holdingPressed]}
+                testID={`holding-${holding.network}-${holding.symbol}`}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(auth)/transaction-history',
+                    params: { asset: holding.symbol, network: holding.network },
+                  })
+                }
+              >
+                <GlassSurface variant="default" radius={Card.radius} style={styles.holdingRow}>
+                  <View style={styles.holdingInfo}>
+                    {/* For canonical groups with multiple stablecoin variants
                         (USD → USDC/USDT, EUR → multiple) the user wants the
                         token symbol on top so they can tell the rows apart;
                         the generic canonical name ("Dollar") is redundant
                         with the screen title. For BTC and other groups where
                         every holding shares the same symbol, fall back to
                         the canonical name + variant label as before. */}
-                <Text style={styles.holdingChain}>
-                  {holding.symbol !== canonicalSymbol ? holding.symbol : holding.canonicalName}
-                </Text>
-                <Text style={styles.holdingSymbol}>{holding.variantLabel}</Text>
-              </View>
-              <View style={styles.holdingBalance}>
-                <Text style={styles.holdingValue}>
-                  {currencySymbol}{' '}
-                  {Number.isFinite(holding.fiatValue)
-                    ? (Math.round(holding.fiatValue * 100) / 100).toLocaleString('de-CH', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })
-                    : '0.00'}
-                </Text>
-                <Text style={styles.holdingCrypto}>
-                  {formatNumber(holding.balanceNum)} {holding.symbol}
-                </Text>
-              </View>
-            </Pressable>
-          ))}
-        </View>
+                    <Text style={styles.holdingChain}>
+                      {holding.symbol !== canonicalSymbol ? holding.symbol : holding.canonicalName}
+                    </Text>
+                    <Text style={styles.holdingSymbol}>{holding.variantLabel}</Text>
+                  </View>
+                  <View style={styles.holdingBalance}>
+                    <Text style={styles.holdingValue}>
+                      {holding.isBalanceComplete && holding.isFiatAvailable
+                        ? `${currencySymbol} ${
+                            Number.isFinite(holding.fiatValue)
+                              ? (Math.round(holding.fiatValue * 100) / 100).toLocaleString(
+                                  'de-CH',
+                                  {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  },
+                                )
+                              : '0.00'
+                          }`
+                        : '—'}
+                    </Text>
+                    <Text style={styles.holdingCrypto}>
+                      {holding.isBalanceComplete
+                        ? `${formatNumber(holding.balanceNum)} ${holding.symbol}`
+                        : '—'}
+                    </Text>
+                  </View>
+                </GlassSurface>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -244,28 +354,12 @@ export default function AssetDetailScreen() {
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <View style={styles.bg}>
-        {scheme === 'dark' ? (
-          <DarkBackdrop baseColor={colors.background} />
-        ) : (
-          <ImageBackground
-            source={require('../../../assets/dashboard-bg.png')}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        )}
+        <ScreenBackdrop />
         {body}
       </View>
     </>
   );
 }
-
-const cardElevation = (colors: ThemeColors) => ({
-  shadowColor: colors.shadow,
-  shadowOpacity: 0.07,
-  shadowRadius: 12,
-  shadowOffset: { width: 0, height: 5 },
-  elevation: 2,
-});
 
 const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
   const onBackdrop =
@@ -288,51 +382,81 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
       paddingBottom: Spacing.huge,
       gap: Spacing.base,
     },
-    totalCard: {
-      paddingTop: Spacing.md,
-      paddingBottom: Spacing.xl,
+    totalSection: {
       alignItems: 'center',
-      gap: Spacing.md,
+      gap: Spacing.xs,
+    },
+    totalRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+    },
+    totalCurrency: {
+      fontSize: Typography.headlineSmall.fontSize,
+      color: colors.textSecondary,
+      fontWeight: '700',
+      ...onBackdrop,
+    },
+    totalValue: {
+      ...Typography.displayMedium,
+      color: colors.text,
+      flexShrink: 1,
+      ...onBackdrop,
+    },
+    totalMeta: {
+      ...Typography.bodySmall,
+      color: colors.textSecondary,
+      fontWeight: '500',
+      textAlign: 'center',
+      ...onBackdrop,
     },
     iconBubble: {
-      width: IconTile.lg.size,
-      height: IconTile.lg.size,
-      borderRadius: IconTile.lg.radius,
+      width: IconTile.md.size,
+      height: IconTile.md.size,
+      borderRadius: IconTile.md.radius,
       alignItems: 'center',
       justifyContent: 'center',
       shadowColor: colors.shadow,
-      shadowOpacity: 0.18,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
     },
     iconText: {
+      ...Typography.headlineSmall,
       color: colors.white,
-      fontWeight: '700',
-      fontSize: 30,
-      lineHeight: 34,
-    },
-    totalCrypto: {
-      fontSize: 32,
-      lineHeight: 36,
-      fontWeight: '700',
-      color: colors.text,
-      ...onBackdrop,
-    },
-    totalFiat: {
-      ...Typography.bodyLarge,
-      color: colors.textSecondary,
-      fontWeight: '500',
-      ...onBackdrop,
     },
     actionsRow: {
-      marginTop: Spacing.md,
       alignSelf: 'stretch',
     },
-    sectionLabel: {
-      ...Typography.sectionLabel,
-      color: colors.textSecondary,
-      marginBottom: Spacing.sm,
+    balanceStatus: {
+      ...Typography.bodySmall,
+      color: colors.warningText,
+      textAlign: 'center',
       ...onBackdrop,
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: Card.padding,
+      gap: Card.gap,
+    },
+    expandButton: {
+      minHeight: 40,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+    },
+    expandLabel: {
+      ...Typography.bodySmall,
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    expandChevron: {
+      ...Typography.bodyLarge,
+      color: colors.primary,
+      fontWeight: '700',
     },
     holdingsList: {
       gap: Layout.listGap,
@@ -340,13 +464,8 @@ const makeStyles = (colors: ThemeColors, scheme: ResolvedScheme) => {
     holdingRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.cardOverlay,
-      borderRadius: Card.radius,
-      borderWidth: Card.borderWidth,
-      borderColor: colors.cardOverlayBorder,
       padding: Card.padding,
       gap: Card.gap,
-      ...cardElevation(colors),
     },
     holdingPressed: {
       opacity: Interaction.pressedCardOpacity,

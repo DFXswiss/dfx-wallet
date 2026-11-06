@@ -1,6 +1,6 @@
-import { Passkey, type PasskeyCreateResult, type PasskeyGetResult } from 'react-native-passkey';
 import { Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
+import { Passkey, type PasskeyCreateResult, type PasskeyGetResult } from 'react-native-passkey';
 
 const RP_ID = 'dfx.swiss';
 const RP_NAME = 'DFX Wallet';
@@ -138,7 +138,7 @@ export async function createPasskey(): Promise<{ prfOutput: Uint8Array; credenti
  * Authenticate with an existing passkey and evaluate PRF to re-derive wallet entropy.
  * Returns the raw PRF output (32 bytes) as a Uint8Array.
  */
-export async function authenticatePasskey(): Promise<{
+export async function authenticatePasskey(options: { credentialId?: string } = {}): Promise<{
   prfOutput: Uint8Array;
   credentialId: string;
 }> {
@@ -149,6 +149,9 @@ export async function authenticatePasskey(): Promise<{
     rpId: RP_ID,
     challenge,
     userVerification: 'required',
+    ...(options.credentialId !== undefined
+      ? { allowCredentials: [{ id: options.credentialId, type: 'public-key' as const }] }
+      : {}),
     extensions: {
       prf: {
         eval: {
@@ -157,6 +160,10 @@ export async function authenticatePasskey(): Promise<{
       },
     },
   });
+
+  if (options.credentialId !== undefined && result.id !== options.credentialId) {
+    throw new PasskeyCredentialMismatchError();
+  }
 
   return {
     prfOutput: extractPrfOutput(result),
@@ -168,5 +175,12 @@ export class PasskeyPrfUnsupportedError extends Error {
   constructor() {
     super('PRF extension not supported by this authenticator');
     this.name = 'PasskeyPrfUnsupportedError';
+  }
+}
+
+export class PasskeyCredentialMismatchError extends Error {
+  constructor() {
+    super('Authenticated passkey credential does not match the stored credential');
+    this.name = 'PasskeyCredentialMismatchError';
   }
 }
