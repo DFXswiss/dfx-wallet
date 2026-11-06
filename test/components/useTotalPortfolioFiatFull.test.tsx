@@ -229,6 +229,7 @@ describe('useTotalPortfolioFiat (full)', () => {
       address: LINKED_A.address.toLowerCase(),
       assets: [],
       totalFiat: 10,
+      scannable: true,
       complete: true,
       known: true,
     });
@@ -236,6 +237,7 @@ describe('useTotalPortfolioFiat (full)', () => {
       address: LINKED_B.address.toLowerCase(),
       assets: [],
       totalFiat: 5,
+      scannable: true,
       complete: true,
       known: true,
     });
@@ -243,6 +245,7 @@ describe('useTotalPortfolioFiat (full)', () => {
       address: ACTIVE.address.toLowerCase(),
       assets: [],
       totalFiat: 999,
+      scannable: true,
       complete: true,
       known: true,
     });
@@ -250,6 +253,59 @@ describe('useTotalPortfolioFiat (full)', () => {
     const { result } = renderHook(() => useTotalPortfolioFiat());
     await waitFor(() => expect(result.current.totalFiat).toBe(15));
     expect(result.current.isIncomplete).toBe(false);
+  });
+
+  it('persists priced holdings while excluding unscannable wallets and tokens without a price source', async () => {
+    setCompleteBalances({ [USDT_ETH_ID]: '1000000' });
+    useAuthStore.setState({ isDfxAuthenticated: true });
+    const lightning: UserAddressDto = {
+      address: 'lnurl1linkedwallet',
+      blockchain: 'Lightning',
+      blockchains: ['Lightning'],
+    };
+    mockGetUser.mockResolvedValue({ addresses: [lightning, LINKED_A], activeAddress: null });
+    mockDiscovery.set(lightning.address, {
+      address: lightning.address,
+      assets: [],
+      totalFiat: 0,
+      scannable: false,
+      complete: true,
+      known: false,
+    });
+    mockDiscovery.set(LINKED_A.address.toLowerCase(), {
+      address: LINKED_A.address.toLowerCase(),
+      assets: [
+        {
+          chain: 'ethereum',
+          symbol: 'UNKNOWN',
+          name: 'Unknown token',
+          contract: '0xunknown',
+          rawBalance: '1',
+          balance: 1,
+          hasPriceSource: false,
+          fiatValue: null,
+        },
+        {
+          chain: 'ethereum',
+          symbol: 'USDT',
+          name: 'Tether',
+          contract: '0xtoken',
+          rawBalance: '10000000',
+          balance: 10,
+          hasPriceSource: true,
+          fiatValue: 10,
+        },
+      ],
+      totalFiat: 10,
+      scannable: true,
+      complete: true,
+      known: true,
+    });
+
+    const { result } = renderHook(() => useTotalPortfolioFiat());
+    await waitFor(() => expect(result.current.totalFiat).toBe(11));
+    expect(result.current.isIncomplete).toBe(false);
+    await waitFor(() => expect(useWalletStore.getState().totalBalanceFiat).toBe('11'));
   });
 
   it('ignores linked wallets the user has not selected and unknown discovery', async () => {
@@ -263,6 +319,7 @@ describe('useTotalPortfolioFiat (full)', () => {
       address: LINKED_A.address.toLowerCase(),
       assets: [],
       totalFiat: 7,
+      scannable: true,
       complete: false,
       known: false,
     });
@@ -280,6 +337,7 @@ describe('useTotalPortfolioFiat (full)', () => {
       address: LINKED_A.address.toLowerCase(),
       assets: [],
       totalFiat: 10,
+      scannable: true,
       complete: false,
       known: true,
     });
@@ -300,6 +358,7 @@ describe('useTotalPortfolioFiat (full)', () => {
       address: LINKED_A.address.toLowerCase(),
       assets: [],
       totalFiat: 10,
+      scannable: true,
       complete: true,
       known: false,
     });
@@ -330,6 +389,7 @@ describe('useTotalPortfolioFiat (full)', () => {
       address: LINKED_A.address.toLowerCase(),
       assets: [],
       totalFiat: 10,
+      scannable: true,
       complete: true,
       known: true,
     });

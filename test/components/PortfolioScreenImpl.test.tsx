@@ -459,6 +459,7 @@ describe('PortfolioScreenImpl', () => {
       address: LONG_ADDR.toLowerCase(),
       assets: [],
       totalFiat: 42.5,
+      scannable: true,
       complete: true,
       known: true,
     });
@@ -466,6 +467,7 @@ describe('PortfolioScreenImpl', () => {
       address: SHORT_ADDR.toLowerCase(),
       assets: [],
       totalFiat: 1,
+      scannable: true,
       complete: false,
       known: false,
     });
@@ -491,6 +493,7 @@ describe('PortfolioScreenImpl', () => {
       address: LONG_ADDR.toLowerCase(),
       assets: [],
       totalFiat: 42.5,
+      scannable: true,
       complete: false,
       known: true,
     });
@@ -512,6 +515,7 @@ describe('PortfolioScreenImpl', () => {
       address: LONG_ADDR.toLowerCase(),
       assets: [],
       totalFiat: 42.5,
+      scannable: true,
       complete: true,
       known: true,
     });

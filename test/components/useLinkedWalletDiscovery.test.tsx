@@ -6,12 +6,16 @@ import {
   createDiscoveredAsset,
   useLinkedWalletDiscovery,
 } from '@/features/linked-wallets/useLinkedWalletDiscovery';
-import { isLinkedWalletEntryComplete } from '@/features/portfolio/portfolio-completeness';
+import {
+  isCombinedPortfolioComplete,
+  isLinkedWalletEntryComplete,
+} from '@/features/portfolio/portfolio-completeness';
+import * as btcFetcher from '@/services/balances/btc-fetcher';
 import { EvmBalanceFetcher, type EvmBalanceResult } from '@/services/balances/evm-fetcher';
 import * as blockscout from '@/services/explorer/blockscout';
 import * as coinList from '@/services/pricing/coingecko-coins-list';
 import * as simplePrice from '@/services/pricing/coingecko-simple-price';
-import { FiatCurrency } from '@/services/pricing-service';
+import { FiatCurrency, pricingService } from '@/services/pricing-service';
 
 const WALLET = {
   address: '0x00000000000000000000000000000000000000ab',
@@ -71,6 +75,7 @@ describe('linked-wallet asset pricing', () => {
         symbol: 'UNKNOWN',
         name: 'Unknown token',
         contract: '0x0000000000000000000000000000000000000001',
+        hasPriceSource: false,
         rawBalance: '12500000',
         decimals: 6,
       }),
@@ -97,9 +102,127 @@ describe('linked-wallet asset pricing', () => {
 
     await waitFor(() =>
       expect(result.current.data.get(WALLET.address)?.assets).toEqual([
-        expect.objectContaining({ symbol: 'UNKNOWN', balance: 12.5, fiatValue: null }),
+        expect.objectContaining({
+          symbol: 'UNKNOWN',
+          balance: 12.5,
+          hasPriceSource: false,
+          fiatValue: null,
+        }),
       ]),
     );
+    const entry = result.current.data.get(WALLET.address);
+    expect(entry?.totalFiat).toBe(0);
+    expect(isLinkedWalletEntryComplete(entry)).toBe(true);
+  });
+
+  it('blocks completeness when a token has a price source but no price', async () => {
+    const { contractAddress, lookupCoinIds } = mockUnpricedTokenQuery();
+    lookupCoinIds.mockResolvedValue(new Map([[contractAddress, 'unknown-token']]));
+    jest.spyOn(pricingService, 'getPriceById').mockReturnValue(undefined);
+    jest.spyOn(EvmBalanceFetcher.prototype, 'fetch').mockImplementation(async (specs) => {
+      const results = new Map<string, EvmBalanceResult>();
+      for (const spec of specs) {
+        results.set(spec.assetId, {
+          assetId: spec.assetId,
+          rawBalance: spec.isNative ? '0' : '12500000',
+        });
+      }
+      return results;
+    });
+
+    const { result } = renderHook(
+      () => useLinkedWalletDiscovery([WALLET], FiatCurrency.CHF, true),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => expect(result.current.data.get(WALLET.address)?.assets).toHaveLength(1));
+    const entry = result.current.data.get(WALLET.address);
+    expect(entry?.assets[0]).toMatchObject({ hasPriceSource: true, fiatValue: null });
+    expect(entry?.complete).toBe(true);
+    expect(entry?.known).toBe(true);
+    expect(isLinkedWalletEntryComplete(entry)).toBe(false);
+  });
+
+  it('blocks completeness when a native EVM coin has no price', async () => {
+    jest.spyOn(blockscout, 'isBlockscoutSupported').mockReturnValue(true);
+    jest.spyOn(blockscout, 'getTokenList').mockResolvedValue({ ok: true, value: [] });
+    jest.spyOn(simplePrice, 'fetchSimplePrices').mockResolvedValue(new Map());
+    jest.spyOn(pricingService, 'getPriceById').mockReturnValue(undefined);
+    jest.spyOn(EvmBalanceFetcher.prototype, 'fetch').mockImplementation(async (specs) => {
+      const results = new Map<string, EvmBalanceResult>();
+      for (const spec of specs) {
+        results.set(spec.assetId, {
+          assetId: spec.assetId,
+          rawBalance: spec.isNative ? '1000000000000000000' : '0',
+        });
+      }
+      return results;
+    });
+
+    const { result } = renderHook(
+      () => useLinkedWalletDiscovery([WALLET], FiatCurrency.CHF, true),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => expect(result.current.data.get(WALLET.address)?.assets).toHaveLength(1));
+    const entry = result.current.data.get(WALLET.address);
+    expect(entry?.assets[0]).toMatchObject({
+      symbol: 'ETH',
+      hasPriceSource: true,
+      fiatValue: null,
+    });
+    expect(entry?.complete).toBe(true);
+    expect(entry?.known).toBe(true);
+    expect(isLinkedWalletEntryComplete(entry)).toBe(false);
+  });
+
+  it('blocks completeness when Bitcoin has no price', async () => {
+    const wallet = { address: 'bc1qexample', blockchain: 'Bitcoin', blockchains: ['Bitcoin'] };
+    jest.spyOn(btcFetcher, 'fetchBtcBalance').mockResolvedValue({ rawBalance: '100000000' });
+    jest.spyOn(simplePrice, 'fetchSimplePrices').mockResolvedValue(new Map());
+    jest.spyOn(pricingService, 'getPriceById').mockReturnValue(undefined);
+
+    const { result } = renderHook(
+      () => useLinkedWalletDiscovery([wallet], FiatCurrency.CHF, true),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => expect(result.current.data.get(wallet.address)?.assets).toHaveLength(1));
+    const entry = result.current.data.get(wallet.address);
+    expect(entry?.assets[0]).toMatchObject({
+      symbol: 'BTC',
+      hasPriceSource: true,
+      fiatValue: null,
+    });
+    expect(entry?.complete).toBe(true);
+    expect(entry?.known).toBe(true);
+    expect(isLinkedWalletEntryComplete(entry)).toBe(false);
+  });
+
+  it('keeps the token balance but blocks completeness when the coin ID lookup fails', async () => {
+    const { lookupCoinIds } = mockUnpricedTokenQuery();
+    lookupCoinIds.mockRejectedValue(new Error('coins list unavailable'));
+    jest.spyOn(EvmBalanceFetcher.prototype, 'fetch').mockImplementation(async (specs) => {
+      const results = new Map<string, EvmBalanceResult>();
+      for (const spec of specs) {
+        results.set(spec.assetId, {
+          assetId: spec.assetId,
+          rawBalance: spec.isNative ? '0' : '12500000',
+        });
+      }
+      return results;
+    });
+
+    const { result } = renderHook(
+      () => useLinkedWalletDiscovery([WALLET], FiatCurrency.CHF, true),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => expect(result.current.data.get(WALLET.address)?.assets).toHaveLength(1));
+    const entry = result.current.data.get(WALLET.address);
+    expect(entry?.assets[0]).toMatchObject({ balance: 12.5, fiatValue: null });
+    expect(entry?.complete).toBe(false);
+    expect(isLinkedWalletEntryComplete(entry)).toBe(false);
   });
 
   it('keeps placeholder totals only while the fiat currency is unchanged', async () => {
@@ -197,7 +320,7 @@ describe('linked-wallet asset pricing', () => {
     expect(result.current.data.get(WALLET.address)?.complete).toBe(false);
   });
 
-  it('marks a Lightning-only wallet unknown and incomplete', async () => {
+  it('excludes a Lightning-only wallet from combined completeness', async () => {
     const wallet = {
       address: 'lnurl1linkedwallet',
       blockchain: 'Lightning',
@@ -212,12 +335,21 @@ describe('linked-wallet asset pricing', () => {
     await waitFor(() =>
       expect(result.current.data.get(wallet.address)).toMatchObject({
         known: false,
-        complete: false,
+        scannable: false,
+        complete: true,
       }),
     );
+    expect(
+      isCombinedPortfolioComplete({
+        localBalancesComplete: true,
+        linkedProfileIncomplete: false,
+        linkedWalletAddresses: [wallet.address],
+        linkedDiscovery: result.current.data,
+      }),
+    ).toBe(true);
   });
 
-  it('stays incomplete when Ethereum succeeds but Lightning is unmapped', async () => {
+  it('remains complete when Ethereum succeeds and Lightning is unmapped', async () => {
     const wallet = {
       ...WALLET,
       blockchains: ['Ethereum', 'Lightning'],
@@ -239,7 +371,9 @@ describe('linked-wallet asset pricing', () => {
     );
 
     await waitFor(() => expect(result.current.data.get(wallet.address)?.known).toBe(true));
-    expect(result.current.data.get(wallet.address)?.complete).toBe(false);
+    const entry = result.current.data.get(wallet.address);
+    expect(entry).toMatchObject({ complete: true, scannable: true });
+    expect(isLinkedWalletEntryComplete(entry)).toBe(true);
   });
 
   it('marks discovery complete when every RPC balance read succeeds with a real zero', async () => {

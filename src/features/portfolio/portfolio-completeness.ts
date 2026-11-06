@@ -113,18 +113,18 @@ export function areLocalPortfolioBalancesComplete({
   });
 }
 
-/** Return whether one selected linked wallet has complete discovery and pricing data. */
+/** Require successful discovery and prices for assets with a price source. */
 export function isLinkedWalletEntryComplete(
   entry: WalletDiscovery | undefined,
 ): entry is WalletDiscovery {
   return (
     entry?.known === true &&
     entry.complete &&
-    entry.assets.every((asset) => asset.fiatValue != null)
+    entry.assets.every((asset) => !asset.hasPriceSource || asset.fiatValue != null)
   );
 }
 
-/** Combine local, DFX-profile and selected linked-wallet completeness. */
+/** Combine completeness, excluding linked wallets with no scannable chains. Missing entries block. */
 export function isCombinedPortfolioComplete({
   localBalancesComplete,
   linkedProfileIncomplete,
@@ -134,8 +134,9 @@ export function isCombinedPortfolioComplete({
   return (
     localBalancesComplete &&
     !linkedProfileIncomplete &&
-    linkedWalletAddresses.every((address) =>
-      isLinkedWalletEntryComplete(linkedDiscovery.get(address.toLowerCase())),
-    )
+    linkedWalletAddresses.every((address) => {
+      const entry = linkedDiscovery.get(address.toLowerCase());
+      return entry?.scannable === false || isLinkedWalletEntryComplete(entry);
+    })
   );
 }

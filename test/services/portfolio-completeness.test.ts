@@ -56,10 +56,12 @@ function linkedEntry(overrides: Partial<WalletDiscovery> = {}): WalletDiscovery 
         contract: '0xtoken',
         rawBalance: '1000000',
         balance: 1,
+        hasPriceSource: true,
         fiatValue: 1,
       },
     ],
     totalFiat: 1,
+    scannable: true,
     complete: true,
     known: true,
     ...overrides,
@@ -217,6 +219,11 @@ describe('portfolio completeness', () => {
       expect(isLinkedWalletEntryComplete(linkedEntry())).toBe(true);
     });
 
+    it('accepts a token without a price source', () => {
+      const asset = { ...linkedEntry().assets[0]!, hasPriceSource: false, fiatValue: null };
+      expect(isLinkedWalletEntryComplete(linkedEntry({ assets: [asset] }))).toBe(true);
+    });
+
     it.each([
       ['unknown', linkedEntry({ known: false })],
       ['incomplete', linkedEntry({ complete: false })],
@@ -242,6 +249,30 @@ describe('portfolio completeness', () => {
           linkedDiscovery: discovery,
         }),
       ).toBe(true);
+    });
+
+    it('excludes a present wallet with no scannable chains', () => {
+      const entry = linkedEntry({ scannable: false, known: false, assets: [], totalFiat: 0 });
+      expect(
+        isCombinedPortfolioComplete({
+          localBalancesComplete: true,
+          linkedProfileIncomplete: false,
+          linkedWalletAddresses: ['0xaaaa'],
+          linkedDiscovery: new Map([['0xaaaa', entry]]),
+        }),
+      ).toBe(true);
+    });
+
+    it('rejects an unknown wallet with a scannable chain', () => {
+      const entry = linkedEntry({ scannable: true, known: false });
+      expect(
+        isCombinedPortfolioComplete({
+          localBalancesComplete: true,
+          linkedProfileIncomplete: false,
+          linkedWalletAddresses: ['0xaaaa'],
+          linkedDiscovery: new Map([['0xaaaa', entry]]),
+        }),
+      ).toBe(false);
     });
 
     it.each([

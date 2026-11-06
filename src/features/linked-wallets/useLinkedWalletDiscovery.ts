@@ -50,6 +50,8 @@ export type DiscoveredAsset = {
   rawBalance: string;
   /** Human-readable balance number (with decimals applied). */
   balance: number;
+  /** Whether a price source exists for this asset. */
+  hasPriceSource: boolean;
   /** Fiat value in the user's display currency. `null` when CoinGecko
    *  didn't have a price for this contract. */
   fiatValue: number | null;
@@ -60,10 +62,11 @@ export type WalletDiscovery = {
   address: string;
   assets: DiscoveredAsset[];
   totalFiat: number;
-  /** True when every requested chain is supported and every asset balance query succeeded. */
+  /** True when at least one wallet blockchain maps to a scannable chain. */
+  scannable: boolean;
+  /** True when every scan and asset balance query on mapped chains succeeded. */
   complete: boolean;
-  /** True when at least one chain scan succeeded, false when every scan
-   *  errored. Together with `complete` it feeds `isLinkedWalletEntryComplete`, which gates the `—` placeholder. */
+  /** True when at least one chain scan succeeded; false when none succeeded or no chain is scannable. */
   known: boolean;
 };
 
@@ -91,6 +94,7 @@ export function createDiscoveredAsset(
     contract: input.contract,
     rawBalance: input.rawBalance,
     balance,
+    hasPriceSource: input.hasPriceSource,
     fiatValue: calculateDiscoveredFiatValue(balance, input.price),
   };
 }
@@ -121,10 +125,9 @@ export const LINKED_WALLET_DISCOVERY_KEY = ['balances', 'linked-wallet-discovery
  *     balance API we can pivot on, and DFX' wallet list rarely surfaces
  *     real holdings on those.
  *
- * Only tokens whose CoinGecko ID has a known price land in `totalFiat`.
- * Tokens without a price (`fiatValue: null`) still appear in `assets`
- * so the linked-wallet detail screen can show the raw balance with a
- * "no price available" note.
+ * Only assets with a known price contribute to `totalFiat`. Tokens without
+ * a CoinGecko ID remain visible but do not block aggregate completeness;
+ * assets with a price source and a missing price still block it.
  */
 export function useLinkedWalletDiscovery(
   wallets: UserAddressDto[],
@@ -161,20 +164,16 @@ export function useLinkedWalletDiscovery(
         const blockchains = wallet.blockchains?.length ? wallet.blockchains : [wallet.blockchain];
 
         const chains: ChainId[] = [];
-        let hasUnmappedBlockchain = false;
         for (const bc of blockchains) {
           // eslint-disable-next-line security/detect-object-injection -- BLOCKCHAIN_TO_CHAIN is a closed lookup; misses fall through
           const c = BLOCKCHAIN_TO_CHAIN[bc];
-          if (!c) {
-            hasUnmappedBlockchain = true;
-            continue;
-          }
+          if (!c) continue;
           if (!chains.includes(c)) chains.push(c);
         }
 
         const assets: DiscoveredAsset[] = [];
         let anyKnown = false;
-        let complete = !hasUnmappedBlockchain;
+        let complete = true;
 
         for (const chain of chains) {
           if (chain === 'bitcoin') {
@@ -198,6 +197,7 @@ export function useLinkedWalletDiscovery(
                   symbol: 'BTC',
                   name: 'Bitcoin',
                   contract: null,
+                  hasPriceSource: true,
                   rawBalance: r.rawBalance,
                   decimals: 8,
                   ...(price !== undefined ? { price } : {}),
@@ -252,7 +252,11 @@ export function useLinkedWalletDiscovery(
                   const coinIdByContract = await lookupCoinIds(
                     chain,
                     list.value.map((t) => t.contractAddress),
-                  ).catch((): Map<string, string> => new Map());
+                  ).catch((): Map<string, string> => {
+                    // Without the lookup, missing price sources cannot be distinguished from errors.
+                    complete = false;
+                    return new Map();
+                  });
                   for (const t of list.value) {
                     const coingeckoId = coinIdByContract.get(t.contractAddress.toLowerCase());
                     tokenSpecs.push({
@@ -362,6 +366,7 @@ export function useLinkedWalletDiscovery(
                   symbol: native.symbol,
                   name: native.symbol,
                   contract: null,
+                  hasPriceSource: true,
                   rawBalance: r.rawBalance,
                   decimals: native.decimals,
                   ...(price !== undefined ? { price } : {}),
@@ -378,6 +383,7 @@ export function useLinkedWalletDiscovery(
                 symbol: token.symbol,
                 name: token.name,
                 contract: token.contract,
+                hasPriceSource: Boolean(token.coingeckoId),
                 rawBalance: r.rawBalance,
                 decimals: token.decimals,
                 ...(price !== undefined ? { price } : {}),
@@ -393,7 +399,14 @@ export function useLinkedWalletDiscovery(
         }
 
         const totalFiat = assets.reduce((sum, a) => sum + (a.fiatValue ?? 0), 0);
-        out.set(lc, { address: lc, assets, totalFiat, complete, known: anyKnown });
+        out.set(lc, {
+          address: lc,
+          assets,
+          totalFiat,
+          scannable: chains.length > 0,
+          complete,
+          known: anyKnown,
+        });
       });
 
       await Promise.all(tasks);
