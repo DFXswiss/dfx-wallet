@@ -20,6 +20,11 @@ jest.mock('expo-crypto', () => ({
     }
     return hash.toString(16);
   }),
+  getRandomBytes: jest.fn((size: number) => {
+    const bytes = new Uint8Array(size);
+    crypto.getRandomValues(bytes);
+    return bytes;
+  }),
   CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
 }));
 

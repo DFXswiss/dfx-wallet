@@ -9,12 +9,31 @@ updates:
       timezone: Europe/Zurich
     target-branch: develop
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: expo
+        update-types: ['version-update:semver-major']
+      - dependency-name: expo-*
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@expo/*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: react-native
+        update-types: ['version-update:semver-major']
+      - dependency-name: react-native-*
+        update-types: ['version-update:semver-major']
+      - dependency-name: eslint-config-expo
+        update-types: ['version-update:semver-major']
+      - dependency-name: react
+        update-types: ['version-update:semver-major']
+      - dependency-name: react-dom
+        update-types: ['version-update:semver-major']
     labels:
       - dependencies
+    # `prefix` already carries the conventional-commit scope, so `include: scope`
+    # must stay off — together they produce a double scope ("chore(deps)(deps): …")
+    # that fails the pr-policy conventional-commit gate.
     commit-message:
       prefix: chore(deps)
       prefix-development: chore(deps-dev)
-      include: scope
 
   - package-ecosystem: github-actions
     directory: /
@@ -28,6 +47,6 @@ updates:
     labels:
       - dependencies
       - github-actions
+    # See note above: `prefix` carries the scope; `include: scope` would double it.
     commit-message:
       prefix: chore(ci)
-      include: scope

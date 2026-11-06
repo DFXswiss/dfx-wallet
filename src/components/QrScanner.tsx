@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
-import { DfxColors, Typography } from '@/theme';
+import { useTranslation } from 'react-i18next';
+import { useColors, type ThemeColors, Typography } from '@/theme';
 
 type Props = {
   visible: boolean;
@@ -11,6 +12,9 @@ type Props = {
 };
 
 export function QrScanner({ visible, onScan, onClose }: Props) {
+  const { t } = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
 
@@ -51,98 +55,97 @@ export function QrScanner({ visible, onScan, onClose }: Props) {
           </CameraView>
         ) : (
           <View style={styles.permissionContainer}>
-            <Text style={styles.permissionText}>
-              Camera permission is required to scan QR codes.
-            </Text>
+            <Text style={styles.permissionText}>{t('qrScanner.cameraPermission')}</Text>
             <Pressable style={styles.permissionButton} onPress={requestPermission}>
-              <Text style={styles.permissionButtonText}>Grant Permission</Text>
+              <Text style={styles.permissionButtonText}>{t('qrScanner.grantPermission')}</Text>
             </Pressable>
           </View>
         )}
 
         <Pressable style={styles.pasteButton} onPress={handlePasteFromClipboard}>
-          <Text style={styles.pasteText}>Paste from clipboard</Text>
+          <Text style={styles.pasteText}>{t('qrScanner.paste')}</Text>
         </Pressable>
 
         <Pressable style={styles.closeButton} onPress={onClose}>
-          <Text style={styles.closeText}>Close</Text>
+          <Text style={styles.closeText}>{t('common.close')}</Text>
         </Pressable>
       </View>
     </Modal>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: DfxColors.black,
-  },
-  camera: {
-    flex: 1,
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cutout: {
-    width: 250,
-    height: 250,
-    borderWidth: 2,
-    borderColor: DfxColors.primary,
-    borderRadius: 16,
-    backgroundColor: 'transparent',
-  },
-  permissionContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-    padding: 32,
-  },
-  permissionText: {
-    ...Typography.bodyLarge,
-    color: DfxColors.text,
-    textAlign: 'center',
-  },
-  permissionButton: {
-    backgroundColor: DfxColors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  permissionButtonText: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    color: DfxColors.white,
-  },
-  pasteButton: {
-    position: 'absolute',
-    bottom: 100,
-    alignSelf: 'center',
-    backgroundColor: DfxColors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
-  },
-  pasteText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.white,
-    fontWeight: '600',
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  closeText: {
-    ...Typography.bodyMedium,
-    color: DfxColors.white,
-    fontWeight: '600',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.black,
+    },
+    camera: {
+      flex: 1,
+    },
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cutout: {
+      width: 250,
+      height: 250,
+      borderWidth: 2,
+      borderColor: colors.primary,
+      borderRadius: 16,
+      backgroundColor: 'transparent',
+    },
+    permissionContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 16,
+      padding: 32,
+    },
+    permissionText: {
+      ...Typography.bodyLarge,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    permissionButton: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 24,
+      paddingVertical: 12,
+      borderRadius: 12,
+    },
+    permissionButtonText: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      color: colors.onPrimary,
+    },
+    pasteButton: {
+      position: 'absolute',
+      bottom: 100,
+      alignSelf: 'center',
+      backgroundColor: colors.primary,
+      paddingHorizontal: 24,
+      paddingVertical: 14,
+      borderRadius: 12,
+    },
+    pasteText: {
+      ...Typography.bodyMedium,
+      color: colors.onPrimary,
+      fontWeight: '600',
+    },
+    closeButton: {
+      position: 'absolute',
+      top: 60,
+      right: 20,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 20,
+    },
+    closeText: {
+      ...Typography.bodyMedium,
+      color: colors.white,
+      fontWeight: '600',
+    },
+  });

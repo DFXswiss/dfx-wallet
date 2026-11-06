@@ -1,0 +1,43 @@
+# Code owners for security-critical paths.
+#
+# Effective only once the develop/main rulesets enable
+# "require review from Code Owners" — see docs/security/roadmap.md (P0.6).
+# Until then this file still routes review requests automatically.
+#
+# Rationale (docs/security/roadmap.md, "Reviews"): any PR touching key
+# handling, signing, secure storage, the DFX backend client, dependency
+# manifests or CI itself needs a security-conscious review — enforced
+# here instead of by convention.
+
+# Key handling & signing
+/src/services/wallet/        @Danswar @davidleomay @TaprootFreak
+/src/services/security/      @Danswar @davidleomay @TaprootFreak
+/src/services/evm/           @Danswar @davidleomay @TaprootFreak
+/src/services/storage.ts     @Danswar @davidleomay @TaprootFreak
+/src/services/pin.ts         @Danswar @davidleomay @TaprootFreak
+/src/features/hardware-wallet/ @Danswar @davidleomay @TaprootFreak
+/src/features/passkey/       @Danswar @davidleomay @TaprootFreak
+/src/features/biometric/     @Danswar @davidleomay @TaprootFreak
+/src/features/pin/           @Danswar @davidleomay @TaprootFreak
+
+# Feature flags decide which security features are live
+/src/config/features.ts      @Danswar @davidleomay @TaprootFreak
+
+# Security-critical screens (seed export, PIN entry, onboarding/key creation)
+/app/(auth)/seed-export.tsx  @Danswar @davidleomay @TaprootFreak
+/app/(pin)/                  @Danswar @davidleomay @TaprootFreak
+/app/(onboarding)/           @Danswar @davidleomay @TaprootFreak
+
+# Backend trust boundary
+/src/features/dfx-backend/   @Danswar @davidleomay @TaprootFreak
+
+# Supply chain & build integrity
+/package.json                @Danswar @davidleomay @TaprootFreak
+/package-lock.json           @Danswar @davidleomay @TaprootFreak
+/plugins/                    @Danswar @davidleomay @TaprootFreak
+
+# CI and the gates themselves (a gate nobody guards is not a gate)
+/.github/                    @Danswar @davidleomay @TaprootFreak
+/scripts/                    @Danswar @davidleomay @TaprootFreak
+/.coverage-floor-lines       @Danswar @davidleomay @TaprootFreak
+/.coverage-floors.json       @Danswar @davidleomay @TaprootFreak

@@ -1,7 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
-import { useAccount, useRefreshBalance } from '@tetherto/wdk-react-native-core';
+import { useCallback, useState } from 'react';
+import { useAccount, type IAsset } from '@tetherto/wdk-react-native-core';
+import { useTranslation } from 'react-i18next';
 import type { ChainId } from '@/config/chains';
-import { getNativeAsset } from '@/config/tokens';
+import { hasExcessPrecision, parseUnits } from '@/config/portfolio-presentation';
+import { useRefreshBalances } from '@/services/balances';
 
 type SendState = {
   isLoading: boolean;
@@ -10,16 +12,38 @@ type SendState = {
 };
 
 /**
- * Hook for sending the native asset on a given chain via the WDK worklet.
+ * Hook for sending an asset (native or ERC-20) via the WDK worklet.
  *
- * The new wdk-react-native-core API exposes a per-account hook (`useAccount`)
- * with a typed `send({ asset, to, amount })` method, replacing the old
- * `useWallet().callAccountMethod(network, idx, 'transfer', ...)` plumbing.
+ * The send screen surfaces canonical symbols (USD/CHF/EUR/BTC) so the caller
+ * resolves the effective chain and actual `IAsset` (e.g. USDT-on-Polygon)
+ * before passing them in. The user-typed display amount ("1", "0.5") is scaled
+ * here by the asset's decimals before being handed to WDK, which expects
+ * amounts in the asset's smallest unit.
  */
+export type FeeEstimate = { success: true; fee: string } | { success: false; error: string };
+
+export function sendErrorKey(rawError: string | undefined): string {
+  const error = rawError?.toLowerCase() ?? '';
+  if (/insufficient|not enough|exceeds balance|balance too low/.test(error)) {
+    return 'send.error.insufficientFunds';
+  }
+  if (/amount.*(zero|positive|greater)|greater than zero/.test(error)) {
+    return 'send.error.amountZero';
+  }
+  if (/fee.*(high|exceed)|max.*fee/.test(error)) return 'send.error.feeTooHigh';
+  if (/network|timeout|timed out|offline|fetch|socket|rpc|unreachable/.test(error)) {
+    return 'send.error.network';
+  }
+  return 'send.error.generic';
+}
+
 export function useSendFlow(chain: ChainId) {
-  const { send: sendFromAccount } = useAccount({ network: chain, accountIndex: 0 });
-  const { mutate: refreshBalance } = useRefreshBalance();
-  const nativeAsset = useMemo(() => getNativeAsset(chain), [chain]);
+  const { t } = useTranslation();
+  const account = useAccount({
+    network: chain,
+    accountIndex: 0,
+  });
+  const refreshBalances = useRefreshBalances();
   const [state, setState] = useState<SendState>({
     isLoading: false,
     txHash: null,
@@ -27,43 +51,86 @@ export function useSendFlow(chain: ChainId) {
   });
 
   const send = useCallback(
-    async (params: { to: string; amount: string }) => {
-      if (!nativeAsset) {
-        const msg = `No native asset configured for ${chain}`;
-        setState({ isLoading: false, txHash: null, error: msg });
-        return null;
-      }
-
+    async (params: { asset: IAsset; to: string; amount: string }) => {
       setState({ isLoading: true, txHash: null, error: null });
 
       try {
-        const result = await sendFromAccount({
-          asset: nativeAsset,
+        const decimals = params.asset.getDecimals();
+        if (hasExcessPrecision(params.amount, decimals)) {
+          const msg = t('send.error.amountPrecision');
+          setState({ isLoading: false, txHash: null, error: msg });
+          return null;
+        }
+        const baseAmount = parseUnits(params.amount, decimals);
+        if (baseAmount === '0') {
+          const msg = t('send.error.amountZero');
+          setState({ isLoading: false, txHash: null, error: msg });
+          return null;
+        }
+
+        const result = await account.send({
+          asset: params.asset,
           to: params.to,
-          amount: params.amount,
+          amount: baseAmount,
         });
 
         if (!result.success) {
-          const msg = result.error ?? 'Transaction failed';
+          console.warn('Wallet send failed', result.error);
+          const msg = t(sendErrorKey(result.error));
           setState({ isLoading: false, txHash: null, error: msg });
           return null;
         }
 
         setState({ isLoading: false, txHash: result.hash, error: null });
-        refreshBalance({ accountIndex: 0, type: 'wallet' });
+        refreshBalances(0);
         return result.hash;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Transaction failed';
+        const rawError = err instanceof Error ? err.message : undefined;
+        console.warn('Wallet send failed', err);
+        const msg = t(sendErrorKey(rawError));
         setState({ isLoading: false, txHash: null, error: msg });
         return null;
       }
     },
-    [chain, nativeAsset, sendFromAccount, refreshBalance],
+    [account, refreshBalances, t],
+  );
+
+  const estimate = useCallback(
+    async (params: { asset: IAsset; to: string; amount: string }): Promise<FeeEstimate> => {
+      try {
+        const decimals = params.asset.getDecimals();
+        if (hasExcessPrecision(params.amount, decimals)) {
+          return { success: false, error: t('send.error.amountPrecision') };
+        }
+        const baseAmount = parseUnits(params.amount, decimals);
+        if (baseAmount === '0') {
+          return { success: false, error: t('send.error.amountZero') };
+        }
+        const result = await account.estimateFee({
+          asset: params.asset,
+          to: params.to,
+          amount: baseAmount,
+        });
+        if (!result.success) {
+          console.warn('Wallet fee estimate failed', result.error);
+          return { success: false, error: t(sendErrorKey(result.error)) };
+        }
+        return { success: true, fee: result.fee };
+      } catch (err) {
+        const rawError = err instanceof Error ? err.message : undefined;
+        console.warn('Wallet fee estimate failed', err);
+        return {
+          success: false,
+          error: t(sendErrorKey(rawError)),
+        };
+      }
+    },
+    [account, t],
   );
 
   const reset = useCallback(() => {
     setState({ isLoading: false, txHash: null, error: null });
   }, []);
 
-  return { ...state, send, reset };
+  return { ...state, send, estimate, reset };
 }

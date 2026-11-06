@@ -1,6 +1,7 @@
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Text } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
 import { PrimaryButton } from '../../src/components/PrimaryButton';
+import { darkColors, ThemeProvider, useThemeStore } from '@/theme';
 
 describe('PrimaryButton', () => {
   it('renders the title text in the filled (default) variant', () => {
@@ -17,9 +18,7 @@ describe('PrimaryButton', () => {
 
   it('does not call onPress when disabled', () => {
     const onPress = jest.fn();
-    const { getByText } = render(
-      <PrimaryButton title="Continue" onPress={onPress} disabled />,
-    );
+    const { getByText } = render(<PrimaryButton title="Continue" onPress={onPress} disabled />);
     fireEvent.press(getByText('Continue'));
     expect(onPress).not.toHaveBeenCalled();
   });
@@ -35,10 +34,44 @@ describe('PrimaryButton', () => {
     expect(onPress).not.toHaveBeenCalled();
   });
 
+  it('uses the on-primary token for a filled loading indicator in dark mode', () => {
+    useThemeStore.setState({ mode: 'dark' });
+    const { UNSAFE_getByType } = render(
+      <ThemeProvider>
+        <PrimaryButton title="Continue" onPress={() => {}} loading />
+      </ThemeProvider>,
+    );
+
+    expect(UNSAFE_getByType(ActivityIndicator).props.color).toBe(darkColors.onPrimary);
+    useThemeStore.setState({ mode: 'light' });
+  });
+
   it('renders the outlined variant', () => {
     const { getByText } = render(
       <PrimaryButton title="Cancel" variant="outlined" onPress={() => {}} />,
     );
     expect(getByText('Cancel')).toBeTruthy();
+  });
+
+  it('renders an optional icon next to the title', () => {
+    const { getByText } = render(
+      <PrimaryButton title="Continue" icon={<Text>icon</Text>} onPress={() => {}} />,
+    );
+    expect(getByText('Continue').props.children).toBe('Continue');
+    expect(getByText('icon').props.children).toBe('icon');
+  });
+
+  it('renders no icon when the icon prop is omitted (existing callers stay unaffected)', () => {
+    const { queryByText } = render(<PrimaryButton title="Continue" onPress={() => {}} />);
+    expect(queryByText('icon')).toBeNull();
+  });
+
+  it('hides the icon while loading, showing only the spinner', () => {
+    const { queryByText, UNSAFE_getByType } = render(
+      <PrimaryButton title="Continue" icon={<Text>icon</Text>} onPress={() => {}} loading />,
+    );
+    expect(queryByText('Continue')).toBeNull();
+    expect(queryByText('icon')).toBeNull();
+    expect(UNSAFE_getByType(ActivityIndicator).type).toBe(ActivityIndicator);
   });
 });

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { ChainId } from '@/config/chains';
+import { secureStorage, StorageKeys } from '@/services/storage';
 
 export type WalletType = 'software' | 'hardware';
 
@@ -9,6 +10,7 @@ type WalletState = {
   selectedChain: ChainId;
   totalBalanceFiat: string;
 
+  hydrate: () => Promise<void>;
   setWalletType: (type: WalletType) => void;
   setSelectedCurrency: (currency: string) => void;
   setSelectedChain: (chain: ChainId) => void;
@@ -23,12 +25,43 @@ const INITIAL_STATE = {
   totalBalanceFiat: '0.00',
 };
 
+const ALLOWED_CURRENCIES = new Set(['CHF', 'EUR', 'USD']);
+
 export const useWalletStore = create<WalletState>((set) => ({
   ...INITIAL_STATE,
 
+  /**
+   * Read the persisted currency (and any future preferences) from
+   * secure storage so a setting the user picked on a previous launch
+   * survives an app restart. Called once at boot from the root layout;
+   * the in-memory default (`CHF`) is the fallback for first-run users
+   * and for the brief moment before hydration finishes.
+   */
+  hydrate: async () => {
+    const stored = await secureStorage.get(StorageKeys.SELECTED_CURRENCY);
+    if (stored && ALLOWED_CURRENCIES.has(stored)) {
+      set({ selectedCurrency: stored });
+    }
+  },
+
   setWalletType: (type) => set({ walletType: type }),
-  setSelectedCurrency: (currency) => set({ selectedCurrency: currency }),
+
+  /**
+   * Persist the user's currency pick so it survives an app restart.
+   * Without this the Zustand store reset to the in-memory `CHF` default
+   * every relaunch and the user had to re-pick EUR every time.
+   */
+  setSelectedCurrency: (currency) => {
+    set({ selectedCurrency: currency });
+    if (ALLOWED_CURRENCIES.has(currency)) {
+      void secureStorage.set(StorageKeys.SELECTED_CURRENCY, currency);
+    }
+  },
+
   setSelectedChain: (chain) => set({ selectedChain: chain }),
   setTotalBalanceFiat: (balance) => set({ totalBalanceFiat: balance }),
-  reset: () => set(INITIAL_STATE),
+  reset: () => {
+    set(INITIAL_STATE);
+    void secureStorage.remove(StorageKeys.SELECTED_CURRENCY);
+  },
 }));
