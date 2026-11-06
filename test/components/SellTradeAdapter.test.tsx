@@ -416,31 +416,36 @@ describe('SellTradeAdapter payment replay', () => {
   it.each([
     ['1,5', 1.5],
     ['0,001', 0.001],
-  ])('normalizes %s for both the quote and payment info request', async (input, expected) => {
-    flowState.paymentInfo = { ...FLOW_PAYMENT_INFO, maxVolume: 10 };
-    mockCreatePaymentInfo.mockResolvedValueOnce(FLOW_PAYMENT_INFO);
-    const { getByTestId, getByText, getByPlaceholderText } = renderAdapter();
+  ])(
+    'normalizes %s for both the quote and payment info request',
+    async (input, expected) => {
+      flowState.paymentInfo = { ...FLOW_PAYMENT_INFO, maxVolume: 10 };
+      mockCreatePaymentInfo.mockResolvedValueOnce(FLOW_PAYMENT_INFO);
+      const { getByTestId, getByText, getByPlaceholderText } = renderAdapter();
 
-    fireEvent.press(getByTestId('sell-pay-asset-pill'));
-    fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
-    flowState.quoteKey = `${expected}|CHF|BTC|Bitcoin|bitcoin`;
-    fireEvent.changeText(getByTestId('sell-amount-input'), input);
-    await waitFor(() =>
-      expect(mockGetQuote).toHaveBeenCalledWith(expect.objectContaining({ amount: expected })),
-    );
-    fireEvent.press(getByText('sell.cta:{"asset":"BTC"}'));
-    fireEvent.changeText(
-      getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
-      'CH9300762011623852957',
-    );
-    await act(async () => {
-      fireEvent.press(getByText('common.continue'));
-    });
+      fireEvent.press(getByTestId('sell-pay-asset-pill'));
+      fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+      flowState.quoteKey = `${expected}|CHF|BTC|Bitcoin|bitcoin`;
+      fireEvent.changeText(getByTestId('sell-amount-input'), input);
+      await waitFor(() =>
+        expect(mockGetQuote).toHaveBeenCalledWith(expect.objectContaining({ amount: expected })),
+      );
+      fireEvent.press(getByText('sell.cta:{"asset":"BTC"}'));
+      fireEvent.changeText(
+        getByPlaceholderText('CH00 0000 0000 0000 0000 0'),
+        'CH9300762011623852957',
+      );
+      await act(async () => {
+        fireEvent.press(getByText('common.continue'));
+      });
 
-    expect(mockCreatePaymentInfo).toHaveBeenCalledWith(
-      expect.objectContaining({ amount: expected }),
-    );
-  });
+      expect(mockCreatePaymentInfo).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: expected }),
+      );
+      // First case pays the module cold start; slower than the 5 s default on CI runners.
+    },
+    15000,
+  );
 
   it('keeps a mixed-separator amount gated', () => {
     const { getByTestId, getByLabelText } = renderAdapter();
