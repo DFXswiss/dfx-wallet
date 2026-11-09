@@ -5,7 +5,9 @@ import {
   createPasskey,
   authenticatePasskey,
   PasskeyPrfUnsupportedError,
+  RP_ID,
 } from '../../src/features/passkey/services/passkey-service';
+import appConfig from '../../app.json';
 
 // react-native is mapped to an empty mock in the unit project; provide a
 // mutable Platform so the OS/version gates in isPasskeySupported are testable.
@@ -141,7 +143,7 @@ describe('createPasskey / PRF extraction', () => {
     await createPasskey();
 
     const arg = mockPasskey.create.mock.calls[0][0];
-    expect(arg.rp).toEqual({ id: 'dfx.swiss', name: 'DFX Wallet' });
+    expect(arg.rp).toEqual({ id: 'passkey.wallet.dfx.swiss', name: 'DFX Wallet' });
     expect(arg.authenticatorSelection.residentKey).toBe('required');
     expect(arg.authenticatorSelection.userVerification).toBe('required');
     expect(arg.extensions.prf.eval.first).toBeInstanceOf(Uint8Array);
@@ -172,7 +174,7 @@ describe('authenticatePasskey', () => {
     await authenticatePasskey();
 
     const arg = mockPasskey.get.mock.calls[0][0];
-    expect(arg.rpId).toBe('dfx.swiss');
+    expect(arg.rpId).toBe('passkey.wallet.dfx.swiss');
     expect(arg.userVerification).toBe('required');
     expect(arg.extensions.prf.eval.first).toBeInstanceOf(Uint8Array);
   });
@@ -180,5 +182,18 @@ describe('authenticatePasskey', () => {
   it('propagates PasskeyPrfUnsupportedError when the authenticator omits PRF', async () => {
     mockPasskey.get.mockResolvedValue({ id: 'cred-z', clientExtensionResults: {} });
     await expect(authenticatePasskey()).rejects.toBeInstanceOf(PasskeyPrfUnsupportedError);
+  });
+});
+
+describe('relying party', () => {
+  it('uses the dedicated passkey host', () => {
+    expect(RP_ID).toBe('passkey.wallet.dfx.swiss');
+  });
+
+  it('is declared as the iOS web-credentials associated domain', () => {
+    const webCredentialHosts = appConfig.expo.ios.associatedDomains
+      .filter((domain) => domain.startsWith('webcredentials:'))
+      .map((domain) => domain.slice('webcredentials:'.length).split('?')[0]);
+    expect(webCredentialHosts).toEqual([RP_ID]);
   });
 });
