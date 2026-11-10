@@ -27,6 +27,7 @@ export function useReauthenticate(): UseReauthenticateResult {
   const pending = useRef<PendingRequest | null>(null);
   const requestGeneration = useRef(0);
   const mounted = useRef(true);
+  const verifyingRef = useRef(false);
 
   const isLocked = lockedUntil !== null && lockedUntil > now;
   const remainingSeconds = isLocked ? Math.max(1, Math.ceil((lockedUntil - now) / 1000)) : 0;
@@ -128,40 +129,45 @@ export function useReauthenticate(): UseReauthenticateResult {
   const submitPin = useCallback(
     async (pin: string) => {
       const currentRequest = pending.current;
-      if (verifying || !currentRequest) return;
+      if (verifyingRef.current || !currentRequest) return;
+      verifyingRef.current = true;
       const requestId = currentRequest.id;
       const auth = useAuthStore.getState();
-      if (auth.lockedUntil && auth.lockedUntil > Date.now()) {
-        setNow(Date.now());
-        return;
-      }
-
-      setVerifying(true);
-      setError(null);
-      let valid = false;
       try {
-        valid = await auth.verifyPin(pin);
-      } catch {
-        valid = false;
-      }
-      if (!isCurrentRequest(requestId)) return;
-      setVerifying(false);
-      if (valid) {
-        finish(requestId, true);
-        return;
-      }
+        if (auth.lockedUntil && auth.lockedUntil > Date.now()) {
+          setNow(Date.now());
+          return;
+        }
 
-      const nextState = useAuthStore.getState();
-      setNow(Date.now());
-      if (nextState.lockedUntil && nextState.lockedUntil > Date.now()) return;
-      const attemptsLeft = Math.max(0, FIRST_LOCKOUT_ATTEMPT - nextState.failedAttempts);
-      setError(
-        attemptsLeft > 0
-          ? t('pin.incorrectAttemptsLeft', { count: attemptsLeft })
-          : t('pin.incorrect'),
-      );
+        setVerifying(true);
+        setError(null);
+        let valid = false;
+        try {
+          valid = await auth.verifyPin(pin);
+        } catch {
+          valid = false;
+        }
+        if (!isCurrentRequest(requestId)) return;
+        setVerifying(false);
+        if (valid) {
+          finish(requestId, true);
+          return;
+        }
+
+        const nextState = useAuthStore.getState();
+        setNow(Date.now());
+        if (nextState.lockedUntil && nextState.lockedUntil > Date.now()) return;
+        const attemptsLeft = Math.max(0, FIRST_LOCKOUT_ATTEMPT - nextState.failedAttempts);
+        setError(
+          attemptsLeft > 0
+            ? t('pin.incorrectAttemptsLeft', { count: attemptsLeft })
+            : t('pin.incorrect'),
+        );
+      } finally {
+        verifyingRef.current = false;
+      }
     },
-    [finish, isCurrentRequest, t, verifying],
+    [finish, isCurrentRequest, t],
   );
 
   const modalProps = useMemo<ReauthPinModalProps>(

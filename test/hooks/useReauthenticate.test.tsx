@@ -352,6 +352,29 @@ describe('useReauthenticate', () => {
     await expect(result).resolves.toBe(true);
   });
 
+  it('counts two same-turn PIN submits as one verification attempt', async () => {
+    let resolveVerification: (value: boolean) => void = () => undefined;
+    verifyPin.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        resolveVerification = resolve;
+      }),
+    );
+    useAuthStore.setState({ pinHash: 'hash' });
+    render(<Harness />);
+    const result = requestReauth();
+
+    act(() => {
+      current.modalProps.onSubmit('123456');
+      current.modalProps.onSubmit('654321');
+    });
+
+    expect(verifyPin).toHaveBeenCalledTimes(1);
+    expect(verifyPin).toHaveBeenCalledWith('123456');
+
+    await act(async () => resolveVerification(true));
+    await expect(result).resolves.toBe(true);
+  });
+
   it('ignores a PIN verification result after the request is cancelled', async () => {
     let resolveVerification: (value: boolean) => void = () => undefined;
     verifyPin.mockReturnValueOnce(
@@ -408,11 +431,26 @@ describe('useReauthenticate', () => {
     useAuthStore.setState({ biometricEnabled: true, pinHash: 'hash' });
     const view = render(<Harness />);
     const result = requestReauth();
+    const resolutions: boolean[] = [];
+    void result.then((value) => {
+      resolutions.push(value);
+    });
     view.unmount();
 
+    await act(async () => {
+      resolveBiometric(true);
+      await Promise.resolve();
+    });
+
+    expect(resolutions).toEqual([false]);
     await expect(result).resolves.toBe(false);
-    resolveBiometric(true);
-    await Promise.resolve();
+    expect(current.modalProps.visible).toBe(false);
+    expect(useAuthStore.getState()).toMatchObject({
+      biometricEnabled: true,
+      pinHash: 'hash',
+      failedAttempts: 0,
+      lockedUntil: null,
+    });
   });
 
   it('ignores a biometric result after the request is cancelled', async () => {
