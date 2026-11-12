@@ -2265,31 +2265,19 @@ describe('BuyTradeAdapter quote display', () => {
     expect(within(getByTestId('buy-fees-panel')).getAllByText('—')).toHaveLength(1);
   });
 
-  it('gives the fetching hint only the space the receive label leaves', () => {
+  it('shows the fetching hint in the fee row, not in the amount card', () => {
     flowState.paymentInfo = PAYMENT_INFO;
     flowState.isLoading = true;
     flowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
 
     const { getByTestId } = renderAdapter();
-    const hint = getByTestId('buy-fetching-quote');
-    const label = within(getByTestId('buy-amount-panels')).getByText('buy.receiveLabel');
+    const amountCard = within(getByTestId('buy-amount-panels'));
 
-    const labelStyle = StyleSheet.flatten(label.props.style);
-
-    expect(hint.props.numberOfLines).toBe(1);
-    expect(StyleSheet.flatten(hint.props.style)).toMatchObject({
-      flex: 1,
-      minWidth: 0,
-      textAlign: 'right',
-    });
-    expect(StyleSheet.flatten(hint.props.style).flexShrink).not.toBe(8);
-    expect(label.props.numberOfLines).toBeUndefined();
-    expect(labelStyle.flex).toBeUndefined();
-    expect(labelStyle.flexGrow).toBeUndefined();
-    expect(labelStyle).toMatchObject({
-      flexShrink: 1,
-      minWidth: 0,
-    });
+    expect(amountCard.queryByText('buy.fetchingQuote') === null).toBe(true);
+    expect(amountCard.queryByText('buy.receiveLabel') !== null).toBe(true);
+    expect(within(getByTestId('buy-fees-panel')).queryByText('buy.fetchingQuote') !== null).toBe(
+      true,
+    );
   });
 
   it('invalidates the previous quote immediately when the amount changes', () => {

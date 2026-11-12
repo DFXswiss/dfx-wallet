@@ -1,5 +1,4 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
 import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import type { BalanceEntry, BalanceMap, BalanceSourceResult } from '@/services/balances';
 
@@ -1355,7 +1354,7 @@ describe('SellTradeAdapter', () => {
     expect(getByTestId('sell-cta').props.accessibilityState.disabled).toBe(true);
   });
 
-  it('gives the fetching hint only the space the receive label leaves', () => {
+  it('shows the fetching hint in the fee row, not in the amount card', () => {
     flowState.paymentInfo = PAYMENT_INFO;
     flowState.isLoading = true;
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
@@ -1369,25 +1368,13 @@ describe('SellTradeAdapter', () => {
     });
     fireEvent.changeText(getByTestId('sell-amount-input'), '1');
 
-    const hint = getByTestId('sell-fetching-quote');
-    const label = within(getByTestId('sell-amount-panels')).getByText('sell.youReceive');
+    const amountCard = within(getByTestId('sell-amount-panels'));
 
-    const labelStyle = StyleSheet.flatten(label.props.style);
-
-    expect(hint.props.numberOfLines).toBe(1);
-    expect(StyleSheet.flatten(hint.props.style)).toMatchObject({
-      flex: 1,
-      minWidth: 0,
-      textAlign: 'right',
-    });
-    expect(StyleSheet.flatten(hint.props.style).flexShrink).not.toBe(8);
-    expect(label.props.numberOfLines).toBeUndefined();
-    expect(labelStyle.flex).toBeUndefined();
-    expect(labelStyle.flexGrow).toBeUndefined();
-    expect(labelStyle).toMatchObject({
-      flexShrink: 1,
-      minWidth: 0,
-    });
+    expect(amountCard.queryByText('sell.fetchingQuote') === null).toBe(true);
+    expect(amountCard.queryByText('sell.youReceive') !== null).toBe(true);
+    expect(within(getByTestId('sell-fees-panel')).queryByText('sell.fetchingQuote') !== null).toBe(
+      true,
+    );
   });
 
   it('invalidates the previous quote immediately when payout currency changes', () => {

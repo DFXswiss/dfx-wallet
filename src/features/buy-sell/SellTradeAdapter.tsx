@@ -501,16 +501,7 @@ export function SellTradeAdapter({
             </View>
           </TradeSelectorPill>
         }
-        receiveLabel={
-          <View style={styles.prowBetween}>
-            <Text style={[styles.plabel, styles.receiveLabelText]}>{t('sell.youReceive')}</Text>
-            {isLoading ? (
-              <Text style={styles.pmeta} numberOfLines={1} testID="sell-fetching-quote">
-                {t('sell.fetchingQuote')}
-              </Text>
-            ) : null}
-          </View>
-        }
+        receiveLabel={<Text style={styles.plabel}>{t('sell.youReceive')}</Text>}
         receiveAmount={
           <TextInput
             style={styles.amt}
@@ -825,28 +816,10 @@ const makeStyles = (colors: ThemeColors) =>
       ...Typography.bodyMedium,
       color: colors.textSecondary,
     },
-    prowBetween: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      minWidth: 0,
-      gap: 8,
-    },
     plabel: {
       fontSize: 12.5,
       fontWeight: '600',
       color: colors.textSecondary,
-    },
-    receiveLabelText: {
-      flexShrink: 1,
-      minWidth: 0,
-    },
-    pmeta: {
-      flex: 1,
-      minWidth: 0,
-      textAlign: 'right',
-      fontSize: 12,
-      color: colors.textTertiary,
     },
     amt: {
       flex: 1,
