@@ -2265,7 +2265,7 @@ describe('BuyTradeAdapter quote display', () => {
     expect(within(getByTestId('buy-fees-panel')).getAllByText('—')).toHaveLength(1);
   });
 
-  it('clips the fetching hint to one shrinking line beside a fixed receive label', () => {
+  it('gives the fetching hint only the space the receive label leaves', () => {
     flowState.paymentInfo = PAYMENT_INFO;
     flowState.isLoading = true;
     flowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
@@ -2274,13 +2274,22 @@ describe('BuyTradeAdapter quote display', () => {
     const hint = getByTestId('buy-fetching-quote');
     const label = within(getByTestId('buy-amount-panels')).getByText('buy.receiveLabel');
 
+    const labelStyle = StyleSheet.flatten(label.props.style);
+
     expect(hint.props.numberOfLines).toBe(1);
     expect(StyleSheet.flatten(hint.props.style)).toMatchObject({
+      flex: 1,
+      minWidth: 0,
+      textAlign: 'right',
+    });
+    expect(StyleSheet.flatten(hint.props.style).flexShrink).not.toBe(8);
+    expect(label.props.numberOfLines).toBeUndefined();
+    expect(labelStyle.flex).toBeUndefined();
+    expect(labelStyle.flexGrow).toBeUndefined();
+    expect(labelStyle).toMatchObject({
       flexShrink: 1,
       minWidth: 0,
     });
-    expect(label.props.numberOfLines).toBe(1);
-    expect(StyleSheet.flatten(label.props.style)).toMatchObject({ flexShrink: 0 });
   });
 
   it('invalidates the previous quote immediately when the amount changes', () => {

@@ -1355,7 +1355,7 @@ describe('SellTradeAdapter', () => {
     expect(getByTestId('sell-cta').props.accessibilityState.disabled).toBe(true);
   });
 
-  it('clips the fetching hint to one shrinking line beside a fixed receive label', () => {
+  it('gives the fetching hint only the space the receive label leaves', () => {
     flowState.paymentInfo = PAYMENT_INFO;
     flowState.isLoading = true;
     flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
@@ -1372,13 +1372,22 @@ describe('SellTradeAdapter', () => {
     const hint = getByTestId('sell-fetching-quote');
     const label = within(getByTestId('sell-amount-panels')).getByText('sell.youReceive');
 
+    const labelStyle = StyleSheet.flatten(label.props.style);
+
     expect(hint.props.numberOfLines).toBe(1);
     expect(StyleSheet.flatten(hint.props.style)).toMatchObject({
+      flex: 1,
+      minWidth: 0,
+      textAlign: 'right',
+    });
+    expect(StyleSheet.flatten(hint.props.style).flexShrink).not.toBe(8);
+    expect(label.props.numberOfLines).toBeUndefined();
+    expect(labelStyle.flex).toBeUndefined();
+    expect(labelStyle.flexGrow).toBeUndefined();
+    expect(labelStyle).toMatchObject({
       flexShrink: 1,
       minWidth: 0,
     });
-    expect(label.props.numberOfLines).toBe(1);
-    expect(StyleSheet.flatten(label.props.style)).toMatchObject({ flexShrink: 0 });
   });
 
   it('invalidates the previous quote immediately when payout currency changes', () => {

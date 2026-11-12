@@ -173,7 +173,12 @@ describe('MobileFeesPanel', () => {
       expect(StyleSheet.flatten(row.props.style)).toMatchObject({
         flexDirection: 'row',
         alignItems: 'center',
+        gap: TRADE_PANEL_GEOMETRY.inputGap,
         paddingVertical: 20,
+      });
+      expect(StyleSheet.flatten(column.props.style)).toMatchObject({
+        flex: 1,
+        minWidth: 0,
       });
       expect(StyleSheet.flatten(within(row).getByTestId(selectorId).props.style)).toMatchObject({
         alignSelf: 'center',

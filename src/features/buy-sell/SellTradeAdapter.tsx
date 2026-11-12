@@ -503,9 +503,7 @@ export function SellTradeAdapter({
         }
         receiveLabel={
           <View style={styles.prowBetween}>
-            <Text style={[styles.plabel, styles.receiveLabelFixed]} numberOfLines={1}>
-              {t('sell.youReceive')}
-            </Text>
+            <Text style={[styles.plabel, styles.receiveLabelText]}>{t('sell.youReceive')}</Text>
             {isLoading ? (
               <Text style={styles.pmeta} numberOfLines={1} testID="sell-fetching-quote">
                 {t('sell.fetchingQuote')}
@@ -839,12 +837,14 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '600',
       color: colors.textSecondary,
     },
-    receiveLabelFixed: {
-      flexShrink: 0,
-    },
-    pmeta: {
+    receiveLabelText: {
       flexShrink: 1,
       minWidth: 0,
+    },
+    pmeta: {
+      flex: 1,
+      minWidth: 0,
+      textAlign: 'right',
       fontSize: 12,
       color: colors.textTertiary,
     },

@@ -469,9 +469,7 @@ export function BuyTradeAdapter({
         }
         receiveLabel={
           <View style={styles.prowBetween}>
-            <Text style={[styles.plabel, styles.receiveLabelFixed]} numberOfLines={1}>
-              {t('buy.receiveLabel')}
-            </Text>
+            <Text style={[styles.plabel, styles.receiveLabelText]}>{t('buy.receiveLabel')}</Text>
             {isLoading && !unsupportedChain ? (
               <Text style={styles.pmeta} numberOfLines={1} testID="buy-fetching-quote">
                 {t('buy.fetchingQuote')}
@@ -854,12 +852,14 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: '600',
       color: colors.textSecondary,
     },
-    receiveLabelFixed: {
-      flexShrink: 0,
-    },
-    pmeta: {
+    receiveLabelText: {
       flexShrink: 1,
       minWidth: 0,
+    },
+    pmeta: {
+      flex: 1,
+      minWidth: 0,
+      textAlign: 'right',
       fontSize: 12,
       color: colors.textTertiary,
     },
