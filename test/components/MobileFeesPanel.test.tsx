@@ -146,6 +146,41 @@ describe('MobileFeesPanel', () => {
     expect(UNSAFE_getAllByType(GlassCard).length).toBeGreaterThan(0);
   });
 
+  it('selector is in the field row not the text column, centered, vertical padding 20', () => {
+    const { getByTestId } = render(
+      <TradeAmountPanels
+        testID="layout-panels"
+        flipTestID="layout-flip"
+        flipAccessibilityLabel="flip"
+        payLabel={<Text testID="layout-pay-label">pay</Text>}
+        payAmount={<Text testID="layout-pay-amount">0</Text>}
+        paySelector={<TradeSelectorPill testID="layout-pay">—</TradeSelectorPill>}
+        receiveLabel={<Text testID="layout-receive-label">receive</Text>}
+        receiveAmount={<Text testID="layout-receive-amount">0</Text>}
+        receiveSelector={<TradeSelectorPill testID="layout-receive">—</TradeSelectorPill>}
+      />,
+    );
+
+    for (const side of ['pay', 'receive'] as const) {
+      const row = getByTestId(`layout-panels-${side}-row`);
+      const column = getByTestId(`layout-panels-${side}-column`);
+      const selectorId = `layout-${side}`;
+
+      within(row).getByTestId(selectorId);
+      expect(within(column).queryByTestId(selectorId) === null).toBe(true);
+      within(column).getByTestId(`layout-${side}-label`);
+      within(column).getByTestId(`layout-${side}-amount`);
+      expect(StyleSheet.flatten(row.props.style)).toMatchObject({
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 20,
+      });
+      expect(StyleSheet.flatten(within(row).getByTestId(selectorId).props.style)).toMatchObject({
+        alignSelf: 'center',
+      });
+    }
+  });
+
   it('includes every quote input in the freshness key', () => {
     const input = {
       amount: 1,

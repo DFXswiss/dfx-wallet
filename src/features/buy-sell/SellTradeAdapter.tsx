@@ -503,8 +503,14 @@ export function SellTradeAdapter({
         }
         receiveLabel={
           <View style={styles.prowBetween}>
-            <Text style={styles.plabel}>{t('sell.youReceive')}</Text>
-            {isLoading ? <Text style={styles.pmeta}>{t('sell.fetchingQuote')}</Text> : null}
+            <Text style={[styles.plabel, styles.receiveLabelFixed]} numberOfLines={1}>
+              {t('sell.youReceive')}
+            </Text>
+            {isLoading ? (
+              <Text style={styles.pmeta} numberOfLines={1} testID="sell-fetching-quote">
+                {t('sell.fetchingQuote')}
+              </Text>
+            ) : null}
           </View>
         }
         receiveAmount={
@@ -825,13 +831,23 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
+      minWidth: 0,
+      gap: 8,
     },
     plabel: {
       fontSize: 12.5,
       fontWeight: '600',
       color: colors.textSecondary,
     },
-    pmeta: { fontSize: 12, color: colors.textTertiary },
+    receiveLabelFixed: {
+      flexShrink: 0,
+    },
+    pmeta: {
+      flexShrink: 1,
+      minWidth: 0,
+      fontSize: 12,
+      color: colors.textTertiary,
+    },
     amt: {
       flex: 1,
       minWidth: 0,

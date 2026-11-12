@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import type { BalanceEntry, BalanceMap, BalanceSourceResult } from '@/services/balances';
 
@@ -1352,6 +1353,32 @@ describe('SellTradeAdapter', () => {
     expect(within(getByTestId('sell-fees-panel')).getByText('sell.fetchingQuote')).toBeTruthy();
     expect(within(getByTestId('sell-fees-panel')).getAllByText('—')).toHaveLength(1);
     expect(getByTestId('sell-cta').props.accessibilityState.disabled).toBe(true);
+  });
+
+  it('clips the fetching hint to one shrinking line beside a fixed receive label', () => {
+    flowState.paymentInfo = PAYMENT_INFO;
+    flowState.isLoading = true;
+    flowState.quoteKey = '1|CHF|BTC|Bitcoin|bitcoin';
+    const { getByTestId } = renderAdapter();
+
+    act(() => {
+      fireEvent.press(getByTestId('sell-pay-asset-pill'));
+    });
+    act(() => {
+      fireEvent.press(getByTestId('sell-pay-asset-option-BTC-bitcoin'));
+    });
+    fireEvent.changeText(getByTestId('sell-amount-input'), '1');
+
+    const hint = getByTestId('sell-fetching-quote');
+    const label = within(getByTestId('sell-amount-panels')).getByText('sell.youReceive');
+
+    expect(hint.props.numberOfLines).toBe(1);
+    expect(StyleSheet.flatten(hint.props.style)).toMatchObject({
+      flexShrink: 1,
+      minWidth: 0,
+    });
+    expect(label.props.numberOfLines).toBe(1);
+    expect(StyleSheet.flatten(label.props.style)).toMatchObject({ flexShrink: 0 });
   });
 
   it('invalidates the previous quote immediately when payout currency changes', () => {

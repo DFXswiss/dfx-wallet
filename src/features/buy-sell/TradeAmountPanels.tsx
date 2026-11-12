@@ -46,12 +46,12 @@ export function TradeAmountPanels({
       padding={0}
       style={styles.panels}
     >
-      <View style={styles.panel}>
-        {payLabel}
-        <View style={styles.pinput}>
-          {payAmount}
-          {paySelector}
+      <View testID={`${testID}-pay-row`} style={styles.panel}>
+        <View testID={`${testID}-pay-column`} style={styles.column}>
+          {payLabel}
+          <View style={styles.amountLine}>{payAmount}</View>
         </View>
+        {paySelector}
       </View>
       <GlassIconButton
         icon={<Icon name="swap" size={18} color={colors.primary} />}
@@ -62,12 +62,12 @@ export function TradeAmountPanels({
         testID={flipTestID}
         accessibilityLabel={flipAccessibilityLabel}
       />
-      <View style={[styles.panel, styles.receivePanel]}>
-        {receiveLabel}
-        <View style={styles.pinput}>
-          {receiveAmount}
-          {receiveSelector}
+      <View testID={`${testID}-receive-row`} style={[styles.panel, styles.receivePanel]}>
+        <View testID={`${testID}-receive-column`} style={styles.column}>
+          {receiveLabel}
+          <View style={styles.amountLine}>{receiveAmount}</View>
         </View>
+        {receiveSelector}
       </View>
     </GlassCard>
   );
@@ -115,6 +115,9 @@ const makeStyles = (colors: ThemeColors) =>
       overflow: 'hidden',
     },
     panel: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: TRADE_PANEL_GEOMETRY.inputGap,
       paddingVertical: TRADE_PANEL_GEOMETRY.panelPaddingVertical,
       paddingHorizontal: TRADE_PANEL_GEOMETRY.panelPaddingHorizontal,
     },
@@ -122,20 +125,25 @@ const makeStyles = (colors: ThemeColors) =>
       borderTopWidth: TRADE_PANEL_GEOMETRY.dividerWidth,
       borderTopColor: colors.divider,
     },
-    pinput: {
+    column: {
+      flex: 1,
+      flexDirection: 'column',
+      minWidth: 0,
+    },
+    amountLine: {
       flexDirection: 'row',
-      alignItems: 'center',
-      gap: TRADE_PANEL_GEOMETRY.inputGap,
       marginTop: TRADE_PANEL_GEOMETRY.inputMarginTop,
+      minWidth: 0,
     },
     flipButton: {
       alignSelf: 'center',
-      marginTop: -20,
-      marginBottom: -20,
+      marginTop: -(TRADE_PANEL_GEOMETRY.flipSize / 2),
+      marginBottom: -(TRADE_PANEL_GEOMETRY.flipSize / 2),
       zIndex: 2,
     },
     pillOuter: {
       ...SELECTOR_PILL_LAYOUT,
+      alignSelf: 'center',
     },
     pillContent: {
       gap: 10,

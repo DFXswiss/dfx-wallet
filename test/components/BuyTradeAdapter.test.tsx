@@ -2265,6 +2265,24 @@ describe('BuyTradeAdapter quote display', () => {
     expect(within(getByTestId('buy-fees-panel')).getAllByText('—')).toHaveLength(1);
   });
 
+  it('clips the fetching hint to one shrinking line beside a fixed receive label', () => {
+    flowState.paymentInfo = PAYMENT_INFO;
+    flowState.isLoading = true;
+    flowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';
+
+    const { getByTestId } = renderAdapter();
+    const hint = getByTestId('buy-fetching-quote');
+    const label = within(getByTestId('buy-amount-panels')).getByText('buy.receiveLabel');
+
+    expect(hint.props.numberOfLines).toBe(1);
+    expect(StyleSheet.flatten(hint.props.style)).toMatchObject({
+      flexShrink: 1,
+      minWidth: 0,
+    });
+    expect(label.props.numberOfLines).toBe(1);
+    expect(StyleSheet.flatten(label.props.style)).toMatchObject({ flexShrink: 0 });
+  });
+
   it('invalidates the previous quote immediately when the amount changes', () => {
     flowState.paymentInfo = PAYMENT_INFO;
     flowState.quoteKey = '100|CHF|BTC|Bitcoin|bitcoin';

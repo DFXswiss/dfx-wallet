@@ -17,7 +17,7 @@ export const SELECTOR_PILL_LAYOUT: Pick<
 };
 
 export const TRADE_PANEL_GEOMETRY = {
-  panelPaddingVertical: 15,
+  panelPaddingVertical: 20,
   panelPaddingHorizontal: 16,
   panelRadius: 22,
   dividerWidth: 1,
