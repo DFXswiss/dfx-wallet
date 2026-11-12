@@ -473,7 +473,9 @@ export default function SellScreen() {
                   ? 'Base'
                   : 'Ethereum';
       const sign = async (message: string) => {
+        await assertFlowActive();
         const result = await account.sign(message);
+        await assertFlowActive();
         if (!result.success) {
           throw new Error(result.error ?? 'Failed to sign message');
         }
@@ -483,6 +485,7 @@ export default function SellScreen() {
         const newToken = await dfxAuthService.linkAddress(account.address, sign, {
           wallet: 'DFX Wallet',
           blockchain: blockchainName,
+          assertActive: assertFlowActive,
         });
         latestToken = newToken;
         await guard.persistToken(newToken);
@@ -501,6 +504,7 @@ export default function SellScreen() {
           const ownerToken = await dfxAuthService.loginAsAddressOwner(account.address, sign, {
             wallet: 'DFX Wallet',
             blockchain: blockchainName,
+            assertActive: assertFlowActive,
           });
           latestToken = ownerToken;
           await guard.persistToken(ownerToken);

@@ -183,8 +183,22 @@ describe('useScreenCaptureProtection', () => {
     );
     const protectionTag = mockPrevent.mock.calls[0]![0]!;
 
-    view.unmount();
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      view.unmount();
 
-    await waitFor(() => expect(mockAllow).toHaveBeenCalledWith(protectionTag));
+      await waitFor(() => expect(mockAllow).toHaveBeenCalledWith(protectionTag));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(mockActiveTags.has(protectionTag)).toBe(false);
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
   });
 });

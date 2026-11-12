@@ -1,4 +1,5 @@
 import React from 'react';
+import { ActivityIndicator } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { pricingService } from '@/services/pricing-service';
 
@@ -115,10 +116,10 @@ describe('RootLayout', () => {
   });
 
   it('renders a loading state until the auth store reports hydrated', () => {
-    useAuthStore.setState({ isHydrated: false });
-    const { queryByTestId } = render(<RootLayout />);
-    // The Stack is only rendered once hydration completes; otherwise the
-    // ActivityIndicator branch is active.
+    useAuthStore.setState({ isHydrated: false, hydrateError: null });
+    const { queryByTestId, UNSAFE_getByType } = render(<RootLayout />);
+    expect(UNSAFE_getByType(ActivityIndicator)).toBeTruthy();
+    expect(queryByTestId('hydrate-error')).toBeNull();
     expect(queryByTestId('root-stack')).toBeNull();
   });
 

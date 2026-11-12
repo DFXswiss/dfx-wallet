@@ -25,8 +25,11 @@ jest.mock('@/services/pin', () => ({
   verifyPin: jest.fn(async () => false),
 }));
 
+// eslint-disable-next-line import/first
 import SetupPinScreen from '../../src/features/pin/SetupPinScreenImpl';
+// eslint-disable-next-line import/first
 import { secureStorage } from '@/services/storage';
+// eslint-disable-next-line import/first
 import { useAuthStore } from '@/store/auth';
 
 async function enterPin(getByTestId: (id: string) => unknown, digits: string) {

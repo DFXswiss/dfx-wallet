@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { PrimaryButton } from '@/components';
 import { FEATURES } from '@/config/features';
 import { useAuthStore } from '@/store';
-import { Typography, useColors } from '@/theme';
+import { Spacing, Typography, useColors } from '@/theme';
 
 /**
  * Stand-in for the PIN-setup step when `EXPO_PUBLIC_ENABLE_PIN` is
@@ -77,7 +77,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
+    gap: Spacing.xl,
+    paddingHorizontal: Spacing.xxl,
   },
   error: {
     ...Typography.bodyMedium,

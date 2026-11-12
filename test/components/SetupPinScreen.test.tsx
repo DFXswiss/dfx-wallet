@@ -17,6 +17,11 @@ const mockAuthState = {
   pinHash: null as string | null,
   isAuthenticated: false,
   isOnboarded: false,
+  sessionEpoch: 0,
+  lockSession() {
+    mockAuthState.isAuthenticated = false;
+    mockAuthState.sessionEpoch += 1;
+  },
 };
 jest.mock('@/store', () => ({
   useAuthStore: Object.assign(
@@ -50,6 +55,8 @@ jest.mock('expo-haptics', () => ({
 }));
 
 import SetupPinScreen from '../../src/features/pin/SetupPinScreenImpl';
+// eslint-disable-next-line import/first
+import { PinSetupInterruptedError } from '../../src/store/auth';
 
 async function enterPin(getByTestId: (id: string) => unknown, digits: string) {
   for (const digit of digits) {
@@ -67,6 +74,7 @@ describe('SetupPinScreen', () => {
     mockAuthState.pinHash = null;
     mockAuthState.isAuthenticated = false;
     mockAuthState.isOnboarded = false;
+    mockAuthState.sessionEpoch = 0;
     mockWalletStatus = 'UNLOCKED';
     mockSetPin.mockResolvedValue(undefined);
     mockSetOnboarded.mockResolvedValue(undefined);
@@ -79,6 +87,26 @@ describe('SetupPinScreen', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  it('returns to PIN creation when the session ends before the first frame', async () => {
+    let frame: FrameRequestCallback | undefined;
+    jest.spyOn(global, 'requestAnimationFrame').mockImplementation((callback) => {
+      frame = callback;
+      return 0;
+    });
+    const { getByTestId, queryByTestId } = render(<SetupPinScreen />);
+    await enterPin(getByTestId, '123456');
+    await enterPin(getByTestId, '123456');
+    expect(frame).toBeDefined();
+    mockAuthState.lockSession();
+    await act(async () => frame?.(0));
+    expect(mockSetAuthenticated).not.toHaveBeenCalledWith(true);
+    expect(mockSetPin).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockUnlock).not.toHaveBeenCalled();
+    expect(getByTestId('setup-pin-screen')).toBeTruthy();
+    expect(queryByTestId('setup-pin-confirm-screen')).toBeNull();
   });
 
   it('shows the processing overlay while saving a confirmed PIN', async () => {
@@ -103,6 +131,29 @@ describe('SetupPinScreen', () => {
     await waitFor(() => expect(queryByTestId('pin-processing-overlay')).toBeNull());
     expect(getByTestId('setup-pin-error')).toBeTruthy();
     expect(mockSetAuthenticated.mock.calls).toEqual([[true], [false]]);
+    warn.mockRestore();
+  });
+
+  it('does not navigate or show a save error when PIN setup is interrupted', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockSetPin.mockRejectedValue(new PinSetupInterruptedError());
+    const { getByTestId, queryByTestId } = render(<SetupPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+    await enterPin(getByTestId, '123456');
+
+    await waitFor(() => expect(queryByTestId('pin-processing-overlay')).toBeNull());
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(queryByTestId('setup-pin-error')).toBeNull();
+    expect(getByTestId('setup-pin-screen')).toBeTruthy();
+    expect(queryByTestId('setup-pin-confirm-screen')).toBeNull();
+    expect(mockSetOnboarded).not.toHaveBeenCalled();
+    expect(mockSetAuthenticated.mock.calls).toEqual([[true], [false]]);
+    expect(warn).not.toHaveBeenCalled();
+
+    await enterPin(getByTestId, '654321');
+    expect(getByTestId('setup-pin-confirm-screen')).toBeTruthy();
+    expect(mockSetPin).toHaveBeenCalledTimes(1);
     warn.mockRestore();
   });
 
@@ -165,6 +216,38 @@ describe('SetupPinScreen', () => {
     expect(mockSetPin).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it('does not authenticate when the session locks while wallet unlock is in flight', async () => {
+    let resolveUnlock: () => void = () => undefined;
+    mockWalletStatus = 'LOCKED';
+    mockUnlock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUnlock = resolve;
+        }),
+    );
+    const { getByTestId, queryByTestId, queryByText } = render(<SetupPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+    await enterPin(getByTestId, '123456');
+
+    await waitFor(() => expect(mockUnlock).toHaveBeenCalledWith('default'));
+    mockAuthState.lockSession();
+    await act(async () => {
+      resolveUnlock();
+    });
+
+    await waitFor(() => expect(queryByTestId('pin-processing-overlay')).toBeNull());
+    expect(mockAuthState.isAuthenticated).toBe(false);
+    expect(mockSetAuthenticated).not.toHaveBeenCalledWith(true);
+    expect(mockSetPin).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(queryByTestId('setup-pin-error')).toBeNull();
+    expect(queryByText('pin.unlockFailed')).toBeNull();
+    expect(queryByText('pin.saveError')).toBeNull();
+    expect(getByTestId('setup-pin-screen')).toBeTruthy();
+    expect(queryByTestId('setup-pin-confirm-screen')).toBeNull();
   });
 
   it('keeps fresh onboarding unlocked without an extra wallet unlock', async () => {

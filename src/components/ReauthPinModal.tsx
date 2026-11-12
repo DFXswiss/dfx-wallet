@@ -13,7 +13,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { needsPinRehash } from '@/services/pin';
 import { useAuthStore } from '@/store/auth';
-import { Typography, useColors, type ThemeColors } from '@/theme';
+import { Radius, Spacing, Typography, useColors, type ThemeColors } from '@/theme';
 
 export type ReauthPinModalProps = {
   visible: boolean;
@@ -86,7 +86,9 @@ export function ReauthPinModal({
             keyboardType="number-pad"
             maxLength={6}
             secureTextEntry
-            textContentType="password"
+            autoComplete="off"
+            importantForAutofill="no"
+            textContentType="none"
             accessibilityLabel={t('reauth.pinLabel')}
           />
           {error ? (
@@ -128,15 +130,15 @@ const makeStyles = (colors: ThemeColors) =>
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      padding: 24,
+      padding: Spacing.xl,
       backgroundColor: colors.background,
     },
     card: {
       width: '100%',
       maxWidth: 380,
-      padding: 20,
+      padding: Spacing.lg,
       gap: 14,
-      borderRadius: 16,
+      borderRadius: Radius.md,
       backgroundColor: colors.surface,
       borderColor: colors.border,
       borderWidth: 1,
@@ -157,7 +159,7 @@ const makeStyles = (colors: ThemeColors) =>
       borderWidth: 1,
       borderRadius: 10,
       paddingHorizontal: 14,
-      paddingVertical: 12,
+      paddingVertical: Spacing.md,
       textAlign: 'center',
       letterSpacing: 8,
     },
@@ -174,7 +176,7 @@ const makeStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       justifyContent: 'center',
       minHeight: 44,
-      borderRadius: 999,
+      borderRadius: Radius.pill,
     },
     cancelButton: {
       backgroundColor: colors.surfaceLight,

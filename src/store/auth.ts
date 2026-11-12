@@ -56,6 +56,7 @@ type AuthState = {
   hydrate: () => Promise<void>;
   setOnboarded: (value: boolean) => Promise<void>;
   setAuthenticated: (value: boolean) => void;
+  lockSession: () => void;
   setDfxAuthenticated: (value: boolean) => void;
   setPin: (pin: string) => Promise<void>;
   verifyPin: (pin: string) => Promise<boolean>;
@@ -68,6 +69,13 @@ export class PinOverwriteNotAllowedError extends Error {
   constructor() {
     super('An existing PIN cannot be replaced while the wallet is locked');
     this.name = 'PinOverwriteNotAllowedError';
+  }
+}
+
+export class PinSetupInterruptedError extends Error {
+  constructor() {
+    super('PIN setup was interrupted before the PIN was saved');
+    this.name = 'PinSetupInterruptedError';
   }
 }
 
@@ -218,16 +226,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isAuthenticated: value,
       sessionEpoch: state.isAuthenticated && !value ? state.sessionEpoch + 1 : state.sessionEpoch,
     })),
+  lockSession: () =>
+    set((state) => ({
+      isAuthenticated: false,
+      sessionEpoch: state.sessionEpoch + 1,
+    })),
   setDfxAuthenticated: (value) => set({ isDfxAuthenticated: value }),
 
   setPin: async (pin) => {
     const { pinHash, isAuthenticated, sessionEpoch } = get();
     if (pinHash && !isAuthenticated) throw new PinOverwriteNotAllowedError();
     const hash = await hashPin(pin);
-    if (get().sessionEpoch !== sessionEpoch) return;
+    if (get().sessionEpoch !== sessionEpoch) throw new PinSetupInterruptedError();
     await secureStorage.set(StorageKeys.PIN_HASH, hash);
-    if (get().sessionEpoch !== sessionEpoch) return;
-    set({ pinHash: hash });
+    if (get().sessionEpoch === sessionEpoch) {
+      await Promise.allSettled([
+        secureStorage.remove(StorageKeys.PIN_FAILED_ATTEMPTS),
+        secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL),
+      ]);
+    }
+    if (get().sessionEpoch !== sessionEpoch) {
+      try {
+        if (pinHash) {
+          await secureStorage.set(StorageKeys.PIN_HASH, pinHash);
+        } else {
+          await secureStorage.remove(StorageKeys.PIN_HASH);
+        }
+      } catch {
+        // The setup is already being reported as not saved. Keep a failed
+        // rollback inside this function.
+      }
+      throw new PinSetupInterruptedError();
+    }
+    set({ pinHash: hash, failedAttempts: 0, lockedUntil: null });
   },
 
   verifyPin: async (pin) => {
@@ -265,7 +296,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       const ok = await verifyPinHash(pin, capturedHash);
-      if (!sessionStillOwnsPin()) return false;
+      if (!sessionStillOwnsPin()) {
+        // The hash still belongs to this attempt and only the epoch moved.
+        // A replaced or cleared hash keeps the previous early return.
+        if (get().pinHash === capturedHash) {
+          if (ok) {
+            await Promise.all([
+              secureStorage.remove(StorageKeys.PIN_FAILED_ATTEMPTS),
+              secureStorage.remove(StorageKeys.PIN_LOCKED_UNTIL),
+            ]);
+            set({ failedAttempts: 0, lockedUntil: null });
+          } else {
+            set({ failedAttempts: nextAttempts, lockedUntil: nextLockedUntil });
+          }
+        }
+        return false;
+      }
       if (!ok) {
         set({ failedAttempts: nextAttempts, lockedUntil: nextLockedUntil });
         return false;

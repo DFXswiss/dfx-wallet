@@ -25,7 +25,7 @@ import {
   PasskeyPrfUnsupportedError,
 } from '@/features/passkey/services/passkey-service';
 import { OpenCryptoPayError } from '@/services/opencryptopay/opencryptopay-service';
-import { PinOverwriteNotAllowedError } from '@/store/auth';
+import { PinOverwriteNotAllowedError, PinSetupInterruptedError } from '@/store/auth';
 
 /** Recursively list every non-test .ts/.tsx file under a directory. */
 function tsSourceFiles(dir: string): string[] {
@@ -73,6 +73,7 @@ describe('exception surface', () => {
       'PasskeyCredentialMismatchError',
       'OpenCryptoPayError',
       'PinOverwriteNotAllowedError',
+      'PinSetupInterruptedError',
     ];
 
     expect(declarations).toHaveLength(registered.length);
@@ -176,6 +177,16 @@ describe('exception surface', () => {
       expect(err).toBeInstanceOf(PinOverwriteNotAllowedError);
       expect(err.name).toBe('PinOverwriteNotAllowedError');
       expect(err.message).toBe('An existing PIN cannot be replaced while the wallet is locked');
+    });
+  });
+
+  describe('PinSetupInterruptedError', () => {
+    it('keeps its identity and fixed message', () => {
+      const err = new PinSetupInterruptedError();
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(PinSetupInterruptedError);
+      expect(err.name).toBe('PinSetupInterruptedError');
+      expect(err.message).toBe('PIN setup was interrupted before the PIN was saved');
     });
   });
 });

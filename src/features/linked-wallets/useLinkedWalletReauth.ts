@@ -65,13 +65,27 @@ export function useLinkedWalletReauth() {
         path1Error = err instanceof Error ? err.message : 'changeActiveAddress failed';
       }
 
+      try {
+        await guard.assertActive();
+      } catch (err) {
+        if (isLocalSessionEndedError(err)) {
+          return { ok: false, cancelled: true };
+        }
+        throw err;
+      }
+
       // Path 2: full sign re-auth — only viable when the wallet is
       // locally signable (Bitcoin SegWit, EVM family, LDS Lightning).
       const annotate = (msg: string): string =>
         path1Error ? `${msg} (change: ${path1Error})` : msg;
       try {
         if (blockchain === 'Lightning') {
-          const user = lds.user ?? (await lds.signIn());
+          let user = lds.user;
+          if (!user) {
+            await guard.assertActive();
+            user = await lds.signIn();
+            await guard.assertActive();
+          }
           if (!user) return { ok: false, error: annotate('LDS not ready') };
           if (user.lightning.addressLnurl.trim().toLowerCase() !== address.trim().toLowerCase()) {
             return { ok: false, error: annotate('addressMismatch') };
@@ -93,11 +107,13 @@ export function useLinkedWalletReauth() {
           const token = await dfxAuthService.loginAsAddressOwner(
             address,
             async (message) => {
+              await guard.assertActive();
               const r = await btc.sign(message);
+              await guard.assertActive();
               if (!r.success) throw new Error(r.error ?? 'Failed to sign message');
               return r.signature;
             },
-            { wallet: 'DFX Wallet', blockchain: 'Bitcoin' },
+            { wallet: 'DFX Wallet', blockchain: 'Bitcoin', assertActive: guard.assertActive },
           );
           await guard.persistToken(token);
           return { ok: true, token };
@@ -116,11 +132,13 @@ export function useLinkedWalletReauth() {
           const token = await dfxAuthService.loginAsAddressOwner(
             address,
             async (message) => {
+              await guard.assertActive();
               const r = await eth.sign(message);
+              await guard.assertActive();
               if (!r.success) throw new Error(r.error ?? 'Failed to sign message');
               return r.signature;
             },
-            { wallet: 'DFX Wallet', blockchain },
+            { wallet: 'DFX Wallet', blockchain, assertActive: guard.assertActive },
           );
           await guard.persistToken(token);
           return { ok: true, token };

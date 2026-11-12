@@ -75,13 +75,30 @@ describe('isDfxTokenHost', () => {
     expect(isDfxTokenHost(input)).toBe(true);
   });
 
+  it.each(['http://app.dfx.swiss'])('rejects a token host with the wrong scheme %s', (input) => {
+    expect(isDfxTokenHost(input)).toBe(false);
+  });
+
   it.each([
     'https://x.app.dfx.swiss',
     'https://app.dfx.swiss.evil.com',
-    'http://app.dfx.swiss',
     'https://docs.dfx.swiss',
-    'not-a-url',
-  ])('rejects non-exact token host %s', (input) => {
+  ])('rejects a host that is not an exact token host %s', (input) => {
+    expect(isDfxTokenHost(input)).toBe(false);
+  });
+
+  it.each(['not-a-url'])('rejects an invalid token URL %s', (input) => {
+    expect(isDfxTokenHost(input)).toBe(false);
+  });
+
+  it.each([
+    'https://dfx.swiss@evil.com',
+    'https://app.dfx.swiss@evil.com/login',
+    'https://dfx.swiss:443@evil.com',
+    'https://user:dfx.swiss@evil.com',
+    'https://dfx.swiss%2f@evil.com',
+    'https://evil.com#@app.dfx.swiss',
+  ])('rejects a token URL whose userinfo or fragment hides another host %s', (input) => {
     expect(isDfxTokenHost(input)).toBe(false);
   });
 });

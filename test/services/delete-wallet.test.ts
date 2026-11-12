@@ -19,6 +19,14 @@ describe('deleteWalletFlow', () => {
     expect(dependencies.reset).not.toHaveBeenCalled();
   });
 
+  it('cancels when the session changes after reauthentication', async () => {
+    const dependencies = createDependencies();
+    const isSessionCurrent = jest.fn(() => false);
+    await expect(deleteWalletFlow({ ...dependencies, isSessionCurrent })).resolves.toBe('cancelled');
+    expect(dependencies.requestReauth).toHaveBeenCalledTimes(1);
+    expect(dependencies.deleteWallet).not.toHaveBeenCalled();
+  });
+
   it('fails closed when reauthentication throws', async () => {
     const dependencies = createDependencies();
     dependencies.requestReauth.mockRejectedValueOnce(new Error('authentication unavailable'));
@@ -70,6 +78,19 @@ describe('deleteWalletFlow', () => {
     });
 
     await expect(deleteWalletFlow(dependencies)).resolves.toBe('deleted-with-cleanup-error');
+    expect(dependencies.deleteWallet).toHaveBeenCalledTimes(2);
+    expect(dependencies.reset).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports deletion when no wallet items remain after both attempts fail', async () => {
+    const dependencies = createDependencies();
+    dependencies.deleteWallet.mockRejectedValue(new Error('delete failed'));
+    dependencies.getRemainingWalletItems.mockResolvedValue({
+      key: false,
+      seed: false,
+      entropy: false,
+    });
+    await expect(deleteWalletFlow(dependencies)).resolves.toBe('deleted');
     expect(dependencies.deleteWallet).toHaveBeenCalledTimes(2);
     expect(dependencies.reset).toHaveBeenCalledTimes(1);
   });

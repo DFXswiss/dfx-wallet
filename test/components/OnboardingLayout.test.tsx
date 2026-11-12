@@ -74,13 +74,64 @@ describe('OnboardingLayout routing guards', () => {
     expect(getByTestId('redirect').props.children).toBe('/(onboarding)/welcome');
   });
 
-  it('renders legal-disclaimer only for an authenticated wallet before onboarding completes', () => {
-    useAuthStore.setState({ isOnboarded: false, isAuthenticated: true });
-    mockActiveWalletId.current = 'default';
-    mockSegments.current = ['(onboarding)', 'legal-disclaimer'];
-    const { queryByTestId, getByTestId } = render(<OnboardingLayout />);
-    expect(queryByTestId('redirect')).toBeNull();
-    expect(getByTestId('stack-rendered')).toBeTruthy();
+  it.each([
+    {
+      title: 'renders legal-disclaimer for an authenticated wallet before onboarding',
+      route: 'legal-disclaimer',
+      isOnboarded: false,
+      isAuthenticated: true,
+      pinHash: null,
+      walletId: 'default',
+      redirect: null,
+    },
+    {
+      title: 'redirects welcome to PIN setup for an authenticated wallet',
+      route: 'welcome',
+      isOnboarded: false,
+      isAuthenticated: true,
+      pinHash: null,
+      walletId: 'default',
+      redirect: '/(onboarding)/setup-pin',
+    },
+    {
+      title: 'redirects unauthenticated legal-disclaimer to PIN setup',
+      route: 'legal-disclaimer',
+      isOnboarded: false,
+      isAuthenticated: false,
+      pinHash: null,
+      walletId: 'default',
+      redirect: '/(onboarding)/setup-pin',
+    },
+    {
+      title: 'redirects an onboarded user to the dashboard',
+      route: 'legal-disclaimer',
+      isOnboarded: true,
+      isAuthenticated: true,
+      pinHash: 'hash',
+      walletId: 'default',
+      redirect: '/(auth)/(tabs)/dashboard',
+    },
+    {
+      title: 'redirects legal-disclaimer to welcome without a wallet',
+      route: 'legal-disclaimer',
+      isOnboarded: false,
+      isAuthenticated: true,
+      pinHash: null,
+      walletId: null,
+      redirect: '/(onboarding)/welcome',
+    },
+  ])('$title', ({ route, isOnboarded, isAuthenticated, pinHash, walletId, redirect }) => {
+    useAuthStore.setState({ isOnboarded, isAuthenticated, pinHash });
+    mockActiveWalletId.current = walletId;
+    mockSegments.current = ['(onboarding)', route];
+    const view = render(<OnboardingLayout />);
+    if (redirect === null) {
+      expect(view.queryByTestId('redirect')).toBeNull();
+      expect(view.getByTestId('stack-rendered')).toBeTruthy();
+    } else {
+      expect(view.queryByTestId('stack-rendered')).toBeNull();
+      expect(view.getByTestId('redirect').props.children).toBe(redirect);
+    }
   });
 
   it('redirects an unauthenticated, not-onboarded legal-disclaimer deep link with a PIN to PIN verification', () => {

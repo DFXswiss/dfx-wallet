@@ -13,7 +13,8 @@ describe('redirectSystemPath', () => {
   });
 
   it('delegates incoming paths to the pure resolver', () => {
-    expect(redirectSystemPath({ path: 'dfxwallet://buy', initial: true })).toBe('/');
+    mockResolveIncomingPath.mockReturnValue('/buy');
+    expect(redirectSystemPath({ path: 'dfxwallet://buy', initial: true })).toBe('/buy');
     expect(mockResolveIncomingPath).toHaveBeenCalledWith('dfxwallet://buy', true);
   });
 

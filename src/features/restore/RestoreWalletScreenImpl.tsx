@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -14,7 +14,7 @@ import { restoreWalletFlow } from '@/features/restore/services/restore-wallet';
 import { useScreenCaptureProtection } from '@/hooks/useScreenCaptureProtection';
 import { validateSeedPhrase, seedToWords, wordsToSeed } from '@/services/wallet';
 import { useAuthStore } from '@/store';
-import { Typography, useColors, type ThemeColors } from '@/theme';
+import { Radius, Spacing, Typography, useColors, type ThemeColors } from '@/theme';
 
 export default function RestoreWalletScreen() {
   const colors = useColors();
@@ -33,6 +33,7 @@ export default function RestoreWalletScreen() {
   const [seedPhrase, setSeedPhrase] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
+  const restoringRef = useRef(false);
   const captureProtection = useScreenCaptureProtection(true, 'restore-wallet-mnemonic');
 
   const words = seedToWords(seedPhrase);
@@ -61,12 +62,14 @@ export default function RestoreWalletScreen() {
     });
 
   const handleContinue = async () => {
+    if (restoringRef.current) return;
     if (!isValid) {
       setError(t('onboarding.invalidSeed'));
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
 
+    restoringRef.current = true;
     setIsRestoring(true);
     setError(null);
     try {
@@ -101,6 +104,7 @@ export default function RestoreWalletScreen() {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(t('onboarding.restoreError'));
     } finally {
+      restoringRef.current = false;
       setIsRestoring(false);
     }
   };
@@ -109,9 +113,10 @@ export default function RestoreWalletScreen() {
     <DfxBackgroundScreen scrollable contentStyle={styles.content} testID="restore-wallet-screen">
       <AppHeader
         title={t('onboarding.restoreWallet')}
-        onBack={() =>
-          router.canGoBack() ? router.back() : router.replace('/(onboarding)/welcome')
-        }
+        onBack={() => {
+          if (restoringRef.current) return;
+          router.canGoBack() ? router.back() : router.replace('/(onboarding)/welcome');
+        }}
         testID="restore-wallet"
       />
       <OnboardingStepIndicator current={1} />
@@ -209,10 +214,10 @@ const makeStyles = (colors: ThemeColors) =>
     },
     captureWarning: {
       backgroundColor: colors.surfaceLight,
-      borderRadius: 8,
+      borderRadius: Radius.xs,
       borderWidth: 1,
       borderColor: colors.warning,
-      padding: 12,
+      padding: Spacing.md,
     },
     captureWarningText: {
       ...Typography.bodyMedium,

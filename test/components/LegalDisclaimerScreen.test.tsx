@@ -51,6 +51,7 @@ jest.mock('@/components', () => {
   };
 });
 
+// eslint-disable-next-line import/first
 import LegalDisclaimerScreen from '../../src/features/legal/LegalDisclaimerScreenImpl';
 
 describe('LegalDisclaimerScreen', () => {

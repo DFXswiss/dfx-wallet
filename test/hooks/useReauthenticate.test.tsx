@@ -53,6 +53,8 @@ describe('useReauthenticate', () => {
     verifyPin.mockResolvedValue(true);
     useAuthStore.setState({
       biometricEnabled: false,
+      isAuthenticated: true,
+      sessionEpoch: 0,
       pinHash: null,
       failedAttempts: 0,
       lockedUntil: null,
@@ -60,6 +62,139 @@ describe('useReauthenticate', () => {
       verifyPin,
     });
   });
+
+  it('resolves false when the session locks during the biometric prompt', async () => {
+    let resolve!: (value: boolean) => void;
+    authenticateBiometric.mockReturnValueOnce(new Promise((done) => {
+      resolve = done;
+    }));
+    useAuthStore.setState({ biometricEnabled: true });
+    render(<Harness />);
+    const result = requestReauth();
+    act(() => useAuthStore.getState().lockSession());
+    await act(async () => resolve(true));
+    await expect(result).resolves.toBe(false);
+  });
+
+  it('resolves false when the session locks during PIN verification', async () => {
+    let resolve!: (value: boolean) => void;
+    verifyPin.mockReturnValueOnce(new Promise((done) => {
+      resolve = done;
+    }));
+    useAuthStore.setState({ pinHash: 'hash' });
+    const view = render(<Harness />);
+    const result = requestReauth();
+    await waitFor(() => expect(view.getByTestId('reauth-pin-input')).toBeTruthy());
+    fireEvent.changeText(view.getByTestId('reauth-pin-input'), '123456');
+    act(() => fireEvent.press(view.getByTestId('reauth-pin-confirm')));
+    expect(verifyPin).toHaveBeenCalledTimes(1);
+    act(() => useAuthStore.getState().lockSession());
+    await act(async () => resolve(true));
+    await expect(result).resolves.toBe(false);
+  });
+
+  it.each(['epoch', 'authentication'] as const)(
+    'resolves false when only %s changes during a successful biometric prompt',
+    async (changed) => {
+      let resolvePrompt!: (value: boolean) => void;
+      authenticateBiometric.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolvePrompt = resolve;
+        }),
+      );
+      const original = useAuthStore.getState();
+      useAuthStore.setState({ biometricEnabled: true });
+      const previous = useAuthStore.getState();
+      const view = render(<Harness />);
+      const result = requestReauth();
+      try {
+        expect(authenticateBiometric).toHaveBeenCalledTimes(1);
+        act(() => {
+          useAuthStore.setState(
+            changed === 'epoch'
+              ? { sessionEpoch: previous.sessionEpoch + 1 }
+              : { isAuthenticated: false },
+          );
+        });
+        expect(useAuthStore.getState().sessionEpoch).toBe(
+          changed === 'epoch' ? previous.sessionEpoch + 1 : previous.sessionEpoch,
+        );
+        expect(useAuthStore.getState().isAuthenticated).toBe(changed === 'epoch');
+        await act(async () => {
+          resolvePrompt(true);
+          await expect(result).resolves.toBe(false);
+        });
+      } finally {
+        await act(async () => {
+          resolvePrompt(true);
+          current.modalProps.onCancel();
+          await result;
+        });
+        view.unmount();
+        useAuthStore.setState({
+          isAuthenticated: original.isAuthenticated,
+          sessionEpoch: original.sessionEpoch,
+          biometricEnabled: original.biometricEnabled,
+        });
+        authenticateBiometric.mockReset();
+        authenticateBiometric.mockResolvedValue(false);
+      }
+    },
+  );
+
+  it.each(['epoch', 'authentication'] as const)(
+    'resolves false when only %s changes during successful PIN verification',
+    async (changed) => {
+      let resolvePin!: (value: boolean) => void;
+      verifyPin.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolvePin = resolve;
+        }),
+      );
+      const original = useAuthStore.getState();
+      useAuthStore.setState({ pinHash: 'hash' });
+      const previous = useAuthStore.getState();
+      const view = render(<Harness />);
+      const result = requestReauth();
+      try {
+        await waitFor(() => expect(view.getByTestId('reauth-pin-input')).toBeTruthy());
+        fireEvent.changeText(view.getByTestId('reauth-pin-input'), '123456');
+        act(() => {
+          fireEvent.press(view.getByTestId('reauth-pin-confirm'));
+        });
+        expect(verifyPin).toHaveBeenCalledTimes(1);
+        act(() => {
+          useAuthStore.setState(
+            changed === 'epoch'
+              ? { sessionEpoch: previous.sessionEpoch + 1 }
+              : { isAuthenticated: false },
+          );
+        });
+        expect(useAuthStore.getState().sessionEpoch).toBe(
+          changed === 'epoch' ? previous.sessionEpoch + 1 : previous.sessionEpoch,
+        );
+        expect(useAuthStore.getState().isAuthenticated).toBe(changed === 'epoch');
+        await act(async () => {
+          resolvePin(true);
+          await expect(result).resolves.toBe(false);
+        });
+      } finally {
+        await act(async () => {
+          resolvePin(true);
+          current.modalProps.onCancel();
+          await result;
+        });
+        view.unmount();
+        useAuthStore.setState({
+          isAuthenticated: original.isAuthenticated,
+          sessionEpoch: original.sessionEpoch,
+          pinHash: original.pinHash,
+        });
+        verifyPin.mockReset();
+        verifyPin.mockResolvedValue(true);
+      }
+    },
+  );
 
   it('allows the MVP path when neither biometrics nor PIN are configured', async () => {
     render(<Harness />);
@@ -146,8 +281,8 @@ describe('useReauthenticate', () => {
       fireEvent.press(view.getByTestId('reauth-pin-confirm'));
     });
 
-    expect(view.getByTestId('reauth-pin-error').props.children).toContain(
-      'pin.incorrectAttemptsLeft',
+    expect(view.getByTestId('reauth-pin-error').props.children).toBe(
+      'pin.incorrectAttemptsLeft:{"count":3}',
     );
     expect(current.modalProps.visible).toBe(true);
     cancelReauth();
@@ -226,7 +361,7 @@ describe('useReauthenticate', () => {
     });
 
     expect(verifyPin).not.toHaveBeenCalled();
-    expect(view.getByTestId('reauth-pin-error').props.children).toContain('pin.lockedFor');
+    expect(view.getByTestId('reauth-pin-error').props.children).toBe('pin.lockedFor:{"count":30}');
     cancelReauth();
     await expect(result).resolves.toBe(false);
     now.mockRestore();
@@ -474,7 +609,91 @@ describe('useReauthenticate', () => {
   it('honors a disabled PIN feature', async () => {
     mockFeatures.PIN = false;
     useAuthStore.setState({ pinHash: 'hash' });
-    render(<Harness />);
+    const view = render(<Harness />);
     await expect(requestReauth()).resolves.toBe(true);
+    expect(verifyPin).not.toHaveBeenCalled();
+    expect(authenticateBiometric).not.toHaveBeenCalled();
+    expect(view.queryByTestId('reauth-pin-input')).toBeNull();
+  });
+
+  it('opens a locked PIN modal without a biometric prompt while a lockout is active', async () => {
+    useAuthStore.setState({
+      biometricEnabled: true,
+      pinHash: 'hash',
+      lockedUntil: Date.now() + 60_000,
+    });
+    render(<Harness />);
+
+    const result = requestReauth();
+    const settled = jest.fn();
+    void result.then(settled);
+    await waitFor(() => expect(current.modalProps.visible).toBe(true));
+
+    expect(authenticateBiometric).not.toHaveBeenCalled();
+    expect(current.modalProps.locked).toBe(true);
+    expect(current.modalProps.error).toEqual(expect.stringContaining('pin.lockedFor'));
+    expect(settled).not.toHaveBeenCalled();
+    cancelReauth();
+    await expect(result).resolves.toBe(false);
+  });
+
+  it('rejects a locked biometric reauthentication when no PIN is available', async () => {
+    useAuthStore.setState({
+      biometricEnabled: true,
+      pinHash: null,
+      lockedUntil: Date.now() + 60_000,
+    });
+    render(<Harness />);
+
+    await expect(requestReauth()).resolves.toBe(false);
+    expect(authenticateBiometric).not.toHaveBeenCalled();
+    expect(current.modalProps.visible).toBe(false);
+  });
+
+  it('does not accept a biometric success that lands during a PIN lockout', async () => {
+    let resolveBiometric: (value: boolean) => void = () => undefined;
+    authenticateBiometric.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        resolveBiometric = resolve;
+      }),
+    );
+    useAuthStore.setState({ biometricEnabled: true, pinHash: 'hash', lockedUntil: null });
+    render(<Harness />);
+
+    const result = requestReauth();
+    const settled = jest.fn();
+    void result.then(settled);
+    await waitFor(() => expect(authenticateBiometric).toHaveBeenCalledTimes(1));
+    useAuthStore.setState({ lockedUntil: Date.now() + 60_000 });
+    await act(async () => {
+      resolveBiometric(true);
+    });
+
+    expect(settled).not.toHaveBeenCalled();
+    expect(current.modalProps.visible).toBe(true);
+    expect(current.modalProps.locked).toBe(true);
+    cancelReauth();
+    await expect(result).resolves.toBe(false);
+  });
+
+  it('rejects a biometric success during lockout when no PIN is available', async () => {
+    let resolveBiometric: (value: boolean) => void = () => undefined;
+    authenticateBiometric.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        resolveBiometric = resolve;
+      }),
+    );
+    useAuthStore.setState({ biometricEnabled: true, pinHash: null, lockedUntil: null });
+    render(<Harness />);
+
+    const result = requestReauth();
+    await waitFor(() => expect(authenticateBiometric).toHaveBeenCalledTimes(1));
+    useAuthStore.setState({ lockedUntil: Date.now() + 60_000 });
+    await act(async () => {
+      resolveBiometric(true);
+    });
+
+    await expect(result).resolves.toBe(false);
+    expect(current.modalProps.visible).toBe(false);
   });
 });

@@ -189,6 +189,21 @@ describe('restoreWalletFlow', () => {
     expect(dependencies.reset).toHaveBeenCalledTimes(1);
   });
 
+  it('restores when no wallet items remain after both deletion attempts fail', async () => {
+    const dependencies = createDependencies();
+    dependencies.deleteWallet.mockRejectedValue(new Error('delete failed'));
+    dependencies.getRemainingWalletItems.mockResolvedValue({
+      key: false,
+      seed: false,
+      entropy: false,
+    });
+    await expect(
+      restoreWalletFlow({ ...dependencies, hasExistingWallet: true, hasWalletToDelete: true }),
+    ).resolves.toBe('restored');
+    expect(dependencies.deleteWallet).toHaveBeenCalledTimes(2);
+    expect(dependencies.restoreWallet).toHaveBeenCalledTimes(1);
+  });
+
   // Red mutation: omit the deletion retry.
   it('restores normally when the deletion retry succeeds', async () => {
     const dependencies = createDependencies();

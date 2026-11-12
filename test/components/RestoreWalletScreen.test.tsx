@@ -173,6 +173,27 @@ describe('RestoreWalletScreen', () => {
     expect(getByText('onboarding.seedWordCount:4/12')).toBeTruthy();
   });
 
+  it('starts one restore on a double press and blocks back while restoring', async () => {
+    let resolveRestore: (value: string) => void = () => undefined;
+    mockRestoreWallet.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        resolveRestore = resolve;
+      }),
+    );
+    const { findByTestId, getByTestId } = render(<RestoreWalletScreen />);
+    await typeSeed(findByTestId, VALID_SEED);
+    act(() => {
+      fireEvent.press(getByTestId('restore-wallet-continue-button'));
+      fireEvent.press(getByTestId('restore-wallet-continue-button'));
+      fireEvent.press(getByTestId('restore-wallet-back'));
+    });
+    await waitFor(() => expect(mockRestoreWallet).toHaveBeenCalledTimes(1));
+    expect(mockBack).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    await act(async () => resolveRestore('default'));
+    expect(mockRestoreWallet).toHaveBeenCalledTimes(1);
+  });
+
   it('restores from a valid seed and routes to setup-pin', async () => {
     const { findByTestId, getByTestId } = render(<RestoreWalletScreen />);
     await typeSeed(findByTestId, VALID_SEED);
@@ -225,10 +246,10 @@ describe('RestoreWalletScreen', () => {
     });
 
     expect(en.onboarding.restoreConfirmMessage).toBe(
-      'Your current wallet will be removed before the new wallet is imported. It can only be recovered with its own Seed Phrase.',
+      'Your current wallet will be removed before the new wallet is imported. You can only get it back with the backup you made for it.',
     );
     expect(de.onboarding.restoreConfirmMessage).toBe(
-      'Deine aktuelle Wallet wird entfernt, bevor die neue Wallet importiert wird. Sie kann nur mit ihrer eigenen Seed Phrase wiederhergestellt werden.',
+      'Deine aktuelle Wallet wird entfernt, bevor die neue Wallet importiert wird. Du bekommst sie nur mit der Sicherung zurück, die du für sie angelegt hast.',
     );
     expect(Alert.alert).toHaveBeenCalledWith(
       'onboarding.restoreConfirmTitle',

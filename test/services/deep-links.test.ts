@@ -6,7 +6,7 @@ describe('resolveIncomingPath', () => {
     ['/(auth)/send?to=attacker', false],
     ['', true],
     ['not a valid URL', false],
-  ])('rewrites external path %s to the root', (path, initial) => {
+  ])("returns '/' for %s", (path, initial) => {
     expect(resolveIncomingPath(path, initial)).toBe('/');
   });
 });

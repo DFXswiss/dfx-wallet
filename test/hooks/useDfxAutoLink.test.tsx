@@ -122,7 +122,7 @@ describe('useDfxAutoLink', () => {
   });
 
   it(
-    'stops auto-linking and discards the token when the local session ends in flight',
+    'does not persist the in-flight token and logs out when the local session ends',
     async () => {
       const request = createDeferred<string>();
       mockLinkAddress.mockImplementationOnce(() => request.promise);

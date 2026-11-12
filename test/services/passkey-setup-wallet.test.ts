@@ -95,8 +95,12 @@ describe('setupPasskeyWallet', () => {
         throw new Error('keychain unavailable');
       });
 
-    await expect(setupPasskeyWallet(PRF_32, CREDENTIAL_ID, async () => undefined)).rejects.toThrow(
+    const initializeWallet = jest.fn(async () => undefined);
+    await expect(setupPasskeyWallet(PRF_32, CREDENTIAL_ID, initializeWallet)).rejects.toThrow(
       'keychain unavailable',
+    );
+    expect(initializeWallet.mock.invocationCallOrder[0]).toBeLessThan(
+      mockedStorage.set.mock.invocationCallOrder[1]!,
     );
 
     expect(mockedStorage.set.mock.calls.map((call) => call[0])).toEqual([
@@ -120,6 +124,9 @@ describe('setupPasskeyWallet', () => {
 
     expect(mockedStorage.set).toHaveBeenCalledWith(StorageKeys.WALLET_ORIGIN, 'passkey-pending');
     expect(mockedStorage.remove).toHaveBeenCalledWith(StorageKeys.WALLET_ORIGIN);
+    expect(mockedStorage.set.mock.invocationCallOrder[0]).toBeLessThan(
+      mockedStorage.remove.mock.invocationCallOrder[0]!,
+    );
     expect(await mockedStorage.get(StorageKeys.WALLET_ORIGIN)).toBeNull();
   });
 

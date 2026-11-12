@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { LOCAL_SESSION_ENDED_MESSAGE } from '@/features/dfx-backend/session-guard';
 import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
+import { useAuthStore } from '@/store/auth';
 
 const mockAuthenticate = jest.fn();
 const mockGetKycStatus = jest.fn();
@@ -108,6 +109,7 @@ describe('KycScreenImpl', () => {
   });
 
   it('stays on mail verification without an error when the local session ends', async () => {
+    useAuthStore.setState({ isDfxAuthenticated: true });
     mockAuthenticate
       .mockResolvedValueOnce('token-1')
       .mockRejectedValueOnce(new Error(LOCAL_SESSION_ENDED_MESSAGE));
@@ -126,6 +128,7 @@ describe('KycScreenImpl', () => {
     );
     expect(view.queryByText(LOCAL_SESSION_ENDED_MESSAGE)).toBeNull();
     expect(view.queryByText('kyc.mailVerifyError')).toBeNull();
+    expect(useAuthStore.getState().isDfxAuthenticated).toBe(false);
   });
 
   it('hides a session-ended or invalidated auth error on the merged account', async () => {

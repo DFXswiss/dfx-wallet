@@ -95,7 +95,7 @@ describe('useDfxAuth', () => {
     });
   });
 
-  it('does not overwrite a stored token when auto-lock ends the session during login', async () => {
+  it('does not overwrite a stored token when the local session ends during login', async () => {
     let resolveLogin: (token: string) => void = () => undefined;
     mockGetAccessToken.mockReturnValue('stale-token');
     mockSecureStorageGet.mockResolvedValue('previous-token');

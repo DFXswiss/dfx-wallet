@@ -8,6 +8,7 @@ type RemainingWalletItems = {
 
 type DeleteWalletDependencies = {
   requestReauth: () => Promise<boolean>;
+  isSessionCurrent?: () => boolean;
   deleteWallet: () => Promise<void>;
   getRemainingWalletItems: () => Promise<RemainingWalletItems>;
   reset: () => Promise<void>;
@@ -29,6 +30,7 @@ async function deleteWalletWithRetry(
     } catch {
       try {
         const remaining = await getRemainingWalletItems();
+        if (!remaining.key && !remaining.seed && !remaining.entropy) return 'deleted';
         if (remaining.key && remaining.seed && remaining.entropy) return 'failed';
       } catch {
         // Only a verifiably intact wallet may retain app state after both attempts fail.
@@ -49,6 +51,7 @@ async function resetAfterDeletion(reset: () => Promise<void>): Promise<DeleteWal
 
 export async function deleteWalletFlow({
   requestReauth,
+  isSessionCurrent,
   deleteWallet,
   getRemainingWalletItems,
   reset,
@@ -58,6 +61,8 @@ export async function deleteWalletFlow({
   } catch {
     return 'failed';
   }
+
+  if (isSessionCurrent && !isSessionCurrent()) return 'cancelled';
 
   const deletionStatus = await deleteWalletWithRetry(deleteWallet, getRemainingWalletItems);
   if (deletionStatus === 'failed') return 'failed';

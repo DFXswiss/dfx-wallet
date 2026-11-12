@@ -35,6 +35,30 @@ describe('assertBackendSignMessage', () => {
       DfxSignMessageMismatchError,
     );
   });
+
+  it.each(['dev', 'loc', 'abcdefghij'])('accepts one [%s]_ environment prefix', (name) => {
+    expect(() =>
+      assertBackendSignMessage(`[${name}]_${backendSignMessage('0xAbC')}`, '0xAbC'),
+    ).not.toThrow();
+  });
+
+  it.each([
+    ['a dev prefix on a different address', `[dev]_${backendSignMessage('0xdef')}`, '0xabc'],
+    ['a doubled environment prefix', `[dev]_[dev]_${backendSignMessage('0xabc')}`, '0xabc'],
+    ['an uppercase environment name', `[DEV]_${backendSignMessage('0xabc')}`, '0xabc'],
+    ['an empty environment name', `[]_${backendSignMessage('0xabc')}`, '0xabc'],
+    ['an environment name without brackets', `dev_${backendSignMessage('0xabc')}`, '0xabc'],
+    ['an environment name with a digit', `[dev1]_${backendSignMessage('0xabc')}`, '0xabc'],
+    [
+      'an environment name longer than 10 characters',
+      `[abcdefghijk]_${backendSignMessage('0xabc')}`,
+      '0xabc',
+    ],
+    ['arbitrary text before the prefix', `note ${backendSignMessage('0xabc')}`, '0xabc'],
+    ['text after the address', `[dev]_${backendSignMessage('0xabc')}extra`, '0xabc'],
+  ])('rejects %s', (_case, message, address) => {
+    expect(() => assertBackendSignMessage(message, address)).toThrow(DfxSignMessageMismatchError);
+  });
 });
 
 /**
@@ -1105,6 +1129,21 @@ describe('dfxAuthService signature cache', () => {
     expect(signFn).toHaveBeenCalledTimes(1);
   });
 
+  it('checks session activity before returning a cached signature', async () => {
+    getSpy.mockResolvedValue({ message: backendSignMessage('0xabc') });
+    postSpy.mockResolvedValue({ accessToken: 'T' });
+    const signFn = jest.fn().mockResolvedValue('SIG');
+    await dfxAuthService.login('0xabc', signFn);
+    const assertActive = jest.fn().mockRejectedValue(new Error('session ended'));
+    await expect(dfxAuthService.login('0xabc', signFn, { assertActive })).rejects.toThrow(
+      'session ended',
+    );
+    expect(signFn).toHaveBeenCalledTimes(1);
+    expect(assertActive).toHaveBeenCalledTimes(1);
+    await expect(dfxAuthService.login('0xabc', signFn)).resolves.toBe('T');
+    expect(signFn).toHaveBeenCalledTimes(1);
+  });
+
   it('re-signs once the cached signature is past the 5-minute TTL', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
@@ -1119,7 +1158,7 @@ describe('dfxAuthService signature cache', () => {
     expect(signFn).toHaveBeenCalledTimes(2);
   });
 
-  it('rejects a changed challenge for the same address without re-signing', async () => {
+  it('rejects a mismatched message for the same address without signing again', async () => {
     getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
     getSpy.mockResolvedValueOnce({ message: `${backendSignMessage('0xabc')}changed` });
     postSpy.mockResolvedValue({ accessToken: 'T' });

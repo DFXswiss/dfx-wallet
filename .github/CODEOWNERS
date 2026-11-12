@@ -66,6 +66,7 @@
 # Security documentation and screenshot redaction
 /docs/security/              @Danswar @davidleomay @TaprootFreak
 /e2e/utils/screenshot.ts     @Danswar @davidleomay @TaprootFreak
+/e2e/utils/mask-*.ts         @Danswar @davidleomay @TaprootFreak
 /e2e/visual/                 @Danswar @davidleomay @TaprootFreak
 /e2e/__baselines__/          @Danswar @davidleomay @TaprootFreak
 

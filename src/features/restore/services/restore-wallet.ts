@@ -36,6 +36,7 @@ async function deleteWalletWithRetry(
     } catch (error) {
       try {
         const remaining = await getRemainingWalletItems();
+        if (!remaining.key && !remaining.seed && !remaining.entropy) return { status: 'deleted' };
         if (remaining.key && remaining.seed && remaining.entropy) {
           return { status: 'failed', error };
         }

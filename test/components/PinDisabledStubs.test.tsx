@@ -205,6 +205,8 @@ describe('VerifyPinDisabled', () => {
     await waitFor(() => expect(view.getByTestId('verify-pin-finish-error')).toBeTruthy());
     expect(view.getByText('pin.finishError')).toBeTruthy();
     expect(view.queryByTestId('verify-pin-unlock-error')).toBeNull();
+    expect(mockUnlock).toHaveBeenCalledTimes(1);
+    expect(mockUnlock).toHaveBeenCalledWith('default');
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     expect(mockReplace).not.toHaveBeenCalled();
     useAuthStore.setState({ setOnboarded: originalSetOnboarded });
@@ -222,6 +224,8 @@ describe('VerifyPinDisabled', () => {
     await waitFor(() => expect(view.getByTestId('verify-pin-finish-error')).toBeTruthy());
     expect(view.getByText('pin.finishError')).toBeTruthy();
     expect(view.queryByTestId('verify-pin-unlock-error')).toBeNull();
+    expect(mockUnlock).toHaveBeenCalledTimes(1);
+    expect(mockUnlock).toHaveBeenCalledWith('default');
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     warn.mockRestore();
   });

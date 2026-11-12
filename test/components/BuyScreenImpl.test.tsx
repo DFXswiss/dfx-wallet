@@ -84,10 +84,12 @@ jest.mock('expo-haptics', () => ({
   NotificationFeedbackType: { Success: 'success' },
 }));
 
+const mockAccountSign = jest.fn();
+
 jest.mock('@tetherto/wdk-react-native-core', () => ({
   useAccount: () => ({
     address: 'bc1q-wallet-address',
-    sign: jest.fn().mockResolvedValue({ success: true, signature: 'signed-message' }),
+    sign: mockAccountSign,
   }),
   useBalancesForWallet: () => ({
     data: [{ assetId: 'btc', success: true, balance: '1' }],
@@ -534,6 +536,8 @@ beforeEach(() => {
   mockAuthState.isDfxAuthenticated = false;
   mockAuthState.isOnboarded = true;
   mockAuthState.sessionEpoch = 1;
+  mockAccountSign.mockReset();
+  mockAccountSign.mockResolvedValue({ success: true, signature: 'signed-message' });
   mockAuthState.setDfxAuthenticated.mockClear();
   mockMarkChainLinked.mockClear();
   mockBack.mockReset();
@@ -1594,6 +1598,150 @@ describe('BuyScreenImpl', () => {
       fireEvent.press(view.getByTestId('confirm-target-confirm'));
     });
     expect(mockCreatePaymentInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['linkAddress', 'loginAsAddressOwner'] as const)(
+    'passes a session check to %s that rejects after the session ends',
+    async (method) => {
+      const { DfxApiError } = jest.requireMock('@/features/dfx-backend/services') as {
+        DfxApiError: new (message: string, statusCode: number) => Error;
+      };
+      const link = mockDfxAuthService.linkAddress;
+      const owner = mockDfxAuthService.loginAsAddressOwner;
+      const previousLink = link.getMockImplementation();
+      const previousOwner = owner.getMockImplementation();
+      const previousSession = {
+        isAuthenticated: mockAuthState.isAuthenticated,
+        sessionEpoch: mockAuthState.sessionEpoch,
+        isOnboarded: mockAuthState.isOnboarded,
+      };
+      mockAuthState.isAuthenticated = true;
+      mockAuthState.isOnboarded = true;
+      const previousGate = flowState.authGate;
+      const checked = jest.fn();
+      const checkOptions = async (
+        _address: string,
+        _sign: (message: string) => Promise<string>,
+        options: { assertActive?: () => Promise<void> },
+      ): Promise<string> => {
+        expect(options.assertActive).toBeDefined();
+        await expect(options.assertActive!()).resolves.toBeUndefined();
+        mockAuthState.isAuthenticated = false;
+        mockAuthState.sessionEpoch += 1;
+        await expect(options.assertActive!()).rejects.toThrow(LOCAL_SESSION_ENDED_MESSAGE);
+        checked();
+        throw new Error(LOCAL_SESSION_ENDED_MESSAGE);
+      };
+      link.mockReset();
+      owner.mockReset();
+      if (method === 'linkAddress') {
+        link.mockImplementation(checkOptions);
+      } else {
+        link.mockRejectedValue(new DfxApiError('already linked', 409));
+        owner.mockImplementation(checkOptions);
+      }
+      flowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'link Bitcoin' };
+      const view = render(<BuyScreenImpl />);
+      let flow: Promise<void> | undefined;
+      try {
+        await act(async () => {
+          flow = fireEvent.press(view.getByTestId('mock-link-chain')) as unknown as Promise<void>;
+          await flow;
+        });
+        expect(checked).toHaveBeenCalledTimes(1);
+        expect(method === 'linkAddress' ? link : owner).toHaveBeenCalledTimes(1);
+      } finally {
+        mockAuthState.isAuthenticated = previousSession.isAuthenticated;
+        mockAuthState.sessionEpoch = previousSession.sessionEpoch;
+        mockAuthState.isOnboarded = previousSession.isOnboarded;
+        flowState.authGate = previousGate;
+        link.mockReset();
+        owner.mockReset();
+        if (previousLink) link.mockImplementation(previousLink);
+        if (previousOwner) owner.mockImplementation(previousOwner);
+        view.unmount();
+      }
+    },
+  );
+
+  it('rejects the signature when the local session ends while signing', async () => {
+    flowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'link Bitcoin' };
+    const storageSet = mockSecureStorage.set;
+    storageSet.mockClear();
+    mockDfxAuthService.loginAsAddressOwner.mockClear();
+    const previousSession = {
+      isAuthenticated: mockAuthState.isAuthenticated,
+      sessionEpoch: mockAuthState.sessionEpoch,
+    };
+    let resolveSign!: (value: { success: boolean; signature: string }) => void;
+    const pendingSign = new Promise<{ success: boolean; signature: string }>((resolve) => {
+      resolveSign = resolve;
+    });
+    mockAccountSign.mockReturnValueOnce(pendingSign);
+    const signRejected = jest.fn();
+    mockDfxAuthService.linkAddress.mockImplementationOnce(
+      async (_address: string, sign: (message: string) => Promise<string>) => {
+        try {
+          await sign('challenge');
+        } catch (error) {
+          signRejected(error);
+          throw error;
+        }
+        return 'linked-token';
+      },
+    );
+    const view = render(<BuyScreenImpl />);
+    let linkFlow: Promise<void> | undefined;
+    try {
+      act(() => {
+        linkFlow = fireEvent.press(view.getByTestId('mock-link-chain')) as unknown as Promise<void>;
+      });
+      await waitFor(() => expect(mockAccountSign).toHaveBeenCalledTimes(1));
+      mockAuthState.isAuthenticated = false;
+      mockAuthState.sessionEpoch += 1;
+      await act(async () => {
+        resolveSign({ success: true, signature: 'signed-message' });
+        await linkFlow;
+      });
+      expect(signRejected).toHaveBeenCalledTimes(1);
+      expect(mockDfxAuthService.loginAsAddressOwner).not.toHaveBeenCalled();
+      expect(storageSet).not.toHaveBeenCalledWith('dfx-auth-token', 'linked-token');
+      expect(view.queryByText(LOCAL_SESSION_ENDED_MESSAGE)).toBeNull();
+    } finally {
+      try {
+        await act(async () => {
+          resolveSign({ success: true, signature: 'signed-message' });
+          await linkFlow;
+        });
+      } finally {
+        mockAuthState.isAuthenticated = previousSession.isAuthenticated;
+        mockAuthState.sessionEpoch = previousSession.sessionEpoch;
+        view.unmount();
+      }
+    }
+  });
+
+  it('does not sign when the session ends between the challenge and the signature', async () => {
+    flowState.authGate = { kind: 'linkChain', chain: 'bitcoin', message: 'link Bitcoin' };
+    mockDfxAuthService.linkAddress.mockImplementationOnce(
+      async (_address: string, sign: (message: string) => Promise<string>) => {
+        mockAuthState.isAuthenticated = false;
+        mockAuthState.sessionEpoch += 1;
+        await sign('challenge');
+        return 'linked-token';
+      },
+    );
+    const { getByTestId, queryByText } = render(<BuyScreenImpl />);
+
+    await act(async () => {
+      fireEvent.press(getByTestId('mock-link-chain'));
+    });
+
+    await waitFor(() => expect(mockDfxAuthService.linkAddress).toHaveBeenCalledTimes(1));
+    expect(mockAccountSign).not.toHaveBeenCalled();
+    expect(mockDfxAuthService.loginAsAddressOwner).not.toHaveBeenCalled();
+    expect(queryByText(LOCAL_SESSION_ENDED_MESSAGE)).toBeNull();
+    expect(mockAlert).not.toHaveBeenCalled();
   });
 
   it('discards a linked token and clears link loading when the local session ends', async () => {

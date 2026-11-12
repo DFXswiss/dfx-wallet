@@ -6,16 +6,16 @@ import { useAuthStore } from '@/store/auth';
 
 export function useAutoLock(): void {
   const backgroundedAt = useRef<number | null>(null);
-  const setAuthenticated = useAuthStore((state) => state.setAuthenticated);
+  const lockSession = useAuthStore((state) => state.lockSession);
 
   useEffect(() => {
-    if (AppState.currentState === 'background') {
+    if (AppState.currentState === 'background' || AppState.currentState === 'inactive') {
       backgroundedAt.current = Date.now();
     }
 
     const handleChange = (nextState: AppStateStatus) => {
-      if (nextState === 'background') {
-        backgroundedAt.current = Date.now();
+      if (nextState === 'background' || nextState === 'inactive') {
+        if (backgroundedAt.current === null) backgroundedAt.current = Date.now();
         return;
       }
       if (
@@ -23,12 +23,12 @@ export function useAutoLock(): void {
         backgroundedAt.current !== null &&
         Date.now() - backgroundedAt.current >= AUTO_LOCK_AFTER_MS
       ) {
-        setAuthenticated(false);
+        lockSession();
       }
       if (nextState === 'active') backgroundedAt.current = null;
     };
 
     const subscription = AppState.addEventListener('change', handleChange);
     return () => subscription.remove();
-  }, [setAuthenticated]);
+  }, [lockSession]);
 }

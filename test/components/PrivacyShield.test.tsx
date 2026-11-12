@@ -18,6 +18,7 @@ jest.mock('@/components/BrandLogo', () => {
   return { BrandLogo: () => <View testID="privacy-shield-logo" /> };
 });
 
+// eslint-disable-next-line import/first
 import { PrivacyShield } from '@/components/PrivacyShield';
 
 function setPlatform(os: 'ios' | 'android'): () => void {

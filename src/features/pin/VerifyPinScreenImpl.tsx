@@ -12,6 +12,15 @@ import { useAuthStore } from '@/store';
 import { FIRST_LOCKOUT_ATTEMPT, getPostPinDestination } from '@/store/auth';
 import { Typography, useColors, useResolvedScheme, type ThemeColors } from '@/theme';
 
+function sessionStillCurrent(capturedEpoch: number): boolean {
+  return useAuthStore.getState().sessionEpoch === capturedEpoch;
+}
+
+function freshPinLockActive(): boolean {
+  const lockedUntilNow = useAuthStore.getState().lockedUntil;
+  return lockedUntilNow !== null && lockedUntilNow > Date.now();
+}
+
 /**
  * PIN-unlock screen for the cold-start path.
  *
@@ -45,26 +54,39 @@ export default function VerifyPinScreen() {
   const [biometricInFlight, setBiometricInFlight] = useState(false);
   const [processing, setProcessing] = useState(false);
   const unlockedRef = useRef(false);
+  const biometricInFlightRef = useRef(false);
+  const cancelStaleUnlock = useCallback(() => {
+    unlockedRef.current = false;
+    setProcessing(false);
+    setPinValue('');
+  }, []);
   const isLocked = lockedUntil !== null && lockedUntil > now;
   const isLegacyPin = pinHash !== null && needsPinRehash(pinHash);
   const remainingSeconds = isLocked ? Math.max(1, Math.ceil((lockedUntil - now) / 1000)) : 0;
 
-  const finishAuthentication = useCallback(async () => {
-    try {
-      const destination = getPostPinDestination(isOnboarded, FEATURES.LEGAL);
-      if (destination.shouldSetOnboarded) await setOnboarded(true);
-      setAuthenticated(true);
-      router.replace(destination.route);
-    } catch (err) {
-      console.warn('verify: failed to finish authentication', err);
-      unlockedRef.current = false;
-      setAuthenticated(false);
-      setError('finish');
-      setPinValue('');
-    } finally {
-      setProcessing(false);
-    }
-  }, [isOnboarded, router, setAuthenticated, setOnboarded]);
+  const finishAuthentication = useCallback(
+    async (capturedEpoch: number) => {
+      try {
+        const destination = getPostPinDestination(isOnboarded, FEATURES.LEGAL);
+        if (destination.shouldSetOnboarded) await setOnboarded(true);
+        if (!sessionStillCurrent(capturedEpoch) || freshPinLockActive()) {
+          cancelStaleUnlock();
+          return;
+        }
+        setAuthenticated(true);
+        router.replace(destination.route);
+      } catch (err) {
+        console.warn('verify: failed to finish authentication', err);
+        unlockedRef.current = false;
+        setAuthenticated(false);
+        setError('finish');
+        setPinValue('');
+      } finally {
+        setProcessing(false);
+      }
+    },
+    [cancelStaleUnlock, isOnboarded, router, setAuthenticated, setOnboarded],
+  );
 
   const goToRecovery = useCallback(() => {
     router.replace('/(onboarding)/restore-wallet');
@@ -74,13 +96,19 @@ export default function VerifyPinScreen() {
 
   const tryBiometric = useCallback(async () => {
     if (lockedUntil !== null && lockedUntil > Date.now()) return;
-    if (biometricInFlight) return;
+    if (biometricInFlightRef.current) return;
+    biometricInFlightRef.current = true;
+    const capturedEpoch = useAuthStore.getState().sessionEpoch;
     setBiometricInFlight(true);
     try {
       const success = await authenticateBiometric({
         promptMessage: t('biometric.prompt'),
         cancelLabel: t('biometric.usePin'),
       });
+      if (!sessionStillCurrent(capturedEpoch)) {
+        cancelStaleUnlock();
+        return;
+      }
       if (!success) return;
       // Re-read: lockedUntil from this closure is stale once the prompt resolves.
       const lockedUntilNow = useAuthStore.getState().lockedUntil;
@@ -92,16 +120,25 @@ export default function VerifyPinScreen() {
         setUnlockFailed(true);
         return;
       }
+      if (!sessionStillCurrent(capturedEpoch)) {
+        cancelStaleUnlock();
+        return;
+      }
+      if (freshPinLockActive()) {
+        cancelStaleUnlock();
+        return;
+      }
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await finishAuthentication();
+      await finishAuthentication(capturedEpoch);
     } catch (err) {
       console.warn('verify: biometric authentication failed', err);
     } finally {
+      biometricInFlightRef.current = false;
       setBiometricInFlight(false);
     }
   }, [
     authenticateBiometric,
-    biometricInFlight,
+    cancelStaleUnlock,
     finishAuthentication,
     lockedUntil,
     t,
@@ -118,7 +155,7 @@ export default function VerifyPinScreen() {
   }, [biometricEnabled, lockedUntil]);
 
   const handleDigit = (digit: string) => {
-    if (unlockedRef.current || processing || isLocked) return;
+    if (unlockedRef.current || biometricInFlightRef.current || processing || isLocked) return;
     setError(null);
     setUnlockFailed(false);
     const newPin = pin + digit;
@@ -132,6 +169,7 @@ export default function VerifyPinScreen() {
 
   const checkPin = async (pinValue: string) => {
     if (unlockedRef.current) return;
+    const capturedEpoch = useAuthStore.getState().sessionEpoch;
     setProcessing(true);
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     if (unlockedRef.current) return;
@@ -141,6 +179,10 @@ export default function VerifyPinScreen() {
       isValid = await verifyPin(pinValue);
     } catch (err) {
       console.warn('verify: PIN verification threw', err);
+    }
+    if (!sessionStillCurrent(capturedEpoch)) {
+      cancelStaleUnlock();
+      return;
     }
     if (unlockedRef.current) return;
     if (isValid) {
@@ -155,8 +197,16 @@ export default function VerifyPinScreen() {
         setPinValue('');
         return;
       }
+      if (!sessionStillCurrent(capturedEpoch)) {
+        cancelStaleUnlock();
+        return;
+      }
+      if (freshPinLockActive()) {
+        cancelStaleUnlock();
+        return;
+      }
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await finishAuthentication();
+      await finishAuthentication(capturedEpoch);
       return;
     }
     setProcessing(false);

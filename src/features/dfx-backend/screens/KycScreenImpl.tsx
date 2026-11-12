@@ -20,6 +20,7 @@ import {
 import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
 import { decodeDfxJwt, DfxApiError, dfxApi, dfxAuthService } from '@/features/dfx-backend/services';
 import { isAllowedDfxHost, isSafeHttpsUrl } from '@/services/security/safe-url';
+import { useAuthStore } from '@/store/auth';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 
 /**
@@ -273,7 +274,10 @@ export default function KycScreen() {
 
       await refreshAfterAccountMerge();
     } catch (err) {
-      if (isLocalSessionEndedError(err)) return;
+      if (isLocalSessionEndedError(err)) {
+        useAuthStore.getState().setDfxAuthenticated(false);
+        return;
+      }
       setMailError(err instanceof Error ? err.message : t('kyc.mailVerifyError'));
     } finally {
       setMailBusy(false);

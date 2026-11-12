@@ -114,11 +114,15 @@ export default function SettingsScreen() {
       Alert.alert(t('settings.biometric'), t('settings.biometricUnsupported'));
       return;
     }
+    const sessionEpoch = useAuthStore.getState().sessionEpoch;
     const authenticated = await biometricModule.authenticateWithBiometric({
       promptMessage: t('biometric.enable'),
       cancelLabel: t('biometric.usePin'),
     });
-    if (authenticated) await setBiometricEnabled(true);
+    if (!authenticated) return;
+    const session = useAuthStore.getState();
+    if (session.sessionEpoch !== sessionEpoch || !session.isAuthenticated) return;
+    await setBiometricEnabled(true);
   };
 
   const enqueueLatestDfxSync = (
@@ -155,6 +159,7 @@ export default function SettingsScreen() {
     useWalletManager();
   const { requestReauth, modalProps } = useReauthenticate();
   const [walletOrigin, setWalletOrigin] = useState<string | null>(null);
+  const deletingWalletRef = useRef(false);
   const isPasskeyOrigin = walletOrigin === 'passkey' || walletOrigin === 'passkey-pending';
 
   useEffect(() => {
@@ -172,33 +177,44 @@ export default function SettingsScreen() {
         text: t('settings.deleteWallet'),
         style: 'destructive',
         onPress: async () => {
-          const result = await deleteWalletFlow({
-            requestReauth,
-            deleteWallet: () => deleteWallet('default'),
-            getRemainingWalletItems: async () => {
-              const [key, encryptedSeed, encryptedEntropy] = await Promise.all([
-                getEncryptionKey('default'),
-                getEncryptedSeed('default'),
-                getEncryptedEntropy('default'),
-              ]);
-              return {
-                key: key !== null,
-                seed: encryptedSeed !== null,
-                entropy: encryptedEntropy !== null,
-              };
-            },
-            reset,
-          });
-          if (result === 'failed') {
-            Alert.alert(t('common.error'), t('settings.deleteWalletFailed'));
-            return;
+          if (deletingWalletRef.current) return;
+          deletingWalletRef.current = true;
+          const sessionEpoch = useAuthStore.getState().sessionEpoch;
+          try {
+            const result = await deleteWalletFlow({
+              requestReauth,
+              isSessionCurrent: () => {
+                const state = useAuthStore.getState();
+                return state.sessionEpoch === sessionEpoch && state.isAuthenticated;
+              },
+              deleteWallet: () => deleteWallet('default'),
+              getRemainingWalletItems: async () => {
+                const [key, encryptedSeed, encryptedEntropy] = await Promise.all([
+                  getEncryptionKey('default'),
+                  getEncryptedSeed('default'),
+                  getEncryptedEntropy('default'),
+                ]);
+                return {
+                  key: key !== null,
+                  seed: encryptedSeed !== null,
+                  entropy: encryptedEntropy !== null,
+                };
+              },
+              reset,
+            });
+            if (result === 'failed') {
+              Alert.alert(t('common.error'), t('settings.deleteWalletFailed'));
+              return;
+            }
+            if (result === 'deleted-with-cleanup-error') {
+              router.replace('/');
+              Alert.alert(t('common.error'), t('settings.deleteWalletCleanupFailed'));
+              return;
+            }
+            if (result === 'deleted') router.replace('/');
+          } finally {
+            deletingWalletRef.current = false;
           }
-          if (result === 'deleted-with-cleanup-error') {
-            router.replace('/');
-            Alert.alert(t('common.error'), t('settings.deleteWalletCleanupFailed'));
-            return;
-          }
-          if (result === 'deleted') router.replace('/');
         },
       },
     ]);

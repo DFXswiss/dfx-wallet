@@ -94,7 +94,27 @@ export function useReauthenticate(): UseReauthenticateResult {
 
     void (async () => {
       const auth = useAuthStore.getState();
+      const pinIsConfigured = () => FEATURES.PIN && !!useAuthStore.getState().pinHash;
+      const lockIsActive = () => {
+        const lockedUntilNow = useAuthStore.getState().lockedUntil;
+        return lockedUntilNow !== null && lockedUntilNow > Date.now();
+      };
+      const showLockedPinModal = () => {
+        if (!pinIsConfigured()) {
+          finish(requestId, false);
+          return;
+        }
+        setNow(Date.now());
+        setError(null);
+        setModalVisible(true);
+      };
+
       if (FEATURES.BIOMETRIC && biometricEnabled) {
+        if (lockIsActive()) {
+          showLockedPinModal();
+          return;
+        }
+        const sessionEpoch = useAuthStore.getState().sessionEpoch;
         let authenticated = false;
         try {
           authenticated = await auth.authenticateBiometric({
@@ -105,11 +125,20 @@ export function useReauthenticate(): UseReauthenticateResult {
           authenticated = false;
         }
         if (!isCurrentRequest(requestId)) return;
+        const currentSession = useAuthStore.getState();
+        if (currentSession.sessionEpoch !== sessionEpoch || !currentSession.isAuthenticated) {
+          finish(requestId, false);
+          return;
+        }
+        if (authenticated && lockIsActive()) {
+          showLockedPinModal();
+          return;
+        }
         if (authenticated) {
           finish(requestId, true);
           return;
         }
-        if (!FEATURES.PIN || !useAuthStore.getState().pinHash) {
+        if (!pinIsConfigured()) {
           finish(requestId, false);
           return;
         }
@@ -133,6 +162,7 @@ export function useReauthenticate(): UseReauthenticateResult {
       verifyingRef.current = true;
       const requestId = currentRequest.id;
       const auth = useAuthStore.getState();
+      const sessionEpoch = auth.sessionEpoch;
       try {
         if (auth.lockedUntil && auth.lockedUntil > Date.now()) {
           setNow(Date.now());
@@ -148,6 +178,11 @@ export function useReauthenticate(): UseReauthenticateResult {
           valid = false;
         }
         if (!isCurrentRequest(requestId)) return;
+        const currentSession = useAuthStore.getState();
+        if (currentSession.sessionEpoch !== sessionEpoch || !currentSession.isAuthenticated) {
+          finish(requestId, false);
+          return;
+        }
         setVerifying(false);
         if (valid) {
           finish(requestId, true);

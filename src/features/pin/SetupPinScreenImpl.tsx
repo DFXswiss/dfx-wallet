@@ -12,7 +12,7 @@ import {
 } from '@/components';
 import { FEATURES } from '@/config/features';
 import { useAuthStore } from '@/store';
-import { getPostPinDestination } from '@/store/auth';
+import { getPostPinDestination, PinSetupInterruptedError } from '@/store/auth';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 
 type SetupError = 'mismatch' | 'save' | 'unlock';
@@ -55,7 +55,14 @@ export default function SetupPinScreen() {
   };
 
   const completeSetup = async (pinValue: string) => {
-    const { pinHash, isAuthenticated, isOnboarded } = useAuthStore.getState();
+    const { pinHash, isAuthenticated, isOnboarded, sessionEpoch } = useAuthStore.getState();
+    const resetInterruptedSetup = () => {
+      setAuthenticated(false);
+      setProcessing(false);
+      setPinValue('');
+      setFirstPin('');
+      setStep('create');
+    };
     if (pinHash) {
       if (!isAuthenticated) {
         router.replace('/(pin)/verify');
@@ -67,6 +74,10 @@ export default function SetupPinScreen() {
     try {
       setProcessing(true);
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      if (useAuthStore.getState().sessionEpoch !== sessionEpoch) {
+        resetInterruptedSetup();
+        return;
+      }
       if (shouldUnlockWallet) {
         try {
           await unlock('default');
@@ -81,9 +92,19 @@ export default function SetupPinScreen() {
           setStep('create');
           return;
         }
+        if (useAuthStore.getState().sessionEpoch !== sessionEpoch) {
+          resetInterruptedSetup();
+          return;
+        }
       }
       setAuthenticated(true);
-      await setPin(pinValue);
+      try {
+        await setPin(pinValue);
+      } catch (err) {
+        if (!(err instanceof PinSetupInterruptedError)) throw err;
+        resetInterruptedSetup();
+        return;
+      }
       if (!FEATURES.LEGAL) await setOnboarded(true);
       // With `EXPO_PUBLIC_ENABLE_LEGAL` off, the disclaimer step is
       // not part of the onboarding flow; skip straight to the

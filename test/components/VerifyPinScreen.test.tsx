@@ -34,12 +34,14 @@ const mockAuthState: {
   isOnboarded: boolean;
   lockedUntil: number | null;
   pinHash: string | null;
+  sessionEpoch: number;
 } = {
   biometricEnabled: false,
   failedAttempts: 0,
   isOnboarded: true,
   lockedUntil: null,
   pinHash: 'pin$argon2id$current',
+  sessionEpoch: 0,
 };
 jest.mock('@/store', () => {
   const useAuthStore = Object.assign(
@@ -61,6 +63,7 @@ jest.mock('@/store', () => {
         isOnboarded: mockAuthState.isOnboarded,
         lockedUntil: mockAuthState.lockedUntil,
         pinHash: mockAuthState.pinHash,
+        sessionEpoch: mockAuthState.sessionEpoch,
       }),
     },
   );
@@ -101,6 +104,7 @@ describe('VerifyPinScreen', () => {
     mockAuthState.isOnboarded = true;
     mockAuthState.lockedUntil = null;
     mockAuthState.pinHash = 'pin$argon2id$current';
+    mockAuthState.sessionEpoch = 0;
     jest.spyOn(global, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0);
       return 0;
@@ -228,7 +232,7 @@ describe('VerifyPinScreen', () => {
     expect(mockVerifyPin).not.toHaveBeenCalled();
   });
 
-  it('counts one wrong 4-digit legacy PIN submission and shows the error', async () => {
+  it('submits a 4-digit legacy PIN once and shows the error', async () => {
     mockAuthState.pinHash = 'abcdef';
     const { getByTestId } = render(<VerifyPinScreen />);
 
@@ -300,7 +304,7 @@ describe('VerifyPinScreen', () => {
     expect(mockReplace).toHaveBeenCalledTimes(1);
   });
 
-  it('auto-verifies a 6-digit legacy PIN exactly once as a counted attempt', async () => {
+  it('auto-verifies a 6-digit legacy PIN exactly once and shows the remaining attempts', async () => {
     mockAuthState.pinHash = 'abcdef';
     mockVerifyPin.mockImplementation(async () => {
       mockAuthState.failedAttempts += 1;
@@ -390,14 +394,16 @@ describe('VerifyPinScreen', () => {
     expect(queryByTestId('verify-pin-locked')).toBeNull();
   });
 
-  it('treats a thrown verifyPin as a failed attempt instead of crashing', async () => {
+  it('shows the PIN error instead of crashing when verifyPin throws', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     mockVerifyPin.mockRejectedValue(new Error('keystore unavailable'));
     const { getByTestId } = render(<VerifyPinScreen />);
 
     await enterPin(getByTestId, '111111');
 
-    expect(getByTestId('verify-pin-error')).toBeTruthy();
+    expect(getByTestId('verify-pin-error').children.join('')).toBe(
+      'pin.incorrectAttemptsLeft:{"count":5}',
+    );
     expect(mockSetAuthenticated).not.toHaveBeenCalled();
     warn.mockRestore();
   });
@@ -453,6 +459,43 @@ describe('VerifyPinScreen', () => {
     expect(getByTestId('verify-pin-unlock-error')).toBeTruthy();
     expect(getByTestId('verify-pin-recovery-button')).toBeTruthy();
     warn.mockRestore();
+  });
+
+  it('ignores PIN digits while biometric wallet unlock is pending', async () => {
+    mockAuthState.biometricEnabled = true;
+    mockAuthenticateBiometric.mockResolvedValue(true);
+    let resolveUnlock: () => void = () => undefined;
+    mockUnlock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUnlock = resolve;
+        }),
+    );
+    const { getByTestId } = render(<VerifyPinScreen />);
+    await waitFor(() => expect(mockUnlock).toHaveBeenCalled());
+    await enterPin(getByTestId, '123456');
+    expect(mockVerifyPin).not.toHaveBeenCalled();
+    await act(async () => resolveUnlock());
+  });
+
+  it('does not authenticate if a PIN lock starts while onboarding is saved', async () => {
+    mockFeatures.LEGAL = false;
+    mockAuthState.isOnboarded = false;
+    mockVerifyPin.mockResolvedValue(true);
+    let resolveOnboarded: () => void = () => undefined;
+    mockSetOnboarded.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveOnboarded = resolve;
+        }),
+    );
+    const { getByTestId } = render(<VerifyPinScreen />);
+    await enterPin(getByTestId, '123456');
+    await waitFor(() => expect(mockSetOnboarded).toHaveBeenCalledWith(true));
+    mockAuthState.lockedUntil = Date.now() + 60_000;
+    await act(async () => resolveOnboarded());
+    expect(mockSetAuthenticated).not.toHaveBeenCalledWith(true);
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 
   it('authenticates and navigates after a successful biometric unlock', async () => {
@@ -579,5 +622,176 @@ describe('VerifyPinScreen', () => {
     await act(async () => {}); // flush mount effects
     expect(mockAuthenticateBiometric).not.toHaveBeenCalled();
     expect(queryByTestId('verify-pin-biometric-button')).toBeNull();
+  });
+
+  it('does not authenticate when the session epoch changes while wallet unlock is pending', async () => {
+    mockFeatures.LEGAL = false;
+    mockAuthState.isOnboarded = false;
+    mockVerifyPin.mockResolvedValue(true);
+    let resolveUnlock: () => void = () => undefined;
+    mockUnlock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUnlock = resolve;
+        }),
+    );
+    const { getByTestId, queryByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+    expect(mockUnlock).toHaveBeenCalledWith('default');
+    mockAuthState.sessionEpoch = 1;
+
+    await act(async () => {
+      resolveUnlock();
+    });
+
+    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockSetOnboarded).not.toHaveBeenCalled();
+    expect(queryByTestId('verify-pin-error')).toBeNull();
+    expect(queryByTestId('pin-processing-overlay')).toBeNull();
+
+    mockUnlock.mockResolvedValue(undefined);
+    await enterPin(getByTestId, '654321');
+    expect(mockVerifyPin).toHaveBeenLastCalledWith('654321');
+    expect(mockVerifyPin).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not show an incorrect-PIN error when verification fails because the session changed', async () => {
+    mockVerifyPin.mockImplementationOnce(async () => {
+      mockAuthState.sessionEpoch = 1;
+      return false;
+    });
+    const { getByTestId, queryByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+
+    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(queryByTestId('verify-pin-error')).toBeNull();
+    expect(queryByTestId('pin-processing-overlay')).toBeNull();
+    await enterPin(getByTestId, '654321');
+    expect(mockVerifyPin).toHaveBeenCalledTimes(2);
+    expect(mockVerifyPin).toHaveBeenLastCalledWith('654321');
+  });
+
+  it('does not authenticate when the session epoch changes while biometric unlock is pending', async () => {
+    mockFeatures.LEGAL = false;
+    mockAuthState.isOnboarded = false;
+    mockAuthState.biometricEnabled = true;
+    mockAuthenticateBiometric.mockResolvedValue(true);
+    let resolveUnlock: () => void = () => undefined;
+    mockUnlock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUnlock = resolve;
+        }),
+    );
+    const { queryByTestId } = render(<VerifyPinScreen />);
+
+    await waitFor(() => expect(mockUnlock).toHaveBeenCalledWith('default'));
+    mockAuthState.sessionEpoch = 1;
+    await act(async () => {
+      resolveUnlock();
+    });
+
+    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockSetOnboarded).not.toHaveBeenCalled();
+    expect(queryByTestId('verify-pin-error')).toBeNull();
+  });
+
+  it('does not unlock when the session epoch changes while the biometric prompt is pending', async () => {
+    mockAuthState.biometricEnabled = true;
+    let resolvePrompt: (success: boolean) => void = () => undefined;
+    mockAuthenticateBiometric.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolvePrompt = resolve;
+        }),
+    );
+    const { queryByTestId } = render(<VerifyPinScreen />);
+
+    await waitFor(() => expect(mockAuthenticateBiometric).toHaveBeenCalledTimes(1));
+    mockAuthState.sessionEpoch = 1;
+    await act(async () => {
+      resolvePrompt(true);
+    });
+
+    expect(mockUnlock).not.toHaveBeenCalled();
+    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(queryByTestId('verify-pin-error')).toBeNull();
+  });
+
+  it('does not authenticate when a PIN lockout is active after wallet unlock', async () => {
+    mockVerifyPin.mockResolvedValue(true);
+    let resolveUnlock: () => void = () => undefined;
+    mockUnlock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUnlock = resolve;
+        }),
+    );
+    const { getByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+    mockAuthState.lockedUntil = Date.now() + 60_000;
+    await act(async () => {
+      resolveUnlock();
+    });
+
+    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('does not authenticate when a PIN lockout is active after biometric wallet unlock', async () => {
+    mockAuthState.biometricEnabled = true;
+    mockAuthenticateBiometric.mockResolvedValue(true);
+    let resolveUnlock: () => void = () => undefined;
+    mockUnlock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUnlock = resolve;
+        }),
+    );
+    render(<VerifyPinScreen />);
+
+    await waitFor(() => expect(mockUnlock).toHaveBeenCalledWith('default'));
+    mockAuthState.lockedUntil = Date.now() + 60_000;
+    await act(async () => {
+      resolveUnlock();
+    });
+
+    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('does not authenticate when the session epoch changes while onboarding is saved', async () => {
+    mockFeatures.LEGAL = false;
+    mockAuthState.isOnboarded = false;
+    mockVerifyPin.mockResolvedValue(true);
+    let resolveOnboarded: () => void = () => undefined;
+    mockSetOnboarded.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveOnboarded = resolve;
+        }),
+    );
+    const { getByTestId, queryByTestId } = render(<VerifyPinScreen />);
+
+    await enterPin(getByTestId, '123456');
+    await waitFor(() => expect(mockSetOnboarded).toHaveBeenCalledWith(true));
+    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+    mockAuthState.sessionEpoch = 1;
+
+    await act(async () => {
+      resolveOnboarded();
+    });
+
+    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(queryByTestId('verify-pin-error')).toBeNull();
+    expect(queryByTestId('pin-processing-overlay')).toBeNull();
   });
 });

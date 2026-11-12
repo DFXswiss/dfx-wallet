@@ -6,9 +6,19 @@ import de from '@/i18n/locales/de.json';
 import en from '@/i18n/locales/en.json';
 import { useAuthStore } from '@/store/auth';
 
-jest.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
-}));
+jest.mock('react-i18next', () => {
+  const en = jest.requireActual<typeof import('@/i18n/locales/en.json')>('@/i18n/locales/en.json');
+  const lookup = (key: string): string => {
+    const value = key.split('.').reduce<unknown>((node, part) => {
+      if (node && typeof node === 'object' && Object.prototype.hasOwnProperty.call(node, part)) {
+        return (node as Record<string, unknown>)[part];
+      }
+      return undefined;
+    }, en);
+    return typeof value === 'string' ? value : key;
+  };
+  return { useTranslation: () => ({ t: lookup }) };
+});
 
 function createProps(overrides: Partial<ReauthPinModalProps> = {}): ReauthPinModalProps {
   return {
@@ -30,6 +40,10 @@ describe('ReauthPinModal', () => {
   it('describes reauthentication without requiring a six-digit PIN', () => {
     expect(en.reauth.description).toBe('Confirm your identity with your PIN.');
     expect(de.reauth.description).toBe('Bestätige deine Identität mit deiner PIN.');
+    const view = render(<ReauthPinModal {...createProps()} />);
+    expect(view.getByText(en.reauth.title)).toBeTruthy();
+    expect(view.getByText(en.reauth.description)).toBeTruthy();
+    expect(view.queryByText(/six-digit|6-digit|sechsstellig/i)).toBeNull();
   });
 
   it('accepts exactly six numeric digits, submits them, and clears the input', () => {
@@ -108,12 +122,21 @@ describe('ReauthPinModal', () => {
     expect(props.onCancel).not.toHaveBeenCalled();
   });
 
-  it('clears entered PIN when the modal becomes hidden', () => {
+  it('is empty when the modal is shown again', () => {
     const props = createProps();
     const view = render(<ReauthPinModal {...props} />);
     fireEvent.changeText(view.getByTestId('reauth-pin-input'), '123456');
     view.rerender(<ReauthPinModal {...props} visible={false} />);
-    view.rerender(<ReauthPinModal {...props} visible />);
+    view.rerender(<ReauthPinModal {...props} visible={true} />);
     expect(view.getByTestId('reauth-pin-input').props.value).toBe('');
+  });
+
+  it('does not offer password autofill for the PIN field', () => {
+    const view = render(<ReauthPinModal {...createProps()} />);
+    const input = view.getByTestId('reauth-pin-input');
+    expect(input.props.textContentType).toBe('none');
+    expect(input.props.autoComplete).toBe('off');
+    expect(input.props.importantForAutofill).toBe('no');
+    expect(input.props.secureTextEntry).toBe(true);
   });
 });

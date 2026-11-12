@@ -15,7 +15,7 @@ import { copySensitive } from '@/services/clipboard';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { generateSeedPhrase, wordsToSeed } from '@/services/wallet';
 import { isWalletAlreadyExistsError } from '@/services/wallet/wallet-errors';
-import { Typography, useColors, type ThemeColors } from '@/theme';
+import { Radius, Spacing, Typography, useColors, type ThemeColors } from '@/theme';
 
 export default function CreateWalletScreen() {
   const router = useRouter();
@@ -177,11 +177,11 @@ const makeStyles = (colors: ThemeColors) =>
     },
     captureWarning: {
       backgroundColor: colors.surfaceLight,
-      borderRadius: 8,
+      borderRadius: Radius.xs,
       borderWidth: 1,
       borderColor: colors.warning,
-      padding: 12,
-      marginBottom: 12,
+      padding: Spacing.md,
+      marginBottom: Spacing.md,
     },
     captureWarningText: {
       ...Typography.bodyMedium,

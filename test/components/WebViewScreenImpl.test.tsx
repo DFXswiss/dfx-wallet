@@ -26,6 +26,7 @@ jest.mock('@/features/dfx-backend/services', () => ({
   dfxAuthService: { getAccessToken: jest.fn(() => 'DFX_TOKEN') },
 }));
 
+// eslint-disable-next-line import/first
 import WebViewScreen from '../../src/features/webview/WebViewScreenImpl';
 
 const getWebViewProps = (

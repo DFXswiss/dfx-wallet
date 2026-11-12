@@ -26,6 +26,9 @@ import type { AuthRequestDto, AuthResponseDto, SignMessageDto } from './dto';
 const SIGNATURE_TTL_MS = 5 * 60 * 1000;
 const SIGN_MESSAGE_PREFIX =
   'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_Blockchain_address._Your_ID:_';
+// Outside production the backend prepends one `[<environment>]_`. The name is
+// compared on its own; the address stays a literal suffix, never a pattern.
+const BACKEND_ENVIRONMENT_PREFIX = /^\[[a-z]{1,10}\]_$/;
 type SignatureCacheEntry = { message: string; signature: string; ts: number };
 
 /**
@@ -42,7 +45,12 @@ type AuthFlow = {
   cleared: boolean;
 };
 
-type LoginOptions = { wallet?: string; blockchain?: string; usedRef?: string };
+type LoginOptions = {
+  wallet?: string;
+  blockchain?: string;
+  usedRef?: string;
+  assertActive?: () => Promise<void>;
+};
 
 export class DfxAuthFlowInvalidatedError extends Error {
   constructor() {
@@ -59,9 +67,15 @@ export class DfxSignMessageMismatchError extends Error {
 }
 
 export function assertBackendSignMessage(message: string, address: string): void {
-  if (message !== `${SIGN_MESSAGE_PREFIX}${address}`) {
-    throw new DfxSignMessageMismatchError();
+  const expected = `${SIGN_MESSAGE_PREFIX}${address}`;
+  if (message === expected) return;
+  if (
+    message.endsWith(expected) &&
+    BACKEND_ENVIRONMENT_PREFIX.test(message.slice(0, message.length - expected.length))
+  ) {
+    return;
   }
+  throw new DfxSignMessageMismatchError();
 }
 
 export class DfxAuthService {
@@ -187,9 +201,11 @@ export class DfxAuthService {
     address: string,
     message: string,
     signFn: (message: string) => Promise<string>,
+    assertActive?: () => Promise<void>,
   ): Promise<string> {
     const cached = this.signatureCache.get(address);
     if (cached && cached.message === message && Date.now() - cached.ts < SIGNATURE_TTL_MS) {
+      await assertActive?.();
       return cached.signature;
     }
     const generation = this.generation;
@@ -222,7 +238,7 @@ export class DfxAuthService {
     try {
       const { message } = await this.getSignMessage(address);
       assertBackendSignMessage(message, address);
-      const signature = await this.signWithCache(address, message, signFn);
+      const signature = await this.signWithCache(address, message, signFn, options?.assertActive);
       const token = await this.requestAuthToken({
         address,
         signature,
@@ -260,7 +276,7 @@ export class DfxAuthService {
     try {
       const { message } = await this.getSignMessage(address);
       assertBackendSignMessage(message, address);
-      const signature = await this.signWithCache(address, message, signFn);
+      const signature = await this.signWithCache(address, message, signFn, options?.assertActive);
       const token = await this.requestAuthToken({
         address,
         signature,
@@ -302,7 +318,7 @@ export class DfxAuthService {
   async loginAsAddressOwner(
     address: string,
     signFn: (message: string) => Promise<string>,
-    options?: { wallet?: string; blockchain?: string },
+    options?: LoginOptions,
   ): Promise<string> {
     return this.login(address, signFn, options);
   }
@@ -453,7 +469,7 @@ export class DfxAuthService {
   async linkLnurlAddress(
     lnurl: string,
     ownershipProof: string,
-    options?: { wallet?: string; blockchain?: string },
+    options?: LoginOptions,
   ): Promise<string> {
     const previousToken = this.accessToken;
     if (!previousToken) {
@@ -506,7 +522,7 @@ export class DfxAuthService {
   async linkAddress(
     address: string,
     signFn: (message: string) => Promise<string>,
-    options?: { wallet?: string; blockchain?: string },
+    options?: LoginOptions,
   ): Promise<string> {
     const previousToken = this.accessToken;
     if (!previousToken) {
@@ -517,7 +533,7 @@ export class DfxAuthService {
     try {
       const { message } = await this.getSignMessage(address);
       assertBackendSignMessage(message, address);
-      const signature = await this.signWithCache(address, message, signFn);
+      const signature = await this.signWithCache(address, message, signFn, options?.assertActive);
       if (!this.flowStillCurrent(flow)) {
         throw new DfxAuthFlowInvalidatedError();
       }

@@ -11,16 +11,10 @@ function setCurrentAppState(value: AppStateStatus): void {
   });
 }
 
-const mockSetAuthenticated = jest.fn();
-
 jest.mock('@/config/features', () => ({ FEATURES: { PIN: true } }));
 
-jest.mock('@/store/auth', () => ({
-  useAuthStore: (selector: (state: { setAuthenticated: typeof mockSetAuthenticated }) => unknown) =>
-    selector({ setAuthenticated: mockSetAuthenticated }),
-}));
-
 import { AUTO_LOCK_AFTER_MS, useAutoLock } from '@/hooks/useAutoLock';
+import { useAuthStore } from '@/store/auth';
 
 function AutoLockHarness() {
   useAutoLock();
@@ -35,7 +29,7 @@ describe('useAutoLock', () => {
     jest.clearAllMocks();
     listener = undefined;
     remove.mockReset();
-    mockSetAuthenticated.mockReset();
+    useAuthStore.setState({ isAuthenticated: false, sessionEpoch: 0 });
     setCurrentAppState('active');
     jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, nextListener) => {
       listener = nextListener;
@@ -50,7 +44,8 @@ describe('useAutoLock', () => {
     }
   });
 
-  it('locks after returning from more than sixty seconds in the background', () => {
+  it('increases the session epoch after the lock window while signed out', () => {
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
     const now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
     render(<AutoLockHarness />);
 
@@ -58,10 +53,13 @@ describe('useAutoLock', () => {
     now.mockReturnValue(1_000 + AUTO_LOCK_AFTER_MS + 1);
     act(() => listener?.('active'));
 
-    expect(mockSetAuthenticated).toHaveBeenCalledWith(false);
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(useAuthStore.getState().sessionEpoch).toBe(1);
   });
 
   it('locks at exactly sixty seconds and clears the background timestamp', () => {
+    useAuthStore.setState({ isAuthenticated: true });
+    expect(AUTO_LOCK_AFTER_MS).toBe(60_000);
     const now = jest.spyOn(Date, 'now').mockReturnValue(2_000);
     render(<AutoLockHarness />);
 
@@ -69,13 +67,13 @@ describe('useAutoLock', () => {
     now.mockReturnValue(2_000 + AUTO_LOCK_AFTER_MS);
     act(() => listener?.('active'));
 
-    expect(mockSetAuthenticated).toHaveBeenCalledTimes(1);
-    expect(mockSetAuthenticated).toHaveBeenCalledWith(false);
+    expect(useAuthStore.getState().sessionEpoch).toBe(1);
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
 
     now.mockReturnValue(2_000 + AUTO_LOCK_AFTER_MS * 2);
     act(() => listener?.('active'));
 
-    expect(mockSetAuthenticated).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().sessionEpoch).toBe(1);
   });
 
   it('treats a mount that is already backgrounded as the start of the lock window', () => {
@@ -86,11 +84,11 @@ describe('useAutoLock', () => {
     now.mockReturnValue(4_000 + AUTO_LOCK_AFTER_MS);
     act(() => listener?.('active'));
 
-    expect(mockSetAuthenticated).toHaveBeenCalledTimes(1);
-    expect(mockSetAuthenticated).toHaveBeenCalledWith(false);
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(useAuthStore.getState().sessionEpoch).toBe(1);
   });
 
-  it('does not lock when the app returns before the window elapses', () => {
+  it('does not increase the session epoch when the app returns before the window elapses', () => {
     const now = jest.spyOn(Date, 'now').mockReturnValue(5_000);
     render(<AutoLockHarness />);
 
@@ -98,7 +96,7 @@ describe('useAutoLock', () => {
     now.mockReturnValue(5_000 + AUTO_LOCK_AFTER_MS - 1);
     act(() => listener?.('active'));
 
-    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().sessionEpoch).toBe(0);
   });
 
   it('does not lock when a backgrounded mount returns before the window elapses', () => {
@@ -109,10 +107,10 @@ describe('useAutoLock', () => {
     now.mockReturnValue(6_000 + AUTO_LOCK_AFTER_MS - 1);
     act(() => listener?.('active'));
 
-    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().sessionEpoch).toBe(0);
   });
 
-  it('does not start the lock window when mounted inactive', () => {
+  it('starts the lock window when mounted inactive', () => {
     setCurrentAppState('inactive');
     const now = jest.spyOn(Date, 'now').mockReturnValue(7_000);
     render(<AutoLockHarness />);
@@ -120,10 +118,10 @@ describe('useAutoLock', () => {
     now.mockReturnValue(7_000 + AUTO_LOCK_AFTER_MS + 1);
     act(() => listener?.('active'));
 
-    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().sessionEpoch).toBe(1);
   });
 
-  it('does not treat an inactive system-dialog transition as backgrounding', () => {
+  it('locks after an inactive transition reaches the threshold', () => {
     const now = jest.spyOn(Date, 'now').mockReturnValue(3_000);
     render(<AutoLockHarness />);
 
@@ -131,7 +129,27 @@ describe('useAutoLock', () => {
     now.mockReturnValue(3_000 + AUTO_LOCK_AFTER_MS + 1);
     act(() => listener?.('active'));
 
-    expect(mockSetAuthenticated).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().sessionEpoch).toBe(1);
+  });
+
+  it('does not lock when inactive for less than the threshold', () => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(8_000);
+    render(<AutoLockHarness />);
+    act(() => listener?.('inactive'));
+    now.mockReturnValue(8_000 + AUTO_LOCK_AFTER_MS - 1);
+    act(() => listener?.('active'));
+    expect(useAuthStore.getState().sessionEpoch).toBe(0);
+  });
+
+  it('counts from inactive when background follows', () => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(9_000);
+    render(<AutoLockHarness />);
+    act(() => listener?.('inactive'));
+    now.mockReturnValue(9_000 + AUTO_LOCK_AFTER_MS - 1);
+    act(() => listener?.('background'));
+    now.mockReturnValue(9_000 + AUTO_LOCK_AFTER_MS);
+    act(() => listener?.('active'));
+    expect(useAuthStore.getState().sessionEpoch).toBe(1);
   });
 
   it('removes its AppState listener on unmount', () => {

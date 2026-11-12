@@ -208,7 +208,7 @@ describe('createDfxSessionGuard', () => {
     expect(mockLogout).not.toHaveBeenCalled();
   });
 
-  it('assertActive without a token does not read storage or log out', async () => {
+  it('assertActive without a token does not read storage or log out when the session has ended', async () => {
     const guard = createDfxSessionGuard();
     mockGetAccessToken.mockReturnValue('existing-token');
     mockAuthState.sessionEpoch += 1;
