@@ -76,7 +76,7 @@ describe('OnboardingLayout routing guards', () => {
 
   it.each([
     {
-      title: 'renders legal-disclaimer for an authenticated wallet before onboarding',
+      title: 'does not redirect legal-disclaimer for an authenticated wallet before onboarding',
       route: 'legal-disclaimer',
       isOnboarded: false,
       isAuthenticated: true,

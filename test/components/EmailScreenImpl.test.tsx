@@ -73,10 +73,7 @@ describe('EmailScreenImpl', () => {
       DfxApiError: new (message: string) => Error;
     };
     mockGetUser.mockRejectedValue(new services.DfxApiError('User is merged'));
-    const messages = [
-      LOCAL_SESSION_ENDED_MESSAGE,
-      new DfxAuthFlowInvalidatedError().message,
-    ];
+    const messages = [LOCAL_SESSION_ENDED_MESSAGE, new DfxAuthFlowInvalidatedError().message];
 
     for (const message of messages) {
       mockAuthError = message;

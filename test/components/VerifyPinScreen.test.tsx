@@ -736,6 +736,7 @@ describe('VerifyPinScreen', () => {
     const { getByTestId } = render(<VerifyPinScreen />);
 
     await enterPin(getByTestId, '123456');
+    await waitFor(() => expect(mockUnlock).toHaveBeenCalledWith('default'));
     mockAuthState.lockedUntil = Date.now() + 60_000;
     await act(async () => {
       resolveUnlock();

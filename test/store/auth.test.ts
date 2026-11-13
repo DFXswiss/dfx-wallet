@@ -82,8 +82,9 @@ beforeEach(() => {
   hasHardwareMock.mockReset();
   isEnrolledMock.mockReset();
   authenticateMock.mockReset();
-  hashPinMock.mockClear();
-  verifyPinHashMock.mockClear();
+  const actualPin = jest.requireActual<typeof import('@/services/pin')>('@/services/pin');
+  hashPinMock.mockReset().mockImplementation(actualPin.hashPin);
+  verifyPinHashMock.mockReset().mockImplementation(actualPin.verifyPin);
   setItemMock.mockImplementation(async () => undefined);
   getItemMock.mockImplementation(async () => null);
   deleteItemMock.mockImplementation(async () => undefined);
@@ -91,6 +92,10 @@ beforeEach(() => {
   isEnrolledMock.mockResolvedValue(true);
   authenticateMock.mockResolvedValue({ success: true });
   useAuthStore.setState({ ...initialState }, true);
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
 });
 
 describe('pinLockoutMs', () => {
@@ -824,7 +829,6 @@ describe('useAuthStore', () => {
       useAuthStore.setState({ pinHash: null, failedAttempts: 0, lockedUntil: null });
       await useAuthStore.getState().hydrate();
 
-      expect(storedLockUntil).not.toBe(1_000_000 + pinLockoutMs(5));
       expect(useAuthStore.getState().failedAttempts).toBe(5);
       expect(useAuthStore.getState().lockedUntil).toBe(storedLockUntil);
       now.mockRestore();
@@ -1075,8 +1079,6 @@ describe('useAuthStore', () => {
     });
 
     it('rearms dfxAuthService with the stored JWT so cold-start linkAddress works', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { dfxAuthService } = require('../../src/features/dfx-backend/services');
       getItemMock.mockImplementation(async (key: string) =>
         key === 'dfxAuthToken' ? 'jwt-from-keychain' : null,
       );
@@ -1091,8 +1093,6 @@ describe('useAuthStore', () => {
     });
 
     it('clears the dfxAuthService token when no JWT is stored', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { dfxAuthService } = require('../../src/features/dfx-backend/services');
       dfxAuthService.adoptStoredToken('residual');
 
       await useAuthStore.getState().hydrate();

@@ -17,10 +17,7 @@
  * with `// BUG:` so it surfaces in review.
  */
 
-import {
-  isAllowedDfxHost,
-  isSafeHttpsUrl,
-} from '../../src/services/security/safe-url';
+import { isAllowedDfxHost, isSafeHttpsUrl } from '../../src/services/security/safe-url';
 
 describe('isSafeHttpsUrl — scheme gate', () => {
   it.each([

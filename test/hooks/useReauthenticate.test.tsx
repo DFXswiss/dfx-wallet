@@ -13,11 +13,11 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
+// eslint-disable-next-line import/first
 import { ReauthPinModal } from '@/components/ReauthPinModal';
-import {
-  useReauthenticate,
-  type UseReauthenticateResult,
-} from '@/hooks/useReauthenticate';
+// eslint-disable-next-line import/first
+import { useReauthenticate, type UseReauthenticateResult } from '@/hooks/useReauthenticate';
+// eslint-disable-next-line import/first
 import { useAuthStore } from '@/store/auth';
 
 let current: UseReauthenticateResult;
@@ -63,11 +63,18 @@ describe('useReauthenticate', () => {
     });
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
   it('resolves false when the session locks during the biometric prompt', async () => {
     let resolve!: (value: boolean) => void;
-    authenticateBiometric.mockReturnValueOnce(new Promise((done) => {
-      resolve = done;
-    }));
+    authenticateBiometric.mockReturnValueOnce(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
     useAuthStore.setState({ biometricEnabled: true });
     render(<Harness />);
     const result = requestReauth();
@@ -78,9 +85,11 @@ describe('useReauthenticate', () => {
 
   it('resolves false when the session locks during PIN verification', async () => {
     let resolve!: (value: boolean) => void;
-    verifyPin.mockReturnValueOnce(new Promise((done) => {
-      resolve = done;
-    }));
+    verifyPin.mockReturnValueOnce(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
     useAuthStore.setState({ pinHash: 'hash' });
     const view = render(<Harness />);
     const result = requestReauth();

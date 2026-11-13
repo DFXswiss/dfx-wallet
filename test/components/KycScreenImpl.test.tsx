@@ -108,27 +108,47 @@ describe('KycScreenImpl', () => {
     expect(view.queryByText('kyc.mailSendError')).toBeNull();
   });
 
-  it('stays on mail verification without an error when the local session ends', async () => {
+  it.each([
+    ['local session ends', new Error(LOCAL_SESSION_ENDED_MESSAGE), true],
+    ['authentication is superseded', new DfxAuthFlowInvalidatedError(), false],
+  ] as const)('handles mail confirmation when %s', async (_label, error, ended) => {
+    const previous = useAuthStore.getState();
+    const originalSetter = previous.setDfxAuthenticated;
     useAuthStore.setState({ isDfxAuthenticated: true });
-    mockAuthenticate
-      .mockResolvedValueOnce('token-1')
-      .mockRejectedValueOnce(new Error(LOCAL_SESSION_ENDED_MESSAGE));
+    const setDfxAuthenticated = jest.spyOn(useAuthStore.getState(), 'setDfxAuthenticated');
+    setDfxAuthenticated.mockClear();
+    mockAuthenticate.mockResolvedValueOnce('token-1').mockRejectedValueOnce(error);
     mockRegisterEmail.mockResolvedValue('merge_requested');
-    const view = await openMailStep();
-
-    fireEvent.press(view.getByTestId('kyc-mail-send'));
-    await waitFor(() =>
-      expect(view.getByTestId('kyc-mail-verify').props.accessibilityState?.disabled).toBe(false),
-    );
-    fireEvent.press(view.getByTestId('kyc-mail-verify'));
-
-    await waitFor(() => expect(mockAuthenticate).toHaveBeenCalledTimes(2));
-    await waitFor(() =>
-      expect(view.getByTestId('kyc-mail-verify').props.accessibilityState?.disabled).toBe(false),
-    );
-    expect(view.queryByText(LOCAL_SESSION_ENDED_MESSAGE)).toBeNull();
-    expect(view.queryByText('kyc.mailVerifyError')).toBeNull();
-    expect(useAuthStore.getState().isDfxAuthenticated).toBe(false);
+    let view: Awaited<ReturnType<typeof openMailStep>> | undefined;
+    try {
+      view = await openMailStep();
+      fireEvent.press(view.getByTestId('kyc-mail-send'));
+      await waitFor(() =>
+        expect(view!.getByTestId('kyc-mail-verify').props.accessibilityState?.disabled).toBe(false),
+      );
+      fireEvent.press(view.getByTestId('kyc-mail-verify'));
+      await waitFor(() => expect(mockAuthenticate).toHaveBeenCalledTimes(2));
+      await waitFor(() =>
+        expect(view!.getByTestId('kyc-mail-verify').props.accessibilityState?.disabled).toBe(false),
+      );
+      if (ended) {
+        expect(setDfxAuthenticated).toHaveBeenCalledTimes(1);
+        expect(setDfxAuthenticated).toHaveBeenCalledWith(false);
+        expect(useAuthStore.getState().isDfxAuthenticated).toBe(false);
+      } else {
+        expect(setDfxAuthenticated).not.toHaveBeenCalledWith(false);
+        expect(useAuthStore.getState().isDfxAuthenticated).toBe(true);
+      }
+      expect(view.queryByText(error.message)).toBeNull();
+      expect(view.queryByText('kyc.mailVerifyError')).toBeNull();
+    } finally {
+      view?.unmount();
+      setDfxAuthenticated.mockRestore();
+      useAuthStore.setState({
+        isDfxAuthenticated: previous.isDfxAuthenticated,
+        setDfxAuthenticated: originalSetter,
+      });
+    }
   });
 
   it('hides a session-ended or invalidated auth error on the merged account', async () => {

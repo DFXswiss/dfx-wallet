@@ -101,9 +101,7 @@ describe('DfxLoginScreenImpl', () => {
 
   it('stays on verify without an error when confirmation is invalidated', async () => {
     const invalidated = new DfxAuthFlowInvalidatedError();
-    mockAuthenticate
-      .mockResolvedValueOnce('token-1')
-      .mockRejectedValueOnce(invalidated);
+    mockAuthenticate.mockResolvedValueOnce('token-1').mockRejectedValueOnce(invalidated);
     const view = render(<DfxLoginScreen />);
     fireEvent.changeText(view.getByTestId('dfx-login-mail-input'), 'user@example.com');
     fireEvent.press(view.getByTestId('dfx-login-send'));

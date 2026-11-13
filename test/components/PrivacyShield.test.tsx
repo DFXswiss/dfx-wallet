@@ -77,7 +77,7 @@ describe('PrivacyShield', () => {
     expect(getByTestId('privacy-shield', { includeHiddenElements: true })).toBeTruthy();
 
     act(() => listener?.('active'));
-    expect(queryByTestId('privacy-shield')).toBeNull();
+    expect(queryByTestId('privacy-shield', { includeHiddenElements: true })).toBeNull();
   });
 
   it('removes its AppState listener on unmount', () => {
@@ -149,7 +149,7 @@ describe('PrivacyShield', () => {
       expect(view.getByTestId('privacy-shield-logo', { includeHiddenElements: true })).toBeTruthy();
 
       act(() => listener?.('active'));
-      expect(view.queryByTestId('privacy-shield')).toBeNull();
+      expect(view.queryByTestId('privacy-shield', { includeHiddenElements: true })).toBeNull();
     } finally {
       restore();
     }

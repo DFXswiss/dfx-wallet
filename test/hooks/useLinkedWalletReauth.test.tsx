@@ -75,11 +75,15 @@ jest.mock('@/services/storage', () => ({
   StorageKeys: { DFX_AUTH_TOKEN: 'dfxAuthToken' },
 }));
 
+// eslint-disable-next-line import/first
 import { useLinkedWalletReauth } from '@/features/linked-wallets/useLinkedWalletReauth';
+// eslint-disable-next-line import/first
 import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
 // eslint-disable-next-line import/first
 import { LOCAL_SESSION_ENDED_MESSAGE } from '@/features/dfx-backend/session-guard';
+// eslint-disable-next-line import/first
 import { StorageKeys } from '@/services/storage';
+// eslint-disable-next-line import/first
 import { useAuthStore } from '@/store';
 
 function deferred<T>() {
@@ -121,24 +125,21 @@ describe('useLinkedWalletReauth', () => {
     });
   });
 
-  it(
-    'logs in with the LDS Lightning identity when the requested LNURL matches (case-insensitive, trimmed)',
-    async () => {
-      mockGetAccessToken.mockReturnValue(token);
-      const { result } = renderHook(() => useLinkedWalletReauth());
+  it('logs in with the LDS Lightning identity when the requested LNURL matches (case-insensitive, trimmed)', async () => {
+    mockGetAccessToken.mockReturnValue(token);
+    const { result } = renderHook(() => useLinkedWalletReauth());
 
-      await expect(result.current.reauthAs('  lnurl1abc ', 'Lightning')).resolves.toEqual({
-        ok: true,
-        token,
-      });
-      expect(mockLoginAsLnurlAddressOwner).toHaveBeenCalledTimes(1);
-      expect(mockLoginAsLnurlAddressOwner).toHaveBeenCalledWith('LNURL1ABC', ownershipProof, {
-        wallet: 'DFX Bitcoin',
-        blockchain: 'Lightning',
-      });
-      expect(mockSecureStorageSet).toHaveBeenCalledWith(StorageKeys.DFX_AUTH_TOKEN, token);
-    },
-  );
+    await expect(result.current.reauthAs('  lnurl1abc ', 'Lightning')).resolves.toEqual({
+      ok: true,
+      token,
+    });
+    expect(mockLoginAsLnurlAddressOwner).toHaveBeenCalledTimes(1);
+    expect(mockLoginAsLnurlAddressOwner).toHaveBeenCalledWith('LNURL1ABC', ownershipProof, {
+      wallet: 'DFX Bitcoin',
+      blockchain: 'Lightning',
+    });
+    expect(mockSecureStorageSet).toHaveBeenCalledWith(StorageKeys.DFX_AUTH_TOKEN, token);
+  });
 
   it('cancels Lightning reauthentication when the session ends during sign in', async () => {
     mockLdsState.user = null;
@@ -264,42 +265,45 @@ describe('useLinkedWalletReauth', () => {
   it.each([
     ['Bitcoin', 'bitcoin', 'bc1q-wallet'],
     ['Ethereum', 'ethereum', '0xabc'],
-  ])('cancels %s reauthentication when the session ends while signing', async (blockchain, network, address) => {
-    const { useAccount } = jest.requireMock('@tetherto/wdk-react-native-core') as {
-      useAccount: jest.Mock;
-    };
-    const previous = useAccount.getMockImplementation();
-    const pendingSign = deferred<{ success: boolean; signature: string }>();
-    const sign = jest.fn(() => pendingSign.promise);
-    useAccount.mockImplementation(({ network: accountNetwork }: { network: string }) => ({
-      address: accountNetwork === network ? address : null,
-      sign,
-    }));
-    const signRejected = jest.fn();
-    mockLoginAsAddressOwner.mockImplementation(async (_address, signMessage) => {
-      try {
-        return await signMessage('challenge');
-      } catch (error) {
-        signRejected(error);
-        throw error;
-      }
-    });
-    try {
-      const { result } = renderHook(() => useLinkedWalletReauth());
-      let reauthentication!: ReturnType<typeof result.current.reauthAs>;
-      act(() => {
-        reauthentication = result.current.reauthAs(address, blockchain);
+  ])(
+    'cancels %s reauthentication when the session ends while signing',
+    async (blockchain, network, address) => {
+      const { useAccount } = jest.requireMock('@tetherto/wdk-react-native-core') as {
+        useAccount: jest.Mock;
+      };
+      const previous = useAccount.getMockImplementation();
+      const pendingSign = deferred<{ success: boolean; signature: string }>();
+      const sign = jest.fn(() => pendingSign.promise);
+      useAccount.mockImplementation(({ network: accountNetwork }: { network: string }) => ({
+        address: accountNetwork === network ? address : null,
+        sign,
+      }));
+      const signRejected = jest.fn();
+      mockLoginAsAddressOwner.mockImplementation(async (_address, signMessage) => {
+        try {
+          return await signMessage('challenge');
+        } catch (error) {
+          signRejected(error);
+          throw error;
+        }
       });
-      await waitFor(() => expect(sign).toHaveBeenCalledTimes(1));
-      act(() => useAuthStore.getState().lockSession());
-      await act(async () => pendingSign.resolve({ success: true, signature: 'sig' }));
-      await expect(reauthentication).resolves.toEqual({ ok: false, cancelled: true });
-      expect(signRejected).toHaveBeenCalledTimes(1);
-      expect(mockSecureStorageSet).not.toHaveBeenCalled();
-    } finally {
-      useAccount.mockImplementation(previous ?? (() => ({ address: null, sign: jest.fn() })));
-    }
-  });
+      try {
+        const { result } = renderHook(() => useLinkedWalletReauth());
+        let reauthentication!: ReturnType<typeof result.current.reauthAs>;
+        act(() => {
+          reauthentication = result.current.reauthAs(address, blockchain);
+        });
+        await waitFor(() => expect(sign).toHaveBeenCalledTimes(1));
+        act(() => useAuthStore.getState().lockSession());
+        await act(async () => pendingSign.resolve({ success: true, signature: 'sig' }));
+        await expect(reauthentication).resolves.toEqual({ ok: false, cancelled: true });
+        expect(signRejected).toHaveBeenCalledTimes(1);
+        expect(mockSecureStorageSet).not.toHaveBeenCalled();
+      } finally {
+        useAccount.mockImplementation(previous ?? (() => ({ address: null, sign: jest.fn() })));
+      }
+    },
+  );
 
   it.each([
     ['Bitcoin', 'bitcoin', 'bc1q-wallet'],
@@ -375,9 +379,7 @@ describe('useLinkedWalletReauth', () => {
       expect(sign).not.toHaveBeenCalled();
       expect(mockLoginAsAddressOwner).toHaveBeenCalledTimes(1);
     } finally {
-      useAccount.mockImplementation(
-        previous ?? (() => ({ address: null, sign: jest.fn() })),
-      );
+      useAccount.mockImplementation(previous ?? (() => ({ address: null, sign: jest.fn() })));
     }
   });
 

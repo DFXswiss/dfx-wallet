@@ -68,6 +68,21 @@ describe('isAllowedDfxHost', () => {
 
 describe('isDfxTokenHost', () => {
   it.each([
+    'dfx.swiss',
+    'docs.dfx.swiss',
+    'lightning.space',
+    'lightning.dfx.swiss',
+    'sumsub.com',
+    'in.sumsub.com',
+    'cockpit.idnow.de',
+    'go.idnow.de',
+  ])('allows navigation but excludes the token for %s', (host) => {
+    const url = `https://${host}`;
+    expect(isAllowedDfxHost(url)).toBe(true);
+    expect(isDfxTokenHost(url)).toBe(false);
+  });
+
+  it.each([
     'https://app.dfx.swiss',
     'https://services.dfx.swiss/path',
     'https://api.dfx.swiss/v1/user',
@@ -79,13 +94,12 @@ describe('isDfxTokenHost', () => {
     expect(isDfxTokenHost(input)).toBe(false);
   });
 
-  it.each([
-    'https://x.app.dfx.swiss',
-    'https://app.dfx.swiss.evil.com',
-    'https://docs.dfx.swiss',
-  ])('rejects a host that is not an exact token host %s', (input) => {
-    expect(isDfxTokenHost(input)).toBe(false);
-  });
+  it.each(['https://x.app.dfx.swiss', 'https://app.dfx.swiss.evil.com', 'https://docs.dfx.swiss'])(
+    'rejects a host that is not an exact token host %s',
+    (input) => {
+      expect(isDfxTokenHost(input)).toBe(false);
+    },
+  );
 
   it.each(['not-a-url'])('rejects an invalid token URL %s', (input) => {
     expect(isDfxTokenHost(input)).toBe(false);

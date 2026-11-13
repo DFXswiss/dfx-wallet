@@ -134,6 +134,8 @@ jest.mock('@/features/linked-wallets/useLinkedWalletReauth', () => ({
 }));
 
 let mockUseRealDfxAuthGate = false;
+let mockLinkFlow: Promise<void> | undefined;
+
 jest.mock('@/features/dfx-backend/DfxAuthGate', () => {
   const actual = jest.requireActual<typeof import('@/features/dfx-backend/DfxAuthGate')>(
     '@/features/dfx-backend/DfxAuthGate',
@@ -154,7 +156,7 @@ jest.mock('@/features/dfx-backend/DfxAuthGate', () => {
     const { Pressable, Text } = jest.requireActual('react-native');
     return ReactActual.createElement(
       Pressable,
-      { onPress: () => onLinkChain(chain), testID: 'mock-link-chain' },
+      { onPress: () => { mockLinkFlow = onLinkChain(chain); }, testID: 'mock-link-chain' },
       ReactActual.createElement(Text, null, 'link-chain'),
     );
   }
@@ -1645,7 +1647,10 @@ describe('BuyScreenImpl', () => {
       let flow: Promise<void> | undefined;
       try {
         await act(async () => {
-          flow = fireEvent.press(view.getByTestId('mock-link-chain')) as unknown as Promise<void>;
+          mockLinkFlow = undefined;
+          fireEvent.press(view.getByTestId('mock-link-chain'));
+          expect(mockLinkFlow).toBeDefined();
+          flow = mockLinkFlow;
           await flow;
         });
         expect(checked).toHaveBeenCalledTimes(1);
@@ -1659,6 +1664,7 @@ describe('BuyScreenImpl', () => {
         owner.mockReset();
         if (previousLink) link.mockImplementation(previousLink);
         if (previousOwner) owner.mockImplementation(previousOwner);
+        mockLinkFlow = undefined;
         view.unmount();
       }
     },
@@ -1694,7 +1700,10 @@ describe('BuyScreenImpl', () => {
     let linkFlow: Promise<void> | undefined;
     try {
       act(() => {
-        linkFlow = fireEvent.press(view.getByTestId('mock-link-chain')) as unknown as Promise<void>;
+        mockLinkFlow = undefined;
+        fireEvent.press(view.getByTestId('mock-link-chain'));
+        expect(mockLinkFlow).toBeDefined();
+        linkFlow = mockLinkFlow;
       });
       await waitFor(() => expect(mockAccountSign).toHaveBeenCalledTimes(1));
       mockAuthState.isAuthenticated = false;
@@ -1716,6 +1725,7 @@ describe('BuyScreenImpl', () => {
       } finally {
         mockAuthState.isAuthenticated = previousSession.isAuthenticated;
         mockAuthState.sessionEpoch = previousSession.sessionEpoch;
+        mockLinkFlow = undefined;
         view.unmount();
       }
     }

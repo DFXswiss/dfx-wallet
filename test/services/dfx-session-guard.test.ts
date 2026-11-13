@@ -35,12 +35,15 @@ jest.mock('@/store', () => ({
   },
 }));
 
+// eslint-disable-next-line import/first
 import {
   createDfxSessionGuard,
   isLocalSessionEndedError,
   LOCAL_SESSION_ENDED_MESSAGE,
 } from '@/features/dfx-backend/session-guard';
+// eslint-disable-next-line import/first
 import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
+// eslint-disable-next-line import/first
 import { StorageKeys } from '@/services/storage';
 
 function deferred<T>() {

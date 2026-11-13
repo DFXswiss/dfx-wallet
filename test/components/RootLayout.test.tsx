@@ -137,9 +137,7 @@ describe('RootLayout', () => {
     const hydrate = useAuthStore.getState().hydrate as jest.Mock;
     const { getByTestId } = render(<RootLayout />);
 
-    expect(getByTestId('hydrate-error-title').children.join('')).toBe(
-      'startup.hydrateErrorTitle',
-    );
+    expect(getByTestId('hydrate-error-title').children.join('')).toBe('startup.hydrateErrorTitle');
     expect(getByTestId('hydrate-error-description').children.join('')).toBe(
       'startup.hydrateErrorDescription',
     );

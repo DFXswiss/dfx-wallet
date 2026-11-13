@@ -63,10 +63,15 @@ jest.mock('@/services/storage', () => ({
   },
 }));
 
+// eslint-disable-next-line import/first
 import { useDfxAuth } from '@/features/dfx-backend/useDfxAuthImpl';
+// eslint-disable-next-line import/first
 import { LOCAL_SESSION_ENDED_MESSAGE } from '@/features/dfx-backend/session-guard';
+// eslint-disable-next-line import/first
 import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
+// eslint-disable-next-line import/first
 import { StorageKeys } from '@/services/storage';
+// eslint-disable-next-line import/first
 import { useAuthStore } from '@/store';
 
 function deferred<T>() {
@@ -225,10 +230,7 @@ describe('useDfxAuth', () => {
       authentication = result.current.authenticate();
     });
     await waitFor(() =>
-      expect(mockSecureStorageSet).toHaveBeenCalledWith(
-        StorageKeys.DFX_AUTH_TOKEN,
-        'fresh-token',
-      ),
+      expect(mockSecureStorageSet).toHaveBeenCalledWith(StorageKeys.DFX_AUTH_TOKEN, 'fresh-token'),
     );
 
     act(() => {
@@ -265,10 +267,7 @@ describe('useDfxAuth', () => {
       authentication = result.current.reauthenticateAsOwner();
     });
     await waitFor(() =>
-      expect(mockSecureStorageSet).toHaveBeenCalledWith(
-        StorageKeys.DFX_AUTH_TOKEN,
-        'owner-token',
-      ),
+      expect(mockSecureStorageSet).toHaveBeenCalledWith(StorageKeys.DFX_AUTH_TOKEN, 'owner-token'),
     );
 
     act(() => {

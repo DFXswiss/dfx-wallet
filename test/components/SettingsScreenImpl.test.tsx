@@ -2,10 +2,7 @@ import React from 'react';
 import { Alert, Switch } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
-import {
-  authenticateWithBiometric,
-  isBiometricAvailable,
-} from '@/features/biometric/biometric';
+import { authenticateWithBiometric, isBiometricAvailable } from '@/features/biometric/biometric';
 import { dfxUserService } from '@/features/dfx-backend/services';
 import { secureStorage, StorageKeys } from '@/services/storage';
 import { useAuthStore, useWalletStore } from '@/store';
@@ -605,6 +602,7 @@ describe('SettingsScreenImpl', () => {
     await act(async () => {
       fireEvent(UNSAFE_getByType(Switch), 'valueChange', true);
     });
+    expect(authenticateWithBiometric).toHaveBeenCalledTimes(1);
     useAuthStore.setState({ sessionEpoch: 5 });
 
     await act(async () => {
@@ -630,6 +628,7 @@ describe('SettingsScreenImpl', () => {
     await act(async () => {
       fireEvent(UNSAFE_getByType(Switch), 'valueChange', true);
     });
+    expect(authenticateWithBiometric).toHaveBeenCalledTimes(1);
     useAuthStore.setState({ isAuthenticated: false });
 
     await act(async () => {
@@ -732,10 +731,7 @@ describe('SettingsScreenImpl', () => {
       pinHash: null,
     });
     expect(mockReplace).toHaveBeenCalledWith('/');
-    expect(alertSpy).not.toHaveBeenCalledWith(
-      'common.error',
-      'settings.deleteWalletCleanupFailed',
-    );
+    expect(alertSpy).not.toHaveBeenCalledWith('common.error', 'settings.deleteWalletCleanupFailed');
   });
 
   // Red mutations: omit the retry or omit any WDK credential getter from dependency wiring.
@@ -810,10 +806,7 @@ describe('SettingsScreenImpl', () => {
 
     expect(deleteWallet).toHaveBeenCalledWith('default');
     expect(mockReplace).toHaveBeenCalledWith('/');
-    expect(alertSpy).toHaveBeenLastCalledWith(
-      'common.error',
-      'settings.deleteWalletCleanupFailed',
-    );
+    expect(alertSpy).toHaveBeenLastCalledWith('common.error', 'settings.deleteWalletCleanupFailed');
     expect(mockReplace.mock.invocationCallOrder[0]).toBeLessThan(
       alertSpy.mock.invocationCallOrder.at(-1)!,
     );

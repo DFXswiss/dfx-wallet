@@ -44,10 +44,9 @@ jest.mock('@/features/dfx-backend/services', () => ({
   },
 }));
 
-jest.mock('@/features/dfx-backend/session-guard', () => ({
-  isLocalSessionEndedError: (error: unknown) =>
-    error instanceof Error && error.name === 'DfxAuthFlowInvalidatedError',
-}));
+jest.mock('@/features/dfx-backend/session-guard', () =>
+  jest.requireActual('@/features/dfx-backend/session-guard'),
+);
 
 jest.mock('@/hooks', () => ({
   useDfxAuth: () => ({
@@ -114,12 +113,10 @@ jest.mock('@/components', () => {
 });
 
 jest.mock('@/theme', () => {
+  const actual = jest.requireActual<typeof import('@/theme')>('@/theme');
   const color = 'mock-theme-color';
   return {
-    Typography: {
-      bodyMedium: {},
-      bodySmall: {},
-    },
+    ...actual,
     useColors: () => ({
       background: color,
       border: color,
@@ -172,6 +169,7 @@ describe('WalletsScreen', () => {
       ),
     );
     expect(screen.queryByText(invalidated.message)).toBeNull();
+    expect(screen.queryByText('wallets.linkError')).toBeNull();
   });
 
   it('returns from merged recovery without the invalidated authentication message', async () => {
@@ -203,6 +201,9 @@ describe('WalletsScreen', () => {
     await waitFor(() => expect(screen.getByTestId('wallets-recover')).toBeTruthy());
     expect(screen.getByText('wallets.mergedExplanation')).toBeTruthy();
     expect(screen.queryByText(invalidated.message)).toBeNull();
+    expect(screen.queryByText('wallets.linkError')).toBeNull();
+    expect(screen.queryByText('wallets.loadErrorHint')).toBeNull();
+    expect(screen.queryByText('wallets.loadErrorTitle')).toBeNull();
     expect(screen.queryByText('wallets.noAddresses')).toBeNull();
   });
 
@@ -229,7 +230,7 @@ describe('WalletsScreen', () => {
       expect(mockGetUser).toHaveBeenCalledTimes(2);
       expect(screen.queryByText('wallets.noAddresses')).toBeNull();
       expect(screen.queryByTestId('wallets-link-bitcoin')).toBeNull();
-      expect(screen.getAllByTestId('wallets-skeleton').length).toBeGreaterThan(0);
+      expect(screen.getAllByTestId('wallets-skeleton')).toHaveLength(9);
     });
 
     await act(async () => {

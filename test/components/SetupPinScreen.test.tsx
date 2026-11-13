@@ -56,7 +56,7 @@ jest.mock('expo-haptics', () => ({
 
 import SetupPinScreen from '../../src/features/pin/SetupPinScreenImpl';
 // eslint-disable-next-line import/first
-import { PinSetupInterruptedError } from '../../src/store/auth';
+import { PinSetupInterruptedError } from '@/store/auth';
 
 async function enterPin(getByTestId: (id: string) => unknown, digits: string) {
   for (const digit of digits) {
@@ -171,6 +171,7 @@ describe('SetupPinScreen', () => {
   it('unlocks before authenticating and navigating during PIN migration', async () => {
     let resolveUnlock: () => void = () => undefined;
     mockIsOnboarded = true;
+    mockAuthState.isOnboarded = true;
     mockWalletStatus = 'LOCKED';
     mockUnlock.mockImplementationOnce(
       () =>
@@ -201,6 +202,7 @@ describe('SetupPinScreen', () => {
   it('stays unauthenticated and shows the unlock error when PIN migration unlock fails', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     mockIsOnboarded = true;
+    mockAuthState.isOnboarded = true;
     mockWalletStatus = 'LOCKED';
     mockUnlock.mockImplementationOnce(async () => {
       throw new Error('wallet unavailable');
@@ -250,7 +252,7 @@ describe('SetupPinScreen', () => {
     expect(queryByTestId('setup-pin-confirm-screen')).toBeNull();
   });
 
-  it('keeps fresh onboarding unlocked without an extra wallet unlock', async () => {
+  it('does not unlock again when the wallet was already unlocked at mount', async () => {
     const { getByTestId, rerender } = render(<SetupPinScreen />);
     mockWalletStatus = 'LOCKED';
     rerender(<SetupPinScreen />);

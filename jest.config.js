@@ -2,7 +2,7 @@
  * Two project setup:
  * - unit: existing tests for services + stores. Mocks react-native to an
  *   empty module so we can run pure-logic tests without the RN runtime.
- * - components: tests for `<Component>` files. Uses the jest-expo preset
+ * - components: tests for components and hooks. Uses the jest-expo preset
  *   so React Native primitives (Text, Pressable, View, ActivityIndicator)
  *   render through @testing-library/react-native.
  */
@@ -103,10 +103,7 @@ module.exports = {
       displayName: 'components',
       preset: 'jest-expo',
       transform: sharedTransform,
-      testMatch: [
-        '<rootDir>/test/components/**/*.test.tsx',
-        '<rootDir>/test/hooks/**/*.test.tsx',
-      ],
+      testMatch: ['<rootDir>/test/components/**/*.test.tsx', '<rootDir>/test/hooks/**/*.test.tsx'],
       // Same global flag setup as the unit project: pin every
       // EXPO_PUBLIC_ENABLE_* to "true" before any feature wrapper loads,
       // so `FEATURES.X` resolves to the real implementation in the

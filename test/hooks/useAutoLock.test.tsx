@@ -13,7 +13,9 @@ function setCurrentAppState(value: AppStateStatus): void {
 
 jest.mock('@/config/features', () => ({ FEATURES: { PIN: true } }));
 
+// eslint-disable-next-line import/first
 import { AUTO_LOCK_AFTER_MS, useAutoLock } from '@/hooks/useAutoLock';
+// eslint-disable-next-line import/first
 import { useAuthStore } from '@/store/auth';
 
 function AutoLockHarness() {

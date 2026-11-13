@@ -19,6 +19,9 @@ jest.mock('react-native-webview', () => {
       return ReactActual.createElement(View, { testID: 'webview' });
     },
     __getProps: () => latestProps,
+    __resetProps: () => {
+      latestProps = {};
+    },
   };
 });
 
@@ -27,7 +30,7 @@ jest.mock('@/features/dfx-backend/services', () => ({
 }));
 
 // eslint-disable-next-line import/first
-import WebViewScreen from '../../src/features/webview/WebViewScreenImpl';
+import WebViewScreen from '@/features/webview/WebViewScreenImpl';
 
 const getWebViewProps = (
   jest.requireMock('react-native-webview') as { __getProps: () => Record<string, unknown> }
@@ -35,12 +38,15 @@ const getWebViewProps = (
 
 describe('WebViewScreenImpl token forwarding', () => {
   beforeEach(() => {
+    (jest.requireMock('react-native-webview') as { __resetProps: () => void }).__resetProps();
+    mockParams.url = 'https://app.dfx.swiss';
+    delete mockParams.title;
     (dfxAuthService.getAccessToken as jest.Mock).mockClear();
   });
 
   it('attaches the bearer token to an exact DFX token host', () => {
     mockParams.url = 'https://app.dfx.swiss/account';
-    render(<WebViewScreen />);
+    expect(render(<WebViewScreen />).getByTestId('webview')).toBeTruthy();
 
     expect(getWebViewProps().source).toEqual({
       uri: mockParams.url,
@@ -52,7 +58,7 @@ describe('WebViewScreenImpl token forwarding', () => {
     'does not attach the bearer token to %s',
     (url) => {
       mockParams.url = url;
-      render(<WebViewScreen />);
+      expect(render(<WebViewScreen />).getByTestId('webview')).toBeTruthy();
 
       expect(getWebViewProps().source).toEqual({ uri: url });
       expect(dfxAuthService.getAccessToken).not.toHaveBeenCalled();
@@ -61,10 +67,9 @@ describe('WebViewScreenImpl token forwarding', () => {
 
   it('allows only HTTPS navigations to an allow-listed DFX host', () => {
     mockParams.url = 'https://app.dfx.swiss';
-    render(<WebViewScreen />);
-    const onShouldStartLoadWithRequest = getWebViewProps().onShouldStartLoadWithRequest as (
-      request: { url: string },
-    ) => boolean;
+    expect(render(<WebViewScreen />).getByTestId('webview')).toBeTruthy();
+    const onShouldStartLoadWithRequest = getWebViewProps()
+      .onShouldStartLoadWithRequest as (request: { url: string }) => boolean;
 
     expect(onShouldStartLoadWithRequest({ url: 'https://app.dfx.swiss/kyc' })).toBe(true);
     expect(onShouldStartLoadWithRequest({ url: 'https://evil.example/kyc' })).toBe(false);

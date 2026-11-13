@@ -30,11 +30,10 @@ jest.mock('expo-linking', () => {
   };
 });
 
-import { useDeepLink } from '../../src/features/deep-link/useDeepLinkImpl';
+// eslint-disable-next-line import/first
+import { useDeepLink } from '@/features/deep-link/useDeepLinkImpl';
 
-const routerSpies = (
-  jest.requireMock('expo-router') as { __spies: { push: jest.Mock } }
-).__spies;
+const routerSpies = (jest.requireMock('expo-router') as { __spies: { push: jest.Mock } }).__spies;
 const linkingSpies = (
   jest.requireMock('expo-linking') as {
     __spies: {
@@ -97,9 +96,7 @@ describe('useDeepLink', () => {
 
     render(<DeepLinkHarness />);
 
-    await waitFor(() =>
-      expect(routerSpies.push).toHaveBeenCalledWith('/(auth)/(tabs)/settings'),
-    );
+    await waitFor(() => expect(routerSpies.push).toHaveBeenCalledWith('/(auth)/(tabs)/settings'));
   });
 
   it('removes the URL listener on unmount', () => {

@@ -112,6 +112,8 @@ jest.mock('@/features/linked-wallets/useLinkedWalletReauth', () => ({
   }),
 }));
 
+let mockLinkFlow: Promise<void> | undefined;
+
 jest.mock('@/features/dfx-backend/DfxAuthGate', () => ({
   DfxAuthGate: ({
     gate,
@@ -131,7 +133,7 @@ jest.mock('@/features/dfx-backend/DfxAuthGate', () => ({
     if (chain && onLinkChain) {
       return ReactActual.createElement(
         Pressable,
-        { onPress: () => onLinkChain(chain), testID: 'mock-link-chain' },
+        { onPress: () => { mockLinkFlow = onLinkChain(chain); }, testID: 'mock-link-chain' },
         ReactActual.createElement(Text, null, 'link-chain'),
       );
     }
@@ -496,7 +498,10 @@ describe('SellScreenImpl', () => {
       let flow: Promise<void> | undefined;
       try {
         await act(async () => {
-          flow = fireEvent.press(view.getByTestId('mock-link-chain')) as unknown as Promise<void>;
+          mockLinkFlow = undefined;
+          fireEvent.press(view.getByTestId('mock-link-chain'));
+          expect(mockLinkFlow).toBeDefined();
+          flow = mockLinkFlow;
           await flow;
         });
         expect(checked).toHaveBeenCalledTimes(1);
@@ -510,6 +515,7 @@ describe('SellScreenImpl', () => {
         owner.mockReset();
         if (previousLink) link.mockImplementation(previousLink);
         if (previousOwner) owner.mockImplementation(previousOwner);
+        mockLinkFlow = undefined;
         view.unmount();
       }
     },
@@ -548,7 +554,10 @@ describe('SellScreenImpl', () => {
     let linkFlow: Promise<void> | undefined;
     try {
       act(() => {
-        linkFlow = fireEvent.press(view.getByTestId('mock-link-chain')) as unknown as Promise<void>;
+        mockLinkFlow = undefined;
+        fireEvent.press(view.getByTestId('mock-link-chain'));
+        expect(mockLinkFlow).toBeDefined();
+        linkFlow = mockLinkFlow;
       });
       await waitFor(() => expect(mockAccountSign).toHaveBeenCalledTimes(1));
       mockAuthState.isAuthenticated = false;
@@ -570,6 +579,7 @@ describe('SellScreenImpl', () => {
       } finally {
         mockAuthState.isAuthenticated = previousSession.isAuthenticated;
         mockAuthState.sessionEpoch = previousSession.sessionEpoch;
+        mockLinkFlow = undefined;
         view.unmount();
       }
     }

@@ -1,4 +1,4 @@
-import { Alert } from 'react-native';
+import { Alert, BackHandler } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import de from '@/i18n/locales/de.json';
@@ -22,7 +22,9 @@ const mockPush = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
 const mockCanGoBack = jest.fn(() => true);
+const mockScreen = jest.fn((_props: { options: { gestureEnabled: boolean } }) => null);
 jest.mock('expo-router', () => ({
+  Stack: { Screen: (props: { options: { gestureEnabled: boolean } }) => mockScreen(props) },
   useRouter: () => ({
     push: mockPush,
     back: mockBack,
@@ -193,6 +195,52 @@ describe('RestoreWalletScreen', () => {
     await act(async () => resolveRestore('default'));
     expect(mockRestoreWallet).toHaveBeenCalledTimes(1);
   });
+
+  it.each([false, true])(
+    'blocks gesture and hardware back during restoration (unmount: %s)',
+    async (unmountDuringRestore) => {
+      let resolveRestore!: (value: string) => void;
+      mockRestoreWallet.mockReturnValueOnce(
+        new Promise<string>((resolve) => {
+          resolveRestore = resolve;
+        }),
+      );
+      let backHandler: (() => boolean | null | undefined) | undefined;
+      const remove = jest.fn(() => {
+        backHandler = undefined;
+      });
+      const listener = jest
+        .spyOn(BackHandler, 'addEventListener')
+        .mockImplementation((_event, handler) => {
+          backHandler = handler;
+          return { remove };
+        });
+      const view = render(<RestoreWalletScreen />);
+      try {
+        await typeSeed(view.findByTestId, VALID_SEED);
+        expect(mockScreen).toHaveBeenLastCalledWith({ options: { gestureEnabled: true } });
+        act(() => {
+          fireEvent.press(view.getByTestId('restore-wallet-continue-button'));
+        });
+        await waitFor(() => expect(mockRestoreWallet).toHaveBeenCalledTimes(1));
+        expect(mockScreen).toHaveBeenLastCalledWith({ options: { gestureEnabled: false } });
+        expect(backHandler?.()).toBe(true);
+        if (unmountDuringRestore) view.unmount();
+        else {
+          await act(async () => resolveRestore('default'));
+          await waitFor(() =>
+            expect(mockScreen).toHaveBeenLastCalledWith({ options: { gestureEnabled: true } }),
+          );
+        }
+        expect(remove).toHaveBeenCalledTimes(1);
+        expect(backHandler).toBeUndefined();
+      } finally {
+        await act(async () => resolveRestore('default'));
+        view.unmount();
+        listener.mockRestore();
+      }
+    },
+  );
 
   it('restores from a valid seed and routes to setup-pin', async () => {
     const { findByTestId, getByTestId } = render(<RestoreWalletScreen />);

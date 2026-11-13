@@ -20,7 +20,7 @@ import {
 import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
 import { decodeDfxJwt, DfxApiError, dfxApi, dfxAuthService } from '@/features/dfx-backend/services';
 import { isAllowedDfxHost, isSafeHttpsUrl } from '@/services/security/safe-url';
-import { useAuthStore } from '@/store/auth';
+import { useAuthStore } from '@/store';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 
 /**
@@ -274,6 +274,7 @@ export default function KycScreen() {
 
       await refreshAfterAccountMerge();
     } catch (err) {
+      if (err instanceof DfxAuthFlowInvalidatedError) return;
       if (isLocalSessionEndedError(err)) {
         useAuthStore.getState().setDfxAuthenticated(false);
         return;

@@ -31,9 +31,7 @@ describe('assertBackendSignMessage', () => {
     ['empty message', ''],
     ['changed casing', backendSignMessage('0xABC')],
   ])('rejects %s', (_case, message) => {
-    expect(() => assertBackendSignMessage(message, '0xabc')).toThrow(
-      DfxSignMessageMismatchError,
-    );
+    expect(() => assertBackendSignMessage(message, '0xabc')).toThrow(DfxSignMessageMismatchError);
   });
 
   it.each(['dev', 'loc', 'abcdefghij'])('accepts one [%s]_ environment prefix', (name) => {
@@ -637,53 +635,47 @@ describe('dfxAuthService in-flight session changes', () => {
     expect(dfxAuthService.getAccessToken()).toBe('NEWER_TOKEN');
   });
 
-  it(
-    'keeps a newer adopted token when an in-flight flow succeeds late after adoptStoredToken only',
-    async () => {
-      primeSession('SEED_TOKEN');
-      getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
-      const postStarted = deferred<void>();
-      const response = deferred<{ accessToken: string }>();
-      postSpy.mockImplementationOnce(() => {
-        postStarted.resolve(undefined);
-        return response.promise;
-      });
+  it('keeps a newer adopted token when an in-flight flow succeeds late after adoptStoredToken only', async () => {
+    primeSession('SEED_TOKEN');
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
+    const postStarted = deferred<void>();
+    const response = deferred<{ accessToken: string }>();
+    postSpy.mockImplementationOnce(() => {
+      postStarted.resolve(undefined);
+      return response.promise;
+    });
 
-      const login = dfxAuthService.login('0xabc', async () => 'SIG');
-      await postStarted.promise;
-      dfxAuthService.adoptStoredToken('NEWER_TOKEN');
-      response.resolve({ accessToken: 'LATE_TOKEN' });
+    const login = dfxAuthService.login('0xabc', async () => 'SIG');
+    await postStarted.promise;
+    dfxAuthService.adoptStoredToken('NEWER_TOKEN');
+    response.resolve({ accessToken: 'LATE_TOKEN' });
 
-      await expect(login).rejects.toBeInstanceOf(DfxAuthFlowInvalidatedError);
-      expect(setAuthTokenSpy).not.toHaveBeenCalledWith('LATE_TOKEN');
-      expect(apiToken).toBeNull();
-      expect(dfxAuthService.getAccessToken()).toBe('NEWER_TOKEN');
-    },
-  );
+    await expect(login).rejects.toBeInstanceOf(DfxAuthFlowInvalidatedError);
+    expect(setAuthTokenSpy).not.toHaveBeenCalledWith('LATE_TOKEN');
+    expect(apiToken).toBeNull();
+    expect(dfxAuthService.getAccessToken()).toBe('NEWER_TOKEN');
+  });
 
-  it(
-    'does not roll back to the previous token when an in-flight flow fails late after adoptStoredToken only',
-    async () => {
-      primeSession('SEED_TOKEN');
-      getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
-      const postStarted = deferred<void>();
-      const response = deferred<{ accessToken: string }>();
-      postSpy.mockImplementationOnce(() => {
-        postStarted.resolve(undefined);
-        return response.promise;
-      });
+  it('does not roll back to the previous token when an in-flight flow fails late after adoptStoredToken only', async () => {
+    primeSession('SEED_TOKEN');
+    getSpy.mockResolvedValueOnce({ message: backendSignMessage('0xabc') });
+    const postStarted = deferred<void>();
+    const response = deferred<{ accessToken: string }>();
+    postSpy.mockImplementationOnce(() => {
+      postStarted.resolve(undefined);
+      return response.promise;
+    });
 
-      const login = dfxAuthService.login('0xabc', async () => 'SIG');
-      await postStarted.promise;
-      dfxAuthService.adoptStoredToken('NEWER_TOKEN');
-      response.reject(new DfxApiError(400, 'AUTH_FAILED', 'Invalid signature'));
+    const login = dfxAuthService.login('0xabc', async () => 'SIG');
+    await postStarted.promise;
+    dfxAuthService.adoptStoredToken('NEWER_TOKEN');
+    response.reject(new DfxApiError(400, 'AUTH_FAILED', 'Invalid signature'));
 
-      await expect(login).rejects.toThrow(/Invalid signature/);
-      expect(setAuthTokenSpy).not.toHaveBeenCalledWith('SEED_TOKEN');
-      expect(apiToken).toBeNull();
-      expect(dfxAuthService.getAccessToken()).toBe('NEWER_TOKEN');
-    },
-  );
+    await expect(login).rejects.toThrow(/Invalid signature/);
+    expect(setAuthTokenSpy).not.toHaveBeenCalledWith('SEED_TOKEN');
+    expect(apiToken).toBeNull();
+    expect(dfxAuthService.getAccessToken()).toBe('NEWER_TOKEN');
+  });
 
   it('does not restore the previous token when logout interrupts a failing link', async () => {
     primeSession('OLD_TOKEN');

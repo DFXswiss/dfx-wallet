@@ -115,19 +115,19 @@ ship per-screen or per-flow.
 ### P1.1 — Screen capture / screenshot block on sensitive screens
 
 - [~] `expo-screen-capture` protection is active while the seed is visible
-      during wallet creation, mnemonic entry during restore, and seed export.
-      Seed verify, PIN entry/setup, and the balance card remain open.
-      Protection is requested before sensitive content is shown; seed words
-      render only after the native call has settled. If activation fails or the
-      native module is unavailable, content remains reachable with a visible
-      warning pending a product decision.
+  during wallet creation, mnemonic entry during restore, and seed export.
+  Seed verify, PIN entry/setup, and the balance card remain open.
+  Protection is requested before sensitive content is shown; seed words
+  render only after the native call has settled. If activation fails or the
+  native module is unavailable, content remains reachable with a visible
+  warning pending a product decision.
 - **Acceptance**: manual verification on device + emulator; Android
   screenshots return blank, iOS screen-recording obscures the view.
 
 ### P1.2 — App-backgrounding blur and auto-lock
 
 - [~] Render a global opaque overlay when `AppState` transitions to
-      `inactive`/`background`; device task-switcher verification remains.
+  `inactive`/`background`; device task-switcher verification remains.
 - [x] Lock authenticated sessions after 60 seconds or more in the
       background when PIN protection is enabled (`src/hooks/useAutoLockImpl.ts`,
       mounted once in `app/_layout.tsx`).
@@ -138,8 +138,8 @@ ship per-screen or per-flow.
 ### P1.3 — PIN bruteforce protection
 
 - [~] Track failed attempts and lockout expiry in `expo-secure-store`; apply
-      exponential backoff beginning with 30 seconds after five failures. No
-      wallet wipe is implemented; that remains a separate product decision.
+  exponential backoff beginning with 30 seconds after five failures. No
+  wallet wipe is implemented; that remains a separate product decision.
 - [x] UI shows remaining attempts and lockout time.
 - **Acceptance**: store and screen tests cover persistence, backoff, reset on
   success, and the lockout UI; manual recovery-flow verification remains.
@@ -157,18 +157,18 @@ ship per-screen or per-flow.
 - [ ] On copy of address: announce "copied", auto-clear after 60s if
       clipboard still holds the same value.
 - [~] On copy of mnemonic: auto-clear after 60s while the app is in the
-      foreground if the clipboard still holds the same value. iOS does not
-      allow background clipboard access; a clear that fails or becomes due in
-      the background runs at the next foreground activation. The confirmation
-      modal remains open.
+  foreground if the clipboard still holds the same value. iOS does not
+  allow background clipboard access; a clear that fails or becomes due in
+  the background runs at the next foreground activation. The confirmation
+  modal remains open.
 - **Acceptance**: integration test on `Clipboard.setStringAsync` calls;
   manual verification on iOS + Android.
 
 ### P1.6 — Deep-link allowlist
 
 - [~] Native intents are forced through the app root and the in-app handler
-      accepts only explicit route names. Sensitive actions are not
-      auto-confirmed; signed Universal Links remain open.
+  accepts only explicit route names. Sensitive actions are not
+  auto-confirmed; signed Universal Links remain open.
 - [ ] Universal Links signed via Apple AASA / Android assetlinks.
 - **Acceptance**: fuzz-test the parser; manual test that a hostile deep
   link cannot trigger a transaction without confirmation.

@@ -232,9 +232,7 @@ describe('restoreWalletFlow', () => {
       dependencies.calls.push('delete');
       throw new Error('delete failed');
     });
-    dependencies.getRemainingWalletItems.mockRejectedValueOnce(
-      new Error('storage unavailable'),
-    );
+    dependencies.getRemainingWalletItems.mockRejectedValueOnce(new Error('storage unavailable'));
 
     await expect(
       restoreWalletFlow({

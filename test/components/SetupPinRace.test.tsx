@@ -78,14 +78,22 @@ describe('SetupPinScreen auth-store ordering', () => {
   it('rolls authentication back when the real store cannot persist the PIN', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     jest.spyOn(secureStorage, 'set').mockRejectedValue(new Error('keychain unavailable'));
+    let authenticatedBeforeRollback = false;
+    const unsubscribe = useAuthStore.subscribe((state) => {
+      if (state.isAuthenticated) authenticatedBeforeRollback = true;
+    });
     const { getByTestId } = render(<SetupPinScreen />);
+    try {
+      await enterPin(getByTestId, '654321');
+      await enterPin(getByTestId, '654321');
 
-    await enterPin(getByTestId, '654321');
-    await enterPin(getByTestId, '654321');
-
-    await waitFor(() => expect(getByTestId('setup-pin-error')).toBeTruthy());
-    expect(useAuthStore.getState().isAuthenticated).toBe(false);
-    expect(useAuthStore.getState().pinHash).toBeNull();
-    warn.mockRestore();
+      await waitFor(() => expect(getByTestId('setup-pin-error')).toBeTruthy());
+      expect(authenticatedBeforeRollback).toBe(true);
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().pinHash).toBeNull();
+    } finally {
+      unsubscribe();
+      warn.mockRestore();
+    }
   });
 });

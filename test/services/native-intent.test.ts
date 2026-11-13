@@ -4,6 +4,7 @@ jest.mock('@/config/deep-links', () => ({
   resolveIncomingPath: (path: string, initial: boolean) => mockResolveIncomingPath(path, initial),
 }));
 
+// eslint-disable-next-line import/first
 import { redirectSystemPath } from '../../app/+native-intent';
 
 describe('redirectSystemPath', () => {

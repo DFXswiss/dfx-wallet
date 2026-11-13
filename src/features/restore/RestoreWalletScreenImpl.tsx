@@ -1,6 +1,14 @@
-import { useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  BackHandler,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
 import { useWalletManager } from '@tetherto/wdk-react-native-core';
@@ -35,6 +43,12 @@ export default function RestoreWalletScreen() {
   const [isRestoring, setIsRestoring] = useState(false);
   const restoringRef = useRef(false);
   const captureProtection = useScreenCaptureProtection(true, 'restore-wallet-mnemonic');
+
+  useEffect(() => {
+    if (!isRestoring) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => subscription.remove();
+  }, [isRestoring]);
 
   const words = seedToWords(seedPhrase);
   const isValid = validateSeedPhrase(words);
@@ -111,6 +125,7 @@ export default function RestoreWalletScreen() {
 
   return (
     <DfxBackgroundScreen scrollable contentStyle={styles.content} testID="restore-wallet-screen">
+      <Stack.Screen options={{ gestureEnabled: !isRestoring }} />
       <AppHeader
         title={t('onboarding.restoreWallet')}
         onBack={() => {

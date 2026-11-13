@@ -27,6 +27,7 @@ jest.mock('expo-screen-capture', () => ({
   },
 }));
 
+// eslint-disable-next-line import/first
 import { useScreenCaptureProtection } from '@/hooks/useScreenCaptureProtection';
 
 function Harness({ active, captureKey }: { active: boolean; captureKey: string }) {
@@ -57,9 +58,7 @@ describe('useScreenCaptureProtection', () => {
 
     const view = render(<Harness active captureKey="seed" />);
     expect(view.getByTestId('capture-state').props.children).toBe('pending');
-    await waitFor(() =>
-      expect(mockPrevent).toHaveBeenCalledWith(expect.stringMatching(/^seed:/)),
-    );
+    await waitFor(() => expect(mockPrevent).toHaveBeenCalledWith(expect.stringMatching(/^seed:/)));
 
     await act(async () => {
       resolveProtection!();
@@ -166,9 +165,7 @@ describe('useScreenCaptureProtection', () => {
     expect(mockPrevent).not.toHaveBeenCalled();
 
     view.rerender(<Harness active captureKey="seed" />);
-    await waitFor(() =>
-      expect(view.getByTestId('capture-state').props.children).toBe('active'),
-    );
+    await waitFor(() => expect(view.getByTestId('capture-state').props.children).toBe('active'));
     const protectionTag = mockPrevent.mock.calls[0]![0]!;
 
     view.rerender(<Harness active={false} captureKey="seed" />);
@@ -178,9 +175,7 @@ describe('useScreenCaptureProtection', () => {
   it('releases active protection on unmount and contains cleanup rejection', async () => {
     mockNativeAllow.mockRejectedValueOnce(new Error('native failure'));
     const view = render(<Harness active captureKey="export" />);
-    await waitFor(() =>
-      expect(view.getByTestId('capture-state').props.children).toBe('active'),
-    );
+    await waitFor(() => expect(view.getByTestId('capture-state').props.children).toBe('active'));
     const protectionTag = mockPrevent.mock.calls[0]![0]!;
 
     const unhandled: unknown[] = [];

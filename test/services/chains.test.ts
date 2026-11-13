@@ -98,13 +98,15 @@ describe('getWdkConfigs', () => {
 
   it('uses TLS and the secure default port for Bitcoin Electrum', () => {
     const originalPort = process.env.EXPO_PUBLIC_BTC_ELECTRUM_PORT;
+    const originalHost = process.env.EXPO_PUBLIC_BTC_ELECTRUM_HOST;
     delete process.env.EXPO_PUBLIC_BTC_ELECTRUM_PORT;
+    delete process.env.EXPO_PUBLIC_BTC_ELECTRUM_HOST;
     try {
       const configs = getWdkConfigs();
       expect(configs.networks.bitcoin?.config.client).toEqual({
         type: 'electrum',
         clientConfig: {
-          host: process.env.EXPO_PUBLIC_BTC_ELECTRUM_HOST ?? 'electrum.blockstream.info',
+          host: 'electrum.blockstream.info',
           port: 50002,
           protocol: 'tls',
         },
@@ -112,6 +114,8 @@ describe('getWdkConfigs', () => {
     } finally {
       if (originalPort === undefined) delete process.env.EXPO_PUBLIC_BTC_ELECTRUM_PORT;
       else process.env.EXPO_PUBLIC_BTC_ELECTRUM_PORT = originalPort;
+      if (originalHost === undefined) delete process.env.EXPO_PUBLIC_BTC_ELECTRUM_HOST;
+      else process.env.EXPO_PUBLIC_BTC_ELECTRUM_HOST = originalHost;
     }
   });
 

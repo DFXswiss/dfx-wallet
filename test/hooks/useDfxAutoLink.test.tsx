@@ -121,27 +121,24 @@ describe('useDfxAutoLink', () => {
     mockUseLdsWallet.mockReturnValue({ user: null });
   });
 
-  it(
-    'does not persist the in-flight token and logs out when the local session ends',
-    async () => {
-      const request = createDeferred<string>();
-      mockLinkAddress.mockImplementationOnce(() => request.promise);
+  it('does not persist the in-flight token and logs out when the local session ends', async () => {
+    const request = createDeferred<string>();
+    mockLinkAddress.mockImplementationOnce(() => request.promise);
 
-      renderHook(() => useDfxAutoLink());
-      await waitFor(() => expect(mockLinkAddress).toHaveBeenCalledTimes(1));
+    renderHook(() => useDfxAutoLink());
+    await waitFor(() => expect(mockLinkAddress).toHaveBeenCalledTimes(1));
 
-      mockAuthState.isAuthenticated = false;
-      mockAuthState.sessionEpoch += 1;
-      mockGetAccessToken.mockReturnValue('stale-auto-link-token');
-      request.resolve('stale-auto-link-token');
+    mockAuthState.isAuthenticated = false;
+    mockAuthState.sessionEpoch += 1;
+    mockGetAccessToken.mockReturnValue('stale-auto-link-token');
+    request.resolve('stale-auto-link-token');
 
-      await waitFor(() => expect(mockLogout).toHaveBeenCalled());
-      expect(mockSetDfxAuthenticated).toHaveBeenCalledWith(false);
-      expect(mockStorageRemove).not.toHaveBeenCalled();
-      expect(mockStorageSet).not.toHaveBeenCalledWith('dfx-auth-token', 'stale-auto-link-token');
-      expect(mockLinkAddress).toHaveBeenCalledTimes(1);
-    },
-  );
+    await waitFor(() => expect(mockLogout).toHaveBeenCalled());
+    expect(mockSetDfxAuthenticated).toHaveBeenCalledWith(false);
+    expect(mockStorageRemove).not.toHaveBeenCalled();
+    expect(mockStorageSet).not.toHaveBeenCalledWith('dfx-auth-token', 'stale-auto-link-token');
+    expect(mockLinkAddress).toHaveBeenCalledTimes(1);
+  });
 
   it('stops auto-linking when the auth flow is invalidated', async () => {
     mockLinkAddress.mockRejectedValueOnce(new DfxAuthFlowInvalidatedError());
