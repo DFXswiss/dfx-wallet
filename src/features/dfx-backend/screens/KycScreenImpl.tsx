@@ -13,8 +13,14 @@ import { useTranslation } from 'react-i18next';
 import { AppHeader, Icon, PrimaryButton, ScreenContainer } from '@/components';
 import { useDfxAuth } from '@/hooks';
 import { useKycFlow } from '../useKycFlow';
+import {
+  LOCAL_SESSION_ENDED_MESSAGE,
+  isLocalSessionEndedError,
+} from '@/features/dfx-backend/session-guard';
+import { DfxAuthFlowInvalidatedError } from '@/features/dfx-backend/services/auth-service';
 import { decodeDfxJwt, DfxApiError, dfxApi, dfxAuthService } from '@/features/dfx-backend/services';
 import { isAllowedDfxHost, isSafeHttpsUrl } from '@/services/security/safe-url';
+import { useAuthStore } from '@/store';
 import { Typography, useColors, type ThemeColors } from '@/theme';
 
 /**
@@ -99,6 +105,16 @@ const KYC_TIERS: KycTier[] = [
 
 function isMergedError(err: string | null | undefined): boolean {
   return !!err && /user is merged/i.test(err);
+}
+
+const SILENT_DFX_AUTH_ERRORS = new Set<string>([
+  LOCAL_SESSION_ENDED_MESSAGE,
+  new DfxAuthFlowInvalidatedError().message,
+]);
+
+function visibleDfxAuthError(message: string | null): string | null {
+  if (message !== null && SILENT_DFX_AUTH_ERRORS.has(message)) return null;
+  return message;
 }
 
 function wait(ms: number): Promise<void> {
@@ -234,6 +250,7 @@ export default function KycScreen() {
 
       setMailError(t('kyc.mailNoContactStep'));
     } catch (err) {
+      if (isLocalSessionEndedError(err)) return;
       setMailError(err instanceof Error ? err.message : t('kyc.mailSendError'));
     } finally {
       setMailBusy(false);
@@ -257,6 +274,13 @@ export default function KycScreen() {
 
       await refreshAfterAccountMerge();
     } catch (err) {
+      if (err instanceof DfxAuthFlowInvalidatedError) return;
+      if (isLocalSessionEndedError(err)) {
+        if (dfxAuthService.getAccessToken() === null) {
+          useAuthStore.getState().setDfxAuthenticated(false);
+        }
+        return;
+      }
       setMailError(err instanceof Error ? err.message : t('kyc.mailVerifyError'));
     } finally {
       setMailBusy(false);
@@ -523,7 +547,9 @@ export default function KycScreen() {
                 <Text style={styles.reauthLabel}>{t('wallets.reauthCta')}</Text>
               )}
             </Pressable>
-            {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
+            {visibleDfxAuthError(authError) ? (
+              <Text style={styles.errorText}>{authError}</Text>
+            ) : null}
           </View>
         ) : (
           <View style={styles.levelCard}>

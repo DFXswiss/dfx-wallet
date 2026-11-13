@@ -1,6 +1,13 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
+import { ActivityIndicator } from 'react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { pricingService } from '@/services/pricing-service';
+
+jest.mock('@/i18n', () => ({}));
+
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 
 // expo-router's Stack + StatusBar are stubbed so the Root layout can mount
 // in the test runtime without booting a navigator.
@@ -55,16 +62,25 @@ jest.mock('@react-native-community/netinfo', () => ({
   useNetInfo: () => ({ isConnected: true, isInternetReachable: true }),
 }));
 
+const mockUseAutoLock = jest.fn();
+jest.mock('@/hooks/useAutoLock', () => ({
+  useAutoLock: () => mockUseAutoLock(),
+}));
+
 import RootLayout from '../../app/_layout';
 import { useAuthStore, useWalletStore } from '@/store';
+import { useThemeStore } from '@/theme';
 
 describe('RootLayout', () => {
   beforeEach(() => {
-    // Both stores expose a manual hydrate(); spy on them to make sure the
-    // root layout fires both on mount, not just one.
+    mockUseAutoLock.mockReset();
+    // All stores expose a manual hydrate(); spy on them to make sure the
+    // root layout starts every hydration path on mount.
     jest.spyOn(useAuthStore.getState(), 'hydrate').mockResolvedValue(undefined);
     jest.spyOn(useWalletStore.getState(), 'hydrate').mockResolvedValue(undefined);
-    useAuthStore.setState({ isHydrated: false });
+    jest.spyOn(useThemeStore.getState(), 'hydrate').mockResolvedValue(undefined);
+    useAuthStore.setState({ hydrateError: null, isHydrated: false });
+    useThemeStore.setState({ isHydrated: true, mode: 'light' });
     jest.spyOn(pricingService, 'startAutoRefresh').mockImplementation(() => undefined);
     jest.spyOn(pricingService, 'stopAutoRefresh').mockImplementation(() => undefined);
   });
@@ -73,11 +89,12 @@ describe('RootLayout', () => {
     jest.restoreAllMocks();
   });
 
-  it('triggers both store hydrate() calls on mount', async () => {
+  it('triggers all store hydrate() calls on mount', async () => {
     render(<RootLayout />);
     await waitFor(() => {
       expect(useAuthStore.getState().hydrate).toHaveBeenCalled();
       expect(useWalletStore.getState().hydrate).toHaveBeenCalled();
+      expect(useThemeStore.getState().hydrate).toHaveBeenCalled();
     });
   });
 
@@ -92,11 +109,17 @@ describe('RootLayout', () => {
     expect(pricingService.stopAutoRefresh).toHaveBeenCalled();
   });
 
+  it('mounts auto-lock once before the session is hydrated or authenticated', () => {
+    useAuthStore.setState({ isAuthenticated: false, isHydrated: false });
+    render(<RootLayout />);
+    expect(mockUseAutoLock).toHaveBeenCalledTimes(1);
+  });
+
   it('renders a loading state until the auth store reports hydrated', () => {
-    useAuthStore.setState({ isHydrated: false });
-    const { queryByTestId } = render(<RootLayout />);
-    // The Stack is only rendered once hydration completes; otherwise the
-    // ActivityIndicator branch is active.
+    useAuthStore.setState({ isHydrated: false, hydrateError: null });
+    const { queryByTestId, UNSAFE_getByType } = render(<RootLayout />);
+    expect(UNSAFE_getByType(ActivityIndicator)).toBeTruthy();
+    expect(queryByTestId('hydrate-error')).toBeNull();
     expect(queryByTestId('root-stack')).toBeNull();
   });
 
@@ -107,5 +130,21 @@ describe('RootLayout', () => {
     expect(getByTestId('root-stack-screen-(onboarding)')).toBeTruthy();
     expect(getByTestId('root-stack-screen-(pin)')).toBeTruthy();
     expect(getByTestId('root-stack-screen-(auth)')).toBeTruthy();
+  });
+
+  it('shows a localized hydration error and retries auth hydration', () => {
+    useAuthStore.setState({ hydrateError: 'keychain unavailable', isHydrated: false });
+    const hydrate = useAuthStore.getState().hydrate as jest.Mock;
+    const { getByTestId } = render(<RootLayout />);
+
+    expect(getByTestId('hydrate-error-title').children.join('')).toBe('startup.hydrateErrorTitle');
+    expect(getByTestId('hydrate-error-description').children.join('')).toBe(
+      'startup.hydrateErrorDescription',
+    );
+    expect(getByTestId('hydrate-retry')).toBeTruthy();
+
+    const callsBeforeRetry = hydrate.mock.calls.length;
+    fireEvent.press(getByTestId('hydrate-retry'));
+    expect(hydrate).toHaveBeenCalledTimes(callsBeforeRetry + 1);
   });
 });

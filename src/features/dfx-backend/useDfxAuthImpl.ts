@@ -1,5 +1,9 @@
 import { useCallback, useRef, useState } from 'react';
 import { useAccount } from '@tetherto/wdk-react-native-core';
+import {
+  createDfxSessionGuard,
+  isLocalSessionEndedError,
+} from '@/features/dfx-backend/session-guard';
 import { dfxAuthService } from '@/features/dfx-backend/services';
 import {
   EVM_AUTH_ADDRESS_PROBE_MESSAGE,
@@ -69,22 +73,26 @@ export function useDfxAuth() {
 
   const authenticate = useCallback(
     async (options?: { wallet?: string }, authGeneration?: number): Promise<string> => {
+      const guard = createDfxSessionGuard();
       setIsAuthenticating(true);
       setError(null);
 
       try {
         const walletAddress = await resolveAuthAddress();
+        await guard.assertActive();
         const token =
           authGeneration === undefined
             ? await dfxAuthService.login(walletAddress, signMessage, {
                 wallet: options?.wallet ?? 'DFX Wallet',
               })
             : await dfxAuthService.refresh(walletAddress, signMessage, authGeneration);
+        await guard.assertActive(token);
 
-        await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
+        await guard.persistToken(token);
         setDfxAuthenticated(true);
         return token;
       } catch (err) {
+        if (isLocalSessionEndedError(err)) throw err;
         const msg = err instanceof Error ? err.message : 'Authentication failed';
         setError(msg);
         throw err instanceof Error ? err : new Error(msg);
@@ -100,7 +108,10 @@ export function useDfxAuth() {
     async (authGeneration?: number): Promise<string | null> => {
       try {
         return await authenticate(undefined, authGeneration);
-      } catch {
+      } catch (err) {
+        if (isLocalSessionEndedError(err)) {
+          setError(null);
+        }
         return null;
       }
     },
@@ -108,30 +119,32 @@ export function useDfxAuth() {
   );
 
   /**
-   * Recovery for the "User is merged" 403 path. Drops the prior session
-   * (which is bound to the merged-AWAY user), then signs in the WDK ETH
-   * address fresh — DFX returns the JWT for the merge-target user (the
-   * one that actually carries the email/KYC). Without this, calling
-   * `authenticate()` keeps the stale Bearer attached and the server
-   * returns the same 403 again.
+   * Recovery for the "User is merged" 403 path. Signs in the WDK ETH
+   * address as the account owner, then clears `DFX_LINKED_CHAINS` so
+   * auto-link re-evaluates against the new JWT.
    */
   const reauthenticateAsOwner = useCallback(async (): Promise<string> => {
+    const guard = createDfxSessionGuard();
     setIsAuthenticating(true);
     setError(null);
 
     try {
       const walletAddress = await resolveAuthAddress();
+      await guard.assertActive();
       const token = await dfxAuthService.loginAsAddressOwner(walletAddress, signMessage, {
         wallet: 'DFX Wallet',
       });
+      await guard.assertActive(token);
 
-      await secureStorage.set(StorageKeys.DFX_AUTH_TOKEN, token);
+      await guard.persistToken(token);
       // Different user → invalidate per-chain link cache so auto-link
       // re-evaluates against the new JWT.
       await secureStorage.remove(StorageKeys.DFX_LINKED_CHAINS);
+      await guard.assertActive(token);
       setDfxAuthenticated(true);
       return token;
     } catch (err) {
+      if (isLocalSessionEndedError(err)) throw err;
       const msg = err instanceof Error ? err.message : 'Authentication failed';
       setError(msg);
       throw err instanceof Error ? err : new Error(msg);

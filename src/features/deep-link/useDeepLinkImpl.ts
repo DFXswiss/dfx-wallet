@@ -8,7 +8,7 @@ import * as Linking from 'expo-linking';
  * Supported paths:
  *   dfxwallet://buy         → Buy screen
  *   dfxwallet://sell        → Sell screen
- *   dfxwallet://send?to=... → Send screen with prefilled recipient
+ *   dfxwallet://send        → Send screen
  *   dfxwallet://receive     → Receive screen
  *   dfxwallet://kyc         → KYC screen
  *   dfxwallet://settings    → Settings
@@ -19,7 +19,7 @@ export function useDeepLink() {
   useEffect(() => {
     const handleUrl = (event: { url: string }) => {
       const parsed = Linking.parse(event.url);
-      const path = parsed.path;
+      const path = parsed.hostname ?? parsed.path;
 
       switch (path) {
         case 'buy':
@@ -29,10 +29,7 @@ export function useDeepLink() {
           router.push('/(auth)/sell');
           break;
         case 'send':
-          router.push({
-            pathname: '/(auth)/send',
-            params: parsed.queryParams ?? {},
-          } as never);
+          router.push('/(auth)/send');
           break;
         case 'receive':
           router.push('/(auth)/receive');
