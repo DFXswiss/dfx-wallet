@@ -276,7 +276,9 @@ export default function KycScreen() {
     } catch (err) {
       if (err instanceof DfxAuthFlowInvalidatedError) return;
       if (isLocalSessionEndedError(err)) {
-        useAuthStore.getState().setDfxAuthenticated(false);
+        if (dfxAuthService.getAccessToken() === null) {
+          useAuthStore.getState().setDfxAuthenticated(false);
+        }
         return;
       }
       setMailError(err instanceof Error ? err.message : t('kyc.mailVerifyError'));

@@ -156,7 +156,12 @@ jest.mock('@/features/dfx-backend/DfxAuthGate', () => {
     const { Pressable, Text } = jest.requireActual('react-native');
     return ReactActual.createElement(
       Pressable,
-      { onPress: () => { mockLinkFlow = onLinkChain(chain); }, testID: 'mock-link-chain' },
+      {
+        onPress: () => {
+          mockLinkFlow = onLinkChain(chain);
+        },
+        testID: 'mock-link-chain',
+      },
       ReactActual.createElement(Text, null, 'link-chain'),
     );
   }

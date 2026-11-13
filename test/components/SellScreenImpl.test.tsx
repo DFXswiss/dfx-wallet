@@ -133,7 +133,12 @@ jest.mock('@/features/dfx-backend/DfxAuthGate', () => ({
     if (chain && onLinkChain) {
       return ReactActual.createElement(
         Pressable,
-        { onPress: () => { mockLinkFlow = onLinkChain(chain); }, testID: 'mock-link-chain' },
+        {
+          onPress: () => {
+            mockLinkFlow = onLinkChain(chain);
+          },
+          testID: 'mock-link-chain',
+        },
         ReactActual.createElement(Text, null, 'link-chain'),
       );
     }
