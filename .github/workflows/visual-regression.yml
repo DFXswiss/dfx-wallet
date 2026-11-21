@@ -29,7 +29,7 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: 22
+  NODE_VERSION: 24
   EXPO_PUBLIC_WDK_INDEXER_API_KEY: ${{ secrets.E2E_WDK_INDEXER_API_KEY }}
 
 jobs:
